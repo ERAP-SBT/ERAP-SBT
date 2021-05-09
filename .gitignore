@@ -1,1 +1,3 @@
 /build/
+/.idea/
+.clang-format
