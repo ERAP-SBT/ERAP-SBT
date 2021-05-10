@@ -6,7 +6,9 @@ BasicBlock::BasicBlock(int id, std::unique_ptr<CFCOperation> cfc_operation, std:
       function(std::move(function)),
       operations(),
       predecessors(),
-      successors()
+      successors(),
+      predecessor_static_mapping(),
+      successor_static_mapping()
 { }
 
 BasicBlock::~BasicBlock() = default;
@@ -24,4 +26,10 @@ void BasicBlock::add_successor(std::shared_ptr<BasicBlock> &new_successor)
 void BasicBlock::add_predecessor(std::shared_ptr<BasicBlock> &new_predecessor)
 {
     predecessors.push_back(new_predecessor);
+}
+void BasicBlock::add_successor_mapping(std::shared_ptr<BasicBlock> &successor_key, std::shared_ptr<Variable> &variable, std::shared_ptr<StaticMapper> &static_mapper) {
+    successor_static_mapping[successor_key][variable] = static_mapper;
+}
+void BasicBlock::add_predecessor_mapping(std::shared_ptr<BasicBlock> &predecessor_key, std::shared_ptr<Variable> &variable, std::shared_ptr<StaticMapper> &static_mapper) {
+    predecessor_static_mapping[predecessor_key][variable] = static_mapper;
 }
