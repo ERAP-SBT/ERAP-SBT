@@ -20,14 +20,12 @@ class Operation
     public:
     // TODO: add per-instruction checks for correct syntax
     Operation(Instruction &instr, std::vector<std::shared_ptr<Variable>> &input_vars, std::vector<std::shared_ptr<Variable>> &output_vars, std::shared_ptr<BasicBlock> bb);
-
     ~Operation();
 
+    // Getters
     inline const Instruction &get_instruction() const { return instruction; };
     inline const std::vector<std::shared_ptr<Variable>> &get_input_variables() const { return input_variables; };
-
     inline const std::vector<std::shared_ptr<Variable>> &get_output_variables() const { return output_variables; };
-
     inline std::shared_ptr<BasicBlock> get_current_block() const { return current_block; }
 };
 
@@ -36,17 +34,16 @@ class CFCOperation
 {
     private:
     const CFCInstruction cfc_instruction;
-    const std::shared_ptr<BasicBlock> current_block;
     const std::vector<std::shared_ptr<Variable>> input_variables;
+    const std::shared_ptr<BasicBlock> current_block;
 
     public:
     CFCOperation(CFCInstruction &, std::vector<std::shared_ptr<Variable>>, std::shared_ptr<BasicBlock>);
 
     ~CFCOperation();
 
+    // Getters
     inline const CFCInstruction &get_cfc_instruction() const { return cfc_instruction; };
-
     inline const std::vector<std::shared_ptr<Variable>> &get_input_variables() const { return input_variables; };
-
     inline std::shared_ptr<BasicBlock> get_current_block() const { return current_block; }
 };

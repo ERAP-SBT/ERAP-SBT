@@ -24,24 +24,17 @@ class BasicBlock
 
     public:
     BasicBlock(int, std::unique_ptr<CFCOperation>, std::shared_ptr<Function>);
-
     ~BasicBlock();
 
     void add_operation(std::unique_ptr<Operation>);
-
     void add_successor(std::shared_ptr<BasicBlock> &new_successor);
-
     void add_predecessor(std::shared_ptr<BasicBlock> &new_predecessor);
 
+    // Getters
     inline const std::vector<std::shared_ptr<BasicBlock>> &get_predecessors() const { return predecessors; }
-
     inline const std::vector<std::shared_ptr<BasicBlock>> &get_successors() const { return successors; }
-
     inline int get_id() const { return id; }
-
     inline const std::vector<std::unique_ptr<Operation>> &get_operations() const { return operations; }
-
     inline const std::unique_ptr<CFCOperation> &get_closing_operation() const { return closing_operation; }
-
     inline std::shared_ptr<Function> get_function() const { return function; }
 };
