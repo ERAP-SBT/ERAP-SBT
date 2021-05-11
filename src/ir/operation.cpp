@@ -12,7 +12,12 @@ Operation::~Operation() = default;
 CFCOperation::CFCOperation(CFCInstruction &instr, std::vector<std::shared_ptr<Variable>> input_vars, std::shared_ptr<BasicBlock> bb)
     : cfc_instruction(instr),
       input_variables(std::move(input_vars)),
-      current_block(std::move(bb))
+      current_block(std::move(bb)),
+      targets()
 { }
-
 CFCOperation::~CFCOperation() = default;
+
+void CFCOperation::add_new_target(std::shared_ptr<BasicBlock> &target)
+{
+    targets.push_back(target);
+}
