@@ -1,4 +1,5 @@
 #pragma once
+#include <ostream>
 
 /* [i64, i32, i16, i8]: Integer types, signness is defined by the operation
  * [f64, f32]: Float types
@@ -14,4 +15,7 @@ enum class Type
     f32,
     m64,
     m32,
+    imm,
 };
+
+std::ostream& operator<<(std::ostream &stream, Type type);

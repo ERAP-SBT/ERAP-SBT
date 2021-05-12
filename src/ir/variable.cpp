@@ -1,7 +1,25 @@
 #include "../../include/ir/variable.h"
+#include "ir/operation.h"
 
-Variable::Variable(int id, Type type, std::shared_ptr<Operation> operation) : id(id), type(type), operation(std::move(operation)) { }
-Variable::~Variable() = default;
+void Variable::print_name_type(std::ostream &stream) const
+{
+	stream << type << " v" << id;
+}
 
-StaticMapper::StaticMapper(std::string name, Type type) : name(name), type(type) {}
-StaticMapper::~StaticMapper() = default;
+void Variable::print(std::ostream &stream) const
+{
+	stream << type << " v" << id << " <- ";
+	if (operation)
+	{
+		operation->print(stream);
+	} else
+	{
+		// immediate
+		stream << "immediate " << immediate;
+	}
+	stream << "\n";
+}
+
+void StaticMapper::print(std::ostream &stream) const {
+    stream << "static " << type << " " << name << ";\n";
+}

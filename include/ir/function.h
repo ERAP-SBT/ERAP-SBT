@@ -6,20 +6,17 @@
 
 class Function
 {
-    private:
-    const int id;
-    const std::shared_ptr<BasicBlock> entry_block;
+    const size_t id;
     std::vector<std::shared_ptr<BasicBlock>> blocks;
 
     public:
-    Function(int, std::shared_ptr<BasicBlock>);
-    ~Function();
+    Function(size_t id) : id(id), blocks() {}
 
     void add_block(const std::shared_ptr<BasicBlock> &bb);
 
-    inline int get_id() const { return id; }
+    size_t get_id() const { return id; }
 
-    inline std::vector<std::shared_ptr<BasicBlock>> get_blocks() const { return blocks; }
+    std::vector<std::shared_ptr<BasicBlock>> get_blocks() const { return blocks; }
 
-    inline std::shared_ptr<BasicBlock> get_entry_block() const { return entry_block; }
+    void print(std::ostream&) const {}
 };
