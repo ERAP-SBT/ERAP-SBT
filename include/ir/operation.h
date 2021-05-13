@@ -2,60 +2,58 @@
 
 #include "instruction.h"
 #include "variable.h"
+#include <array>
 #include <memory>
 #include <vector>
-#include <array>
 
 // forward declaration
-class BasicBlock;
+struct BasicBlock;
 
-class Operation
+struct Operation
 {
-    private:
-    const Instruction instruction;
-    const std::weak_ptr<BasicBlock> current_block;
-    const std::array<std::shared_ptr<Variable>, 4> in_vars;
-    const std::array<Variable*, 3> out_vars;
+    Instruction type;
+    std::array<SSAVar *, 4> in_vars  = {};
+    std::array<SSAVar *, 3> out_vars = {};
 
-    bool constant_evaluatable = false;
+    // TODO: do we need that here?
+    bool const_evalable = false;
 
-    public:
-    // TODO: add per-instruction checks for correct syntax
-    Operation(Instruction instr, std::shared_ptr<BasicBlock> bb, std::shared_ptr<Variable> op1 = nullptr,
-     std::shared_ptr<Variable> op2 = nullptr, std::shared_ptr<Variable> op3 = nullptr, std::shared_ptr<Variable> op4 = nullptr,
-      Variable* out1 = nullptr, Variable* out2 = nullptr, Variable* out3 = nullptr);
+    Operation(const Instruction type) : type(type) { }
+    ~Operation();
 
-    // Getters
-    std::weak_ptr<BasicBlock> get_current_block() const { return current_block; }
-    bool is_const_evaluatable() const { return constant_evaluatable; }
+    void add_inputs(SSAVar *op1 = nullptr, SSAVar *op2 = nullptr, SSAVar *op3 = nullptr, SSAVar *op4 = nullptr);
+    void add_outputs(SSAVar *out1 = nullptr, SSAVar *out2 = nullptr, SSAVar *out3 = nullptr);
 
-    void constant_evaluate();
-
-    void print(std::ostream&) const;
+    void print(std::ostream &, const IR *) const;
 };
 
-class CFCOperation
+struct CfOp
 {
-    private:
-    CFCInstruction cfc_instruction;
-    std::array<std::shared_ptr<Variable>, 4> in_vars;
-    std::weak_ptr<BasicBlock> current_block;
+    struct CJumpInfo
+    {
+        enum class CJumpType
+        {
+            eq,
+            neq,
+            lt
+        };
+        CJumpType type;
+    };
 
-    // optional array of jump / call targets, useful for predecessor / successor identification
-    std::vector<std::weak_ptr<BasicBlock>> targets;
+    CFCInstruction type;
+    BasicBlock *source;
+    BasicBlock *target;
+    std::vector<SSAVar *> target_inputs;
+    std::array<SSAVar *, 4> in_vars;
+    std::variant<std::monostate, CJumpInfo> info;
 
-    public:
-    CFCOperation(CFCInstruction instr, std::shared_ptr<BasicBlock> bb, std::shared_ptr<Variable> op1 = nullptr,
-     std::shared_ptr<Variable> op2 = nullptr, std::shared_ptr<Variable> op3 = nullptr, std::shared_ptr<Variable> op4 = nullptr)
-    : cfc_instruction(instr),
-      in_vars({op1, op2, op3, op4}),
-      current_block(std::move(bb)),
-      targets() { }
+    // TODO: add info for const_evalness here? may be able to optimize control flow this way
 
-    void add_new_target(std::shared_ptr<BasicBlock> &);
+    CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target);
 
-    // Getters
-    CFCInstruction get_cfc_instruction() const { return cfc_instruction; };
-    const std::array<std::shared_ptr<Variable>, 4> &get_input_vars() const { return in_vars; };
-    std::weak_ptr<BasicBlock> get_current_block() const { return current_block; }
+    void add_target_input(SSAVar *var) { target_inputs.push_back(var); }
+
+    void add_inputs(SSAVar *op1 = nullptr, SSAVar *op2 = nullptr, SSAVar *op3 = nullptr, SSAVar *op4 = nullptr);
+
+    void print(std::ostream &, const IR *) const;
 };

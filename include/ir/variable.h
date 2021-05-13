@@ -3,44 +3,30 @@
 #include "type.h"
 #include <memory>
 #include <string>
+#include <variant>
 
 // forward declaration
-class Operation;
+struct Operation;
+struct IR;
 
-class Variable
+struct SSAVar
 {
-    private:
-    // unique ssa-variable id, counting from 0 (holes might occur)
-    const size_t id;
-    const Type type;
-    const int64_t immediate = 0;
+    size_t id;
+    size_t ref_count = 0;
+    Type type;
+    bool from_static    = false;
+    bool const_evalable = false;
+    // immediate, static idx, op
+    std::variant<std::monostate, int64_t, size_t, std::unique_ptr<Operation>> info;
 
-    // for backtracking purposes, note the operation which assigns this variable
-    std::shared_ptr<Operation> operation;
-    size_t static_idx = 0;
-    bool assigned_from_static = false;
+    SSAVar(const size_t id, const Type type) : id(id), type(type), info(std::monostate{}) { }
+    SSAVar(const size_t id, const Type type, const size_t static_idx) : id(id), type(type), info(static_idx) { }
+    SSAVar(const size_t id, const int64_t imm) : id(id), type(Type::imm), const_evalable(true), info(imm) { }
 
-    public:
-    Variable(size_t id, Type type) : id(id), type(type) { }
-    Variable(size_t id, int64_t imm) : id(id), type(Type::imm), immediate(imm), operation(nullptr) { }
-    Variable(size_t id, Type type, size_t static_idx) : id(id), type(type), static_idx(static_idx), assigned_from_static(true) { }
+    void set_op(std::unique_ptr<Operation> &&ptr);
 
-    void set_op(std::shared_ptr<Operation> operation)
-    {
-      this->operation = operation;
-    }
-	
-    // Getters
-    size_t get_id() const { return id; }
-    Type get_type() const { return type; }
-    std::shared_ptr<Operation> get_operation() const { return operation; }
-    int64_t get_immediate() const { return immediate; }
-
-    bool is_assigned_from_static() const { return assigned_from_static; }
-    size_t get_static_idx() const { return static_idx; }
-
-    void print_name_type(std::ostream&) const;
-    void print(std::ostream&) const;
+    void print(std::ostream &, const IR *) const;
+    void print_type_name(std::ostream &, const IR *) const;
 };
 
 /*
@@ -53,11 +39,11 @@ class StaticMapper
     const Type type;
 
     public:
-    StaticMapper(std::string name, Type type) : name(name), type(type) {}
+    StaticMapper(std::string name, Type type) : name(name), type(type) { }
 
     // Getters
     const std::string &get_name() const { return name; }
     Type get_type() const { return type; }
 
-    void print(std::ostream&) const;
+    void print(std::ostream &) const;
 };

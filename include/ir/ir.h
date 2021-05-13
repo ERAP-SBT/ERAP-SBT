@@ -1,38 +1,42 @@
 #pragma once
 
-#include "function.h"
 #include "basic_block.h"
+#include "function.h"
 #include <memory>
 #include <ostream>
 #include <vector>
 
-class IR
+struct IR
 {
-    private:
-    std::vector<std::shared_ptr<BasicBlock>> basic_blocks;
-    std::vector<std::shared_ptr<Function>> functions;
+    std::vector<std::unique_ptr<BasicBlock>> basic_blocks;
+    std::vector<std::unique_ptr<Function>> functions;
     std::vector<StaticMapper> statics;
 
-    size_t block_id = 0, func_id = 0;
+    size_t cur_block_id = 0;
+    size_t cur_func_id  = 0;
 
-    public:
-    IR() = default;
-
-    void add_function(const std::shared_ptr<Function> &);
-		void add_basic_block(std::shared_ptr<BasicBlock> ptr)
-		{
-	    basic_blocks.push_back(ptr);
-		}
-    void add_static(StaticMapper&& static_var) {
-        statics.push_back(std::move(static_var));
+    BasicBlock *add_basic_block()
+    {
+        auto block     = std::make_unique<BasicBlock>(this, cur_block_id++);
+        const auto ptr = block.get();
+        basic_blocks.push_back(std::move(block));
+        return ptr;
     }
 
-    // Getters
-    const std::vector<std::shared_ptr<Function>> &get_functions() const { return functions; }
-    const std::vector<StaticMapper> &get_statics() const { return statics; }
+    Function *add_func()
+    {
+        auto func      = std::make_unique<Function>(cur_func_id++);
+        const auto ptr = func.get();
+        functions.push_back(std::move(func));
+        return ptr;
+    }
 
-    size_t next_block_id() { return block_id++; }
-    size_t next_func_id() { return func_id++; }
+    size_t add_static(const std::string &name, const Type type)
+    {
+        const auto id = statics.size();
+        statics.emplace_back(name, type);
+        return id;
+    }
 
     void print(std::ostream &) const;
 };
