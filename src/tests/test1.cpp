@@ -1,14 +1,15 @@
 #include "gtest/gtest.h"
 
-class Test1 : public ::testing::Test {
-};
+class Test1 : public ::testing::Test {};
 
-TEST_F(Test1, test1_fail) {
-    EXPECT_EQ(true, false) << "foo";
-}
+#if 0
+TEST_F(Test1, test1_fail) { EXPECT_EQ(true, false) << "foo"; }
+#endif
 
-TEST_F(Test1, test1_success) {
-    EXPECT_EQ(true, true) << "bar";
+TEST_F(Test1, test1_success) { EXPECT_EQ(true, true) << "bar"; }
+
+void unused_function() {
+    /* for coverage tests */
 }
 
 int main(int argc, char **argv) {
