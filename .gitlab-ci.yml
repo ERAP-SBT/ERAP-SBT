@@ -4,15 +4,49 @@ image: debian:unstable
 
 before_script:
   - apt-get update
-  - apt-get install -y clang-tidy clang-format g++ meson git
+  - apt-get install -y clang-format g++ meson git gcovr
+
+cache:
+  paths:
+    - "build"
+  # https://docs.gitlab.com/ee/ci/caching/#good-caching-practices
+  # per-branch per-stage cache
+  # this allows the main build to be done with different meson settings than the tests
+  key: "${CI_JOB_STAGE}-${CI_COMMIT_REF_SLUG}"
 
 build:
+  stage: build
+  needs: []
   script:
     - meson setup build
-    - meson compile -C build
+    - ninja -C build
   artifacts:
     paths:
+      - "build/src/generator/libgenerator.a"
+      - "build/src/ir/libir.a"
+      - "build/src/lifter/liblifter.a"
       - "build/src/translate"
-  cache:
+
+test:
+  stage: test
+  needs:
+    # Tests are expected to be very expensive so only run when everything else is working
+    - build
+  script:
+    - meson setup build -Db_coverage=true
+    - ninja -C build test
+    # seperate line to ensure that test has finished, because coverage-xml has no dependency on
+    # test but that is required for meaningful results
+    # we need to run coverage-html for the summary, see https://github.com/mesonbuild/meson/pull/4576 for the why
+    - ninja -C build coverage-xml coverage-html
+  # Extract the lines coverage percentage from the build output
+  coverage: '/^\s*lines\.*:\s*\d+.\d+\%/'
+  artifacts:
+    when: always
     paths:
-      - "build"
+      - "build/meson-logs"
+    reports:
+      # unit tests
+      junit: "build/meson-logs/testlog.junit.xml"
+      # coverage
+      cobertura: "build/meson-logs/coverage.xml"
