@@ -6,6 +6,8 @@
 #include <ostream>
 #include <vector>
 
+#define IR_VERSION "0.1"
+
 struct IR
 {
     std::vector<std::unique_ptr<BasicBlock>> basic_blocks;
@@ -31,10 +33,10 @@ struct IR
         return ptr;
     }
 
-    size_t add_static(const std::string &name, const Type type)
+    size_t add_static(const Type type)
     {
         const auto id = statics.size();
-        statics.emplace_back(name, type);
+        statics.emplace_back(id, type);
         return id;
     }
 

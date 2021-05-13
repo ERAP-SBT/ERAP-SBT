@@ -11,21 +11,21 @@ Operation::~Operation()
     }
 }
 
-void Operation::add_inputs(SSAVar *op1, SSAVar *op2, SSAVar *op3, SSAVar *op4)
+void Operation::add_inputs(SSAVar *in1, SSAVar *in2, SSAVar *in3, SSAVar *in4)
 {
-    in_vars[0] = op1;
-    in_vars[1] = op2;
-    in_vars[2] = op3;
-    in_vars[3] = op4;
+    in_vars[0] = in1;
+    in_vars[1] = in2;
+    in_vars[2] = in3;
+    in_vars[3] = in4;
 
-    const_evalable = true;
+    const_evaluable = true;
     for (auto *var : in_vars)
     {
         if (var)
         {
             var->ref_count++;
-            if (!var->const_evalable)
-                const_evalable = false;
+            if (!var->const_evaluable)
+                const_evaluable = false;
         }
     }
 }
@@ -39,19 +39,23 @@ void Operation::add_outputs(SSAVar *out1, SSAVar *out2, SSAVar *out3)
 
 void Operation::print(std::ostream &stream, const IR *ir) const
 {
-    switch (type)
+    stream << type << " ";
+
+    bool first = true;
+    for (auto *in : in_vars)
     {
-    case Instruction::add:
-        stream << "add ";
-        in_vars[0]->print_type_name(stream, ir);
-        stream << ", ";
-        in_vars[1]->print_type_name(stream, ir);
-        break;
-    default: stream << "unk"; break;
+        if (in)
+        {
+            if (!first)
+                stream << ", ";
+            else
+                first = false;
+            in->print_type_name(stream, ir);
+        }
     }
 }
 
-CfOp::CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target) : type(type), source(source), target(target)
+CfOp::CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target) : type(type), source(source), target(target), in_vars()
 {
     target->predecessors.push_back(source);
     source->successors.push_back(target);
@@ -75,16 +79,7 @@ void CfOp::add_inputs(SSAVar *op1, SSAVar *op2, SSAVar *op3, SSAVar *op4)
 
 void CfOp::print(std::ostream &stream, const IR *ir) const
 {
-    stream << '(';
-    // TODO: move elsewhere
-    switch (type)
-    {
-    case CFCInstruction::jump: stream << "jump"; break;
-    case CFCInstruction::cjump: stream << "cjump"; break;
-    default: stream << "unk";
-    }
-
-    stream << ", [";
+    stream << '(' << type << ", [";
     target->print_name(stream, ir);
 
     for (const auto *var : target_inputs)
@@ -94,21 +89,25 @@ void CfOp::print(std::ostream &stream, const IR *ir) const
     }
     stream << "]";
 
-    switch (type)
-    {
-    case CFCInstruction::cjump:
+    if (info.index() != 0)
     {
         stream << ", ";
-        switch (std::get<1>(info).type)
+        switch (info.index())
         {
-        case CJumpInfo::CJumpType::eq: stream << "eq"; break;
-        case CJumpInfo::CJumpType::neq: stream << "neq"; break;
-        case CJumpInfo::CJumpType::lt: stream << "lt"; break;
+        case 1: std::get<CfOp::CJumpInfo>(info).print(stream); break;
         }
-        break;
-    }
-    default: break;
     }
 
     stream << ')';
+}
+
+void CfOp::CJumpInfo::print(std::ostream &stream) const
+{
+    stream << ", ";
+    switch (type)
+    {
+    case CJumpInfo::CJumpType::eq: stream << "eq"; break;
+    case CJumpInfo::CJumpType::neq: stream << "neq"; break;
+    case CJumpInfo::CJumpType::lt: stream << "lt"; break;
+    }
 }

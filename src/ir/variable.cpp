@@ -8,8 +8,8 @@
 void SSAVar::set_op(std::unique_ptr<Operation> &&ptr)
 {
     assert(info.index() == 0);
-    const_evalable = ptr->const_evalable;
-    info           = std::move(ptr);
+    const_evaluable = ptr->const_evaluable;
+    info            = std::move(ptr);
 }
 
 void SSAVar::print(std::ostream &stream, const IR *ir) const
@@ -24,7 +24,7 @@ void SSAVar::print(std::ostream &stream, const IR *ir) const
         stream << " <- immediate " << std::get<1>(info);
         break;
     case 2:  // static
-        stream << " <- @" << ir->statics[std::get<2>(info)].get_name();
+        stream << " <- @" << ir->statics[std::get<2>(info)].id;
         break;
     case 3:  // op
         stream << " <- ";
@@ -34,7 +34,7 @@ void SSAVar::print(std::ostream &stream, const IR *ir) const
 
     stream << " (" << ref_count;
 
-    if (const_evalable)
+    if (const_evaluable)
     {
         stream << ", constant";
     }
@@ -49,5 +49,5 @@ void SSAVar::print_type_name(std::ostream &stream, const IR *) const
 
 void StaticMapper::print(std::ostream &stream) const
 {
-    stream << "static " << type << " " << name << ";\n";
+    stream << "static " << type << " @" << id << ";\n";
 }

@@ -16,12 +16,12 @@ struct Operation
     std::array<SSAVar *, 3> out_vars = {};
 
     // TODO: do we need that here?
-    bool const_evalable = false;
+    bool const_evaluable = false;
 
-    Operation(const Instruction type) : type(type) { }
+    explicit Operation(const Instruction type) : type(type) { }
     ~Operation();
 
-    void add_inputs(SSAVar *op1 = nullptr, SSAVar *op2 = nullptr, SSAVar *op3 = nullptr, SSAVar *op4 = nullptr);
+    void add_inputs(SSAVar *in1 = nullptr, SSAVar *in2 = nullptr, SSAVar *in3 = nullptr, SSAVar *in4 = nullptr);
     void add_outputs(SSAVar *out1 = nullptr, SSAVar *out2 = nullptr, SSAVar *out3 = nullptr);
 
     void print(std::ostream &, const IR *) const;
@@ -38,6 +38,7 @@ struct CfOp
             lt
         };
         CJumpType type;
+        void print(std::ostream &stream) const;
     };
 
     CFCInstruction type;
@@ -49,7 +50,7 @@ struct CfOp
 
     // TODO: add info for const_evalness here? may be able to optimize control flow this way
 
-    CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target);
+    CfOp(CFCInstruction type, BasicBlock *source, BasicBlock *target);
 
     void add_target_input(SSAVar *var) { target_inputs.push_back(var); }
 

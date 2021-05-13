@@ -4,7 +4,7 @@
 SSAVar *BasicBlock::add_var_from_static(const size_t static_idx)
 {
     const auto &static_var = ir->statics[static_idx];
-    auto var               = std::make_unique<SSAVar>(cur_ssa_id++, static_var.get_type(), static_idx);
+    auto var               = std::make_unique<SSAVar>(cur_ssa_id++, static_var.type, static_idx);
     const auto ptr         = var.get();
     variables.push_back(std::move(var));
     return ptr;

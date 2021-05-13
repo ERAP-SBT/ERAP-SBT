@@ -9,8 +9,8 @@ int main()
     IR ir       = IR{};
     auto *block = ir.add_basic_block();
     {
-        const auto static0 = ir.add_static("r0", Type::i64);
-        const auto static1 = ir.add_static("r1", Type::i64);
+        const auto static0 = ir.add_static(Type::i64);
+        const auto static1 = ir.add_static(Type::i64);
 
         auto *in1 = block->add_input(block->add_var_from_static(static0));
         auto *in2 = block->add_input(block->add_var_from_static(static1));

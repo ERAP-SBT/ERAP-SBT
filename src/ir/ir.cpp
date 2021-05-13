@@ -2,7 +2,7 @@
 
 void IR::print(std::ostream &stream) const
 {
-    stream << "// GP-IR v0.1\n";
+    stream << "// GP-IR v" << IR_VERSION << "\n";
     for (const auto &static_var : statics)
         static_var.print(stream);
 

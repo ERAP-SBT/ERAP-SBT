@@ -1,4 +1,5 @@
 #pragma once
+#include <ostream>
 
 enum class Instruction
 {
@@ -22,6 +23,8 @@ enum class Instruction
     setup_stack,
 };
 
+std::ostream &operator<<(std::ostream &stream, Instruction instr);
+
 // CFC <=> Control Flow Change
 enum class CFCInstruction
 {
@@ -34,3 +37,5 @@ enum class CFCInstruction
     unreachable,
     syscall,
 };
+
+std::ostream &operator<<(std::ostream &stream, CFCInstruction instr);

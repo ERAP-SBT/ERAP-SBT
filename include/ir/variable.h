@@ -14,14 +14,14 @@ struct SSAVar
     size_t id;
     size_t ref_count = 0;
     Type type;
-    bool from_static    = false;
-    bool const_evalable = false;
+    bool from_static     = false;
+    bool const_evaluable = false;
     // immediate, static idx, op
     std::variant<std::monostate, int64_t, size_t, std::unique_ptr<Operation>> info;
 
     SSAVar(const size_t id, const Type type) : id(id), type(type), info(std::monostate{}) { }
     SSAVar(const size_t id, const Type type, const size_t static_idx) : id(id), type(type), info(static_idx) { }
-    SSAVar(const size_t id, const int64_t imm) : id(id), type(Type::imm), const_evalable(true), info(imm) { }
+    SSAVar(const size_t id, const int64_t imm) : id(id), type(Type::imm), const_evaluable(true), info(imm) { }
 
     void set_op(std::unique_ptr<Operation> &&ptr);
 
@@ -32,18 +32,12 @@ struct SSAVar
 /*
  * A static mapper is not a variable and thus not an ssa-variable.
  */
-class StaticMapper
+struct StaticMapper
 {
-    private:
-    const std::string name;
+    const size_t id;
     const Type type;
 
-    public:
-    StaticMapper(std::string name, Type type) : name(name), type(type) { }
-
-    // Getters
-    const std::string &get_name() const { return name; }
-    Type get_type() const { return type; }
+    StaticMapper(size_t id, Type type) : id(id), type(type) { }
 
     void print(std::ostream &) const;
 };
