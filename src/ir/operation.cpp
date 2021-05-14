@@ -89,6 +89,15 @@ void CfOp::print(std::ostream &stream, const IR *ir) const
     }
     stream << "]";
 
+    for (const auto *var : in_vars)
+    {
+        if (!var)
+            continue;
+
+        stream << ", ";
+        var->print_type_name(stream, ir);
+    }
+
     if (info.index() != 0)
     {
         stream << ", ";
