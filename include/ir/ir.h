@@ -17,9 +17,9 @@ struct IR
     size_t cur_block_id = 0;
     size_t cur_func_id  = 0;
 
-    BasicBlock *add_basic_block()
+    BasicBlock *add_basic_block(const size_t offset = 0)
     {
-        auto block     = std::make_unique<BasicBlock>(this, cur_block_id++);
+        auto block     = std::make_unique<BasicBlock>(this, cur_block_id++, offset);
         const auto ptr = block.get();
         basic_blocks.push_back(std::move(block));
         return ptr;
