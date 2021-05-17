@@ -3,8 +3,13 @@
 image: debian:unstable
 
 before_script:
+  # We want meson >=57.2 for clang-format-check, but currently it is only available in experimental
+  # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=988219
+  - echo "deb http://deb.debian.org/debian/ experimental main" > /etc/apt/sources.list.d/experimental.list
   - apt-get update
-  - apt-get install -y clang-format g++ meson git gcovr
+  # apt-get will prefer unstable, so specify the exact meson version we want, to ensure it is pulled
+  # from the appropiate repository
+  - apt-get install -y clang-format g++ meson=0.58.0-1 git gcovr
 
 cache:
   paths:
@@ -50,3 +55,10 @@ test:
       junit: "build/meson-logs/testlog.junit.xml"
       # coverage
       cobertura: "build/meson-logs/coverage.xml"
+
+clang-format:
+  stage: test
+  needs: []
+  script:
+    - meson setup build
+    - ninja -C build clang-format-check
