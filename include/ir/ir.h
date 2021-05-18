@@ -2,10 +2,10 @@
 
 #include "basic_block.h"
 #include "function.h"
+#include <cassert>
 #include <memory>
 #include <ostream>
 #include <vector>
-#include <cassert>
 
 struct IR
 {
@@ -15,10 +15,7 @@ struct IR
 
     size_t cur_block_id = 0;
     size_t cur_func_id  = 0;
-    size_t entry_block = 0;
-	  // the lifter needs to tell the compiler which register contains the return code for the OS
-	  // don't think we can put that into the blocks
-    size_t output_static = 0;
+    size_t entry_block  = 0;
 
     BasicBlock *add_basic_block(const size_t offset = 0)
     {
