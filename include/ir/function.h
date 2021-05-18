@@ -11,4 +11,7 @@ struct Function
     Function(const size_t id) : id(id) { }
 
     void add_block(BasicBlock *block) { blocks.push_back(block); }
+
+    void print(std::ostream &, const IR *) const;
+    void print_name(std::ostream &, const IR *) const;
 };
