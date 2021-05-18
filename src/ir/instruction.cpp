@@ -22,7 +22,6 @@ std::ostream &operator<<(std::ostream &stream, Instruction instr)
     case Instruction::cast: stream << "cast"; break;
     case Instruction::immediate: stream << "immediate"; break;
     case Instruction::setup_stack: stream << "setup_stack"; break;
-    default: stream << "unk"; break;
     }
 
     return stream;
@@ -40,7 +39,6 @@ std::ostream &operator<<(std::ostream &stream, CFCInstruction instr)
     case CFCInstruction::_return: stream << "return"; break;
     case CFCInstruction::unreachable: stream << "unreachable"; break;
     case CFCInstruction::syscall: stream << "syscall"; break;
-    default: stream << "unk"; break;
     }
 
     return stream;

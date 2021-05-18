@@ -1,7 +1,6 @@
 #pragma once
 
 #include "basic_block.h"
-#include <memory>
 #include <vector>
 
 struct Function

@@ -18,8 +18,8 @@ int main()
         auto *var1 = block->add_var(Type::i64);
         {
             auto op = std::make_unique<Operation>(Instruction::add);
-            op->add_inputs(in1, in2);
-            op->add_outputs(var1);
+            op->set_inputs(in1, in2);
+            op->set_outputs(var1);
             var1->set_op(std::move(op));
         }
 
@@ -28,16 +28,16 @@ int main()
         auto *var2 = block->add_var(Type::i64);
         {
             auto op = std::make_unique<Operation>(Instruction::add);
-            op->add_inputs(imm1, imm2);
-            op->add_outputs(var2);
+            op->set_inputs(imm1, imm2);
+            op->set_outputs(var2);
             var2->set_op(std::move(op));
         }
 
         auto *var3 = block->add_var(Type::i64);
         {
             auto op = std::make_unique<Operation>(Instruction::add);
-            op->add_inputs(var1, var2);
-            op->add_outputs(var3);
+            op->set_inputs(var1, var2);
+            op->set_outputs(var3);
             var3->set_op(std::move(op));
         }
     }

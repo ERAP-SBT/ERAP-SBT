@@ -1,6 +1,7 @@
 #include "ir/operation.h"
-
 #include "ir/basic_block.h"
+
+#include <cassert>
 
 Operation::~Operation()
 {
@@ -11,8 +12,9 @@ Operation::~Operation()
     }
 }
 
-void Operation::add_inputs(SSAVar *in1, SSAVar *in2, SSAVar *in3, SSAVar *in4)
+void Operation::set_inputs(SSAVar *in1, SSAVar *in2, SSAVar *in3, SSAVar *in4)
 {
+    assert(in_vars[0] == nullptr && in_vars[1] == nullptr && in_vars[2] == nullptr && in_vars[3] == nullptr);
     in_vars[0] = in1;
     in_vars[1] = in2;
     in_vars[2] = in3;
@@ -30,8 +32,9 @@ void Operation::add_inputs(SSAVar *in1, SSAVar *in2, SSAVar *in3, SSAVar *in4)
     }
 }
 
-void Operation::add_outputs(SSAVar *out1, SSAVar *out2, SSAVar *out3)
+void Operation::set_outputs(SSAVar *out1, SSAVar *out2, SSAVar *out3)
 {
+    assert(out_vars[0] == nullptr && out_vars[1] == nullptr && out_vars[2] == nullptr);
     out_vars[0] = out1;
     out_vars[1] = out2;
     out_vars[2] = out3;
@@ -61,8 +64,9 @@ CfOp::CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target) : 
     source->successors.push_back(target);
 }
 
-void CfOp::add_inputs(SSAVar *op1, SSAVar *op2, SSAVar *op3, SSAVar *op4)
+void CfOp::set_inputs(SSAVar *op1, SSAVar *op2, SSAVar *op3, SSAVar *op4)
 {
+    assert(in_vars[0] == nullptr && in_vars[1] == nullptr && in_vars[2] == nullptr && in_vars[3] == nullptr);
     in_vars[0] = op1;
     in_vars[1] = op2;
     in_vars[2] = op3;

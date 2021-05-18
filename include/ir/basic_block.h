@@ -14,7 +14,7 @@ struct BasicBlock
     IR *ir;
     size_t id;
     size_t cur_ssa_id = 0;
-    size_t offset     = 0;  // offset from base of image in orig binary
+    uintptr_t offset  = 0;  // offset from base of image in orig binary
 
     std::vector<CfOp> control_flow_ops;
     std::vector<BasicBlock *> predecessors;

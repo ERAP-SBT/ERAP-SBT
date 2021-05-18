@@ -10,10 +10,8 @@ std::ostream &operator<<(std::ostream &stream, Type type)
     case Type::i8: stream << "i8"; break;
     case Type::f64: stream << "f64"; break;
     case Type::f32: stream << "f32"; break;
-    case Type::m64: stream << "m64"; break;
-    case Type::m32: stream << "m32"; break;
+    case Type::mt: stream << "mt"; break;
     case Type::imm: stream << "imm"; break;
-    default: stream << "unk"; break;
     }
 
     return stream;

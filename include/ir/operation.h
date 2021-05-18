@@ -21,8 +21,8 @@ struct Operation
     explicit Operation(const Instruction type) : type(type) { }
     ~Operation();
 
-    void add_inputs(SSAVar *in1 = nullptr, SSAVar *in2 = nullptr, SSAVar *in3 = nullptr, SSAVar *in4 = nullptr);
-    void add_outputs(SSAVar *out1 = nullptr, SSAVar *out2 = nullptr, SSAVar *out3 = nullptr);
+    void set_inputs(SSAVar *in1 = nullptr, SSAVar *in2 = nullptr, SSAVar *in3 = nullptr, SSAVar *in4 = nullptr);
+    void set_outputs(SSAVar *out1 = nullptr, SSAVar *out2 = nullptr, SSAVar *out3 = nullptr);
 
     void print(std::ostream &, const IR *) const;
 };
@@ -54,7 +54,7 @@ struct CfOp
 
     void add_target_input(SSAVar *var) { target_inputs.push_back(var); }
 
-    void add_inputs(SSAVar *op1 = nullptr, SSAVar *op2 = nullptr, SSAVar *op3 = nullptr, SSAVar *op4 = nullptr);
+    void set_inputs(SSAVar *op1 = nullptr, SSAVar *op2 = nullptr, SSAVar *op3 = nullptr, SSAVar *op4 = nullptr);
 
     void print(std::ostream &, const IR *) const;
 };
