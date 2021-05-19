@@ -34,12 +34,18 @@ struct CfOp {
         void print(std::ostream &stream) const;
     };
 
+	struct RetInfo
+	{
+		// SSAVar -> static
+    std::vector<std::pair<SSAVar*, size_t>> mapping;
+	};
+
     CFCInstruction type;
     BasicBlock *source;
-    BasicBlock *target;
+    BasicBlock *target; // this can be null for returns
     std::vector<SSAVar *> target_inputs;
     std::array<SSAVar *, 4> in_vars;
-    std::variant<std::monostate, CJumpInfo> info;
+    std::variant<std::monostate, CJumpInfo, RetInfo> info;
 
     // TODO: add info for const_evalness here? may be able to optimize control flow this way
 

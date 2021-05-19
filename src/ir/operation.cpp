@@ -2,6 +2,7 @@
 
 #include "ir/basic_block.h"
 
+#include "ir/ir.h"
 #include <cassert>
 
 Operation::~Operation() {
@@ -51,8 +52,10 @@ void Operation::print(std::ostream &stream, const IR *ir) const {
 }
 
 CfOp::CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target) : type(type), source(source), target(target), in_vars() {
+  if (target != nullptr) {
     target->predecessors.push_back(source);
     source->successors.push_back(target);
+  }
 }
 
 void CfOp::set_inputs(SSAVar *op1, SSAVar *op2, SSAVar *op3, SSAVar *op4) {
@@ -71,6 +74,28 @@ void CfOp::set_inputs(SSAVar *op1, SSAVar *op2, SSAVar *op3, SSAVar *op4) {
 
 void CfOp::print(std::ostream &stream, const IR *ir) const {
     stream << '(' << type << ", [";
+    if (type == CFCInstruction::_return)
+    {
+      auto first = true;
+      const auto& ret_info = std::get<RetInfo>(info);
+      for (const auto&[var, s_idx] : ret_info.mapping)
+      {
+	      if (!first)
+	      {
+          stream << ", ";
+	      } else
+	      {
+          first = false;
+	      }
+
+        stream << ir->statics[s_idx].type << " @" << ir->statics[s_idx].id << " <- ";
+      	var->print_type_name(stream, ir);
+      }
+
+      stream << "])";
+      return;
+    }
+	
     target->print_name(stream, ir);
 
     for (const auto *var : target_inputs) {
