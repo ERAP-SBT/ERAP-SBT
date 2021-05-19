@@ -6,8 +6,14 @@
 #include <algorithm>
 
 struct RV64Inst {
+    // the base decoded instruction
     FrvInst instr;
+
+    // if the instruction refers to an address (loading, storing, jumping), this contains the resolved, non-relative address
     uint64_t virt_addr{0};
+
+    // if the instructions contains an immediate, this contains the non-relative, decoded version
+    uint64_t imm{0};
 };
 
 /*
@@ -25,11 +31,13 @@ struct Program {
 
     uint64_t load_symbol_instrs(const std::string &);
 
-    uint64_t load_symbol_instrs(Elf64_Sym);
+    uint64_t load_symbol_instrs(Elf64_Sym *);
 
     // load data from section and guess the format.
     // Sections which are executable are loaded as instructions, other read / write sections are data.
     uint64_t load_section(const std::string &sec_name);
+
+    uint64_t load_section(Elf64_Shdr *);
 
     uint64_t load_section(size_t);
 
@@ -38,9 +46,9 @@ struct Program {
 
     uint64_t load_symbol_data(const std::string &);
 
-    uint64_t load_symbol_data(Elf64_Sym);
+    uint64_t load_symbol_data(Elf64_Sym *);
 
-    // resolve ip-relative addresses and immediates
+    // resolve PC-relative addresses and immediates
     void resolve_relative(uint64_t, uint64_t);
 
     // the elf binary which contains the raw program data

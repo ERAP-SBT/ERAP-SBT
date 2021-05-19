@@ -14,7 +14,9 @@ struct BasicBlock {
     IR *ir;
     size_t id;
     size_t cur_ssa_id = 0;
-    uintptr_t offset = 0; // offset from base of image in orig binary
+
+    uint64_t virt_start_addr  = 0;
+    uint64_t virt_end_addr  = 0;
 
     std::vector<CfOp> control_flow_ops;
     std::vector<BasicBlock *> predecessors;
@@ -24,7 +26,7 @@ struct BasicBlock {
     std::vector<std::unique_ptr<SSAVar>> variables;
     std::string dbg_name;
 
-    BasicBlock(IR *ir, const size_t id, const size_t offset = 0, const std::string &dbg_name = {}) : ir(ir), id(id), offset(offset), dbg_name(dbg_name) {}
+    BasicBlock(IR *ir, const size_t id, const size_t virt_start_addr = 0, const std::string &dbg_name = {}) : ir(ir), id(id), virt_start_addr(virt_start_addr), dbg_name(dbg_name) {}
     ~BasicBlock();
 
     SSAVar *add_var(const Type type) {
