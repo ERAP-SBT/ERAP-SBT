@@ -1,1 +1,9 @@
 /build/
+/.idea/
+
+# vs stuff
+/.vs/
+/.vscode/
+CppProperties.json
+launch.vs.json
+tasks.vs.json
