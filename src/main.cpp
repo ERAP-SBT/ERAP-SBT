@@ -83,19 +83,35 @@ int main() {
             op->set_outputs(var3);
             var3->set_op(std::move(op));
         }
+
+        {
+            auto &op       = block->add_cf_op(CFCInstruction::_return, nullptr);
+            op.info        = CfOp::RetInfo{};
+            auto &ret_info = std::get<CfOp::RetInfo>(op.info);
+            ret_info.mapping.emplace_back(var3, 0);
+        }
     }
 
     auto *block2 = ir.add_basic_block();
     {
         {
-            auto &op = block->add_cf_op(CFCInstruction::cjump, block2);
-            op.info = CfOp::CJumpInfo{CfOp::CJumpInfo::CJumpType::eq};
+            // auto &op = block->add_cf_op(CFCInstruction::cjump, block2);
+            // op.info  = CfOp::CJumpInfo{CfOp::CJumpInfo::CJumpType::eq};
+            auto *imm1 = block2->add_var_imm(1);
+            auto *imm2 = block2->add_var_imm(2);
+            auto &op   = block2->add_cf_op(CFCInstruction::jump, block);
+            op.add_target_input(imm1);
+            op.add_target_input(imm2);
 
-            block->add_cf_op(CFCInstruction::jump, block2);
+            // block->add_cf_op(CFCInstruction::jump, block2);
         }
     }
 
+    ir.entry_block = block2->id;
     ir.print(std::cout);
+
+    auto gen = generator::x86_64::Generator{&ir};
+    gen.compile();
 
     return 0;
 }
