@@ -20,7 +20,7 @@ struct SSAVar {
     std::variant<std::monostate, int64_t, size_t, std::unique_ptr<Operation>> info;
 
     SSAVar(const size_t id, const Type type) : id(id), type(type), info(std::monostate{}) {}
-    SSAVar(const size_t id, const Type type, const size_t static_idx) : id(id), type(type), info(static_idx), from_static(true) {}
+    SSAVar(const size_t id, const Type type, const size_t static_idx) : id(id), type(type), from_static(true), info(static_idx) {}
     SSAVar(const size_t id, const int64_t imm) : id(id), type(Type::imm), const_evaluable(true), info(imm) {}
 
     void set_op(std::unique_ptr<Operation> &&ptr);

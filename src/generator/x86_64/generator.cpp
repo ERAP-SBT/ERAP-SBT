@@ -53,11 +53,11 @@ namespace
 
 void Generator::compile()
 {
-    printf("global _start\n\nsection .data\n");
+    printf(".intel_syntax noprefix\n.global _start\n\n.data\n");
     compile_statics();
-    printf("param_passing: resq 16\n");
+    printf("param_passing: .space 128\n");
 
-    printf("section .text\n");
+    printf(".text\n");
     compile_blocks();
 
     compile_entry();
@@ -67,7 +67,7 @@ void Generator::compile_statics()
 {
     for (const auto &var : ir->statics)
     {
-        std::printf("s%lu: dq 0\n", var.id);  // for now have all of the statics be 64bit
+        std::printf("s%lu: .quad 0\n", var.id);  // for now have all of the statics be 64bit
     }
 }
 
@@ -103,7 +103,7 @@ void Generator::compile_block(BasicBlock *block)
     // TODO: this relies on proper ordering of variables for now
     for (size_t idx = 0; idx < block->variables.size(); ++idx)
     {
-        printf("; Handling var %zu\n", idx);
+        printf("# Handling var %zu\n", idx);
         const auto *var = block->variables[idx].get();
         assert(var->info.index() != 0);
 
@@ -121,14 +121,14 @@ void Generator::compile_block(BasicBlock *block)
         if (var->type == Type::imm)
         {
             assert(var->info.index() == 1);
-            const auto *ptr_type = "qword";
+            const auto *ptr_type = "qword ptr";
             switch (var->type)
             {
             case Type::imm:
             case Type::i64: break;
-            case Type::i32: ptr_type = "dword"; break;
-            case Type::i16: ptr_type = "word"; break;
-            case Type::i8: ptr_type = "byte"; break;
+            case Type::i32: ptr_type = "dword ptr"; break;
+            case Type::i16: ptr_type = "word ptr"; break;
+            case Type::i8: ptr_type = "byte ptr"; break;
             case Type::f32:
             case Type::f64:
             case Type::mt: assert(0); exit(1);
@@ -173,6 +173,8 @@ void Generator::compile_block(BasicBlock *block)
         }
     }
 
+    compile_static_output(block);
+
     for (size_t i = 0; i < block->control_flow_ops.size(); ++i)
     {
         const auto &cf_op = block->control_flow_ops[i];
@@ -183,12 +185,14 @@ void Generator::compile_block(BasicBlock *block)
         {
         case CFCInstruction::jump:
             compile_cf_args(block, cf_op);
-            printf("; control flow\n");
+            printf("# control flow\n");
             printf("jmp b%zu\n", cf_op.target->id);
             break;
         case CFCInstruction::_return:
-            compile_ret_args(block, cf_op);
-            printf("; control flow\nret\n");
+            // destroy stack space
+            printf("# destroy stack space\n");
+            printf("mov rsp, rbp\npop rbp\n");
+            printf("# control flow\nret\n");
             break;
         default: assert(0); exit(1);
         }
@@ -200,11 +204,11 @@ void Generator::compile_block(BasicBlock *block)
 void Generator::compile_entry()
 {
     printf("_start:\n");
-    printf("mov rdi, param_passing\n");
+    printf("mov rdi, offset param_passing\n");
     printf("call b%zu\n", ir->entry_block);
-    printf("mov rbx, [s0]\n");
-    printf("mov eax, 1\n");
-    printf("int 0x80");
+    printf("mov rdi, [s0]\n");
+    printf("mov eax, 60\n");
+    printf("syscall");
 }
 
 void Generator::compile_cf_args(BasicBlock *block, const CfOp &cf_op)
@@ -229,7 +233,7 @@ void Generator::compile_cf_args(BasicBlock *block, const CfOp &cf_op)
 
         assert(target_var->type != Type::imm && target_var->info.index() > 1);
 
-        printf("; Setting input %zu\n", i);
+        printf("# Setting input %zu\n", i);
         if (target_var->from_static)
         {
             printf("xor rax, rax\n");
@@ -241,17 +245,17 @@ void Generator::compile_cf_args(BasicBlock *block, const CfOp &cf_op)
         // from normal var
         printf("xor rax, rax\n");
         printf("mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(source_var->type), index_for_var(source_var));
-        printf("mov qword [rdi], rax\nadd rdi, 8\n");
+        printf("mov qword ptr [rdi], rax\nadd rdi, 8\n");
     }
 
     // destroy stack space
-    printf("; destroy stack space\n");
+    printf("# destroy stack space\n");
     printf("mov rsp, rbp\npop rbp\n");
 }
 
-void Generator::compile_ret_args(BasicBlock *block, const CfOp &op)
+void Generator::compile_static_output(BasicBlock *block)
 {
-    printf("; Ret Mapping\n");
+    printf("# Ret Mapping\n");
     const auto index_for_var = [block](const SSAVar *var) -> size_t {
         for (size_t idx = 0; idx < block->variables.size(); ++idx)
         {
@@ -263,16 +267,10 @@ void Generator::compile_ret_args(BasicBlock *block, const CfOp &op)
         exit(1);
     };
 
-    assert(op.target == nullptr && op.info.index() == 2);
-    const auto &ret_info = std::get<CfOp::RetInfo>(op.info);
-    for (const auto &[var, s_idx] : ret_info.mapping)
+    for (const auto &[var, s_idx] : block->static_output_mapping)
     {
         printf("xor rax, rax\n");
         printf("mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(var));
         printf("mov [s%zu], rax\n", s_idx);
     }
-
-    // destroy stack space
-    printf("; destroy stack space\n");
-    printf("mov rsp, rbp\npop rbp\n");
 }

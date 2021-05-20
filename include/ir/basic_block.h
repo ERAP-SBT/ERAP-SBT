@@ -22,6 +22,9 @@ struct BasicBlock {
 
     std::vector<SSAVar *> inputs;
     std::vector<std::unique_ptr<SSAVar>> variables;
+    // TODO: this needs to exist for standalone blocks that are supposed to be just jumped to
+    // TODO: do we need to always emit these or can we start to not require them for blocks that are known as part of functions, how data flows through them and which vars are needed when
+    std::vector<std::pair<SSAVar *, size_t>> static_output_mapping;
 
     BasicBlock(IR *ir, const size_t id, const size_t offset = 0) : ir(ir), id(id), offset(offset) {}
 
@@ -46,7 +49,14 @@ struct BasicBlock {
         return var;
     }
 
-    CfOp &add_cf_op(const CFCInstruction type, BasicBlock *target) {
+    SSAVar *add_static_output(SSAVar *var, const size_t static_idx)
+    {
+        static_output_mapping.emplace_back(var, static_idx);
+        return var;
+    }
+
+    CfOp &add_cf_op(const CFCInstruction type, BasicBlock *target)
+    {
         control_flow_ops.emplace_back(type, this, target);
         return control_flow_ops.back();
     }

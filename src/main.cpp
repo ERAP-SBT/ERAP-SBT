@@ -86,9 +86,7 @@ int main() {
 
         {
             auto &op       = block->add_cf_op(CFCInstruction::_return, nullptr);
-            op.info        = CfOp::RetInfo{};
-            auto &ret_info = std::get<CfOp::RetInfo>(op.info);
-            ret_info.mapping.emplace_back(var3, 0);
+            block->add_static_output(var3, 0);
         }
     }
 
