@@ -1,4 +1,4 @@
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
 class Test1 : public ::testing::Test {};
 
@@ -8,8 +8,7 @@ TEST_F(Test1, test1_fail) { EXPECT_EQ(true, false) << "foo"; }
 
 TEST_F(Test1, test1_success) { EXPECT_EQ(true, true) << "bar"; }
 
-void unused_function() {
-    /* for coverage tests */
+void unused_function() { /* for coverage tests */
 }
 
 int main(int argc, char **argv) {

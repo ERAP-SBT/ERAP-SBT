@@ -4,15 +4,11 @@
 
 namespace lifter {
 
-class Test1 : public ::testing::Test {
+class Test1 : public ::testing::Test {};
 
-};
+TEST_F(Test1, test1) { EXPECT_EQ(foo(), true) << "foo() not implemented correctly"; }
 
-TEST_F(Test1, test1) {
-    EXPECT_EQ(foo(), true) << "foo() not implemented correctly";
-}
-
-}
+} // namespace lifter
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

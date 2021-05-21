@@ -5,8 +5,7 @@
  * [f64, f32]: Float types
  * [mt]: Memory token. This is NOT an address. Addresses are stored as i64 or i32.
  */
-enum class Type
-{
+enum class Type {
     i64,
     i32,
     i16,
@@ -17,4 +16,4 @@ enum class Type
     imm,
 };
 
-std::ostream& operator<<(std::ostream &stream, Type type);
+std::ostream &operator<<(std::ostream &stream, Type type);

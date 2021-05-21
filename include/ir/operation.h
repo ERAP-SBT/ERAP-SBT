@@ -2,6 +2,7 @@
 
 #include "instruction.h"
 #include "variable.h"
+
 #include <array>
 #include <memory>
 #include <vector>
@@ -9,16 +10,15 @@
 // forward declaration
 struct BasicBlock;
 
-struct Operation
-{
+struct Operation {
     Instruction type;
-    std::array<SSAVar *, 4> in_vars  = {};
+    std::array<SSAVar *, 4> in_vars = {};
     std::array<SSAVar *, 3> out_vars = {};
 
     // TODO: do we need that here?
     bool const_evaluable = false;
 
-    explicit Operation(const Instruction type) : type(type) { }
+    explicit Operation(const Instruction type) : type(type) {}
     ~Operation();
 
     void set_inputs(SSAVar *in1 = nullptr, SSAVar *in2 = nullptr, SSAVar *in3 = nullptr, SSAVar *in4 = nullptr);
@@ -27,16 +27,9 @@ struct Operation
     void print(std::ostream &, const IR *) const;
 };
 
-struct CfOp
-{
-    struct CJumpInfo
-    {
-        enum class CJumpType
-        {
-            eq,
-            neq,
-            lt
-        };
+struct CfOp {
+    struct CJumpInfo {
+        enum class CJumpType { eq, neq, lt };
         CJumpType type;
         void print(std::ostream &stream) const;
     };

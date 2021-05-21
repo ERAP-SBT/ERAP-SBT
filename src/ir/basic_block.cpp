@@ -1,29 +1,24 @@
 #include "ir/basic_block.h"
+
 #include "ir/ir.h"
 
-SSAVar *BasicBlock::add_var_from_static(const size_t static_idx)
-{
+SSAVar *BasicBlock::add_var_from_static(const size_t static_idx) {
     const auto &static_var = ir->statics[static_idx];
-    auto var               = std::make_unique<SSAVar>(cur_ssa_id++, static_var.type, static_idx);
-    const auto ptr         = var.get();
+    auto var = std::make_unique<SSAVar>(cur_ssa_id++, static_var.type, static_idx);
+    const auto ptr = var.get();
     variables.push_back(std::move(var));
     return ptr;
 }
 
-void BasicBlock::print(std::ostream &stream, const IR *ir) const
-{
+void BasicBlock::print(std::ostream &stream, const IR *ir) const {
     stream << "block b" << id << "(";
     // not very cool rn
     {
         auto first = true;
-        for (const auto &var : inputs)
-        {
-            if (!first)
-            {
+        for (const auto &var : inputs) {
+            if (!first) {
                 stream << ", ";
-            }
-            else
-            {
+            } else {
                 first = false;
             }
             var->print(stream, ir);
@@ -32,14 +27,10 @@ void BasicBlock::print(std::ostream &stream, const IR *ir) const
     stream << ") <= [";
     {
         auto first = true;
-        for (const auto &pred : predecessors)
-        {
-            if (!first)
-            {
+        for (const auto &pred : predecessors) {
+            if (!first) {
                 stream << ", ";
-            }
-            else
-            {
+            } else {
                 first = false;
             }
             pred->print_name(stream, ir);
@@ -47,8 +38,7 @@ void BasicBlock::print(std::ostream &stream, const IR *ir) const
     }
     stream << "] {\n";
 
-    for (const auto &var : variables)
-    {
+    for (const auto &var : variables) {
         stream << "  ";
         var->print(stream, ir);
         stream << '\n';
@@ -57,14 +47,10 @@ void BasicBlock::print(std::ostream &stream, const IR *ir) const
     stream << "} => [";
 
     auto first = true;
-    for (const auto &cf_op : control_flow_ops)
-    {
-        if (!first)
-        {
+    for (const auto &cf_op : control_flow_ops) {
+        if (!first) {
             stream << ", ";
-        }
-        else
-        {
+        } else {
             first = false;
         }
 
@@ -73,7 +59,4 @@ void BasicBlock::print(std::ostream &stream, const IR *ir) const
     stream << ']';
 }
 
-void BasicBlock::print_name(std::ostream &stream, const IR *) const
-{
-    stream << "b" << id;
-}
+void BasicBlock::print_name(std::ostream &stream, const IR *) const { stream << "b" << id; }
