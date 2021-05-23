@@ -1,4 +1,5 @@
 #include "generator/generator.h"
+#include "generator/x86_64/generator.h"
 #include "ir/ir.h"
 #include "lifter/elf_file.h"
 #include "lifter/lifter.h"
@@ -43,6 +44,12 @@ error_t test_elf_parsing(const std::string &test_path) {
     return 0;
 }
 
+namespace {
+void gen_third_ir(IR &);
+void gen_sec_ir(IR &);
+void gen_first_ir(IR &);
+} // namespace
+
 int main() {
     error_t err = 0;
     if ((err = test_elf_parsing("../rv64test.o"))) {
@@ -50,6 +57,147 @@ int main() {
     }
 
     IR ir = IR{};
+    gen_third_ir(ir);
+    ir.print(std::cout);
+
+    auto gen = generator::x86_64::Generator{&ir};
+    gen.compile();
+
+    return 0;
+}
+
+namespace {
+void gen_third_ir(IR &ir) {
+    const auto static0 = ir.add_static(Type::i64);
+
+    auto *block1 = ir.add_basic_block();
+    {
+        auto *v1 = block1->add_var_imm(2);
+        auto *v2 = block1->add_var_imm(3);
+        auto *v3 = block1->add_var(Type::i64); // v3 = v1 + v2 = 5
+        {
+            auto op = std::make_unique<Operation>(Instruction::add);
+            op->set_inputs(v1, v2);
+            op->set_outputs(v3);
+            v3->set_op(std::move(op));
+        }
+        auto *v4 = block1->add_var(Type::i64); // v4 = v3 - v1 = 3
+        {
+            auto op = std::make_unique<Operation>(Instruction::sub);
+            op->set_inputs(v3, v1);
+            op->set_outputs(v4);
+            v4->set_op(std::move(op));
+        }
+        auto *v5 = block1->add_var(Type::i64); // v5 = v4 * v3 = 15
+        {
+            auto op = std::make_unique<Operation>(Instruction::mul);
+            op->set_inputs(v4, v3);
+            op->set_outputs(v5);
+            v5->set_op(std::move(op));
+        }
+        auto *v6 = block1->add_var(Type::i64); // v6 = v5 / v2 = 5
+        {
+            auto op = std::make_unique<Operation>(Instruction::div);
+            op->set_inputs(v5, v2);
+            op->set_outputs(v6);
+            v6->set_op(std::move(op));
+        }
+        auto *v7 = block1->add_var(Type::i64); // v7 = v6 << v4 = 40
+        {
+            auto op = std::make_unique<Operation>(Instruction::shl);
+            op->set_inputs(v6, v4);
+            op->set_outputs(v7);
+            v7->set_op(std::move(op));
+        }
+        auto *v8 = block1->add_var(Type::i64); // v8 = v7 >> v1 = 10
+        {
+            auto op = std::make_unique<Operation>(Instruction::shr);
+            op->set_inputs(v7, v1);
+            op->set_outputs(v8);
+            v8->set_op(std::move(op));
+        }
+        auto *v9 = block1->add_var(Type::i64); // v9 = v8 | v7 = 42
+        {
+            auto op = std::make_unique<Operation>(Instruction::_or);
+            op->set_inputs(v8, v7);
+            op->set_outputs(v9);
+            v9->set_op(std::move(op));
+        }
+        auto *v10 = block1->add_var(Type::i64); // v10 = v9 & v7 = 40
+        {
+            auto op = std::make_unique<Operation>(Instruction::_and);
+            op->set_inputs(v9, v7);
+            op->set_outputs(v10);
+            v10->set_op(std::move(op));
+        }
+        auto *v11 = block1->add_var(Type::i64); // v11 = ~v10 = -41 (0xFFFF_FFFF_FFFF_FFD7)
+        {
+            auto op = std::make_unique<Operation>(Instruction::_not);
+            op->set_inputs(v10);
+            op->set_outputs(v11);
+            v11->set_op(std::move(op));
+        }
+        auto *v12 = block1->add_var(Type::i64); // v12 = v11 ^ v9 = -3 (0xFFFF_FFFF_FFFF_FFFD)
+        {
+            auto op = std::make_unique<Operation>(Instruction::_xor);
+            op->set_inputs(v11, v9);
+            op->set_outputs(v12);
+            v12->set_op(std::move(op));
+        }
+        auto *v13 = block1->add_var(Type::i64); // v13 = ~v12 = 2
+        {
+            auto op = std::make_unique<Operation>(Instruction::_not);
+            op->set_inputs(v12);
+            op->set_outputs(v13);
+            v13->set_op(std::move(op));
+        }
+
+        {
+            auto &cf_op = block1->add_cf_op(CFCInstruction::_return, nullptr);
+            cf_op.info = CfOp::RetInfo{};
+            std::get<CfOp::RetInfo>(cf_op.info).mapping.emplace_back(v13, static0);
+        }
+    }
+
+    ir.entry_block = block1->id;
+}
+
+void gen_sec_ir(IR &ir) {
+    const auto static0 = ir.add_static(Type::i64);
+
+    auto *block1 = ir.add_basic_block();
+    {
+        auto *v1 = block1->add_var_imm(1);
+        auto &op = block1->add_cf_op(CFCInstruction::_return, nullptr);
+        op.info = CfOp::RetInfo{};
+        std::get<CfOp::RetInfo>(op.info).mapping.emplace_back(v1, static0);
+    }
+
+    auto *block2 = ir.add_basic_block();
+    {
+        auto *v1 = block2->add_var_imm(0);
+        auto &op = block2->add_cf_op(CFCInstruction::_return, nullptr);
+        op.info = CfOp::RetInfo{};
+        std::get<CfOp::RetInfo>(op.info).mapping.emplace_back(v1, static0);
+    }
+
+    auto *entry_block = ir.add_basic_block();
+    {
+        auto *v1 = entry_block->add_input(entry_block->add_var_from_static(static0));
+        auto *v2 = entry_block->add_var_imm(3);
+
+        {
+            auto &op = entry_block->add_cf_op(CFCInstruction::cjump, block2);
+            op.info = CfOp::CJumpInfo{CfOp::CJumpInfo::CJumpType::lt};
+            op.set_inputs(v1, v2);
+        }
+        { auto &op = entry_block->add_cf_op(CFCInstruction::jump, block1); }
+    }
+
+    ir.entry_block = entry_block->id;
+}
+
+void gen_first_ir(IR &ir) {
     auto *block = ir.add_basic_block();
     {
         const auto static0 = ir.add_static(Type::i64);
@@ -85,7 +233,10 @@ int main() {
         }
 
         {
-            auto &op       = block->add_cf_op(CFCInstruction::_return, nullptr);
+            auto &op = block->add_cf_op(CFCInstruction::_return, nullptr);
+            op.info = CfOp::RetInfo{};
+            auto &ret_info = std::get<CfOp::RetInfo>(op.info);
+            ret_info.mapping.emplace_back(var3, 0);
             block->add_static_output(var3, 0);
         }
     }
@@ -97,7 +248,7 @@ int main() {
             // op.info  = CfOp::CJumpInfo{CfOp::CJumpInfo::CJumpType::eq};
             auto *imm1 = block2->add_var_imm(1);
             auto *imm2 = block2->add_var_imm(2);
-            auto &op   = block2->add_cf_op(CFCInstruction::jump, block);
+            auto &op = block2->add_cf_op(CFCInstruction::jump, block);
             op.add_target_input(imm1);
             op.add_target_input(imm2);
 
@@ -106,10 +257,5 @@ int main() {
     }
 
     ir.entry_block = block2->id;
-    ir.print(std::cout);
-
-    auto gen = generator::x86_64::Generator{&ir};
-    gen.compile();
-
-    return 0;
 }
+} // namespace

@@ -22,8 +22,7 @@ struct BasicBlock {
 
     std::vector<SSAVar *> inputs;
     std::vector<std::unique_ptr<SSAVar>> variables;
-    // TODO: this needs to exist for standalone blocks that are supposed to be just jumped to
-    // TODO: do we need to always emit these or can we start to not require them for blocks that are known as part of functions, how data flows through them and which vars are needed when
+    // TODO: this can be used to better trace mapping for the lifter but that data exists in a transformed form for the compiler
     std::vector<std::pair<SSAVar *, size_t>> static_output_mapping;
 
     BasicBlock(IR *ir, const size_t id, const size_t offset = 0) : ir(ir), id(id), offset(offset) {}

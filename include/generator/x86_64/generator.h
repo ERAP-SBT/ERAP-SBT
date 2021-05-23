@@ -18,7 +18,9 @@ namespace generator::x86_64
         void compile_block(BasicBlock *);
         void compile_entry();
 
-        void compile_cf_args(BasicBlock *, const CfOp &);
-        void compile_static_output(BasicBlock *);
+        void compile_vars(const BasicBlock*);
+        void compile_cf_args(const BasicBlock *, const CfOp &);
+        void compile_ret_args(BasicBlock*, const CfOp&);
+        void compile_cjump(const BasicBlock*, const CfOp&, size_t cond_idx);
     };
 }  // namespace generator::x86_64
