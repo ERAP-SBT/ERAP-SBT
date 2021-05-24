@@ -15,8 +15,8 @@ struct BasicBlock {
     size_t id;
     size_t cur_ssa_id = 0;
 
-    uint64_t virt_start_addr  = 0;
-    uint64_t virt_end_addr  = 0;
+    uint64_t virt_start_addr = 0;
+    uint64_t virt_end_addr = 0;
 
     std::vector<CfOp> control_flow_ops;
     std::vector<BasicBlock *> predecessors;

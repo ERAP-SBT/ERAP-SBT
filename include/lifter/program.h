@@ -1,9 +1,9 @@
 #pragma once
 
+#include <algorithm>
 #include <lifter/elf_file.h>
 #include <map>
 #include <variant>
-#include <algorithm>
 
 struct RV64Inst {
     // the base decoded instruction
@@ -20,7 +20,7 @@ struct RV64Inst {
  * The "program" is used for loading a higher representation of the elf binary files.
  */
 struct Program {
-    explicit Program(std::unique_ptr<ELF64File> file_ptr) : elf_base(std::move(file_ptr)), memory() {};
+    explicit Program(std::unique_ptr<ELF64File> file_ptr) : elf_base(std::move(file_ptr)), addrs(), data(){};
 
     uint64_t load_instrs(uint8_t *, size_t, uint64_t);
 
@@ -54,7 +54,18 @@ struct Program {
     // the elf binary which contains the raw program data
     const std::unique_ptr<ELF64File> elf_base;
 
-    // The memory maps virtual addresses to RV64 instructions and raw data.
-    // if this map draws too much performance, i can always be replaced with two vectors
-    std::map<uint64_t, std::variant<std::monostate, RV64Inst, uint8_t>> memory;
+    // These two vectors map virtual addresses to RV64 instructions and raw data.
+    std::vector<uint64_t> addrs;
+    std::vector<std::variant<std::monostate, RV64Inst, uint8_t>> data;
+
+    size_t insert_addr(uint64_t addr) {
+        auto it = std::lower_bound(addrs.begin(), addrs.end(), addr);
+        size_t idx = (it - addrs.begin());
+        addrs.insert(it, addr);
+        return idx;
+    }
+
+    void insert_value(uint64_t addr, RV64Inst value) { data.emplace((data.begin() + insert_addr(addr)), value); }
+
+    void insert_value(uint64_t addr, uint8_t value) { data.emplace((data.begin() + insert_addr(addr)), value); }
 };

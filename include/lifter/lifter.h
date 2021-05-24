@@ -1,107 +1,76 @@
 #pragma once
 
-#include <lifter/program.h>
 #include <ir/ir.h>
+#include <lifter/program.h>
 
 namespace lifter::RV64 {
-    class Lifter {
-    public:
-        IR *ir;
+class Lifter {
+  public:
+    IR *ir;
 
-        explicit Lifter(IR *ir) : ir(ir) {}
+    explicit Lifter(IR *ir) : ir(ir) {}
 
-        void lift(Program *);
+    void lift(Program *);
 
-    private:
+  private:
+    size_t next_bb_id{0};
 
-        size_t next_bb_id{0};
-        size_t next_var_id{0};
+    // {0}: not used
+    // {1, ..., 31}: RV-Registers
+    // {32}: the last valid memory token
+    using reg_map = std::array<SSAVar *, 33>;
 
-        void parse_instruction(RV64Inst, Function *, BasicBlock *);
+    void parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping);
 
-        [[nodiscard]] BasicBlock *get_bb(uint64_t addr) const;
+    [[nodiscard]] BasicBlock *get_bb(uint64_t addr) const;
 
-        void liftRec(Program *prog, uint64_t start_addr);
+    BasicBlock *liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBlock *pred);
 
-        void liftInvalid(Function *, BasicBlock *);
+    //        void liftInvalid(BasicBlock *);
 
-        void liftAdd(Function *, BasicBlock *, std::array<SSAVar *, 32>);
+    void lift_shift(BasicBlock *, RV64Inst &, reg_map &, const Instruction &, const Type &);
 
-        void liftAddW(Function *, BasicBlock *, std::array<SSAVar *, 32>);
+    void lift_shift_immediate(BasicBlock *, RV64Inst &, reg_map &, const Instruction &, const Type &);
 
-        void liftAddI(Function *, BasicBlock *, std::array<SSAVar *, 32>);
+    //        void liftSLTI(BasicBlock *, RV64Inst &, reg_map &);
+    //
+    //        void liftSLTIU(BasicBlock *, RV64Inst &, reg_map &);
+    //
+    //        void liftSLT(BasicBlock *, RV64Inst &, reg_map &);
+    //
+    //        void liftSLTU(BasicBlock *, RV64Inst &, reg_map &);
+    //
+    //        void liftFENCE(BasicBlock *, reg_map&);
+    //
+    //        void liftFENCEI(BasicBlock *, reg_map&);
+    //
+    //        void liftAUIPC(BasicBlock *, reg_map&);
+    //
+    //        void liftLUI(BasicBlock *, reg_map&);
+    //
+    //        void liftJAL(BasicBlock *, reg_map&);
+    //
+    //        void liftJALR(BasicBlock *, reg_map&);
+    //
+    //        void liftBranch(BasicBlock *, reg_map&);
+    //
+    //        void liftECALL(BasicBlock *, reg_map&);
 
-        void liftAddIW(Function *, BasicBlock *, std::array<SSAVar *, 32>);
+    void lift_load(BasicBlock *, RV64Inst &, reg_map &, const Type &, bool);
 
-        void liftSLLI(Function *, BasicBlock *, std::array<SSAVar *, 32>);
+    void lift_store(BasicBlock *, RV64Inst &, reg_map &, const Type&);
 
-        void liftSLLIW(Function *, BasicBlock *, std::array<SSAVar *, 32>);
+    void lift_arithmetical_logical(BasicBlock *, RV64Inst &, reg_map &, const Instruction &, const Type &);
 
-        void liftSLTI(Function *, BasicBlock *, std::array<SSAVar *, 32>);
+    void lift_arithmetical_logical_immediate(BasicBlock *, RV64Inst &, reg_map &, const Instruction &, const Type &);
 
-        void liftSLTIU(Function *, BasicBlock *, std::array<SSAVar *, 32>);
+    void extend_reg(size_t, BasicBlock *, reg_map &, bool);
 
-        void liftXORI(Function *, BasicBlock *, std::array<SSAVar *, 32>);
+    void shrink_reg(size_t, BasicBlock *, reg_map &, const Type &);
 
-        void liftSRAI(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftSRAIW(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftSRLI(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftSRLIW(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftORI(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftANDI(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftSLL(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftSLLW(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftSLT(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftSLTU(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftXOR(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftSRL(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftSRLW(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftOR(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftAND(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftSUB(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftSUBW(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftSRA(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftSRAW(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftFENCE(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftFENCEI(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftAUIPC(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftLUI(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftJAL(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftJALR(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftBranch(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftECALL(Function *, BasicBlock *, std::array<SSAVar *, 32>);
-
-        void liftLoad(Function *, BasicBlock *, std::array<SSAVar *, 32>, SSAVar *memory_token);
-
-        void liftStore(Function *, BasicBlock *, std::array<SSAVar *, 32>, SSAVar *memory_token);
-    };
-}
+    void offset_adding(BasicBlock *, RV64Inst &, reg_map &);
+};
+} // namespace lifter::RV64
 
 /*
  * mov x0, 1        // v0 = immediate (1) -> set_last_register_value(x0, v0)

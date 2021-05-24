@@ -1,5 +1,6 @@
 /build/
 /.idea/
+.clang-format
 
 # vs stuff
 /.vs/
@@ -7,3 +8,7 @@
 CppProperties.json
 launch.vs.json
 tasks.vs.json
+
+# clion stuff (workarounds...)
+/cmake-build-debug/
+CMakeLists.txt
