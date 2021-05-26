@@ -376,7 +376,7 @@ void Generator::compile_ret_args(BasicBlock *block, const CfOp &op) {
 
     assert(op.info.index() == 2);
     const auto &ret_info = std::get<CfOp::RetInfo>(op.info);
-    for (const auto &[var, s_idx] : ret_info.mapping) {
+    for (const auto &[var, s_idx] : ret_info.mapping()) {
         printf("xor rax, rax\n");
         printf("mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(var));
         printf("mov [s%zu], rax\n", s_idx);

@@ -59,7 +59,7 @@ int main() {
     }
 
     IR ir = IR{};
-    gen_syscall_ir(ir);
+    gen_unreachable_ir(ir);
     ir.print(std::cout);
 
     auto gen = generator::x86_64::Generator{&ir};
@@ -177,7 +177,7 @@ void gen_third_ir(IR &ir) {
 
         {
             auto &cf_op = block1->add_cf_op(CFCInstruction::_return, nullptr);
-            std::get<CfOp::RetInfo>(cf_op.info).mapping.emplace_back(v13, static0);
+            std::get<CfOp::RetInfo>(cf_op.info).add_mapping(v13, static0);
         }
     }
 
@@ -191,14 +191,14 @@ void gen_sec_ir(IR &ir) {
     {
         auto *v1 = block1->add_var_imm(1);
         auto &op = block1->add_cf_op(CFCInstruction::_return, nullptr);
-        std::get<CfOp::RetInfo>(op.info).mapping.emplace_back(v1, static0);
+        std::get<CfOp::RetInfo>(op.info).add_mapping(v1, static0);
     }
 
     auto *block2 = ir.add_basic_block();
     {
         auto *v1 = block2->add_var_imm(0);
         auto &op = block2->add_cf_op(CFCInstruction::_return, nullptr);
-        std::get<CfOp::RetInfo>(op.info).mapping.emplace_back(v1, static0);
+        std::get<CfOp::RetInfo>(op.info).add_mapping(v1, static0);
     }
 
     auto *entry_block = ir.add_basic_block();
@@ -255,7 +255,7 @@ void gen_first_ir(IR &ir) {
         {
             auto &op = block->add_cf_op(CFCInstruction::_return, nullptr);
             auto &ret_info = std::get<CfOp::RetInfo>(op.info);
-            ret_info.mapping.emplace_back(var3, 0);
+            ret_info.add_mapping(var3, 0);
             block->add_static_output(var3, 0);
         }
     }
