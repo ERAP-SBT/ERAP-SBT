@@ -1,12 +1,11 @@
+#include "generator/generator.h"
+#include "ir/ir.h"
+#include "lifter/lifter.h"
+
 #include <iostream>
 
-#include <generator/generator.h>
-#include <ir/ir.h>
-#include <lifter/lifter.h>
-
-int main()
-{
-    IR ir       = IR{};
+int main() {
+    IR ir = IR{};
     auto *block = ir.add_basic_block();
     {
         const auto static0 = ir.add_static(Type::i64);
@@ -46,7 +45,7 @@ int main()
     {
         {
             auto &op = block->add_cf_op(CFCInstruction::cjump, block2);
-            op.info  = CfOp::CJumpInfo{CfOp::CJumpInfo::CJumpType::eq};
+            op.info = CfOp::CJumpInfo{CfOp::CJumpInfo::CJumpType::eq};
 
             block->add_cf_op(CFCInstruction::jump, block2);
         }

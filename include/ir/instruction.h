@@ -1,8 +1,7 @@
 #pragma once
 #include <ostream>
 
-enum class Instruction
-{
+enum class Instruction {
     store,
     load,
     add,
@@ -26,8 +25,7 @@ enum class Instruction
 std::ostream &operator<<(std::ostream &stream, Instruction instr);
 
 // CFC <=> Control Flow Change
-enum class CFCInstruction
-{
+enum class CFCInstruction {
     jump,
     ijump,
     cjump,

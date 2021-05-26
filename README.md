@@ -5,6 +5,20 @@
 Dieses Projekt basiert auf [meson](https://mesonbuild.com).
 
 ```sh
-meson setup build
-meson compile -C build
+# Project setup
+meson setup build -Db_coverage=true
+
+# Build binaries:
+ninja -C build all
+
+# Run all tests:
+ninja -C build test
+
+# Generate coverage reports after running tests
+ninja -C build coverage
+```
+
+Before committing you can clean up your code by running `clang-format`:
+```sh
+ninja -C build clang-format
 ```
