@@ -9,11 +9,8 @@ struct RV64Inst {
     // the base decoded instruction
     FrvInst instr;
 
-    // if the instruction refers to an address (loading, storing, jumping), this contains the resolved, non-relative address
-    uint64_t virt_addr{0};
-
-    // if the instructions contains an immediate, this contains the non-relative, decoded version
-    uint64_t imm{0};
+    // the instruction size in bytes
+    size_t size;
 };
 
 /*
@@ -48,9 +45,6 @@ struct Program {
 
     uint64_t load_symbol_data(Elf64_Sym *);
 
-    // resolve PC-relative addresses and immediates
-    void resolve_relative(uint64_t, uint64_t);
-
     // the elf binary which contains the raw program data
     const std::unique_ptr<ELF64File> elf_base;
 
@@ -58,9 +52,9 @@ struct Program {
     std::vector<uint64_t> addrs;
     std::vector<std::variant<std::monostate, RV64Inst, uint8_t>> data;
 
-    size_t insert_addr(uint64_t addr) {
+    std::vector<uint64_t>::difference_type insert_addr(uint64_t addr) {
         auto it = std::lower_bound(addrs.begin(), addrs.end(), addr);
-        size_t idx = (it - addrs.begin());
+        auto idx = (it - addrs.begin());
         addrs.insert(it, addr);
         return idx;
     }

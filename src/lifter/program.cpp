@@ -1,10 +1,20 @@
 #include <lifter/program.h>
 
 uint64_t Program::load_instrs(uint8_t *byte_arr, size_t n, uint64_t block_start_addr) {
-    for (size_t off = 0; off < n;) {
+    int return_code = 0;
+    for (size_t off = 0; off < n; off += return_code) {
         FrvInst instr;
-        off += frv_decode(n - off, byte_arr + off, FRV_RV64, &instr);
-        insert_value(block_start_addr + off, RV64Inst{instr});
+        return_code = frv_decode(n - off, byte_arr + off, FRV_RV64, &instr);
+        if (return_code == FRV_PARTIAL) {
+            std::cerr << "Discovered partial instruction at address <0x" << std::hex << (block_start_addr + off) << ">. Skipping (+ 2)\n";
+            return_code = 2;
+            instr.mnem = FRV_INVALID;
+        } else if (return_code == FRV_INVALID) {
+            std::cerr << "Discovered invalid instruction at address <0x" << std::hex << (block_start_addr + off) << ">. Skipping (+ 2)\n";
+            return_code = 2;
+            instr.mnem = FRV_INVALID;
+        }
+        insert_value(block_start_addr + off, RV64Inst{instr, (size_t)return_code});
     }
     return block_start_addr + n;
 }
@@ -29,9 +39,15 @@ uint64_t Program::load_symbol_instrs(size_t sym_i) { return load_symbol_instrs(&
 
 uint64_t Program::load_symbol_instrs(Elf64_Sym *sym) {
     if (!sym->st_size) {
-        std::cerr << "Trying to parse a symbol with unknown or no size. This is currently not supported."
+        std::cerr << "Trying to parse a symbol with unknown or no size. Searching for endpoint..."
                   << "\n";
-        return sym->st_value;
+        uint64_t next_sym_addr = UINT64_MAX;
+        for (auto &other_sym : elf_base->symbols) {
+            if (other_sym.st_value > sym->st_value && other_sym.st_value < next_sym_addr) {
+                next_sym_addr = other_sym.st_value;
+            }
+        }
+        sym->st_size = next_sym_addr - sym->st_value;
     }
     if (ELF32_ST_TYPE(sym->st_info) & STT_NOTYPE) {
         std::cerr << "Trying to parse a STT_NOTYPE symbol. This is not supported."
@@ -125,46 +141,4 @@ uint64_t Program::load_section(size_t shdr_i) {
         throw std::invalid_argument("Currently unsupported section: \"" + elf_base->section_names.at(shdr_i) + "\"");
     }
     return shdr.sh_addr;
-}
-
-void Program::resolve_relative(uint64_t start_addr, uint64_t end_addr) {
-    // first, find the start and end places in the map (addresses might be slightly off)
-    size_t start_i{0};
-    size_t end_i{0};
-    for (auto it = addrs.begin(); it != addrs.end(); it++) {
-        if (start_i == 0 && *it >= start_addr) {
-            start_i = it - addrs.begin();
-        }
-        if (end_i == 0 && *it >= end_addr) {
-            end_i = it - addrs.begin();
-        }
-        if (start_i != 0 && end_i != 0) {
-            break;
-        }
-    }
-    for (; start_i <= end_i; start_i++) {
-        if (data.at(start_i).index() == 1) {
-            auto &instr = std::get<RV64Inst>(data.at(start_i));
-            switch (instr.instr.mnem) {
-            case FRV_JAL:
-            case FRV_JALR: // here, the address will be added to rs1
-            case FRV_BEQ:
-            case FRV_BGE:
-            case FRV_BGEU:
-            case FRV_BLT:
-            case FRV_BLTU:
-            case FRV_BNE:
-            case FRV_SB:
-            case FRV_SH:
-            case FRV_SW:
-            case FRV_SD:
-                instr.virt_addr = instr.instr.imm + addrs.at(start_i);
-                break;
-
-            case FRV_AUIPC:
-                instr.imm = instr.instr.imm + addrs.at(start_i);
-                break;
-            }
-        }
-    }
 }

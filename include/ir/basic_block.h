@@ -50,8 +50,13 @@ struct BasicBlock {
         return var;
     }
 
-    CfOp &add_cf_op(const CFCInstruction type, BasicBlock *target) {
-        control_flow_ops.emplace_back(type, this, target);
+    CfOp &add_cf_op(CFCInstruction type, uint64_t jump_addr = 0) {
+        control_flow_ops.emplace_back(type, this, jump_addr);
+        return control_flow_ops.back();
+    }
+
+    CfOp &add_cf_op(CFCInstruction type, BasicBlock *source, uint64_t jump_addr = 0) {
+        control_flow_ops.emplace_back(type, source, jump_addr);
         return control_flow_ops.back();
     }
 

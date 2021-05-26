@@ -43,7 +43,7 @@ void Operation::print(std::ostream &stream, const IR *ir) const {
     }
 }
 
-CfOp::CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target) : type(type), source(source), in_vars() {
+CfOp::CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target) : type(type), source(source), target(target), jump_addr(), in_vars() {
     if (target != nullptr) {
         target->predecessors.push_back(source);
         source->successors.push_back(target);
@@ -241,6 +241,9 @@ void CfOp::CJumpInfo::print(std::ostream &stream) const {
         break;
     case CJumpType::sgt:
         stream << "sgt";
+        break;
+    case CJumpType::ltu:
+        stream << "ltu";
         break;
     }
 }

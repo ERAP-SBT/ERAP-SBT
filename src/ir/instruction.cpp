@@ -56,6 +56,12 @@ std::ostream &operator<<(std::ostream &stream, Instruction instr) {
     case Instruction::setup_stack:
         stream << "setup_stack";
         break;
+    case Instruction::zero_extend:
+        stream << "zext";
+        break;
+    case Instruction::sign_extend:
+        stream << "sext";
+        break;
     }
 
     return stream;
