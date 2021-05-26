@@ -1,0 +1,35 @@
+# Doxyfile 1.9.1
+#
+# For a list of possible keys, see https://www.doxygen.nl/manual/config.html
+# The configuration is based on https://github.com/mesonbuild/meson/tree/master/test%20cases/frameworks/14%20doxygen
+# Only values which deviate from the default are listed here for clarity.
+#
+# @...@ tags are replaced by meson before running this through doxygen.
+
+PROJECT_NAME      = "eragp-sbt-2021"
+PROJECT_NUMBER    = @VERSION@
+PROJECT_BRIEF     = "ERA Großpraktikum SoSe 2021: Statische Binärübersetzung von RISC-V in x86_64"
+
+OUTPUT_DIRECTORY  = "docs"
+
+# 'ROOTDIR' is set to the project's root directory.
+INPUT             = "@ROOTDIR@/include" "@ROOTDIR@/src"
+INCLUDE_PATH      = "@ROOTDIR@/include"
+RECURSIVE         = YES
+FILE_PATTERNS     = *.h *.cpp
+# Exclude tests from being documented
+# (This assumes that only these test directories exists; EXCLUDE_PATTERNS might be a better alternative)
+EXCLUDE           = "@ROOTDIR@/src/tests" \
+                    "@ROOTDIR@/src/lifter/tests" \
+                    "@ROOTDIR@/src/ir/tests" \
+                    "@ROOTDIR@/src/generator/tests"
+
+# STRIP_FROM_PATH removes the base directory from absolute paths (which are used in e.g. graphs).
+# The default for STRIP_FROM_PATH is the working directory of doxygen, which would be the build directory in our case.
+STRIP_FROM_PATH   = "@ROOTDIR@"
+
+# If the 'dot' tool is found by meson, this is set to 'YES'.
+HAVE_DOT          = @HAVE_DOT@
+
+# For now, stop Doxygen from complaining about undocumented items and put everything (excluding private members) into the final docs
+EXTRACT_ALL       = YES
