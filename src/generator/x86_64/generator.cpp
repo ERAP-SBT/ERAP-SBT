@@ -34,6 +34,8 @@ std::array<const char *, 4> &op_reg_map_for_type(const Type type) {
     exit(1);
 }
 
+std::array<const char *, 6> call_reg = {"rdi", "rsi", "rdx", "r10", "r8", "r9"};
+
 const char *rax_from_type(const Type type) {
     const auto *reg_str = "rax";
     switch (type) {
@@ -95,6 +97,8 @@ size_t index_for_var(const BasicBlock *block, const SSAVar *var) {
 } // namespace
 
 void Generator::compile() {
+    assert(err_msgs.empty());
+
     printf(".intel_syntax noprefix\n.global _start\n\n.data\n");
     compile_statics();
     printf("param_passing: .space 128\n");
@@ -104,11 +108,15 @@ void Generator::compile() {
     compile_blocks();
 
     compile_entry();
+
+    // TODO: does this section name need to be smth else?
+    printf("\n.section .rodata\n");
+    compile_err_msgs();
 }
 
 void Generator::compile_statics() {
     for (const auto &var : ir->statics) {
-        std::printf("s%lu: .quad 0\n", var.id); // for now have all of the statics be 64bit
+        std::printf("s%zu: .quad 0\n", var.id); // for now have all of the statics be 64bit
     }
 }
 
@@ -137,7 +145,7 @@ void Generator::compile_block(BasicBlock *block) {
         case CFCInstruction::jump:
             compile_cf_args(block, cf_op);
             printf("# control flow\n");
-            printf("jmp b%zu\n", cf_op.target->id);
+            printf("jmp b%zu\n", std::get<CfOp::JumpInfo>(cf_op.info).target->id);
             break;
         case CFCInstruction::_return:
             compile_ret_args(block, cf_op);
@@ -149,12 +157,20 @@ void Generator::compile_block(BasicBlock *block) {
         case CFCInstruction::call:
             compile_cf_args(block, cf_op);
             printf("# control flow\n");
-            printf("call b%zu\n", cf_op.target->id);
+            printf("call b%zu\n", std::get<CfOp::CallInfo>(cf_op.info).target->id);
+            assert(std::get<CfOp::CallInfo>(cf_op.info).continuation_block != nullptr);
+            printf("jmp b%zu\n", std::get<CfOp::CallInfo>(cf_op.info).continuation_block->id);
+            break;
+        case CFCInstruction::syscall:
+            compile_syscall(block, cf_op);
+            break;
+        case CFCInstruction::unreachable:
+            err_msgs.emplace_back(ErrType::unreachable, block);
+            printf("mov rdi, offset err_unreachable_b%zu\n", block->id);
+            printf("jmp panic\n");
             break;
         case CFCInstruction::icall:
         case CFCInstruction::ijump:
-        case CFCInstruction::syscall:
-        case CFCInstruction::unreachable:
             assert(0);
             exit(1);
         }
@@ -165,13 +181,25 @@ void Generator::compile_block(BasicBlock *block) {
 
 void Generator::compile_entry() {
     printf("_start:\n");
-    printf("mov rdi, offset param_passing\n");
+    printf("mov rbx, offset param_passing\n");
+    // TODO: properly copy stack here to the artificial one
     printf("mov rax, [rsp]\n");
     printf("mov [s0], rax\n");
-    printf("call b%zu\n", ir->entry_block);
-    printf("mov rdi, [s0]\n");
-    printf("mov eax, 60\n");
-    printf("syscall");
+    printf("jmp b%zu\n", ir->entry_block);
+}
+
+void Generator::compile_err_msgs() {
+    for (const auto &[type, block] : err_msgs) {
+        switch (type) {
+        case ErrType::unreachable:
+            printf(R"#(err_unreachable_b%zu: .ascii "Reached unreachable code in block %zu\n\0")#"
+                   "\n",
+                   block->id, block->id);
+            break;
+        }
+    }
+
+    err_msgs.clear();
 }
 
 void Generator::compile_vars(const BasicBlock *block) {
@@ -243,16 +271,13 @@ void Generator::compile_vars(const BasicBlock *block) {
             printf("sub rax, rbx\n");
             break;
         case Instruction::mul:
+        case Instruction::umul:
             assert(arg_count == 2);
             printf("imul rax, rbx\n");
             break;
-        case Instruction::umul:
-            assert(arg_count == 2);
-            printf("mul rbx\n");
-            break;
         case Instruction::div:
             assert(arg_count == 2);
-            printf("xor rdx, rdx\nidiv rbx\n");
+            printf("cqo\nidiv rbx\n");
             break;
         case Instruction::udiv:
             assert(arg_count == 2);
@@ -310,11 +335,11 @@ void Generator::compile_vars(const BasicBlock *block) {
 }
 
 void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
-    const auto *target = cf_op.target;
-    assert(target->inputs.size() == cf_op.target_inputs.size());
-    for (size_t i = 0; i < cf_op.target_inputs.size(); ++i) {
+    const auto *target = cf_op.target();
+    assert(target->inputs.size() == cf_op.target_inputs().size());
+    for (size_t i = 0; i < cf_op.target_inputs().size(); ++i) {
         const auto *target_var = target->inputs[i];
-        const auto *source_var = cf_op.target_inputs[i];
+        const auto *source_var = cf_op.target_inputs()[i];
 
         assert(target_var->type != Type::imm && target_var->info.index() > 1);
 
@@ -329,7 +354,7 @@ void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
         // from normal var
         printf("xor rax, rax\n");
         printf("mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(source_var->type), index_for_var(block, source_var));
-        printf("mov qword ptr [rdi], rax\nadd rdi, 8\n");
+        printf("mov qword ptr [rbx], rax\nadd rbx, 8\n");
     }
 
     // destroy stack space
@@ -349,7 +374,7 @@ void Generator::compile_ret_args(BasicBlock *block, const CfOp &op) {
         exit(1);
     };
 
-    assert(op.target == nullptr && op.info.index() == 2);
+    assert(op.info.index() == 2);
     const auto &ret_info = std::get<CfOp::RetInfo>(op.info);
     for (const auto &[var, s_idx] : ret_info.mapping) {
         printf("xor rax, rax\n");
@@ -387,5 +412,29 @@ void Generator::compile_cjump(const BasicBlock *block, const CfOp &cf_op, const 
 
     compile_cf_args(block, cf_op);
     printf("# control flow\n");
-    printf("jmp b%zu\n", cf_op.target->id);
+    printf("jmp b%zu\n", info.target->id);
+}
+
+void Generator::compile_syscall(const BasicBlock *block, const CfOp &cf_op) {
+    const auto &info = std::get<CfOp::SyscallInfo>(cf_op.info);
+
+    for (size_t i = 0; i < call_reg.size(); ++i) {
+        if (cf_op.in_vars[i] == nullptr)
+            break;
+        printf("mov %s, [rbp - 8 - 8 * %zu]\n", call_reg[i], index_for_var(block, cf_op.in_vars[i]));
+    }
+    if (cf_op.in_vars[6] == nullptr) {
+        printf("push 0\n");
+    } else {
+        printf("mov rax, [rbp - 8 - 8 * %zu]\n", index_for_var(block, cf_op.in_vars[6]));
+        printf("push rax\n");
+    }
+
+    printf("call syscall_impl\n");
+    if (info.static_mapping.has_value()) {
+        printf("mov [s%zu], rax\n", *info.static_mapping);
+    }
+    printf("# destroy stack space\n");
+    printf("mov rsp, rbp\npop rbp\n");
+    printf("jmp b%zu\n", info.continuation_block->id);
 }

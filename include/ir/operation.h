@@ -5,6 +5,7 @@
 
 #include <array>
 #include <memory>
+#include <optional>
 #include <vector>
 
 // forward declaration
@@ -28,33 +29,65 @@ struct Operation {
 };
 
 struct CfOp {
+    struct JumpInfo {
+        BasicBlock *target;
+        std::vector<SSAVar *> target_inputs;
+    };
+
+    struct IJumpInfo {
+        // jump addr is in in_vars[0]
+        std::vector<std::pair<SSAVar *, size_t>> mapping;
+    };
+
     struct CJumpInfo {
         enum class CJumpType { eq, neq, lt };
         CJumpType type;
+        BasicBlock *target;
+        std::vector<SSAVar *> target_inputs;
+
+        // only prints type
         void print(std::ostream &stream) const;
     };
 
-    struct RetInfo
-    {
-      // SSAVar -> static
-      std::vector<std::pair<SSAVar*, size_t>> mapping;
+    struct CallInfo {
+        BasicBlock *continuation_block; // may not have non-static inputs
+        BasicBlock *target;
+        std::vector<SSAVar *> target_inputs;
+    };
+
+    struct ICallInfo {
+        // call addr is in in_vars[0]
+        BasicBlock *continuation_block; // may not have non-static inputs
+        std::vector<std::pair<SSAVar *, size_t>> mapping;
+    };
+
+    struct RetInfo {
+        // SSAVar -> static
+        std::vector<std::pair<SSAVar *, size_t>> mapping;
+    };
+
+    struct SyscallInfo {
+        BasicBlock *continuation_block;       // allow non-static inputs here?
+        std::optional<size_t> static_mapping; // output target of syscall result
     };
 
     CFCInstruction type;
     BasicBlock *source;
-    // TODO: move target/target_inputs in a variant of some sorts since these can be invalid for returns, icall, ijump, ...
-    BasicBlock *target;
-    std::vector<SSAVar *> target_inputs;
-    std::array<SSAVar *, 4> in_vars;
-    std::variant<std::monostate, CJumpInfo, RetInfo> info;
+    std::array<SSAVar *, 7> in_vars; // 7 since syscall takes id + 6 args max
+    std::variant<std::monostate, CJumpInfo, RetInfo, JumpInfo, IJumpInfo, CallInfo, ICallInfo, SyscallInfo> info;
 
     // TODO: add info for const_evalness here? may be able to optimize control flow this way
 
     CfOp(CFCInstruction type, BasicBlock *source, BasicBlock *target);
 
-    void add_target_input(SSAVar *var) { target_inputs.push_back(var); }
+    void set_inputs(SSAVar *op1 = nullptr, SSAVar *op2 = nullptr, SSAVar *op3 = nullptr, SSAVar *op4 = nullptr, SSAVar *op5 = nullptr, SSAVar *op6 = nullptr, SSAVar *op7 = nullptr);
 
-    void set_inputs(SSAVar *op1 = nullptr, SSAVar *op2 = nullptr, SSAVar *op3 = nullptr, SSAVar *op4 = nullptr);
+    // these exist for the generators convinience atm, may be deleted later
+    // usage in the lifter shouldn't be needed
+    void add_target_input(SSAVar *input);
+
+    BasicBlock *target() const;
+    const std::vector<SSAVar *> &target_inputs() const;
 
     void print(std::ostream &, const IR *) const;
 };

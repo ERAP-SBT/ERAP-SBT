@@ -45,6 +45,8 @@ error_t test_elf_parsing(const std::string &test_path) {
 }
 
 namespace {
+void gen_unreachable_ir(IR &);
+void gen_syscall_ir(IR &);
 void gen_third_ir(IR &);
 void gen_sec_ir(IR &);
 void gen_first_ir(IR &);
@@ -57,7 +59,7 @@ int main() {
     }
 
     IR ir = IR{};
-    gen_third_ir(ir);
+    gen_syscall_ir(ir);
     ir.print(std::cout);
 
     auto gen = generator::x86_64::Generator{&ir};
@@ -67,6 +69,27 @@ int main() {
 }
 
 namespace {
+void gen_unreachable_ir(IR &ir) {
+    const auto static0 = ir.add_static(Type::i64);
+    auto *block1 = ir.add_basic_block();
+    { block1->add_cf_op(CFCInstruction::unreachable, nullptr); }
+
+    ir.entry_block = block1->id;
+}
+
+void gen_syscall_ir(IR &ir) {
+    const auto static0 = ir.add_static(Type::i64);
+    auto *block1 = ir.add_basic_block();
+    {
+        auto *v1 = block1->add_var_imm(93);
+        auto *v2 = block1->add_var_imm(50);
+        auto &cf_op = block1->add_cf_op(CFCInstruction::syscall, block1);
+        cf_op.set_inputs(v1, v2);
+    }
+
+    ir.entry_block = block1->id;
+}
+
 void gen_third_ir(IR &ir) {
     const auto static0 = ir.add_static(Type::i64);
 
@@ -154,7 +177,6 @@ void gen_third_ir(IR &ir) {
 
         {
             auto &cf_op = block1->add_cf_op(CFCInstruction::_return, nullptr);
-            cf_op.info = CfOp::RetInfo{};
             std::get<CfOp::RetInfo>(cf_op.info).mapping.emplace_back(v13, static0);
         }
     }
@@ -169,7 +191,6 @@ void gen_sec_ir(IR &ir) {
     {
         auto *v1 = block1->add_var_imm(1);
         auto &op = block1->add_cf_op(CFCInstruction::_return, nullptr);
-        op.info = CfOp::RetInfo{};
         std::get<CfOp::RetInfo>(op.info).mapping.emplace_back(v1, static0);
     }
 
@@ -177,7 +198,6 @@ void gen_sec_ir(IR &ir) {
     {
         auto *v1 = block2->add_var_imm(0);
         auto &op = block2->add_cf_op(CFCInstruction::_return, nullptr);
-        op.info = CfOp::RetInfo{};
         std::get<CfOp::RetInfo>(op.info).mapping.emplace_back(v1, static0);
     }
 
@@ -188,7 +208,7 @@ void gen_sec_ir(IR &ir) {
 
         {
             auto &op = entry_block->add_cf_op(CFCInstruction::cjump, block2);
-            op.info = CfOp::CJumpInfo{CfOp::CJumpInfo::CJumpType::lt};
+            std::get<CfOp::CJumpInfo>(op.info).type = CfOp::CJumpInfo::CJumpType::lt;
             op.set_inputs(v1, v2);
         }
         { auto &op = entry_block->add_cf_op(CFCInstruction::jump, block1); }
@@ -234,7 +254,6 @@ void gen_first_ir(IR &ir) {
 
         {
             auto &op = block->add_cf_op(CFCInstruction::_return, nullptr);
-            op.info = CfOp::RetInfo{};
             auto &ret_info = std::get<CfOp::RetInfo>(op.info);
             ret_info.mapping.emplace_back(var3, 0);
             block->add_static_output(var3, 0);
