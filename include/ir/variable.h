@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ref.h"
 #include "type.h"
 
 #include <memory>
@@ -10,9 +11,8 @@
 struct Operation;
 struct IR;
 
-struct SSAVar {
+struct SSAVar : Refable {
     size_t id;
-    size_t ref_count = 0;
     Type type;
     bool from_static = false;
     bool const_evaluable = false;

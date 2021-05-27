@@ -235,7 +235,7 @@ void Generator::compile_vars(const BasicBlock *block) {
         std::array<const char *, 4> in_regs{};
         size_t arg_count = 0;
         for (size_t in_idx = 0; in_idx < op->in_vars.size(); ++in_idx) {
-            const auto *in_var = op->in_vars[in_idx];
+            const auto &in_var = op->in_vars[in_idx];
             if (!in_var)
                 break;
 
@@ -324,7 +324,7 @@ void Generator::compile_vars(const BasicBlock *block) {
         }
 
         for (size_t out_idx = 0; out_idx < op->out_vars.size(); ++out_idx) {
-            const auto *out_var = op->out_vars[out_idx];
+            const auto &out_var = op->out_vars[out_idx];
             if (!out_var)
                 break;
 
@@ -339,7 +339,7 @@ void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
     assert(target->inputs.size() == cf_op.target_inputs().size());
     for (size_t i = 0; i < cf_op.target_inputs().size(); ++i) {
         const auto *target_var = target->inputs[i];
-        const auto *source_var = cf_op.target_inputs()[i];
+        const auto &source_var = cf_op.target_inputs()[i];
 
         assert(target_var->type != Type::imm && target_var->info.index() > 1);
 
@@ -376,7 +376,7 @@ void Generator::compile_ret_args(BasicBlock *block, const CfOp &op) {
 
     assert(op.info.index() == 2);
     const auto &ret_info = std::get<CfOp::RetInfo>(op.info);
-    for (const auto &[var, s_idx] : ret_info.mapping()) {
+    for (const auto &[var, s_idx] : ret_info.mapping) {
         printf("xor rax, rax\n");
         printf("mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(var));
         printf("mov [s%zu], rax\n", s_idx);
