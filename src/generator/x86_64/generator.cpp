@@ -34,7 +34,7 @@ std::array<const char *, 4> &op_reg_map_for_type(const Type type) {
     exit(1);
 }
 
-std::array<const char *, 6> call_reg = {"rdi", "rsi", "rdx", "r10", "r8", "r9"};
+std::array<const char *, 6> call_reg = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
 const char *rax_from_type(const Type type) {
     const auto *reg_str = "rax";
@@ -103,6 +103,7 @@ void Generator::compile() {
     compile_statics();
     printf("param_passing: .space 128\n");
     printf("stack_space: .space 1048576 # 1MiB\n");
+    printf("init_stack_ptr: .quad 0\n");
 
     printf(".text\n");
     compile_blocks();
@@ -155,6 +156,7 @@ void Generator::compile_block(BasicBlock *block) {
             compile_cjump(block, cf_op, i);
             break;
         case CFCInstruction::call:
+            compile_continuation_args(block, std::get<CfOp::CallInfo>(cf_op.info).continuation_mapping);
             compile_cf_args(block, cf_op);
             printf("# control flow\n");
             printf("call b%zu\n", std::get<CfOp::CallInfo>(cf_op.info).target->id);
@@ -182,9 +184,10 @@ void Generator::compile_block(BasicBlock *block) {
 void Generator::compile_entry() {
     printf("_start:\n");
     printf("mov rbx, offset param_passing\n");
-    // TODO: properly copy stack here to the artificial one
-    printf("mov rax, [rsp]\n");
-    printf("mov [s0], rax\n");
+    printf("mov rdi, rsp\n");
+    printf("mov rsi, offset stack_space\n");
+    printf("call copy_stack\n");
+    printf("mov [init_stack_ptr], rax\n");
     printf("jmp b%zu\n", ir->entry_block);
 }
 
@@ -206,10 +209,9 @@ void Generator::compile_vars(const BasicBlock *block) {
     for (size_t idx = 0; idx < block->variables.size(); ++idx) {
         printf("# Handling var %zu\n", idx);
         const auto *var = block->variables[idx].get();
-        assert(var->info.index() != 0);
-
-        if (var->type == Type::mt)
-            continue; // skip memory token
+        // assert(var->info.index() != 0);
+        if (var->info.index() == 0)
+            continue;
 
         if (var->from_static) {
             assert(var->info.index() == 2);
@@ -254,7 +256,7 @@ void Generator::compile_vars(const BasicBlock *block) {
         case Instruction::store:
             assert(op->in_vars[0]->type == Type::i64);
             assert(arg_count == 2);
-            printf("mov %s [%s], %s\n", in_regs[0], ptr_from_type(op->in_vars[1]->type), in_regs[1]);
+            printf("mov %s [%s], %s\n", ptr_from_type(op->in_vars[1]->type), in_regs[0], in_regs[1]);
             break;
         case Instruction::load:
             assert(op->in_vars[0]->type == Type::i64);
@@ -319,17 +321,19 @@ void Generator::compile_vars(const BasicBlock *block) {
             break;
         case Instruction::setup_stack:
             assert(arg_count == 0);
-            printf("mov rax, offset stack_space\n");
+            printf("mov rax, [init_stack_ptr]\n");
             break;
         }
 
-        for (size_t out_idx = 0; out_idx < op->out_vars.size(); ++out_idx) {
-            const auto &out_var = op->out_vars[out_idx];
-            if (!out_var)
-                break;
+        if (var->type != Type::mt) {
+            for (size_t out_idx = 0; out_idx < op->out_vars.size(); ++out_idx) {
+                const auto &out_var = op->out_vars[out_idx];
+                if (!out_var)
+                    break;
 
-            const auto *reg_str = op_reg_map_for_type(out_var->type)[out_idx];
-            printf("mov [rbp - 8 - 8 * %zu], %s\n", index_for_var(block, out_var), reg_str);
+                const auto *reg_str = op_reg_map_for_type(out_var->type)[out_idx];
+                printf("mov [rbp - 8 - 8 * %zu], %s\n", index_for_var(block, out_var), reg_str);
+            }
         }
     }
 }
@@ -417,6 +421,7 @@ void Generator::compile_cjump(const BasicBlock *block, const CfOp &cf_op, const 
 
 void Generator::compile_syscall(const BasicBlock *block, const CfOp &cf_op) {
     const auto &info = std::get<CfOp::SyscallInfo>(cf_op.info);
+    compile_continuation_args(block, info.continuation_mapping);
 
     for (size_t i = 0; i < call_reg.size(); ++i) {
         if (cf_op.in_vars[i] == nullptr)
@@ -437,4 +442,12 @@ void Generator::compile_syscall(const BasicBlock *block, const CfOp &cf_op) {
     printf("# destroy stack space\n");
     printf("mov rsp, rbp\npop rbp\n");
     printf("jmp b%zu\n", info.continuation_block->id);
+}
+
+void Generator::compile_continuation_args(const BasicBlock *block, const std::vector<std::pair<RefPtr<SSAVar>, size_t>> &mapping) {
+    for (const auto &[var, s_idx] : mapping) {
+        printf("xor rax, rax\n");
+        printf("mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+        printf("mov [s%zu], rax\n", s_idx);
+    }
 }

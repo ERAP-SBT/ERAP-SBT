@@ -50,14 +50,16 @@ struct CfOp {
     };
 
     struct CallInfo {
-        BasicBlock *continuation_block = nullptr; // may not have non-static inputs
+        BasicBlock *continuation_block = nullptr;
+        std::vector<std::pair<RefPtr<SSAVar>, size_t>> continuation_mapping = {}; // TODO: allow non-statics?
         BasicBlock *target = nullptr;
         std::vector<RefPtr<SSAVar>> target_inputs = {};
     };
 
     struct ICallInfo {
         // call addr is in in_vars[0]
-        BasicBlock *continuation_block = nullptr; // may not have non-static inputs
+        BasicBlock *continuation_block = nullptr;
+        std::vector<std::pair<RefPtr<SSAVar>, size_t>> continuation_mapping = {}; // TODO: allow non-statics?
         std::vector<std::pair<RefPtr<SSAVar>, size_t>> mapping = {};
     };
 
@@ -67,8 +69,9 @@ struct CfOp {
     };
 
     struct SyscallInfo {
-        BasicBlock *continuation_block;       // allow non-static inputs here?
-        std::optional<size_t> static_mapping; // output target of syscall result
+        BasicBlock *continuation_block;
+        std::vector<std::pair<RefPtr<SSAVar>, size_t>> continuation_mapping = {}; // TODO: allow non-statics?
+        std::optional<size_t> static_mapping;                                     // output target of syscall result
     };
 
     CFCInstruction type = CFCInstruction::unreachable;

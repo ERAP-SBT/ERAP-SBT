@@ -45,6 +45,7 @@ error_t test_elf_parsing(const std::string &test_path) {
 }
 
 namespace {
+void gen_print_ir(IR &);
 void gen_unreachable_ir(IR &);
 void gen_syscall_ir(IR &);
 void gen_third_ir(IR &);
@@ -59,7 +60,7 @@ int main() {
     }
 
     IR ir = IR{};
-    gen_unreachable_ir(ir);
+    gen_print_ir(ir);
     ir.print(std::cout);
 
     auto gen = generator::x86_64::Generator{&ir};
@@ -69,6 +70,254 @@ int main() {
 }
 
 namespace {
+void gen_print_ir(IR &ir) {
+    const auto static0 = ir.add_static(Type::i64);
+    const auto static1 = ir.add_static(Type::i64);
+    const auto static2 = ir.add_static(Type::i64);
+    const auto static3 = ir.add_static(Type::i64);
+    const auto static4 = ir.add_static(Type::i64);
+    const auto static5 = ir.add_static(Type::i64);
+
+    auto *strlen_entry = ir.add_basic_block();
+    {
+        auto *strlen_cmp = ir.add_basic_block();
+        auto *strlen_inc = ir.add_basic_block();
+        auto *strlen_ret = ir.add_basic_block();
+        {
+            // entry
+            auto *str_ptr = strlen_entry->add_input(strlen_entry->add_var_from_static(static0));
+            auto *count = strlen_entry->add_var_imm(0);
+            auto &cf_op = strlen_entry->add_cf_op(CFCInstruction::jump, strlen_cmp);
+            cf_op.add_target_input(str_ptr);
+            cf_op.add_target_input(count);
+        }
+        {
+            // cmp
+            auto *mem_token = strlen_cmp->add_var(Type::mt); // not proper here
+            auto *str_ptr = strlen_cmp->add_input(strlen_cmp->add_var_from_static(static0));
+            auto *count = strlen_cmp->add_input(strlen_cmp->add_var_from_static(static5));
+            auto *null = strlen_cmp->add_var_imm(0);
+            auto *cur_c = strlen_cmp->add_var(Type::i8);
+            {
+                auto op = std::make_unique<Operation>(Instruction::load);
+                op->set_inputs(str_ptr, mem_token);
+                op->set_outputs(cur_c);
+                cur_c->set_op(std::move(op));
+            }
+
+            {
+                auto &cf_op = strlen_cmp->add_cf_op(CFCInstruction::cjump, strlen_ret);
+                cf_op.set_inputs(cur_c, null);
+                std::get<CfOp::CJumpInfo>(cf_op.info).type = CfOp::CJumpInfo::CJumpType::eq;
+                std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs.emplace_back(count);
+            }
+            {
+                auto &cf_op = strlen_cmp->add_cf_op(CFCInstruction::jump, strlen_inc);
+                std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.emplace_back(str_ptr);
+                std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.emplace_back(count);
+            }
+        }
+        {
+            // inc
+            auto *str_ptr = strlen_inc->add_input(strlen_inc->add_var_from_static(static0));
+            auto *count = strlen_inc->add_input(strlen_inc->add_var_from_static(static5));
+            auto *one = strlen_inc->add_var_imm(1);
+            auto *new_str_ptr = strlen_inc->add_var(Type::i64);
+            {
+                auto op = std::make_unique<Operation>(Instruction::add);
+                op->set_inputs(str_ptr, one);
+                op->set_outputs(new_str_ptr);
+                new_str_ptr->set_op(std::move(op));
+            }
+            auto *new_count = strlen_inc->add_var(Type::i64);
+            {
+                auto op = std::make_unique<Operation>(Instruction::add);
+                op->set_inputs(count, one);
+                op->set_outputs(new_count);
+                new_count->set_op(std::move(op));
+            }
+            auto &cf_op = strlen_inc->add_cf_op(CFCInstruction::jump, strlen_cmp);
+            std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.emplace_back(new_str_ptr);
+            std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.emplace_back(new_count);
+        }
+        {
+            auto *count = strlen_ret->add_input(strlen_ret->add_var_from_static(static0));
+            auto &cf_op = strlen_ret->add_cf_op(CFCInstruction::_return, nullptr);
+            std::get<CfOp::RetInfo>(cf_op.info).mapping.emplace_back(count, static0);
+        }
+    }
+
+    auto *entry_block = ir.add_basic_block();
+    {
+        auto *entry_cmp = ir.add_basic_block();
+        auto *entry_exit = ir.add_basic_block();
+        auto *entry_strlen = ir.add_basic_block();
+        auto *entry_write = ir.add_basic_block();
+        auto *entry_write2 = ir.add_basic_block();
+        auto *entry_inc = ir.add_basic_block();
+        {
+            // entry block
+            auto *mem_token = entry_block->add_var(Type::mt);
+            auto *stack_ptr = entry_block->add_var(Type::i64);
+            {
+                auto op = std::make_unique<Operation>(Instruction::setup_stack);
+                op->set_outputs(stack_ptr);
+                stack_ptr->set_op(std::move(op));
+            }
+            auto *argc = entry_block->add_var(Type::i64);
+            {
+                auto op = std::make_unique<Operation>(Instruction::load);
+                op->set_inputs(stack_ptr, mem_token);
+                op->set_outputs(argc);
+                argc->set_op(std::move(op));
+            }
+            auto *eight = entry_block->add_var_imm(8);
+            auto *argv = entry_block->add_var(Type::i64);
+            {
+                auto op = std::make_unique<Operation>(Instruction::add);
+                op->set_inputs(stack_ptr, eight);
+                op->set_outputs(argv);
+                argv->set_op(std::move(op));
+            }
+            auto &cf_op = entry_block->add_cf_op(CFCInstruction::jump, entry_cmp);
+            std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.emplace_back(stack_ptr);
+            std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.emplace_back(argc);
+            std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.emplace_back(argv);
+        }
+        {
+            // cmp
+            auto *stack_ptr = entry_cmp->add_input(entry_cmp->add_var_from_static(static1));
+            auto *argc = entry_cmp->add_input(entry_cmp->add_var_from_static(static2));
+            auto *argv = entry_cmp->add_input(entry_cmp->add_var_from_static(static3));
+            auto *null = entry_cmp->add_var_imm(0);
+            {
+                auto &cf_op = entry_cmp->add_cf_op(CFCInstruction::cjump, entry_exit);
+                std::get<CfOp::CJumpInfo>(cf_op.info).type = CfOp::CJumpInfo::CJumpType::eq;
+                cf_op.set_inputs(argc, null);
+            }
+            {
+                auto &cf_op = entry_cmp->add_cf_op(CFCInstruction::jump, entry_strlen);
+                std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.emplace_back(stack_ptr);
+                std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.emplace_back(argc);
+                std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.emplace_back(argv);
+            }
+        }
+        {
+            // exit
+            auto *v1 = entry_exit->add_var_imm(93);
+            auto *v2 = entry_exit->add_var_imm(0);
+            auto &cf_op = entry_exit->add_cf_op(CFCInstruction::syscall, entry_exit);
+            cf_op.set_inputs(v1, v2);
+        }
+        {
+            auto *mem_token = entry_strlen->add_var(Type::mt);
+            // strlen (get str ptr, call strlen, then continue to write)
+            auto *stack_ptr = entry_strlen->add_input(entry_strlen->add_var_from_static(static1));
+            auto *argc = entry_strlen->add_input(entry_strlen->add_var_from_static(static2));
+            auto *argv = entry_strlen->add_input(entry_strlen->add_var_from_static(static3));
+            auto *str_ptr = entry_strlen->add_var(Type::i64);
+            {
+                auto op = std::make_unique<Operation>(Instruction::load);
+                op->set_inputs(argv, mem_token);
+                op->set_outputs(str_ptr);
+                str_ptr->set_op(std::move(op));
+            }
+            auto &cf_op = entry_strlen->add_cf_op(CFCInstruction::call, strlen_entry);
+            auto &info = std::get<CfOp::CallInfo>(cf_op.info);
+            info.target_inputs.emplace_back(str_ptr);
+            info.continuation_mapping.emplace_back(stack_ptr, static1);
+            info.continuation_mapping.emplace_back(argc, static2);
+            info.continuation_mapping.emplace_back(argv, static3);
+            info.continuation_mapping.emplace_back(str_ptr, static4);
+            info.continuation_block = entry_write;
+        }
+        {
+            // write 1
+            auto *strlen = entry_write->add_input(entry_write->add_var_from_static(static0));
+            auto *stack_ptr = entry_write->add_input(entry_write->add_var_from_static(static1));
+            auto *argc = entry_write->add_input(entry_write->add_var_from_static(static2));
+            auto *argv = entry_write->add_input(entry_write->add_var_from_static(static3));
+            auto *str_ptr = entry_write->add_input(entry_write->add_var_from_static(static4));
+
+            auto *id = entry_write->add_var_imm(64); // write
+            auto *fd = entry_write->add_var_imm(1);  // stdout
+
+            auto &cf_op = entry_write->add_cf_op(CFCInstruction::syscall, entry_write2);
+            cf_op.set_inputs(id, fd, str_ptr, strlen);
+            auto &info = std::get<CfOp::SyscallInfo>(cf_op.info);
+            info.continuation_mapping.emplace_back(stack_ptr, static1);
+            info.continuation_mapping.emplace_back(argc, static2);
+            info.continuation_mapping.emplace_back(argv, static3);
+        }
+        {
+            // write 2
+            auto *stack_ptr = entry_write2->add_input(entry_write2->add_var_from_static(static1));
+            auto *argc = entry_write2->add_input(entry_write2->add_var_from_static(static2));
+            auto *argv = entry_write2->add_input(entry_write2->add_var_from_static(static3));
+
+            auto *newline = entry_write2->add_var_imm(0xA);
+            auto *eight = entry_write2->add_var_imm(8);
+            auto *new_stack_ptr = entry_write2->add_var(Type::i64);
+            {
+                auto op = std::make_unique<Operation>(Instruction::sub);
+                op->set_inputs(stack_ptr, eight);
+                op->set_outputs(new_stack_ptr);
+                new_stack_ptr->set_op(std::move(op));
+            }
+            auto *mt = entry_write2->add_var(Type::mt);
+            {
+                auto op = std::make_unique<Operation>(Instruction::store);
+                op->set_inputs(new_stack_ptr, newline);
+                op->set_outputs(mt);
+                mt->set_op(std::move(op));
+            }
+
+            auto *id = entry_write2->add_var_imm(64); // write
+            auto *fd = entry_write2->add_var_imm(1);  // stdout
+            auto *len = entry_write2->add_var_imm(1);
+
+            auto &cf_op = entry_write2->add_cf_op(CFCInstruction::syscall, entry_inc);
+            cf_op.set_inputs(id, fd, new_stack_ptr, len);
+            auto &info = std::get<CfOp::SyscallInfo>(cf_op.info);
+            info.continuation_mapping.emplace_back(stack_ptr, static1);
+            info.continuation_mapping.emplace_back(argc, static2);
+            info.continuation_mapping.emplace_back(argv, static3);
+        }
+        {
+            // inc block
+            auto *stack_ptr = entry_inc->add_input(entry_inc->add_var_from_static(static1));
+            auto *argc = entry_inc->add_input(entry_inc->add_var_from_static(static2));
+            auto *argv = entry_inc->add_input(entry_inc->add_var_from_static(static3));
+
+            auto *one = entry_inc->add_var_imm(1);
+            auto *new_argc = entry_inc->add_var(Type::i64);
+            {
+                auto op = std::make_unique<Operation>(Instruction::sub);
+                op->set_inputs(argc, one);
+                op->set_outputs(new_argc);
+                new_argc->set_op(std::move(op));
+            }
+
+            auto *eight = entry_inc->add_var_imm(8);
+            auto *new_argv = entry_inc->add_var(Type::i64);
+            {
+                auto op = std::make_unique<Operation>(Instruction::add);
+                op->set_inputs(argv, eight);
+                op->set_outputs(new_argv);
+                new_argv->set_op(std::move(op));
+            }
+
+            auto &cf_op = entry_inc->add_cf_op(CFCInstruction::jump, entry_cmp);
+            auto &info = std::get<CfOp::JumpInfo>(cf_op.info);
+            info.target_inputs.emplace_back(stack_ptr);
+            info.target_inputs.emplace_back(new_argc);
+            info.target_inputs.emplace_back(new_argv);
+        }
+    }
+
+    ir.entry_block = entry_block->id;
+}
+
 void gen_unreachable_ir(IR &ir) {
     const auto static0 = ir.add_static(Type::i64);
     auto *block1 = ir.add_basic_block();
