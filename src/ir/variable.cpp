@@ -15,17 +15,17 @@ void SSAVar::print(std::ostream &stream, const IR *ir) const {
     print_type_name(stream, ir);
 
     switch (info.index()) {
-    case 0: // not defined
+    case 0: // not defined or from static mapper
+        if (from_static) {
+            stream << " <- @" << ir->statics[static_idx].id;
+        }
         break;
     case 1: // immediate
         stream << " <- immediate " << std::get<1>(info).val;
         break;
-    case 2: // static
-        stream << " <- @" << ir->statics[std::get<2>(info)].id;
-        break;
-    case 3: // op
+    case 2: // op
         stream << " <- ";
-        std::get<3>(info)->print(stream, ir);
+        std::get<2>(info)->print(stream, ir);
         break;
     }
 

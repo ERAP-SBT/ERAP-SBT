@@ -40,12 +40,14 @@ BasicBlock *Lifter::get_bb(uint64_t addr) const {
 }
 
 void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBlock *curr_bb) {
-    // for now: load the next instructions at the current symbol and assume always hit symbols
+    // for now: load the next instructions at the current symbol and assume always hit symbols or jump into sections which were already loaded
     for (size_t i = 0; i < prog->elf_base->symbols.size(); i++) {
         if (prog->elf_base->symbols.at(i).st_value == start_addr) {
 #ifdef DEBUG
-            std::cout << "Found symbol <" << prog->elf_base->symbol_names.at(i);
-            std::cout << "> at address <0x" << std::hex << start_addr << ">\n";
+            std::stringstream str;
+            str << "Continuing at symbol <" << prog->elf_base->symbol_names.at(i);
+            str << "> at address <0x" << std::hex << start_addr << ">";
+            DEBUG_LOG(str.str());
 #endif
             prog->load_symbol_instrs(&prog->elf_base->symbols.at(i));
             break;
@@ -71,8 +73,20 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
     for (size_t i = start_i; i < start_i + 10000 && i < prog->addrs.size(); i++) {
         if (prog->data.at(i).index() == 1) {
             RV64Inst instr = std::get<RV64Inst>(prog->data.at(i));
-            std::cout << str_decode_instr(&instr.instr) << "\n";
-            parse_instruction(instr, curr_bb, mapping, prog->addrs.at(i), prog->addrs.at(i + 1));
+#ifdef DEBUG
+            std::stringstream str;
+            str << std::hex << prog->addrs.at(i) << ": " << str_decode_instr(&instr.instr);
+            DEBUG_LOG(str.str());
+#endif
+            // the next_addr is used for CfOps which require a return address / address of the next instruction
+            uint64_t next_addr;
+            // test if the next address is outside of the already parsed addresses
+            if (i < prog->addrs.size() - 1) {
+                next_addr = prog->addrs.at(i + 1);
+            } else {
+                next_addr = prog->addrs.at(i) + 2;
+            }
+            parse_instruction(instr, curr_bb, mapping, prog->addrs.at(i), next_addr);
             if (!curr_bb->control_flow_ops.empty()) {
                 curr_bb->virt_end_addr = prog->addrs.at(i);
                 break;
@@ -81,12 +95,21 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
     }
 
     for (CfOp &cfOp : curr_bb->control_flow_ops) {
+        // TODO: test for 4 byte aligned address
         uint64_t jmp_addr = cfOp.jump_addr;
         BasicBlock *next_bb;
 
         if (jmp_addr == 0) {
-            std::cerr << "Encountered indirect jump / unknown jump target -> skipping jump.\n";
-            next_bb = dummy;
+            auto addr = backtrace_jmp_addr(&cfOp, curr_bb);
+            std::cerr << "Encountered indirect jump / unknown jump target. Trying to guess the correct jump address...";
+            if (!addr.has_value()) {
+                std::cerr << " -> Address backtracking failed, skipping branch.\n";
+                next_bb = dummy;
+            } else {
+                std::cerr << " -> Found a possible address: " << addr.value() << "\n";
+                jmp_addr = addr.value();
+                next_bb = get_bb(jmp_addr);
+            }
         } else {
             next_bb = get_bb(jmp_addr);
         }
@@ -97,6 +120,7 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
             func->add_block(next_bb);
         } else {
             bb_exists = true;
+            DEBUG_LOG("Encountered jump to basic block which was already parsed.");
         }
 
         curr_bb->successors.push_back(next_bb);
@@ -109,7 +133,7 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
             if (var != nullptr) {
                 cfOp.add_target_input(var);
                 var->from_static = true;
-                var->info.emplace<size_t>(i);
+                var->static_idx = i;
             }
         }
 
@@ -582,19 +606,26 @@ void Lifter::liftJALR(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
     // 1. load the immediate offset
     SSAVar *immediate = load_immediate(bb, instr.instr.imm);
 
+    SSAVar *extended_imm = bb->add_var(Type::i64);
+    {
+        auto extend = std::make_unique<Operation>(Instruction::sign_extend);
+        extend->set_inputs(immediate);
+        extend->set_outputs(extended_imm);
+        extended_imm->set_op(std::move(extend));
+    }
+
     // 2. add the offset register (the jalR-specific part)
     SSAVar *offset_register = mapping.at(instr.instr.rs1);
 
     SSAVar *sum = bb->add_var(Type::i64);
     {
         auto addition = std::make_unique<Operation>(Instruction::add);
-        addition->set_inputs(offset_register, immediate);
+        addition->set_inputs(offset_register, extended_imm);
         addition->set_outputs(sum);
         sum->set_op(std::move(addition));
     }
 
-    // 3. set lsb to zero
-
+    // 3. set lsb to zero (every valid rv64 instruction is at least 2 byte aligned)
     // 3.1 load bitmask
     SSAVar *bit_mask = load_immediate(bb, (int64_t)-2);
     // 3.2 apply mask
@@ -709,4 +740,105 @@ void Lifter::liftECALL(BasicBlock *bb, uint64_t next_addr) {
     // the behavior of the ECALL instruction is system dependant. (= SYSCALL)
     // we give the syscall the address at which the program control flow continues (= next basic block)
     bb->add_cf_op(CFCInstruction::syscall, next_addr);
+}
+
+std::optional<SSAVar *> Lifter::get_last_static_assignment(size_t idx, BasicBlock *bb) {
+    std::vector<SSAVar *> possible_preds;
+    for (BasicBlock *pred : bb->predecessors) {
+        for (const CfOp &cfo : pred->control_flow_ops) {
+            for (SSAVar *ti : cfo.target_inputs) {
+                if (ti->from_static && ti->static_idx == idx) {
+                    possible_preds.push_back(ti);
+                }
+            }
+        }
+    }
+    if (possible_preds.empty()) {
+        DEBUG_LOG("No predecessors for static variable were found in predecessor list of basic block.");
+        return std::nullopt;
+    } else if (possible_preds.size() > 1) {
+        DEBUG_LOG("Warning: found multiple possible statically mapped variables. Aborting.");
+        return std::nullopt;
+    }
+    return possible_preds.at(0);
+}
+
+std::optional<int64_t> Lifter::get_var_value(SSAVar *var, BasicBlock *bb) {
+    if (var->info.index() == 1) {
+        return std::get<int64_t>(var->info);
+    } else if (var->from_static) {
+        auto opt_var = get_last_static_assignment(var->static_idx, bb);
+        if (opt_var.has_value()) {
+            var = opt_var.value();
+        } else {
+            return std::nullopt;
+        }
+    }
+    if (var->info.index() != 2) {
+        // TODO: this could produce parsing errors
+        return std::nullopt;
+    }
+    Operation *op = std::get<std::unique_ptr<Operation>>(var->info).get();
+
+    std::vector<int64_t> resolved_vars;
+    for (auto &in_var : op->in_vars) {
+        if (in_var != nullptr) {
+            auto res = get_var_value(in_var, bb);
+            if (!res.has_value()) {
+                return std::nullopt;
+            }
+            resolved_vars.push_back(res.value());
+        }
+    }
+
+    switch (op->type) {
+    case Instruction::add:
+        if (resolved_vars.size() != 2)
+            return std::nullopt;
+        return resolved_vars[0] + resolved_vars[1];
+    case Instruction::sub:
+        if (resolved_vars.size() != 2)
+            return std::nullopt;
+        return resolved_vars[0] - resolved_vars[1];
+    case Instruction::immediate:
+        if (resolved_vars.size() != 1)
+            return std::nullopt;
+        return resolved_vars[0];
+    case Instruction::shl:
+        if (resolved_vars.size() != 2)
+            return std::nullopt;
+        return resolved_vars[0] << resolved_vars[1];
+    case Instruction::_or:
+        if (resolved_vars.size() != 2)
+            return std::nullopt;
+        return resolved_vars[0] | resolved_vars[1];
+    case Instruction::_and:
+        if (resolved_vars.size() != 2)
+            return std::nullopt;
+        return resolved_vars[0] & resolved_vars[1];
+    case Instruction::_not:
+        if (resolved_vars.size() != 1)
+            return std::nullopt;
+        return ~resolved_vars[0];
+    case Instruction::_xor:
+        if (resolved_vars.size() != 2)
+            return std::nullopt;
+        return resolved_vars[0] ^ resolved_vars[1];
+    case Instruction::sign_extend:
+        // currently, only 32-bit to 64-bit sign extension is supported
+        if (op->in_vars[0]->type != Type::i32 || var->type != Type::i64) {
+            return std::nullopt;
+        }
+        return (int64_t)resolved_vars[0];
+    default:
+        return std::nullopt;
+    }
+}
+
+std::optional<uint64_t> Lifter::backtrace_jmp_addr(CfOp *op, BasicBlock *bb) {
+    if (op->type != CFCInstruction::ijump) {
+        std::cerr << "Jump address backtracing is currently only supported for indirect, JALR jumps." << std::endl;
+        return std::nullopt;
+    }
+    return get_var_value(op->in_vars[0], bb);
 }
