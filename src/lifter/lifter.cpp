@@ -315,19 +315,11 @@ void Lifter::liftInvalid(BasicBlock *bb, uint64_t ip) {
 void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const Type &op_size, bool sign_extend) {
     // 1. load offset
     SSAVar *offset = load_immediate(bb, instr.instr.imm);
-    // 2. sign extend offset to 64 bit
-    SSAVar *bigger_offset = bb->add_var(Type::i64);
-    {
-        auto extend_op = std::make_unique<Operation>(Instruction::sign_extend);
-        extend_op->set_inputs(offset);
-        extend_op->set_outputs(bigger_offset);
-        bigger_offset->set_op(std::move(extend_op));
-    }
     // 3. add offset to rs1
     SSAVar *load_addr = bb->add_var(Type::i64);
     {
         auto add_op = std::make_unique<Operation>(Instruction::add);
-        add_op->set_inputs(bigger_offset, mapping.at(instr.instr.rs1));
+        add_op->set_inputs(mapping.at(instr.instr.rs1), offset);
         add_op->set_outputs(load_addr);
         load_addr->set_op(std::move(add_op));
     }
@@ -338,7 +330,7 @@ void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const 
     // create the load operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(Instruction::load);
 
-    operation->set_inputs(load_addr, mapping.at(32));
+    operation->set_inputs(load_addr, mapping.at(MEM_IDX));
     operation->set_outputs(load_dest);
 
     // assign the operation as variable of the destination
@@ -360,19 +352,11 @@ void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const 
 void Lifter::lift_store(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const Type &op_size) {
     // 1. load offset
     SSAVar *offset = load_immediate(bb, instr.instr.imm);
-    // 2. sign extend offset to 64 bit
-    SSAVar *bigger_offset = bb->add_var(Type::i64);
-    {
-        auto extend_op = std::make_unique<Operation>(Instruction::sign_extend);
-        extend_op->set_inputs(offset);
-        extend_op->set_outputs(bigger_offset);
-        bigger_offset->set_op(std::move(extend_op));
-    }
     // 3. add offset to rs1
     SSAVar *store_addr = bb->add_var(Type::i64);
     {
         auto add_op = std::make_unique<Operation>(Instruction::add);
-        add_op->set_inputs(bigger_offset, mapping.at(instr.instr.rs1));
+        add_op->set_inputs(mapping.at(instr.instr.rs1), offset);
         add_op->set_outputs(store_addr);
         store_addr->set_op(std::move(add_op));
     }
@@ -394,7 +378,7 @@ void Lifter::lift_store(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const
     result_memory_token->set_op(std::move(operation));
 
     // write memory_token back
-    mapping.at(32) = result_memory_token;
+    mapping.at(MEM_IDX) = result_memory_token;
 }
 
 void Lifter::lift_shift(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const Instruction &instruction_type, const Type &op_size) {
@@ -453,8 +437,13 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, RV64Inst &instr, reg_map 
 }
 
 void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const Instruction &instruction_type, const Type &op_size) {
-    // create immediate var (before destination!)
-    SSAVar *immediate = bb->add_var_imm(instr.instr.imm);
+    // create immediate var
+    SSAVar *immediate;
+    if (op_size == Type::i32) {
+        immediate = load_immediate(bb, instr.instr.imm);
+    } else {
+        immediate = load_immediate(bb, (int64_t)instr.instr.imm);
+    }
 
     // create SSAVariable for the destination operand
     SSAVar *destination = bb->add_var(op_size);
@@ -498,24 +487,15 @@ SSAVar *Lifter::shrink_var(BasicBlock *bb, SSAVar *var, const Type &target_size)
 
 void Lifter::liftAUIPC(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip) {
     // 1. load the immediate
-    SSAVar *imm_dest = load_immediate(bb, instr.instr.imm);
+    SSAVar *immediate = load_immediate(bb, instr.instr.imm);
+    // 2. load instruction pointer as immediate
+    SSAVar *ip_immediate = load_immediate(bb, (int64_t)ip);
 
-    // 2. sign extend the 32-bit immediate to 64 bit
-    SSAVar *extend_dest = bb->add_var(Type::i64);
-    {
-        auto extend_op = std::make_unique<Operation>(Instruction::sign_extend);
-        extend_op->set_inputs(imm_dest);
-        extend_op->set_outputs(extend_dest);
-        extend_dest->set_op(std::move(extend_op));
-    }
-    // 3. load instruction pointer as immediate
-    SSAVar *ip_dest = load_immediate(bb, (int64_t)ip);
-
-    // 4. add immediate to instruction pointer
+    // 3. add immediate to instruction pointer
     SSAVar *result = bb->add_var(Type::i64);
     {
         auto add_op = std::make_unique<Operation>(Instruction::add);
-        add_op->set_inputs(ip_dest, extend_dest);
+        add_op->set_inputs(ip_immediate, immediate);
         add_op->set_outputs(result);
         result->set_op(std::move(add_op));
     }
@@ -524,76 +504,48 @@ void Lifter::liftAUIPC(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64
 }
 
 void Lifter::liftLUI(BasicBlock *bb, RV64Inst &instr, reg_map &mapping) {
-    // create the immediate loading operation
-    SSAVar *imm_dest = load_immediate(bb, instr.instr.imm);
-
-    // second step: sign extend the 32-bit immediate to 64 bit!
-    SSAVar *extend_dest = bb->add_var(Type::i64);
-    {
-        auto extend_op = std::make_unique<Operation>(Instruction::sign_extend);
-        extend_op->set_inputs(imm_dest);
-        extend_op->set_outputs(extend_dest);
-        extend_dest->set_op(std::move(extend_op));
-    }
+    // create the immediate loading operation (with built-in sign extension)
+    SSAVar *immediate = load_immediate(bb, (int64_t)instr.instr.imm);
 
     // write SSAVar back to mapping
-    mapping.at(instr.instr.rd) = extend_dest;
+    mapping.at(instr.instr.rd) = immediate;
 }
 
 SSAVar *Lifter::load_immediate(BasicBlock *bb, int32_t imm) {
-    SSAVar *result_imm = bb->add_var(Type::i32);
     SSAVar *input_imm = bb->add_var_imm(imm);
-    auto imm_load = std::make_unique<Operation>(Instruction::immediate);
-    imm_load->set_inputs(input_imm);
-    imm_load->set_outputs(result_imm);
-    result_imm->set_op(std::move(imm_load));
-    return result_imm;
+    return input_imm;
 }
 
 SSAVar *Lifter::load_immediate(BasicBlock *bb, int64_t imm) {
-    SSAVar *result_imm = bb->add_var(Type::i64);
     SSAVar *input_imm = bb->add_var_imm(imm);
-    auto imm_load = std::make_unique<Operation>(Instruction::immediate);
-    imm_load->set_inputs(input_imm);
-    imm_load->set_outputs(result_imm);
-    result_imm->set_op(std::move(imm_load));
-    return result_imm;
+    return input_imm;
 }
 
 void Lifter::liftJAL(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
-    // 1. load the immediate from the instruction
-    SSAVar *jmp_imm = load_immediate(bb, instr.instr.imm);
+    // 1. load the immediate from the instruction (with built-in sign extension)
+    SSAVar *jmp_imm = load_immediate(bb, (int64_t)instr.instr.imm);
 
     // 2. the original immediate is encoded in multiples of 2 bytes, but frvdec already took of that for us.
 
-    // 3. sign extend offset to 64-bit
-    SSAVar *extended_offset = bb->add_var(Type::i32);
-    {
-        auto extend = std::make_unique<Operation>(Instruction::sign_extend);
-        extend->set_inputs(jmp_imm);
-        extend->set_outputs(extended_offset);
-        extended_offset->set_op(std::move(extend));
-    }
-
-    // 4. load IP
+    // 3. load IP
     SSAVar *ip_imm = load_immediate(bb, (int64_t)ip);
 
-    // 5. add offset to ip
+    // 4. add offset to ip
     SSAVar *sum = bb->add_var(Type::i64);
     {
         auto addition = std::make_unique<Operation>(Instruction::add);
-        addition->set_inputs(ip_imm, extended_offset);
+        addition->set_inputs(ip_imm, jmp_imm);
         addition->set_outputs(sum);
         sum->set_op(std::move(addition));
     }
 
-    // 6. load return address as another immediate
+    // 5. load return address as another immediate
     SSAVar *return_addr = load_immediate(bb, (int64_t)next_addr);
 
     // write SSAVar of the result of the operation back to mapping
     mapping.at(instr.instr.rd) = return_addr;
 
-    // 7. jump!
+    // 6. jump!
     // create the jump operation
     CfOp &cf_operation = bb->add_cf_op(CFCInstruction::jump, instr.instr.imm + ip);
 
@@ -604,15 +556,7 @@ void Lifter::liftJAL(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t
 void Lifter::liftJALR(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t next_addr) {
     // the address is encoded as an immediate offset....
     // 1. load the immediate offset
-    SSAVar *immediate = load_immediate(bb, instr.instr.imm);
-
-    SSAVar *extended_imm = bb->add_var(Type::i64);
-    {
-        auto extend = std::make_unique<Operation>(Instruction::sign_extend);
-        extend->set_inputs(immediate);
-        extend->set_outputs(extended_imm);
-        extended_imm->set_op(std::move(extend));
-    }
+    SSAVar *immediate = load_immediate(bb, (int64_t)instr.instr.imm);
 
     // 2. add the offset register (the jalR-specific part)
     SSAVar *offset_register = mapping.at(instr.instr.rs1);
@@ -620,7 +564,7 @@ void Lifter::liftJALR(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
     SSAVar *sum = bb->add_var(Type::i64);
     {
         auto addition = std::make_unique<Operation>(Instruction::add);
-        addition->set_inputs(offset_register, extended_imm);
+        addition->set_inputs(offset_register, immediate);
         addition->set_outputs(sum);
         sum->set_op(std::move(addition));
     }
@@ -652,27 +596,18 @@ void Lifter::liftJALR(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
 
 void Lifter::liftBranch(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     // 1. load the immediate from the instruction
-    SSAVar *jmp_imm = load_immediate(bb, instr.instr.imm);
+    SSAVar *jmp_imm = load_immediate(bb, (int64_t)instr.instr.imm);
 
     // 2. this immediate is originally encoded in multiples of 2 bytes, but is already converted by frvdec
 
-    // 3. sign extend offset to 64-bit
-    SSAVar *extended_offset = bb->add_var(Type::i32);
-    {
-        auto extend = std::make_unique<Operation>(Instruction::sign_extend);
-        extend->set_inputs(jmp_imm);
-        extend->set_outputs(extended_offset);
-        extended_offset->set_op(std::move(extend));
-    }
-
-    // 4. load IP
+    // 3. load IP
     SSAVar *ip_imm = load_immediate(bb, (int64_t)ip);
 
-    // 5. add offset to ip
+    // 4. add offset to ip
     SSAVar *jmp_addr = bb->add_var(Type::i64);
     {
         auto addition = std::make_unique<Operation>(Instruction::add);
-        addition->set_inputs(ip_imm, extended_offset);
+        addition->set_inputs(ip_imm, jmp_imm);
         addition->set_outputs(jmp_addr);
         jmp_addr->set_op(std::move(addition));
     }
