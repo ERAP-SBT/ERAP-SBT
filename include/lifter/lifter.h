@@ -36,13 +36,7 @@ class Lifter {
 
     static void lift_shift_immediate(BasicBlock *, RV64Inst &, reg_map &, const Instruction &, const Type &);
 
-    //        void liftSLTI(BasicBlock *, RV64Inst &, reg_map &);
-    //
-    //        void liftSLTIU(BasicBlock *, RV64Inst &, reg_map &);
-    //
-    //        void liftSLT(BasicBlock *, RV64Inst &, reg_map &);
-    //
-    //        void liftSLTU(BasicBlock *, RV64Inst &, reg_map &);
+    static void lift_slt(BasicBlock *, RV64Inst &, reg_map &, bool, bool);
     //
     //        void liftFENCE(BasicBlock *, reg_map&);
     //
@@ -72,7 +66,6 @@ class Lifter {
     static SSAVar *load_immediate(BasicBlock *bb, int64_t imm);
     static SSAVar *load_immediate(BasicBlock *bb, int32_t imm);
     static SSAVar *shrink_var(BasicBlock *, SSAVar *, const Type &);
-    // static SSAVar *sign_extend_64(BasicBlock *, SSAVar *);
 
     static std::optional<uint64_t> backtrace_jmp_addr(CfOp *, BasicBlock *);
 

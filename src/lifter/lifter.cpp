@@ -259,18 +259,18 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
     case FRV_SRAIW:
         lift_shift_immediate(bb, instr, mapping, Instruction::sar, Type::i32);
         break;
-        //        case FRV_SLTI:
-        //            liftSLTI(bb, instr, mapping);
-        //            break;
-        //        case FRV_SLTIU:
-        //            liftSLTIU(bb, instr, mapping);
-        //            break;
-        //        case FRV_SLT:
-        //            liftSLT(bb, instr, mapping);
-        //            break;
-        //        case FRV_SLTU:
-        //            liftSLTU(bb, instr, mapping);
-        //            break;
+    case FRV_SLTI:
+        lift_slt(bb, instr, mapping, false, true);
+        break;
+    case FRV_SLTIU:
+        lift_slt(bb, instr, mapping, true, true);
+        break;
+    case FRV_SLT:
+        lift_slt(bb, instr, mapping, false, false);
+        break;
+    case FRV_SLTU:
+        lift_slt(bb, instr, mapping, true, false);
+        break;
         //        case FRV_FENCE:
         //            liftFENCE(bb, mapping);
         //            break;
@@ -407,6 +407,38 @@ void Lifter::lift_shift_immediate(BasicBlock *bb, RV64Inst &instr, reg_map &mapp
     // masking the operand
     instr.instr.imm = instr.instr.imm & 0x1F;
     lift_arithmetical_logical_immediate(bb, instr, mapping, instruction_type, op_size);
+}
+
+void Lifter::lift_slt(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, bool isUnsigned, bool withImmediate) {
+    // get operands for operations (the operands which were compared)
+    SSAVar *first_operand = mapping.at(instr.instr.rs1);
+    SSAVar *second_operand;
+
+    if (withImmediate) {
+        second_operand = bb->add_var_imm(instr.instr.imm);
+    } else {
+        second_operand = mapping.at(instr.instr.rs2);
+    }
+
+    // create variables for result
+    SSAVar *one = bb->add_var_imm(1);
+    SSAVar *zero = bb->add_var_imm(0);
+
+    // create SSAVariable for the destination operand
+    SSAVar *destination = bb->add_var(Type::i64);
+
+    // create slt operation
+    std::unique_ptr<Operation> operation = std::make_unique<Operation>(isUnsigned ? Instruction::sltu : Instruction::slt);
+
+    // set in- and outputs
+    operation->set_inputs(first_operand, second_operand, one, zero);
+    operation->set_outputs(destination);
+
+    // assign the operation as variable of the destination
+    destination->set_op(std::move(operation));
+
+    // write SSAVar of the result of the operation back to mapping
+    mapping.at(instr.instr.rd) = destination;
 }
 
 void Lifter::lift_arithmetical_logical(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const Instruction &instruction_type, const Type &op_size) {
