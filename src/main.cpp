@@ -1,54 +1,120 @@
-#include "generator/generator.h"
-#include "generator/x86_64/generator.h"
+#include "argument_parser.h"
 #include "ir/ir.h"
+
+#if 0
 #include "lifter/elf_file.h"
 #include "lifter/lifter.h"
+#include "lifter/program.h"
+#endif
 
-// disassembles the code at the entry symbol
-error_t test_elf_parsing(const std::string &test_path) {
-    ELF64File file{test_path};
-    error_t err = 0;
-    if ((err = file.parse_elf())) {
-        return err;
+#if 0
+#include "generator/generator.h"
+#include "generator/x86_64/generator.h"
+#endif
+
+#include <cstdlib>
+#include <iostream>
+
+namespace {
+void print_help(bool usage_only);
+#if 0
+void dump_elf(Program &);
+#endif
+} // namespace
+
+int main(int argc, const char **argv) {
+    // Parse arguments, excluding the first entry (executable name)
+    Args args(argv + 1, argv + argc);
+
+    if (args.has_argument("help")) {
+        print_help(false);
+        return EXIT_SUCCESS;
     }
 
-    size_t start_symbol;
-    if (!(start_symbol = file.start_symbol().value_or(0))) {
-        std::cerr << "Can't find symbol at elf file entry point address.\n";
-        return ENOEXEC;
+    if (args.positional.empty()) {
+        std::cerr << "Missing input file argument!\n";
+        print_help(true);
+        return EXIT_FAILURE;
     }
-    Elf64_Sym sym = file.symbols.at(start_symbol);
 
-    std::cout << "Start symbol: " << file.symbol_names.at(start_symbol) << "\n";
+    auto elf_path = args.positional[0];
+
+    std::cout << "Translating file " << elf_path << '\n';
+
+    IR ir;
+
+    std::cerr << "ELF file loading is not yet implemented on this branch\n";
+#if 0
+    Program program(std::make_unique<ELF64File>(elf_path));
+
+    if (args.has_argument("print-disassembly")) {
+        std::cout << "------------------------------------------------------------\n";
+        std::cout << "Disassembly:\n";
+        dump_elf(program);
+        std::cout << "------------------------------------------------------------\n";
+    }
+#endif
+
+    std::cerr << "Lifting is not yet implemented on this branch\n";
+#if 0
+    {
+        lifter::RV64::Lifter lifter(&ir);
+        lifter.lift(&program);
+    }
+#endif
+
+    if (args.has_argument("print-ir")) {
+        std::cout << "------------------------------------------------------------\n";
+        std::cout << "IR after Lifting:\n";
+        ir.print(std::cout);
+        std::cout << "------------------------------------------------------------\n";
+    }
+
+    std::cerr << "Optimizer passes are not yet implemented on this branch\n";
+#if 0
+    optimize_ir(ir);
+#endif
+
+    std::cerr << "Code generation is not yet implemented on this branch\n";
+#if 0
+    {
+        generator::x86_64::Generator generator(&ir);
+        generator.compile();
+    }
+#endif
+
+    return EXIT_SUCCESS;
+}
+
+namespace {
+void print_help(bool usage_only) {
+    std::cerr << "usage: translate <file> [args...]\n";
+    if (!usage_only) {
+        std::cerr << "Possible arguments are:\n";
+        std::cerr << "    --help:              Shows this help message\n";
+        std::cerr << "    --print-ir:          Prints a textual representation of the IR\n";
+        std::cerr << "    --print-disassembly: Prints the disassembled input file\n";
+    }
+}
+
+#if 0
+void dump_elf(Program &prog) {
+    ELF64File file = *prog.elf_base;
+    Elf64_Sym sym = file.symbols[std::find(file.symbol_names.begin(), file.symbol_names.end(), "__libc_start_main") - file.symbol_names.begin()];
+
+    prog.load_symbol_instrs(&sym);
+
+    std::cout << "Start symbol: " << file.symbol_names.at(file.start_symbol()) << "\n";
     std::cout << "Start addr: 0x" << std::hex << sym.st_value << "\n";
     std::cout << "End addr: 0x" << std::hex << sym.st_value + sym.st_size - 1 << "\n\n";
 
-    std::cout << "Bytes (hex):"
-              << "\n";
-
-    auto sym_loc = file.bytes_offset(start_symbol);
-    for (size_t i = sym_loc.first; i < sym_loc.first + sym_loc.second; i++) {
-        std::cout << std::hex << (uint)file.file_content[i];
-        std::cout << " ";
-    }
-
-    std::cout << "\n\nDisassembly: \n";
-    for (size_t off = sym_loc.first; off < sym_loc.first + sym_loc.second;) {
-        FrvInst instr;
-        off += frv_decode(sym_loc.second - off, &file.file_content[off], FRV_RV64, &instr);
+    std::cout << "Disassembly <main>: \n";
+    for (size_t i = 0; i < prog.addrs.size(); i++) {
         char str[64];
-        frv_format(&instr, 64, str);
-        std::cout << str << "\n";
+        frv_format(&std::get<RV64Inst>(prog.data.at(i)).instr, 64, str);
+        std::cout << std::hex << prog.addrs.at(i) << ": \t" << str << "\n";
     }
     std::cout << "\n";
-    return 0;
 }
-
-int main() {
-    error_t err = 0;
-    if ((err = test_elf_parsing("../rv64test.o"))) {
-        return err;
-    }
-
-    return 0;
-}
+#endif
+} // namespace
