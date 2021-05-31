@@ -62,6 +62,12 @@ std::ostream &operator<<(std::ostream &stream, Instruction instr) {
     case Instruction::sign_extend:
         stream << "sext";
         break;
+    case Instruction::slt:
+        stream << "slt";
+        break;
+    case Instruction::sltu:
+        stream << "sltu";
+        break;
     }
 
     return stream;

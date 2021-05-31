@@ -18,6 +18,8 @@ enum class Instruction {
     _not,
     _xor,
     cast,
+    slt,
+    sltu,
     sign_extend,
     zero_extend,
     immediate,
