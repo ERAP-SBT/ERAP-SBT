@@ -16,6 +16,9 @@ ninja -C build test
 
 # Generate coverage reports after running tests
 ninja -C build coverage
+
+# Build code documentation in 'build/docs' (requires doxygen)
+ninja -C build docs
 ```
 
 Before committing you can clean up your code by running `clang-format`:
