@@ -5,12 +5,10 @@ uint64_t Program::load_instrs(uint8_t *byte_arr, size_t n, uint64_t block_start_
     for (size_t off = 0; off < n; off += return_code) {
         FrvInst instr;
         return_code = frv_decode(n - off, byte_arr + off, FRV_RV64, &instr);
-        if (return_code == FRV_PARTIAL) {
-            std::cerr << "Discovered partial instruction at address <0x" << std::hex << (block_start_addr + off) << ">. Skipping (+ 2)\n";
-            return_code = 2;
-            instr.mnem = FRV_INVALID;
-        } else if (return_code == FRV_INVALID) {
-            std::cerr << "Discovered invalid instruction at address <0x" << std::hex << (block_start_addr + off) << ">. Skipping (+ 2)\n";
+        if (return_code <= 0) {
+#ifdef DEBUG
+            std::cerr << "Discovered partial, invalid or undefined instruction at address <0x" << std::hex << (block_start_addr + off) << ">. Skipping (+ 2)\n";
+#endif
             return_code = 2;
             instr.mnem = FRV_INVALID;
         }
@@ -39,8 +37,7 @@ uint64_t Program::load_symbol_instrs(size_t sym_i) { return load_symbol_instrs(&
 
 uint64_t Program::load_symbol_instrs(Elf64_Sym *sym) {
     if (!sym->st_size) {
-        std::cerr << "Trying to parse a symbol with unknown or no size. Searching for endpoint..."
-                  << "\n";
+        std::cerr << "Trying to parse a symbol with unknown or no size. Searching for endpoint...";
         uint64_t next_sym_addr = UINT64_MAX;
         for (auto &other_sym : elf_base->symbols) {
             if (other_sym.st_value > sym->st_value && other_sym.st_value < next_sym_addr) {
@@ -48,6 +45,7 @@ uint64_t Program::load_symbol_instrs(Elf64_Sym *sym) {
             }
         }
         sym->st_size = next_sym_addr - sym->st_value;
+        std::cerr << " found endpoint: <" << std::hex << next_sym_addr << "> (size: " << sym->st_size << ")\n";
     }
     if (ELF32_ST_TYPE(sym->st_info) & STT_NOTYPE) {
         std::cerr << "Trying to parse a STT_NOTYPE symbol. This is not supported."

@@ -17,6 +17,16 @@ void print_invalid_op_size(const Instruction &instructionType, RV64Inst &instr) 
 
 void Lifter::lift(Program *prog) {
     dummy = ir->add_basic_block(0);
+
+    // preload all instructions which are located "in" the program headers which are loaded, executable and readable
+    std::vector<Elf64_Phdr *> exec_header;
+    for (auto &prog_hdr : prog->elf_base->program_headers) {
+        if (prog_hdr.p_type == PT_LOAD && prog_hdr.p_flags | PF_X && prog_hdr.p_flags | PF_R) {
+            exec_header.push_back(&prog_hdr);
+            prog->load_instrs(prog->elf_base->file_content.data() + prog_hdr.p_offset, prog_hdr.p_filesz, prog_hdr.p_vaddr);
+        }
+    }
+
     uint64_t start_addr = prog->elf_base->header.e_entry;
     Function *curr_fun = ir->add_func();
 
@@ -28,6 +38,8 @@ void Lifter::lift(Program *prog) {
 
     BasicBlock *first_bb = ir->add_basic_block(start_addr);
     liftRec(prog, curr_fun, start_addr, first_bb);
+
+    // TODO: parse instructions in program section which aren't yet contained in a basic block
 }
 
 BasicBlock *Lifter::get_bb(uint64_t addr) const {
@@ -49,7 +61,11 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
             str << "> at address <0x" << std::hex << start_addr << ">";
             DEBUG_LOG(str.str());
 #endif
-            prog->load_symbol_instrs(&prog->elf_base->symbols.at(i));
+            Elf64_Sym *sym = &prog->elf_base->symbols.at(i);
+            // we only try to load the next instructions if the start address doesn't already exist in the parsed instruction pool
+            if (std::find(prog->addrs.begin(), prog->addrs.end(), sym->st_value) == prog->addrs.end()) {
+                prog->load_symbol_instrs(sym);
+            }
             break;
         }
     }
@@ -86,6 +102,7 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
             } else {
                 next_addr = prog->addrs.at(i) + 2;
             }
+            // TODO: Start a new basic block with each defined symbol
             parse_instruction(instr, curr_bb, mapping, prog->addrs.at(i), next_addr);
             if (!curr_bb->control_flow_ops.empty()) {
                 curr_bb->virt_end_addr = prog->addrs.at(i);
@@ -99,9 +116,11 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
         uint64_t jmp_addr = cfOp.jump_addr;
         BasicBlock *next_bb;
 
+        // TODO: split basic block if it already exists
+
         if (jmp_addr == 0) {
-            auto addr = backtrace_jmp_addr(&cfOp, curr_bb);
             std::cerr << "Encountered indirect jump / unknown jump target. Trying to guess the correct jump address...";
+            auto addr = backtrace_jmp_addr(&cfOp, curr_bb);
             if (!addr.has_value()) {
                 std::cerr << " -> Address backtracking failed, skipping branch.\n";
                 next_bb = dummy;
@@ -143,9 +162,6 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
         liftRec(prog, func, jmp_addr, next_bb);
     }
 }
-
-// TODO: create function which splits a BasicBlock. Used when jumping into an existing basic block.
-// TODO: Start a new basic block with each defined symbol
 
 void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     std::vector<std::pair<uint64_t, CfOp>> jump_goals;
@@ -543,12 +559,12 @@ void Lifter::liftLUI(BasicBlock *bb, RV64Inst &instr, reg_map &mapping) {
     mapping.at(instr.instr.rd) = immediate;
 }
 
-SSAVar *Lifter::load_immediate(BasicBlock *bb, int32_t imm) {
+inline SSAVar *Lifter::load_immediate(BasicBlock *bb, int32_t imm) {
     SSAVar *input_imm = bb->add_var_imm(imm);
     return input_imm;
 }
 
-SSAVar *Lifter::load_immediate(BasicBlock *bb, int64_t imm) {
+inline SSAVar *Lifter::load_immediate(BasicBlock *bb, int64_t imm) {
     SSAVar *input_imm = bb->add_var_imm(imm);
     return input_imm;
 }
@@ -731,9 +747,7 @@ std::optional<SSAVar *> Lifter::get_last_static_assignment(size_t idx, BasicBloc
 }
 
 std::optional<int64_t> Lifter::get_var_value(SSAVar *var, BasicBlock *bb) {
-    if (var->info.index() == 1) {
-        return std::get<int64_t>(var->info);
-    } else if (var->from_static) {
+    if (var->from_static) {
         auto opt_var = get_last_static_assignment(var->static_idx, bb);
         if (opt_var.has_value()) {
             var = opt_var.value();
@@ -741,8 +755,12 @@ std::optional<int64_t> Lifter::get_var_value(SSAVar *var, BasicBlock *bb) {
             return std::nullopt;
         }
     }
+    if (var->info.index() == 1) {
+        return std::get<int64_t>(var->info);
+    }
+
     if (var->info.index() != 2) {
-        // TODO: this could produce parsing errors
+        // TODO: this could produce parsing errors -> we currently can't track down static assigned variables which weren't initialized in the last basic block
         return std::nullopt;
     }
     Operation *op = std::get<std::unique_ptr<Operation>>(var->info).get();
