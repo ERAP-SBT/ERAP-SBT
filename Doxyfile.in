@@ -33,3 +33,7 @@ HAVE_DOT          = @HAVE_DOT@
 
 # For now, stop Doxygen from complaining about undocumented items and put everything (excluding private members) into the final docs
 EXTRACT_ALL       = YES
+
+# Only generate HTML
+GENERATE_HTML     = YES
+GENERATE_LATEX    = NO
