@@ -68,13 +68,11 @@ class Lifter {
     static SSAVar *load_immediate(BasicBlock *bb, int64_t imm, uint64_t ip, size_t reg = 0);
     static SSAVar *load_immediate(BasicBlock *bb, int32_t imm, uint64_t ip, size_t reg = 0);
     static SSAVar *shrink_var(BasicBlock *, SSAVar *, uint64_t ip, const Type &);
-
     static std::optional<uint64_t> backtrace_jmp_addr(CfOp *, BasicBlock *);
-
     static std::optional<int64_t> get_var_value(SSAVar *, BasicBlock *);
-
     static std::optional<SSAVar *> get_last_static_assignment(size_t, BasicBlock *);
     void split_basic_block(BasicBlock *, uint64_t) const;
     static void load_input_vars(BasicBlock *, Operation *, std::vector<int64_t> &);
+    static std::optional<SSAVar *> convert_type(BasicBlock *, uint64_t, SSAVar *, Type);
 };
 } // namespace lifter::RV64

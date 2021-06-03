@@ -455,9 +455,7 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
     }
 }
 
-void Lifter::liftInvalid(BasicBlock *bb, uint64_t ip) {
-    std::cerr << "Encountered invalid instruction during lifting. (BasicBlock #0x" << std::hex << bb->id << ", address <0x" << std::hex << ip << ">)\n";
-}
+void Lifter::liftInvalid(BasicBlock *bb, uint64_t ip) { std::cerr << "Encountered invalid instruction during lifting. (BasicBlock #0x" << std::hex << bb->id << ", address <0x" << ip << ">)\n"; }
 
 void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size, bool sign_extend) {
     // 1. load offset
@@ -588,6 +586,23 @@ void Lifter::lift_slt(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
     mapping.at(instr.instr.rd) = destination;
 }
 
+std::optional<SSAVar *> Lifter::convert_type(BasicBlock *bb, uint64_t ip, SSAVar *var, Type desired_type) {
+    if (var->type > Type::f64 || desired_type > Type::f64 || var->type == desired_type) {
+        return std::nullopt;
+    }
+    SSAVar *new_var = bb->add_var(desired_type, ip);
+    std::unique_ptr<Operation> op;
+    if (var->type > desired_type) {
+        op = std::make_unique<Operation>(Instruction::cast);
+    } else {
+        op = std::make_unique<Operation>(Instruction::sign_extend);
+    }
+    op->set_inputs(var);
+    op->set_outputs(new_var);
+    new_var->set_op(std::move(op));
+    return new_var;
+}
+
 void Lifter::lift_arithmetical_logical(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction &instruction_type, const Type &op_size) {
     // create SSAVariable for the destination operand
     SSAVar *destination = bb->add_var(op_size, ip, instr.instr.rd);
@@ -598,10 +613,22 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, RV64Inst &instr, reg_map 
     SSAVar *source_one = mapping.at(instr.instr.rs1);
     SSAVar *source_two = mapping.at(instr.instr.rs2);
 
-    // TODO: Solve this operand size miss match, maybe through type conversion?
     // test for invalid operand sizes
-    if (source_one->type != op_size || source_two->type != op_size) {
-        print_invalid_op_size(instruction_type, instr);
+    if (source_one->type != op_size) {
+        auto cast = convert_type(bb, ip, source_one, op_size);
+        if (cast.has_value()) {
+            source_one = cast.value();
+        } else {
+            print_invalid_op_size(instruction_type, instr);
+        }
+    }
+    if (source_two->type != op_size) {
+        auto cast = convert_type(bb, ip, source_two, op_size);
+        if (cast.has_value()) {
+            source_two = cast.value();
+        } else {
+            print_invalid_op_size(instruction_type, instr);
+        }
     }
 
     // set operation in- and outputs
@@ -632,10 +659,14 @@ void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, RV64Inst &instr
 
     SSAVar *source_one = mapping.at(instr.instr.rs1);
 
-    // TODO: Solve this operand size miss match, maybe through type conversion?
     // test for invalid operand sizes
     if (source_one->type != op_size) {
-        print_invalid_op_size(instruction_type, instr);
+        auto cast = convert_type(bb, ip, source_one, op_size);
+        if (cast.has_value()) {
+            source_one = cast.value();
+        } else {
+            print_invalid_op_size(instruction_type, instr);
+        }
     }
 
     // set operation in- and outputs
