@@ -9,10 +9,16 @@ std::string str_decode_instr(FrvInst *instr) {
     return std::string(str);
 }
 
-void print_param_error(const Instruction &instructionType, RV64Inst &instr) { std::cerr << "Encountered " << instructionType << " instruction with invalid parameters: " << &instr.instr << "\n"; }
+void print_param_error(const Instruction &instructionType, RV64Inst &instr) {
+    std::stringstream str;
+    str << "Encountered " << instructionType << " instruction with invalid parameters: " << &instr.instr;
+    DEBUG_LOG(str.str());
+}
 
 void print_invalid_op_size(const Instruction &instructionType, RV64Inst &instr) {
-    std::cerr << "Encountered " << instructionType << " instruction with operand size: " << str_decode_instr(&instr.instr) << "\n";
+    std::stringstream str;
+    str << "Encountered " << instructionType << " instruction with invalid operand size: " << str_decode_instr(&instr.instr);
+    DEBUG_LOG(str.str());
 }
 
 void Lifter::lift(Program *prog) {
@@ -37,6 +43,10 @@ void Lifter::lift(Program *prog) {
     ir->add_static(Type::mt);
 
     BasicBlock *first_bb = ir->add_basic_block(start_addr);
+    std::stringstream str;
+    str << "Starting new basicblock #0x" << std::hex << first_bb->id;
+    DEBUG_LOG(str.str());
+
     liftRec(prog, curr_fun, start_addr, first_bb);
 
     // TODO: parse instructions in program section which aren't yet contained in a basic block
@@ -44,11 +54,27 @@ void Lifter::lift(Program *prog) {
 
 BasicBlock *Lifter::get_bb(uint64_t addr) const {
     for (auto &bb_ptr : ir->basic_blocks) {
-        if (bb_ptr->virt_start_addr == addr) {
+        if (bb_ptr->virt_start_addr <= addr && bb_ptr->virt_end_addr >= addr) {
             return bb_ptr.get();
         }
     }
     return nullptr;
+}
+
+void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr) {
+    //    BasicBlock* new_bb = ir->add_basic_block(addr);
+    //
+    //    // map old basic block variables to statics
+    //    for ()
+    //    new_bb->add_input()
+    //
+    //    // transfer variables to new bb
+    //    for (auto& var : bb->variables) {
+    //        if (std::get<SSAVar::LifterInfo>(var->lifter_info).assign_addr >= addr) {
+    //            // TODO: handle statics
+    //            new_bb->variables.push_back(std::move(var));
+    //        }
+    //    }
 }
 
 void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBlock *curr_bb) {
@@ -82,7 +108,7 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
 
     // load ssa variables from static vars and fill mapping
     for (size_t i = 0; i < 33; i++) {
-        mapping.at(i) = curr_bb->add_var_from_static(i);
+        mapping.at(i) = curr_bb->add_var_from_static(i, start_addr);
     }
 
     // for now, we stop after 10000 instructions / data elements in one basic block
@@ -91,7 +117,7 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
             RV64Inst instr = std::get<RV64Inst>(prog->data.at(i));
 #ifdef DEBUG
             std::stringstream str;
-            str << std::hex << prog->addrs.at(i) << ": " << str_decode_instr(&instr.instr);
+            str << "0x" << std::hex << prog->addrs.at(i) << ": " << str_decode_instr(&instr.instr);
             DEBUG_LOG(str.str());
 #endif
             // the next_addr is used for CfOps which require a return address / address of the next instruction
@@ -113,19 +139,17 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
 
     for (CfOp &cfOp : curr_bb->control_flow_ops) {
         // TODO: test for 4 byte aligned address
-        uint64_t jmp_addr = cfOp.jump_addr;
+        uint64_t jmp_addr = std::get<CfOp::LifterInfo>(cfOp.lifter_info).jump_addr;
         BasicBlock *next_bb;
 
-        // TODO: split basic block if it already exists
-
         if (jmp_addr == 0) {
-            std::cerr << "Encountered indirect jump / unknown jump target. Trying to guess the correct jump address...";
+            std::cerr << "Encountered indirect jump / unknown jump target. Trying to guess the correct jump address...\n";
             auto addr = backtrace_jmp_addr(&cfOp, curr_bb);
             if (!addr.has_value()) {
                 std::cerr << " -> Address backtracking failed, skipping branch.\n";
                 next_bb = dummy;
             } else {
-                std::cerr << " -> Found a possible address: " << addr.value() << "\n";
+                std::cerr << " -> Found a possible address: 0x" << std::hex << addr.value() << "\n";
                 jmp_addr = addr.value();
                 next_bb = get_bb(jmp_addr);
             }
@@ -137,9 +161,19 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
         if (next_bb == nullptr) {
             next_bb = ir->add_basic_block(jmp_addr);
             func->add_block(next_bb);
+            std::stringstream str;
+            str << "Starting new basicblock #0x" << std::hex << next_bb->id;
+            DEBUG_LOG(str.str());
         } else {
+            if (next_bb->virt_start_addr == jmp_addr) {
+                // the jump address is already parsed -> just skip this.
+                DEBUG_LOG("Encountered jump to basic block which was already parsed.");
+            } else {
+                // the jump address is inside a parsed basic block -> split the block
+                DEBUG_LOG("Encountered jump into basic block which was already parsed -> splitting block.");
+                split_basic_block(next_bb, jmp_addr);
+            }
             bb_exists = true;
-            DEBUG_LOG("Encountered jump to basic block which was already parsed.");
         }
 
         curr_bb->successors.push_back(next_bb);
@@ -151,8 +185,8 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
             auto var = mapping.at(i);
             if (var != nullptr) {
                 cfOp.add_target_input(var);
-                var->from_static = true;
-                var->static_idx = i;
+                // var->from_static = true;
+                std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = i;
             }
         }
 
@@ -171,121 +205,121 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
         liftInvalid(bb, ip);
         break;
     case FRV_LB:
-        lift_load(bb, instr, mapping, Type::i8, true);
+        lift_load(bb, instr, mapping, ip, Type::i8, true);
         break;
     case FRV_LH:
-        lift_load(bb, instr, mapping, Type::i16, true);
+        lift_load(bb, instr, mapping, ip, Type::i16, true);
         break;
     case FRV_LW:
-        lift_load(bb, instr, mapping, Type::i32, true);
+        lift_load(bb, instr, mapping, ip, Type::i32, true);
         break;
     case FRV_LD:
-        lift_load(bb, instr, mapping, Type::i64, true);
+        lift_load(bb, instr, mapping, ip, Type::i64, true);
         break;
     case FRV_LBU:
-        lift_load(bb, instr, mapping, Type::i8, false);
+        lift_load(bb, instr, mapping, ip, Type::i8, false);
         break;
     case FRV_LHU:
-        lift_load(bb, instr, mapping, Type::i16, false);
+        lift_load(bb, instr, mapping, ip, Type::i16, false);
         break;
     case FRV_LWU:
-        lift_load(bb, instr, mapping, Type::i32, false);
+        lift_load(bb, instr, mapping, ip, Type::i32, false);
         break;
     case FRV_SB:
-        lift_store(bb, instr, mapping, Type::i8);
+        lift_store(bb, instr, mapping, ip, Type::i8);
         break;
     case FRV_SH:
-        lift_store(bb, instr, mapping, Type::i16);
+        lift_store(bb, instr, mapping, ip, Type::i16);
         break;
     case FRV_SW:
-        lift_store(bb, instr, mapping, Type::i32);
+        lift_store(bb, instr, mapping, ip, Type::i32);
         break;
     case FRV_SD:
-        lift_store(bb, instr, mapping, Type::i64);
+        lift_store(bb, instr, mapping, ip, Type::i64);
         break;
     case FRV_ADD:
-        lift_arithmetical_logical(bb, instr, mapping, Instruction::add, Type::i64);
+        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::add, Type::i64);
         break;
     case FRV_ADDW:
-        lift_arithmetical_logical(bb, instr, mapping, Instruction::add, Type::i32);
+        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::add, Type::i32);
         break;
     case FRV_ADDI:
-        lift_arithmetical_logical_immediate(bb, instr, mapping, Instruction::add, Type::i64);
+        lift_arithmetical_logical_immediate(bb, instr, mapping, ip, Instruction::add, Type::i64);
         break;
     case FRV_ADDIW:
-        lift_arithmetical_logical_immediate(bb, instr, mapping, Instruction::add, Type::i32);
+        lift_arithmetical_logical_immediate(bb, instr, mapping, ip, Instruction::add, Type::i32);
         break;
     case FRV_SUB:
-        lift_arithmetical_logical(bb, instr, mapping, Instruction::sub, Type::i64);
+        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::sub, Type::i64);
         break;
     case FRV_SUBW:
-        lift_arithmetical_logical(bb, instr, mapping, Instruction::sub, Type::i32);
+        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::sub, Type::i32);
         break;
     case FRV_AND:
-        lift_arithmetical_logical(bb, instr, mapping, Instruction::_and, Type::i64);
+        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::_and, Type::i64);
         break;
     case FRV_OR:
-        lift_arithmetical_logical(bb, instr, mapping, Instruction::_or, Type::i64);
+        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::_or, Type::i64);
         break;
     case FRV_XOR:
-        lift_arithmetical_logical(bb, instr, mapping, Instruction::_xor, Type::i64);
+        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::_xor, Type::i64);
         break;
     case FRV_ANDI:
-        lift_arithmetical_logical_immediate(bb, instr, mapping, Instruction::_and, Type::i64);
+        lift_arithmetical_logical_immediate(bb, instr, mapping, ip, Instruction::_and, Type::i64);
         break;
     case FRV_ORI:
-        lift_arithmetical_logical_immediate(bb, instr, mapping, Instruction::_or, Type::i64);
+        lift_arithmetical_logical_immediate(bb, instr, mapping, ip, Instruction::_or, Type::i64);
         break;
     case FRV_XORI:
-        lift_arithmetical_logical_immediate(bb, instr, mapping, Instruction::_xor, Type::i64);
+        lift_arithmetical_logical_immediate(bb, instr, mapping, ip, Instruction::_xor, Type::i64);
         break;
     case FRV_SLL:
-        lift_shift(bb, instr, mapping, Instruction::shl, Type::i64);
+        lift_shift(bb, instr, mapping, ip, Instruction::shl, Type::i64);
         break;
     case FRV_SLLW:
-        lift_shift(bb, instr, mapping, Instruction::shl, Type::i32);
+        lift_shift(bb, instr, mapping, ip, Instruction::shl, Type::i32);
         break;
     case FRV_SLLI:
-        lift_shift_immediate(bb, instr, mapping, Instruction::shl, Type::i64);
+        lift_shift_immediate(bb, instr, mapping, ip, Instruction::shl, Type::i64);
         break;
     case FRV_SLLIW:
-        lift_shift_immediate(bb, instr, mapping, Instruction::shl, Type::i32);
+        lift_shift_immediate(bb, instr, mapping, ip, Instruction::shl, Type::i32);
         break;
     case FRV_SRL:
-        lift_shift(bb, instr, mapping, Instruction::shr, Type::i64);
+        lift_shift(bb, instr, mapping, ip, Instruction::shr, Type::i64);
         break;
     case FRV_SRLW:
-        lift_shift(bb, instr, mapping, Instruction::shr, Type::i32);
+        lift_shift(bb, instr, mapping, ip, Instruction::shr, Type::i32);
         break;
     case FRV_SRLI:
-        lift_shift_immediate(bb, instr, mapping, Instruction::shr, Type::i64);
+        lift_shift_immediate(bb, instr, mapping, ip, Instruction::shr, Type::i64);
         break;
     case FRV_SRLIW:
-        lift_shift_immediate(bb, instr, mapping, Instruction::shr, Type::i32);
+        lift_shift_immediate(bb, instr, mapping, ip, Instruction::shr, Type::i32);
         break;
     case FRV_SRA:
-        lift_shift(bb, instr, mapping, Instruction::sar, Type::i64);
+        lift_shift(bb, instr, mapping, ip, Instruction::sar, Type::i64);
         break;
     case FRV_SRAW:
-        lift_shift(bb, instr, mapping, Instruction::sar, Type::i32);
+        lift_shift(bb, instr, mapping, ip, Instruction::sar, Type::i32);
         break;
     case FRV_SRAI:
-        lift_shift_immediate(bb, instr, mapping, Instruction::sar, Type::i64);
+        lift_shift_immediate(bb, instr, mapping, ip, Instruction::sar, Type::i64);
         break;
     case FRV_SRAIW:
-        lift_shift_immediate(bb, instr, mapping, Instruction::sar, Type::i32);
+        lift_shift_immediate(bb, instr, mapping, ip, Instruction::sar, Type::i32);
         break;
     case FRV_SLTI:
-        lift_slt(bb, instr, mapping, false, true);
+        lift_slt(bb, instr, mapping, ip, false, true);
         break;
     case FRV_SLTIU:
-        lift_slt(bb, instr, mapping, true, true);
+        lift_slt(bb, instr, mapping, ip, true, true);
         break;
     case FRV_SLT:
-        lift_slt(bb, instr, mapping, false, false);
+        lift_slt(bb, instr, mapping, ip, false, false);
         break;
     case FRV_SLTU:
-        lift_slt(bb, instr, mapping, true, false);
+        lift_slt(bb, instr, mapping, ip, true, false);
         break;
         //        case FRV_FENCE:
         //            liftFENCE(bb, mapping);
@@ -297,13 +331,13 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
         liftAUIPC(bb, instr, mapping, ip);
         break;
     case FRV_LUI:
-        liftLUI(bb, instr, mapping);
+        liftLUI(bb, instr, mapping, ip);
         break;
     case FRV_JAL:
         liftJAL(bb, instr, mapping, ip, next_addr);
         break;
     case FRV_JALR:
-        liftJALR(bb, instr, mapping, next_addr);
+        liftJALR(bb, instr, mapping, ip, next_addr);
         break;
     case FRV_BEQ:
     case FRV_BNE:
@@ -315,7 +349,7 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
         break;
     case FRV_ECALL:
         // this also includes the EBREAK
-        liftECALL(bb, next_addr);
+        liftECALL(bb, ip, next_addr);
         break;
     default:
         char instr_str[16];
@@ -328,11 +362,11 @@ void Lifter::liftInvalid(BasicBlock *bb, uint64_t ip) {
     std::cerr << "Encountered invalid instruction during lifting. (BasicBlock #0x" << std::hex << bb->id << ", address <0x" << std::hex << ip << ">)\n";
 }
 
-void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const Type &op_size, bool sign_extend) {
+void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size, bool sign_extend) {
     // 1. load offset
-    SSAVar *offset = load_immediate(bb, instr.instr.imm);
+    SSAVar *offset = load_immediate(bb, instr.instr.imm, ip);
     // 3. add offset to rs1
-    SSAVar *load_addr = bb->add_var(Type::i64);
+    SSAVar *load_addr = bb->add_var(Type::i64, ip);
     {
         auto add_op = std::make_unique<Operation>(Instruction::add);
         add_op->set_inputs(mapping.at(instr.instr.rs1), offset);
@@ -341,7 +375,7 @@ void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const 
     }
 
     // create SSAVariable for the destination operand
-    SSAVar *load_dest = bb->add_var(op_size);
+    SSAVar *load_dest = bb->add_var(op_size, ip);
 
     // create the load operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(Instruction::load);
@@ -353,7 +387,7 @@ void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const 
     load_dest->set_op(std::move(operation));
 
     // last step: extend load_dest variable to 64 bit
-    SSAVar *extended_result = bb->add_var(Type::i64);
+    SSAVar *extended_result = bb->add_var(Type::i64, ip, instr.instr.rd);
     {
         auto extend_operation = std::make_unique<Operation>((sign_extend ? Instruction::sign_extend : Instruction::zero_extend));
         extend_operation->set_inputs(load_dest);
@@ -365,11 +399,11 @@ void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const 
     mapping.at(instr.instr.rd) = extended_result;
 }
 
-void Lifter::lift_store(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const Type &op_size) {
+void Lifter::lift_store(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size) {
     // 1. load offset
-    SSAVar *offset = load_immediate(bb, instr.instr.imm);
+    SSAVar *offset = load_immediate(bb, instr.instr.imm, ip);
     // 3. add offset to rs1
-    SSAVar *store_addr = bb->add_var(Type::i64);
+    SSAVar *store_addr = bb->add_var(Type::i64, ip);
     {
         auto add_op = std::make_unique<Operation>(Instruction::add);
         add_op->set_inputs(mapping.at(instr.instr.rs1), offset);
@@ -378,10 +412,10 @@ void Lifter::lift_store(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const
     }
 
     // cast variable to store to operand size
-    SSAVar *store_var = shrink_var(bb, mapping.at(instr.instr.rs2), op_size);
+    SSAVar *store_var = shrink_var(bb, mapping.at(instr.instr.rs2), ip, op_size);
 
     // create memory_token
-    SSAVar *result_memory_token = bb->add_var(Type::mt);
+    SSAVar *result_memory_token = bb->add_var(Type::mt, ip, MEM_IDX);
 
     // create the store operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(Instruction::store);
@@ -397,51 +431,51 @@ void Lifter::lift_store(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const
     mapping.at(MEM_IDX) = result_memory_token;
 }
 
-void Lifter::lift_shift(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const Instruction &instruction_type, const Type &op_size) {
+void Lifter::lift_shift(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction &instruction_type, const Type &op_size) {
     // prepare for shift, only use lower 5bits
 
     SSAVar *mask;
 
     // cast immediate from 64bit to 32bit if instruction has 32bit size
     if (op_size == Type::i32) {
-        mask = load_immediate(bb, (int32_t)0x1F);
+        mask = load_immediate(bb, (int32_t)0x1F, ip);
     } else {
-        mask = load_immediate(bb, (int64_t)0x1F);
+        mask = load_immediate(bb, (int64_t)0x1F, ip);
     }
 
     // create new variable with the result of the masking
-    SSAVar *masked_count_shifts = bb->add_var(op_size);
+    SSAVar *masked_count_shifts = bb->add_var(op_size, ip, instr.instr.rs2);
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(Instruction::_and);
     operation->set_inputs(mapping.at(instr.instr.rs2), mask);
     operation->set_outputs(masked_count_shifts);
     mapping.at(instr.instr.rs2) = masked_count_shifts;
 
-    lift_arithmetical_logical(bb, instr, mapping, instruction_type, op_size);
+    lift_arithmetical_logical(bb, instr, mapping, ip, instruction_type, op_size);
 }
 
-void Lifter::lift_shift_immediate(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const Instruction &instruction_type, const Type &op_size) {
+void Lifter::lift_shift_immediate(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction &instruction_type, const Type &op_size) {
     // masking the operand
     instr.instr.imm = instr.instr.imm & 0x1F;
-    lift_arithmetical_logical_immediate(bb, instr, mapping, instruction_type, op_size);
+    lift_arithmetical_logical_immediate(bb, instr, mapping, ip, instruction_type, op_size);
 }
 
-void Lifter::lift_slt(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, bool isUnsigned, bool withImmediate) {
+void Lifter::lift_slt(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, bool isUnsigned, bool withImmediate) {
     // get operands for operations (the operands which were compared)
     SSAVar *first_operand = mapping.at(instr.instr.rs1);
     SSAVar *second_operand;
 
     if (withImmediate) {
-        second_operand = bb->add_var_imm(instr.instr.imm);
+        second_operand = bb->add_var_imm(instr.instr.imm, ip);
     } else {
         second_operand = mapping.at(instr.instr.rs2);
     }
 
     // create variables for result
-    SSAVar *one = bb->add_var_imm(1);
-    SSAVar *zero = bb->add_var_imm(0);
+    SSAVar *one = bb->add_var_imm(1, ip);
+    SSAVar *zero = bb->add_var_imm(0, ip);
 
     // create SSAVariable for the destination operand
-    SSAVar *destination = bb->add_var(Type::i64);
+    SSAVar *destination = bb->add_var(Type::i64, ip, instr.instr.rd);
 
     // create slt operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(isUnsigned ? Instruction::sltu : Instruction::slt);
@@ -457,9 +491,9 @@ void Lifter::lift_slt(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, bool is
     mapping.at(instr.instr.rd) = destination;
 }
 
-void Lifter::lift_arithmetical_logical(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const Instruction &instruction_type, const Type &op_size) {
+void Lifter::lift_arithmetical_logical(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction &instruction_type, const Type &op_size) {
     // create SSAVariable for the destination operand
-    SSAVar *destination = bb->add_var(op_size);
+    SSAVar *destination = bb->add_var(op_size, ip, instr.instr.rd);
 
     // create the shl operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(instruction_type);
@@ -484,17 +518,17 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, RV64Inst &instr, reg_map 
     mapping.at(instr.instr.rd) = destination;
 }
 
-void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, const Instruction &instruction_type, const Type &op_size) {
+void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction &instruction_type, const Type &op_size) {
     // create immediate var
     SSAVar *immediate;
     if (op_size == Type::i32) {
-        immediate = load_immediate(bb, instr.instr.imm);
+        immediate = load_immediate(bb, instr.instr.imm, ip);
     } else {
-        immediate = load_immediate(bb, (int64_t)instr.instr.imm);
+        immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip);
     }
 
     // create SSAVariable for the destination operand
-    SSAVar *destination = bb->add_var(op_size);
+    SSAVar *destination = bb->add_var(op_size, ip, instr.instr.rd);
 
     // create the shl operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(instruction_type);
@@ -518,7 +552,7 @@ void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, RV64Inst &instr
     mapping.at(instr.instr.rd) = destination;
 }
 
-SSAVar *Lifter::shrink_var(BasicBlock *bb, SSAVar *var, const Type &target_size) {
+SSAVar *Lifter::shrink_var(BasicBlock *bb, SSAVar *var, uint64_t ip, const Type &target_size) {
     // create cast operation
     std::unique_ptr<Operation> cast = std::make_unique<Operation>(Instruction::cast);
 
@@ -526,7 +560,7 @@ SSAVar *Lifter::shrink_var(BasicBlock *bb, SSAVar *var, const Type &target_size)
     cast->set_inputs(var);
 
     // create casted variable
-    SSAVar *destination = bb->add_var(target_size);
+    SSAVar *destination = bb->add_var(target_size, ip);
     cast->set_outputs(destination);
     destination->set_op(std::move(cast));
 
@@ -535,12 +569,12 @@ SSAVar *Lifter::shrink_var(BasicBlock *bb, SSAVar *var, const Type &target_size)
 
 void Lifter::liftAUIPC(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip) {
     // 1. load the immediate
-    SSAVar *immediate = load_immediate(bb, instr.instr.imm);
+    SSAVar *immediate = load_immediate(bb, instr.instr.imm, ip);
     // 2. load instruction pointer as immediate
-    SSAVar *ip_immediate = load_immediate(bb, (int64_t)ip);
+    SSAVar *ip_immediate = load_immediate(bb, (int64_t)ip, ip);
 
     // 3. add immediate to instruction pointer
-    SSAVar *result = bb->add_var(Type::i64);
+    SSAVar *result = bb->add_var(Type::i64, ip, instr.instr.rd);
     {
         auto add_op = std::make_unique<Operation>(Instruction::add);
         add_op->set_inputs(ip_immediate, immediate);
@@ -551,35 +585,35 @@ void Lifter::liftAUIPC(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64
     mapping.at(instr.instr.rd) = result;
 }
 
-void Lifter::liftLUI(BasicBlock *bb, RV64Inst &instr, reg_map &mapping) {
+void Lifter::liftLUI(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip) {
     // create the immediate loading operation (with built-in sign extension)
-    SSAVar *immediate = load_immediate(bb, (int64_t)instr.instr.imm);
+    SSAVar *immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip, instr.instr.rd);
 
     // write SSAVar back to mapping
     mapping.at(instr.instr.rd) = immediate;
 }
 
-inline SSAVar *Lifter::load_immediate(BasicBlock *bb, int32_t imm) {
-    SSAVar *input_imm = bb->add_var_imm(imm);
+inline SSAVar *Lifter::load_immediate(BasicBlock *bb, int32_t imm, uint64_t ip, size_t reg) {
+    SSAVar *input_imm = bb->add_var_imm(imm, ip, reg);
     return input_imm;
 }
 
-inline SSAVar *Lifter::load_immediate(BasicBlock *bb, int64_t imm) {
-    SSAVar *input_imm = bb->add_var_imm(imm);
+inline SSAVar *Lifter::load_immediate(BasicBlock *bb, int64_t imm, uint64_t ip, size_t reg) {
+    SSAVar *input_imm = bb->add_var_imm(imm, ip, reg);
     return input_imm;
 }
 
 void Lifter::liftJAL(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     // 1. load the immediate from the instruction (with built-in sign extension)
-    SSAVar *jmp_imm = load_immediate(bb, (int64_t)instr.instr.imm);
+    SSAVar *jmp_imm = load_immediate(bb, (int64_t)instr.instr.imm, ip);
 
     // 2. the original immediate is encoded in multiples of 2 bytes, but frvdec already took of that for us.
 
     // 3. load IP
-    SSAVar *ip_imm = load_immediate(bb, (int64_t)ip);
+    SSAVar *ip_imm = load_immediate(bb, (int64_t)ip, ip);
 
     // 4. add offset to ip
-    SSAVar *sum = bb->add_var(Type::i64);
+    SSAVar *sum = bb->add_var(Type::i64, ip);
     {
         auto addition = std::make_unique<Operation>(Instruction::add);
         addition->set_inputs(ip_imm, jmp_imm);
@@ -588,28 +622,28 @@ void Lifter::liftJAL(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t
     }
 
     // 5. load return address as another immediate
-    SSAVar *return_addr = load_immediate(bb, (int64_t)next_addr);
+    SSAVar *return_addr = load_immediate(bb, (int64_t)next_addr, ip, instr.instr.rd);
 
     // write SSAVar of the result of the operation back to mapping
     mapping.at(instr.instr.rd) = return_addr;
 
     // 6. jump!
     // create the jump operation
-    CfOp &cf_operation = bb->add_cf_op(CFCInstruction::jump, instr.instr.imm + ip);
+    CfOp &cf_operation = bb->add_cf_op(CFCInstruction::jump, ip, instr.instr.imm + ip);
 
     // set operation in- and outputs
     cf_operation.set_inputs(sum);
 }
 
-void Lifter::liftJALR(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t next_addr) {
+void Lifter::liftJALR(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     // the address is encoded as an immediate offset....
     // 1. load the immediate offset
-    SSAVar *immediate = load_immediate(bb, (int64_t)instr.instr.imm);
+    SSAVar *immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip);
 
     // 2. add the offset register (the jalR-specific part)
     SSAVar *offset_register = mapping.at(instr.instr.rs1);
 
-    SSAVar *sum = bb->add_var(Type::i64);
+    SSAVar *sum = bb->add_var(Type::i64, ip);
     {
         auto addition = std::make_unique<Operation>(Instruction::add);
         addition->set_inputs(offset_register, immediate);
@@ -619,9 +653,9 @@ void Lifter::liftJALR(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
 
     // 3. set lsb to zero (every valid rv64 instruction is at least 2 byte aligned)
     // 3.1 load bitmask
-    SSAVar *bit_mask = load_immediate(bb, (int64_t)-2);
+    SSAVar *bit_mask = load_immediate(bb, (int64_t)-2, ip);
     // 3.2 apply mask
-    SSAVar *jump_addr = bb->add_var(Type::i64);
+    SSAVar *jump_addr = bb->add_var(Type::i64, ip);
     {
         auto and_op = std::make_unique<Operation>(Instruction::_and);
         and_op->set_inputs(sum, bit_mask);
@@ -630,13 +664,13 @@ void Lifter::liftJALR(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
     }
 
     // create the jump operation
-    CfOp &cf_operation = bb->add_cf_op(CFCInstruction::ijump, (uint64_t)0);
+    CfOp &cf_operation = bb->add_cf_op(CFCInstruction::ijump, ip, (uint64_t)0);
 
     // set operation in- and outputs
     cf_operation.set_inputs(jump_addr);
 
     // the return value address is encoded as immediate
-    SSAVar *return_immediate = load_immediate(bb, (int64_t)next_addr);
+    SSAVar *return_immediate = load_immediate(bb, (int64_t)next_addr, ip, instr.instr.rd);
 
     // write SSAVar of the result of the operation back to mapping
     mapping.at(instr.instr.rd) = return_immediate;
@@ -644,15 +678,15 @@ void Lifter::liftJALR(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
 
 void Lifter::liftBranch(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     // 1. load the immediate from the instruction
-    SSAVar *jmp_imm = load_immediate(bb, (int64_t)instr.instr.imm);
+    SSAVar *jmp_imm = load_immediate(bb, (int64_t)instr.instr.imm, ip);
 
     // 2. this immediate is originally encoded in multiples of 2 bytes, but is already converted by frvdec
 
     // 3. load IP
-    SSAVar *ip_imm = load_immediate(bb, (int64_t)ip);
+    SSAVar *ip_imm = load_immediate(bb, (int64_t)ip, ip);
 
     // 4. add offset to ip
-    SSAVar *jmp_addr = bb->add_var(Type::i64);
+    SSAVar *jmp_addr = bb->add_var(Type::i64, ip);
     {
         auto addition = std::make_unique<Operation>(Instruction::add);
         addition->set_inputs(ip_imm, jmp_imm);
@@ -666,7 +700,7 @@ void Lifter::liftBranch(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint6
     bool reverse_jumps = false;
 
     // parse the branching instruction -> jumps if the condition is true
-    CfOp &c_jmp = bb->add_cf_op(CFCInstruction::cjump);
+    CfOp &c_jmp = bb->add_cf_op(CFCInstruction::cjump, ip);
 
     switch (instr.instr.mnem) {
     case FRV_BEQ:
@@ -699,7 +733,7 @@ void Lifter::liftBranch(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint6
     }
 
     uint64_t encoded_addr = (int64_t)(instr.instr.imm) + ip;
-    SSAVar *next_addr_var = load_immediate(bb, (int64_t)next_addr);
+    SSAVar *next_addr_var = load_immediate(bb, (int64_t)next_addr, ip);
 
     // stores the address which is used if the branch condition is false
     uint64_t uc_jmp_addr = reverse_jumps ? encoded_addr : next_addr;
@@ -712,43 +746,73 @@ void Lifter::liftBranch(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint6
     SSAVar *rs1 = mapping.at(instr.instr.rs1);
     SSAVar *rs2 = mapping.at(instr.instr.rs2);
     c_jmp.set_inputs(rs1, rs2, br_jmp_addr_var);
-    c_jmp.jump_addr = br_jmp_addr;
+    std::get<CfOp::LifterInfo>(c_jmp.lifter_info).jump_addr = br_jmp_addr;
 
     // Branch not taken -> like JAL, but doesn't write return address to register
-    CfOp &continue_jmp = bb->add_cf_op(CFCInstruction::jump, uc_jmp_addr);
+    CfOp &continue_jmp = bb->add_cf_op(CFCInstruction::jump, ip, uc_jmp_addr);
     continue_jmp.set_inputs(uc_jmp_addr_var);
 }
 
-void Lifter::liftECALL(BasicBlock *bb, uint64_t next_addr) {
+void Lifter::liftECALL(BasicBlock *bb, uint64_t ip, uint64_t next_addr) {
     // the behavior of the ECALL instruction is system dependant. (= SYSCALL)
     // we give the syscall the address at which the program control flow continues (= next basic block)
-    bb->add_cf_op(CFCInstruction::syscall, next_addr);
+    bb->add_cf_op(CFCInstruction::syscall, ip, next_addr);
 }
 
 std::optional<SSAVar *> Lifter::get_last_static_assignment(size_t idx, BasicBlock *bb) {
     std::vector<SSAVar *> possible_preds;
+    // store the unparsed predecessors with their depth in the search;
+    std::vector<std::pair<BasicBlock *, size_t>> unparsed_preds;
     for (BasicBlock *pred : bb->predecessors) {
-        for (const CfOp &cfo : pred->control_flow_ops) {
-            for (SSAVar *ti : cfo.target_inputs) {
-                if (ti->from_static && ti->static_idx == idx) {
-                    possible_preds.push_back(ti);
+        unparsed_preds.emplace_back(pred, 0);
+    }
+    // store the already parsed ids
+    std::vector<size_t> parsed_preds;
+    parsed_preds.push_back(bb->id);
+
+    while (!unparsed_preds.empty()) {
+        BasicBlock *pred = unparsed_preds.front().first;
+        size_t pred_depth = unparsed_preds.front().second;
+        auto is_parsed = [pred](size_t b_id) -> bool { return b_id == pred->id; };
+        if (pred_depth <= MAX_ADDRESS_SEARCH_DEPTH && std::find_if(parsed_preds.begin(), parsed_preds.end(), is_parsed) == parsed_preds.end()) {
+            parsed_preds.push_back(pred->id);
+            for (BasicBlock *pred_pred : pred->predecessors) {
+                unparsed_preds.emplace_back(pred_pred, pred_depth + 1);
+            }
+            for (const CfOp &cfo : pred->control_flow_ops) {
+                for (SSAVar *ti : cfo.target_inputs) {
+                    if (!ti->from_static && std::get<SSAVar::LifterInfo>(ti->lifter_info).static_id == idx) {
+                        possible_preds.push_back(ti);
+                    }
                 }
             }
         }
+        unparsed_preds.erase(unparsed_preds.begin());
     }
     if (possible_preds.empty()) {
         DEBUG_LOG("No predecessors for static variable were found in predecessor list of basic block.");
         return std::nullopt;
     } else if (possible_preds.size() > 1) {
-        DEBUG_LOG("Warning: found multiple possible statically mapped variables. Aborting.");
-        return std::nullopt;
+        // TODO: evaluate all possibilities
+        // DEBUG_LOG("Warning: found multiple possible statically mapped variables. Selecting latest.");
     }
     return possible_preds.at(0);
 }
 
+void Lifter::load_input_vars(BasicBlock *bb, Operation *op, std::vector<int64_t> &resolved_vars) {
+    for (auto &in_var : op->in_vars) {
+        if (in_var != nullptr) {
+            auto res = get_var_value(in_var, bb);
+            if (res.has_value()) {
+                resolved_vars.push_back(res.value());
+            }
+        }
+    }
+}
+
 std::optional<int64_t> Lifter::get_var_value(SSAVar *var, BasicBlock *bb) {
     if (var->from_static) {
-        auto opt_var = get_last_static_assignment(var->static_idx, bb);
+        auto opt_var = get_last_static_assignment(std::get<SSAVar::LifterInfo>(var->lifter_info).static_id, bb);
         if (opt_var.has_value()) {
             var = opt_var.value();
         } else {
@@ -764,48 +828,46 @@ std::optional<int64_t> Lifter::get_var_value(SSAVar *var, BasicBlock *bb) {
         return std::nullopt;
     }
     Operation *op = std::get<std::unique_ptr<Operation>>(var->info).get();
-
     std::vector<int64_t> resolved_vars;
-    for (auto &in_var : op->in_vars) {
-        if (in_var != nullptr) {
-            auto res = get_var_value(in_var, bb);
-            if (!res.has_value()) {
-                return std::nullopt;
-            }
-            resolved_vars.push_back(res.value());
-        }
-    }
 
     switch (op->type) {
     case Instruction::add:
+        load_input_vars(bb, op, resolved_vars);
         if (resolved_vars.size() != 2)
             return std::nullopt;
         return resolved_vars[0] + resolved_vars[1];
     case Instruction::sub:
+        load_input_vars(bb, op, resolved_vars);
         if (resolved_vars.size() != 2)
             return std::nullopt;
         return resolved_vars[0] - resolved_vars[1];
     case Instruction::immediate:
+        load_input_vars(bb, op, resolved_vars);
         if (resolved_vars.size() != 1)
             return std::nullopt;
         return resolved_vars[0];
     case Instruction::shl:
+        load_input_vars(bb, op, resolved_vars);
         if (resolved_vars.size() != 2)
             return std::nullopt;
         return resolved_vars[0] << resolved_vars[1];
     case Instruction::_or:
+        load_input_vars(bb, op, resolved_vars);
         if (resolved_vars.size() != 2)
             return std::nullopt;
         return resolved_vars[0] | resolved_vars[1];
     case Instruction::_and:
+        load_input_vars(bb, op, resolved_vars);
         if (resolved_vars.size() != 2)
             return std::nullopt;
         return resolved_vars[0] & resolved_vars[1];
     case Instruction::_not:
+        load_input_vars(bb, op, resolved_vars);
         if (resolved_vars.size() != 1)
             return std::nullopt;
         return ~resolved_vars[0];
     case Instruction::_xor:
+        load_input_vars(bb, op, resolved_vars);
         if (resolved_vars.size() != 2)
             return std::nullopt;
         return resolved_vars[0] ^ resolved_vars[1];
@@ -814,6 +876,9 @@ std::optional<int64_t> Lifter::get_var_value(SSAVar *var, BasicBlock *bb) {
         if (op->in_vars[0]->type != Type::i32 || var->type != Type::i64) {
             return std::nullopt;
         }
+        load_input_vars(bb, op, resolved_vars);
+        if (resolved_vars.size() != 1)
+            return std::nullopt;
         return (int64_t)resolved_vars[0];
     default:
         return std::nullopt;

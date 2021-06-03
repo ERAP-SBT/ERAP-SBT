@@ -17,7 +17,7 @@ void SSAVar::print(std::ostream &stream, const IR *ir) const {
     switch (info.index()) {
     case 0: // not defined or from static mapper
         if (from_static) {
-            stream << " <- @" << ir->statics[static_idx].id;
+            stream << " <- @" << ir->statics[std::get<LifterInfo>(lifter_info).static_id].id;
         }
         break;
     case 1: // immediate

@@ -45,7 +45,7 @@ uint64_t Program::load_symbol_instrs(Elf64_Sym *sym) {
             }
         }
         sym->st_size = next_sym_addr - sym->st_value;
-        std::cerr << " found endpoint: <" << std::hex << next_sym_addr << "> (size: " << sym->st_size << ")\n";
+        std::cerr << " found endpoint: <0x" << std::hex << next_sym_addr << "> (size: " << sym->st_size << ")\n";
     }
     if (ELF32_ST_TYPE(sym->st_info) & STT_NOTYPE) {
         std::cerr << "Trying to parse a STT_NOTYPE symbol. This is not supported."
