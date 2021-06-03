@@ -74,7 +74,7 @@ class Lifter {
     static std::optional<int64_t> get_var_value(SSAVar *, BasicBlock *);
 
     static std::optional<SSAVar *> get_last_static_assignment(size_t, BasicBlock *);
-    void split_basic_block(BasicBlock *, uint64_t);
+    void split_basic_block(BasicBlock *, uint64_t) const;
     static void load_input_vars(BasicBlock *, Operation *, std::vector<int64_t> &);
 };
 } // namespace lifter::RV64

@@ -61,20 +61,117 @@ BasicBlock *Lifter::get_bb(uint64_t addr) const {
     return nullptr;
 }
 
-void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr) {
-    //    BasicBlock* new_bb = ir->add_basic_block(addr);
-    //
-    //    // map old basic block variables to statics
-    //    for ()
-    //    new_bb->add_input()
-    //
-    //    // transfer variables to new bb
-    //    for (auto& var : bb->variables) {
-    //        if (std::get<SSAVar::LifterInfo>(var->lifter_info).assign_addr >= addr) {
-    //            // TODO: handle statics
-    //            new_bb->variables.push_back(std::move(var));
-    //        }
-    //    }
+void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr) const {
+    // divide SSAVars in two to categories, the one before the address and the one at or after the address
+    std::vector<SSAVar *> first_bb_vars{};
+    std::vector<std::unique_ptr<SSAVar>> second_bb_vars{};
+
+    for (size_t i = bb->variables.size() - 1; i >= 0; i--) {
+        auto &var = bb->variables.at(i);
+        if (var->lifter_info.index() == 1) {
+            auto &lifterInfo = std::get<SSAVar::LifterInfo>(var->lifter_info);
+            if (lifterInfo.assign_addr < addr) {
+                first_bb_vars.push_back(var.get());
+            } else {
+                auto ssa_var = bb->variables.erase(std::next(bb->variables.begin(), i));
+                i--;
+                second_bb_vars.push_back(std::move(*ssa_var));
+            }
+        }
+    }
+
+    // recreate the register mapping at the given address
+    reg_map mapping{};
+    for (size_t i = first_bb_vars.size() - 1; i >= 0; i--) {
+        auto *var = first_bb_vars.at(i);
+        if (var->lifter_info.index() == 1) {
+            auto &lifterInfo = std::get<SSAVar::LifterInfo>(var->lifter_info);
+            if (!var->from_static && mapping.at(lifterInfo.static_id) == nullptr) {
+                mapping.at(lifterInfo.static_id) = var;
+            }
+        }
+    }
+
+    // create the new BasicBlock
+    BasicBlock *new_bb = ir->add_basic_block(addr);
+
+    // transfer the control flow operations
+    new_bb->control_flow_ops = bb->control_flow_ops;
+    bb->control_flow_ops = {};
+
+    // add predecessors and successors
+    new_bb->predecessors.push_back(bb);
+    bb->successors = {new_bb};
+
+    // add a jump from the first to the second BasicBlock
+    uint64_t last_address_of_first_bb = std::get<SSAVar::LifterInfo>(first_bb_vars.front()->lifter_info).assign_addr;
+    auto cf_op = bb->add_cf_op(CFCInstruction::jump, last_address_of_first_bb, addr);
+    cf_op.target = new_bb;
+
+    // the register mapping in the BasicBlock
+    reg_map new_mapping{};
+
+    // static assignments
+    for (size_t i = 0; i < mapping.size(); i++) {
+        cf_op.add_target_input(mapping.at(i));
+        new_mapping.at(i) = new_bb->add_var_from_static(i);
+    }
+
+    // store the variables in the new basic block and adjust their inputs (if necessary)
+    for (size_t i = second_bb_vars.size() - 1; i >= 0; i--) {
+        auto *variable = &second_bb_vars.at(i);
+
+        // add variable to the new BasicBlock
+        new_bb->variables.push_back(std::move(*variable));
+
+        // set new id according to the new BasicBlocks ids
+        variable->get()->id = new_bb->cur_ssa_id++;
+
+        // variable is the result of an Operation -> adjust the inputs of the operation
+        if (variable->get()->info.index() == 2) {
+            auto *operation = &std::get<std::unique_ptr<Operation>>(variable->get()->info);
+            auto *in_vars = &operation->get()->in_vars;
+
+            for (size_t j = 0; j < in_vars->size(); j++) {
+                auto in_var = in_vars->at(j);
+
+                // skip nullptrs
+                if (in_var == nullptr) {
+                    continue;
+                }
+
+                auto *in_var_lifter_info = &std::get<SSAVar::LifterInfo>(in_var->lifter_info);
+
+                // the input must only be changed if the input variable is in the first BasicBlock
+                if (in_var_lifter_info->assign_addr < addr) {
+                    in_vars->at(j) = mapping.at(in_var_lifter_info->static_id);
+                }
+            }
+        }
+    }
+
+    // adjust the inputs of the cfop (if necessary)
+    for (auto &cf_op : new_bb->control_flow_ops) {
+        // remove first BasicBlock from predecessors of the target of the Control-Flow-Operation
+        cf_op.target->predecessors.erase(std::remove(cf_op.target->predecessors.begin(), cf_op.target->predecessors.end(), bb), cf_op.target->predecessors.end());
+
+        // add new BasicBlock to predecessors of the target
+        cf_op.target->predecessors.push_back(new_bb);
+
+        // add target to the successors of the new BasicBlock
+        new_bb->successors.push_back(cf_op.target);
+
+        for (size_t i = 0; i < cf_op.target_inputs.size(); i++) {
+            auto *target_input = cf_op.target_inputs.at(i);
+            if (target_input->lifter_info.index() == 1) {
+                auto &lifterInfo = std::get<SSAVar::LifterInfo>(target_input->lifter_info);
+                // adjust only target_inputs if they are in the first BasicBlock
+                if (lifterInfo.assign_addr < addr) {
+                    cf_op.target_inputs.at(i) = new_mapping.at(lifterInfo.static_id);
+                }
+            }
+        }
+    }
 }
 
 void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBlock *curr_bb) {
