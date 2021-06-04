@@ -66,85 +66,83 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr) const {
     std::vector<SSAVar *> first_bb_vars{};
     std::vector<std::unique_ptr<SSAVar>> second_bb_vars{};
 
-    for (size_t i = bb->variables.size() - 1; i >= 0; i--) {
-        auto &var = bb->variables.at(i);
-        if (var->lifter_info.index() == 1) {
-            auto &lifterInfo = std::get<SSAVar::LifterInfo>(var->lifter_info);
+    // Additionally, reset all static mappings where variables were mapped to a static mapper (not received from one)
+    for (auto it = bb->variables.rbegin(); it != bb->variables.rend(); ++it) {
+        if (it->get()->lifter_info.index() == 1) {
+            auto &lifterInfo = std::get<SSAVar::LifterInfo>(it->get()->lifter_info);
             if (lifterInfo.assign_addr < addr) {
-                first_bb_vars.push_back(var.get());
+                first_bb_vars.push_back(it->get());
             } else {
-                auto ssa_var = bb->variables.erase(std::next(bb->variables.begin(), i));
-                i--;
-                second_bb_vars.push_back(std::move(*ssa_var));
+                second_bb_vars.push_back(std::move(*it));
+                bb->variables.erase(it.base());
             }
         }
     }
 
     // recreate the register mapping at the given address
     reg_map mapping{};
-    for (size_t i = first_bb_vars.size() - 1; i >= 0; i--) {
-        auto *var = first_bb_vars.at(i);
-        if (var->lifter_info.index() == 1) {
-            auto &lifterInfo = std::get<SSAVar::LifterInfo>(var->lifter_info);
-            if (!var->from_static && mapping.at(lifterInfo.static_id) == nullptr) {
-                mapping.at(lifterInfo.static_id) = var;
+    for (auto it = first_bb_vars.rbegin(); it != first_bb_vars.rend(); ++it) {
+        if ((*it)->lifter_info.index() == 1) {
+            auto &lifterInfo = std::get<SSAVar::LifterInfo>((*it)->lifter_info);
+            if (!(*it)->from_static && mapping.at(lifterInfo.static_id) == nullptr) {
+                mapping.at(lifterInfo.static_id) = *it;
             }
         }
     }
-
     // create the new BasicBlock
     BasicBlock *new_bb = ir->add_basic_block(addr);
 
     // transfer the control flow operations
-    new_bb->control_flow_ops = bb->control_flow_ops;
-    bb->control_flow_ops = {};
+    new_bb->control_flow_ops = std::move(bb->control_flow_ops);
 
-    // add predecessors and successors
+    // transfer and add predecessors and successors
     new_bb->predecessors.push_back(bb);
-    bb->successors = {new_bb};
-
-    // add a jump from the first to the second BasicBlock
-    uint64_t last_address_of_first_bb = std::get<SSAVar::LifterInfo>(first_bb_vars.front()->lifter_info).assign_addr;
-    auto cf_op = bb->add_cf_op(CFCInstruction::jump, last_address_of_first_bb, addr);
-    cf_op.target = new_bb;
+    new_bb->successors = std::move(bb->successors);
+    bb->successors.push_back(new_bb);
 
     // the register mapping in the BasicBlock
     reg_map new_mapping{};
+    {
+        // add a jump from the first to the second BasicBlock
+        uint64_t last_address_of_first_bb = std::get<SSAVar::LifterInfo>(first_bb_vars.front()->lifter_info).assign_addr;
+        auto &cf_op = bb->add_cf_op(CFCInstruction::jump, last_address_of_first_bb, addr);
+        cf_op.target = new_bb;
 
-    // static assignments
-    for (size_t i = 0; i < mapping.size(); i++) {
-        cf_op.add_target_input(mapping.at(i));
-        new_mapping.at(i) = new_bb->add_var_from_static(i);
+        // static assignments
+        for (size_t i = 0; i < mapping.size(); i++) {
+            if (mapping.at(i) != nullptr) {
+                cf_op.add_target_input(mapping.at(i));
+                // var->from_static = true;
+                std::get<SSAVar::LifterInfo>(mapping.at(i)->lifter_info).static_id = i;
+            }
+            new_mapping.at(i) = new_bb->add_var_from_static(i);
+        }
     }
 
     // store the variables in the new basic block and adjust their inputs (if necessary)
-    for (size_t i = second_bb_vars.size() - 1; i >= 0; i--) {
-        auto *variable = &second_bb_vars.at(i);
+    for (auto it = second_bb_vars.rbegin(); it != second_bb_vars.rend(); it++) {
+        SSAVar *var = it->get();
 
         // add variable to the new BasicBlock
-        new_bb->variables.push_back(std::move(*variable));
+        new_bb->variables.push_back(std::move(*it));
 
         // set new id according to the new BasicBlocks ids
-        variable->get()->id = new_bb->cur_ssa_id++;
+        var->id = new_bb->cur_ssa_id++;
 
         // variable is the result of an Operation -> adjust the inputs of the operation
-        if (variable->get()->info.index() == 2) {
-            auto *operation = &std::get<std::unique_ptr<Operation>>(variable->get()->info);
-            auto *in_vars = &operation->get()->in_vars;
-
-            for (size_t j = 0; j < in_vars->size(); j++) {
-                auto in_var = in_vars->at(j);
-
+        if (var->info.index() == 2) {
+            auto *operation = std::get<std::unique_ptr<Operation>>(var->info).get();
+            for (auto &in_var : operation->in_vars) {
                 // skip nullptrs
                 if (in_var == nullptr) {
                     continue;
                 }
 
-                auto *in_var_lifter_info = &std::get<SSAVar::LifterInfo>(in_var->lifter_info);
+                auto &in_var_lifter_info = std::get<SSAVar::LifterInfo>(in_var->lifter_info);
 
                 // the input must only be changed if the input variable is in the first BasicBlock
-                if (in_var_lifter_info->assign_addr < addr) {
-                    in_vars->at(j) = mapping.at(in_var_lifter_info->static_id);
+                if (in_var_lifter_info.assign_addr < addr) {
+                    in_var = mapping.at(in_var_lifter_info.static_id);
                 }
             }
         }
@@ -152,22 +150,30 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr) const {
 
     // adjust the inputs of the cfop (if necessary)
     for (auto &cf_op : new_bb->control_flow_ops) {
-        // remove first BasicBlock from predecessors of the target of the Control-Flow-Operation
-        cf_op.target->predecessors.erase(std::remove(cf_op.target->predecessors.begin(), cf_op.target->predecessors.end(), bb), cf_op.target->predecessors.end());
+        if (cf_op.target) {
+            // remove first BasicBlock from predecessors of the target of the Control-Flow-Operation
+            auto it = std::find(cf_op.target->predecessors.begin(), cf_op.target->predecessors.end(), bb);
+            if (it != cf_op.target->predecessors.end()) {
+                cf_op.target->predecessors.erase(it);
+            }
 
-        // add new BasicBlock to predecessors of the target
-        cf_op.target->predecessors.push_back(new_bb);
+            // add new BasicBlock to predecessors of the target
+            cf_op.target->predecessors.push_back(new_bb);
 
-        // add target to the successors of the new BasicBlock
-        new_bb->successors.push_back(cf_op.target);
+            // add target to the successors of the new BasicBlock
+            new_bb->successors.push_back(cf_op.target);
+            auto old_succ = std::find(cf_op.target->predecessors.begin(), cf_op.target->predecessors.end(), cf_op.target);
+            if (old_succ != cf_op.target->predecessors.end()) {
+                bb->successors.erase(old_succ);
+            }
+        }
 
-        for (size_t i = 0; i < cf_op.target_inputs.size(); i++) {
-            auto *target_input = cf_op.target_inputs.at(i);
-            if (target_input->lifter_info.index() == 1) {
+        for (SSAVar *target_input : cf_op.target_inputs) {
+            if (!target_input->lifter_info.valueless_by_exception() && target_input->lifter_info.index() == 1) {
                 auto &lifterInfo = std::get<SSAVar::LifterInfo>(target_input->lifter_info);
-                // adjust only target_inputs if they are in the first BasicBlock
+                // only adjust target_inputs if they are in the first BasicBlock
                 if (lifterInfo.assign_addr < addr) {
-                    cf_op.target_inputs.at(i) = new_mapping.at(lifterInfo.static_id);
+                    target_input = new_mapping.at(lifterInfo.static_id);
                 }
             }
         }
@@ -234,6 +240,11 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
         }
     }
 
+    // store the entry addresses where the parsing continues next
+    std::vector<std::pair<uint64_t, BasicBlock *>> next_entrypoints;
+    // ...and store jump addresses with their corresponding hit basic blocks which should be split
+    std::vector<std::pair<uint64_t, BasicBlock *>> to_split;
+
     for (CfOp &cfOp : curr_bb->control_flow_ops) {
         // TODO: test for 4 byte aligned address
         uint64_t jmp_addr = std::get<CfOp::LifterInfo>(cfOp.lifter_info).jump_addr;
@@ -258,18 +269,7 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
         if (next_bb == nullptr) {
             next_bb = ir->add_basic_block(jmp_addr);
             func->add_block(next_bb);
-            std::stringstream str;
-            str << "Starting new basicblock #0x" << std::hex << next_bb->id;
-            DEBUG_LOG(str.str());
         } else {
-            if (next_bb->virt_start_addr == jmp_addr) {
-                // the jump address is already parsed -> just skip this.
-                DEBUG_LOG("Encountered jump to basic block which was already parsed.");
-            } else {
-                // the jump address is inside a parsed basic block -> split the block
-                DEBUG_LOG("Encountered jump into basic block which was already parsed -> splitting block.");
-                split_basic_block(next_bb, jmp_addr);
-            }
             bb_exists = true;
         }
 
@@ -287,11 +287,31 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
             }
         }
 
-        if (bb_exists || next_bb == dummy) {
-            continue;
+        if (next_bb != dummy) {
+            if (bb_exists) {
+                if (next_bb->virt_start_addr != jmp_addr) {
+                    // the jump address is inside a parsed basic block -> split the block
+                    // the split basic block function needs the cfOps fully initialized.
+                    to_split.emplace_back(jmp_addr, next_bb);
+                }
+            } else {
+                next_entrypoints.emplace_back(jmp_addr, next_bb);
+            }
         }
-        liftRec(prog, func, jmp_addr, next_bb);
     }
+    std::for_each(to_split.begin(), to_split.end(), [this](auto &split_tuple) {
+        std::stringstream str;
+        str << "Splitting basic block #0x" << std::hex << split_tuple.second->id << std::endl;
+        DEBUG_LOG(str.str());
+        split_basic_block(split_tuple.second, split_tuple.first);
+    });
+
+    std::for_each(next_entrypoints.begin(), next_entrypoints.end(), [this, prog, func](auto &entrypoint_tuple) {
+        std::stringstream str;
+        str << "Starting new basic block #0x" << std::hex << entrypoint_tuple.second->id;
+        DEBUG_LOG(str.str());
+        liftRec(prog, func, entrypoint_tuple.first, entrypoint_tuple.second);
+    });
 }
 
 void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
@@ -952,7 +972,6 @@ std::optional<int64_t> Lifter::get_var_value(SSAVar *var, BasicBlock *bb) {
     }
 
     if (var->info.index() != 2) {
-        // TODO: this could produce parsing errors -> we currently can't track down static assigned variables which weren't initialized in the last basic block
         return std::nullopt;
     }
     Operation *op = std::get<std::unique_ptr<Operation>>(var->info).get();
