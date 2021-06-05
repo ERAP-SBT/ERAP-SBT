@@ -7,7 +7,13 @@ uint64_t Program::load_instrs(uint8_t *byte_arr, size_t n, uint64_t block_start_
         return_code = frv_decode(n - off, byte_arr + off, FRV_RV64, &instr);
         if (return_code <= 0) {
 #ifdef DEBUG
-            std::cerr << "Discovered partial, invalid or undefined instruction at address <0x" << std::hex << (block_start_addr + off) << ">. Skipping (+ 2)\n";
+            std::stringstream str;
+            str << "Discovered partial, invalid or undefined instruction at address <0x" << std::hex << (block_start_addr + off) << ">: ";
+            for (size_t i = 0; i < 4; i++) {
+                str << "0x" << (int)*(byte_arr + off + i) << " ";
+            }
+            str << "; Skipping (+ 2)";
+            DEBUG_LOG(str.str());
 #endif
             return_code = 2;
             instr.mnem = FRV_INVALID;

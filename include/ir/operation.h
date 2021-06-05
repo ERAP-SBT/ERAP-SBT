@@ -100,7 +100,7 @@ struct CfOp {
     CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target);
 
     // The lifter often doesn't know the target at the time the operation is created
-    CfOp(const CFCInstruction type, BasicBlock *source) : type(type), source(source), target(), in_vars() {}
+    CfOp(const CFCInstruction type, BasicBlock *source) : type(type), source(source), target(), target_inputs(), in_vars() {}
 
     void set_inputs(SSAVar *op1 = nullptr, SSAVar *op2 = nullptr, SSAVar *op3 = nullptr, SSAVar *op4 = nullptr, SSAVar *op5 = nullptr, SSAVar *op6 = nullptr, SSAVar *op7 = nullptr);
 

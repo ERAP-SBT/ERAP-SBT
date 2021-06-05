@@ -6,7 +6,9 @@
 // Index of memory token in <reg_map> register mapping
 #define MEM_IDX 32
 // Depth of jump address backtracking
-#define MAX_ADDRESS_SEARCH_DEPTH 10
+#define MAX_ADDRESS_SEARCH_DEPTH 100
+// lift all data points from the load program header (not recommended)
+// #define LIFT_ALL_LOAD
 
 namespace lifter::RV64 {
 class Lifter {
@@ -30,7 +32,7 @@ class Lifter {
 
     [[nodiscard]] BasicBlock *get_bb(uint64_t addr) const;
 
-    void liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBlock *curr_bb);
+    void liftRec(Program *prog, Function *func, uint64_t start_addr, std::optional<size_t> addr_idx, BasicBlock *curr_bb);
 
     static void liftInvalid(BasicBlock *bb, uint64_t ip);
 
@@ -69,10 +71,10 @@ class Lifter {
     static SSAVar *load_immediate(BasicBlock *bb, int32_t imm, uint64_t ip, size_t reg = 0);
     static SSAVar *shrink_var(BasicBlock *, SSAVar *, uint64_t ip, const Type &);
     static std::optional<uint64_t> backtrace_jmp_addr(CfOp *, BasicBlock *);
-    static std::optional<int64_t> get_var_value(SSAVar *, BasicBlock *);
+    static std::optional<int64_t> get_var_value(SSAVar *, BasicBlock *, std::vector<SSAVar *> &);
     static std::optional<SSAVar *> get_last_static_assignment(size_t, BasicBlock *);
     void split_basic_block(BasicBlock *, uint64_t) const;
-    static void load_input_vars(BasicBlock *, Operation *, std::vector<int64_t> &);
+    static void load_input_vars(BasicBlock *, Operation *, std::vector<int64_t> &, std::vector<SSAVar *> &);
     static std::optional<SSAVar *> convert_type(BasicBlock *, uint64_t, SSAVar *, Type);
 };
 } // namespace lifter::RV64

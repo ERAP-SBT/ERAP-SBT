@@ -24,12 +24,20 @@ void print_invalid_op_size(const Instruction &instructionType, RV64Inst &instr) 
 void Lifter::lift(Program *prog) {
     dummy = ir->add_basic_block(0);
 
-    // preload all instructions which are located "in" the program headers which are loaded, executable and readable
-    std::vector<Elf64_Phdr *> exec_header;
-    for (auto &prog_hdr : prog->elf_base->program_headers) {
-        if (prog_hdr.p_type == PT_LOAD && prog_hdr.p_flags | PF_X && prog_hdr.p_flags | PF_R) {
-            exec_header.push_back(&prog_hdr);
-            prog->load_instrs(prog->elf_base->file_content.data() + prog_hdr.p_offset, prog_hdr.p_filesz, prog_hdr.p_vaddr);
+    if (prog->elf_base->section_headers.empty()) {
+        // preload all instructions which are located "in" the program headers which are loaded, executable and readable
+        for (auto &prog_hdr : prog->elf_base->program_headers) {
+            if (prog_hdr.p_type == PT_LOAD && prog_hdr.p_flags | PF_X && prog_hdr.p_flags | PF_R) {
+                prog->load_instrs(prog->elf_base->file_content.data() + prog_hdr.p_offset, prog_hdr.p_filesz, prog_hdr.p_vaddr);
+            }
+        }
+    } else {
+        for (size_t i = 0; i < prog->elf_base->section_names.size(); i++) {
+            if (prog->elf_base->section_names.at(i) == ".text") {
+                auto prog_sec = prog->elf_base->section_headers.at(i);
+                prog->load_instrs(prog->elf_base->file_content.data() + prog_sec.sh_offset, prog_sec.sh_size, prog_sec.sh_addr);
+                break;
+            }
         }
     }
 
@@ -43,13 +51,28 @@ void Lifter::lift(Program *prog) {
     ir->add_static(Type::mt);
 
     BasicBlock *first_bb = ir->add_basic_block(start_addr);
-    std::stringstream str;
-    str << "Starting new basicblock #0x" << std::hex << first_bb->id;
-    DEBUG_LOG(str.str());
+    {
+        std::stringstream str;
+        str << "Starting new basicblock #0x" << std::hex << first_bb->id;
+        DEBUG_LOG(str.str());
+    }
 
-    liftRec(prog, curr_fun, start_addr, first_bb);
+    liftRec(prog, curr_fun, start_addr, std::nullopt, first_bb);
 
-    // TODO: parse instructions in program section which aren't yet contained in a basic block
+#ifdef LIFT_ALL_LOAD
+    // This is still extremely inefficient and normally fails
+    for (auto it = prog->addrs.begin(); it != prog->addrs.end(); it++) {
+        if (std::none_of(ir->basic_blocks.begin(), ir->basic_blocks.end(), [it](auto &bb) -> bool { return bb->virt_start_addr < *it && bb->virt_end_addr > *it; })) {
+            BasicBlock *new_bb = ir->add_basic_block(*it);
+            {
+                std::stringstream str;
+                str << "Starting new basicblock #0x" << std::hex << new_bb->id;
+                DEBUG_LOG(str.str());
+            }
+            liftRec(prog, curr_fun, *it, std::distance(prog->addrs.begin(), it), new_bb);
+        }
+    }
+#endif
 }
 
 BasicBlock *Lifter::get_bb(uint64_t addr) const {
@@ -100,22 +123,24 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr) const {
     new_bb->successors = std::move(bb->successors);
     bb->successors.push_back(new_bb);
 
+    // correct the start and end addresses
+    new_bb->virt_end_addr = bb->virt_end_addr;
+    bb->virt_end_addr = std::get<SSAVar::LifterInfo>(first_bb_vars.front()->lifter_info).assign_addr;
+
     // the register mapping in the BasicBlock
     reg_map new_mapping{};
     {
         // add a jump from the first to the second BasicBlock
-        uint64_t last_address_of_first_bb = std::get<SSAVar::LifterInfo>(first_bb_vars.front()->lifter_info).assign_addr;
-        auto &cf_op = bb->add_cf_op(CFCInstruction::jump, last_address_of_first_bb, addr);
+        auto &cf_op = bb->add_cf_op(CFCInstruction::jump, bb->virt_end_addr, addr);
         cf_op.target = new_bb;
 
         // static assignments
         for (size_t i = 0; i < mapping.size(); i++) {
             if (mapping.at(i) != nullptr) {
                 cf_op.add_target_input(mapping.at(i));
-                // var->from_static = true;
                 std::get<SSAVar::LifterInfo>(mapping.at(i)->lifter_info).static_id = i;
             }
-            new_mapping.at(i) = new_bb->add_var_from_static(i);
+            new_mapping.at(i) = new_bb->add_var_from_static(i, addr);
         }
     }
 
@@ -168,8 +193,12 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr) const {
             }
         }
 
-        for (SSAVar *target_input : cf_op.target_inputs) {
-            if (!target_input->lifter_info.valueless_by_exception() && target_input->lifter_info.index() == 1) {
+        for (SSAVar *&target_input : cf_op.target_inputs) {
+            if (target_input == nullptr) {
+                DEBUG_LOG("Controlflow operation has nullpointer target input.");
+            } else if (target_input->lifter_info.valueless_by_exception()) {
+                DEBUG_LOG("Controlflow operation has valueless variant instead of a lifter info.");
+            } else if (target_input->lifter_info.index() == 1) {
                 auto &lifterInfo = std::get<SSAVar::LifterInfo>(target_input->lifter_info);
                 // only adjust target_inputs if they are in the first BasicBlock
                 if (lifterInfo.assign_addr < addr) {
@@ -180,31 +209,19 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr) const {
     }
 }
 
-void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBlock *curr_bb) {
-    // for now: load the next instructions at the current symbol and assume always hit symbols or jump into sections which were already loaded
-    for (size_t i = 0; i < prog->elf_base->symbols.size(); i++) {
-        if (prog->elf_base->symbols.at(i).st_value == start_addr) {
-#ifdef DEBUG
-            std::stringstream str;
-            str << "Continuing at symbol <" << prog->elf_base->symbol_names.at(i);
-            str << "> at address <0x" << std::hex << start_addr << ">";
-            DEBUG_LOG(str.str());
-#endif
-            Elf64_Sym *sym = &prog->elf_base->symbols.at(i);
-            // we only try to load the next instructions if the start address doesn't already exist in the parsed instruction pool
-            if (std::find(prog->addrs.begin(), prog->addrs.end(), sym->st_value) == prog->addrs.end()) {
-                prog->load_symbol_instrs(sym);
-            }
-            break;
-        }
-    }
-
+void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, std::optional<size_t> addr_idx, BasicBlock *curr_bb) {
     // search for the address index in the program vectors
-    auto it = std::find(prog->addrs.begin(), prog->addrs.end(), start_addr);
-    if (it == prog->addrs.end()) {
-        throw std::invalid_argument("Couldn't find parsed instructions at given address.");
+    size_t start_i;
+    if (addr_idx.has_value()) {
+        start_i = addr_idx.value();
+    } else {
+        auto it = std::find(prog->addrs.begin(), prog->addrs.end(), start_addr);
+        if (it == prog->addrs.end()) {
+            std::cerr << "Couldn't find parsed instructions at given address. Aborting recursive parsing step." << std::endl;
+            return;
+        }
+        start_i = std::distance(prog->addrs.begin(), it);
     }
-    size_t start_i = std::distance(prog->addrs.begin(), it);
 
     // init register mapping array
     reg_map mapping;
@@ -251,13 +268,16 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
         BasicBlock *next_bb;
 
         if (jmp_addr == 0) {
-            std::cerr << "Encountered indirect jump / unknown jump target. Trying to guess the correct jump address...\n";
+            DEBUG_LOG("Encountered indirect jump / unknown jump target. Trying to guess the correct jump address...");
             auto addr = backtrace_jmp_addr(&cfOp, curr_bb);
             if (!addr.has_value()) {
-                std::cerr << " -> Address backtracking failed, skipping branch.\n";
+                DEBUG_LOG("-> Address backtracking failed, skipping branch.");
                 next_bb = dummy;
             } else {
-                std::cerr << " -> Found a possible address: 0x" << std::hex << addr.value() << "\n";
+                std::stringstream str;
+                str << " -> Found a possible address: 0x" << std::hex << addr.value();
+                DEBUG_LOG(str.str());
+
                 jmp_addr = addr.value();
                 next_bb = get_bb(jmp_addr);
             }
@@ -282,7 +302,6 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
             auto var = mapping.at(i);
             if (var != nullptr) {
                 cfOp.add_target_input(var);
-                // var->from_static = true;
                 std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = i;
             }
         }
@@ -301,22 +320,24 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, BasicBl
     }
     std::for_each(to_split.begin(), to_split.end(), [this](auto &split_tuple) {
         std::stringstream str;
-        str << "Splitting basic block #0x" << std::hex << split_tuple.second->id << std::endl;
+        str << "Splitting basic block #0x" << std::hex << split_tuple.second->id;
         DEBUG_LOG(str.str());
         split_basic_block(split_tuple.second, split_tuple.first);
     });
 
+    // TODO: make sure not to parse instructions twice!
     std::for_each(next_entrypoints.begin(), next_entrypoints.end(), [this, prog, func](auto &entrypoint_tuple) {
         std::stringstream str;
         str << "Starting new basic block #0x" << std::hex << entrypoint_tuple.second->id;
         DEBUG_LOG(str.str());
-        liftRec(prog, func, entrypoint_tuple.first, entrypoint_tuple.second);
+        liftRec(prog, func, entrypoint_tuple.first, std::nullopt, entrypoint_tuple.second);
     });
 }
 
 void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     std::vector<std::pair<uint64_t, CfOp>> jump_goals;
 
+    // TODO: also parse instructions like MUL
     switch (instr.instr.mnem) {
     case FRV_INVALID:
         liftInvalid(bb, ip);
@@ -471,11 +492,20 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
     default:
         char instr_str[16];
         frv_format(&instr.instr, 16, instr_str);
-        std::cerr << "Encountered invalid instruction during lifting: " << instr_str << "\n";
+
+        std::stringstream str;
+        str << "Encountered invalid instruction during lifting: " << instr_str;
+        DEBUG_LOG(str.str());
     }
 }
 
-void Lifter::liftInvalid(BasicBlock *bb, uint64_t ip) { std::cerr << "Encountered invalid instruction during lifting. (BasicBlock #0x" << std::hex << bb->id << ", address <0x" << ip << ">)\n"; }
+inline void Lifter::liftInvalid(BasicBlock *bb, uint64_t ip) {
+#ifdef DEBUG
+    std::stringstream str;
+    str << "Encountered invalid instruction during lifting. (BasicBlock #0x" << std::hex << bb->id << ", address <0x" << ip << ">)";
+    DEBUG_LOG(str.str());
+#endif
+}
 
 void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size, bool sign_extend) {
     // 1. load offset
@@ -941,24 +971,29 @@ std::optional<SSAVar *> Lifter::get_last_static_assignment(size_t idx, BasicBloc
         DEBUG_LOG("No predecessors for static variable were found in predecessor list of basic block.");
         return std::nullopt;
     } else if (possible_preds.size() > 1) {
-        // TODO: evaluate all possibilities
-        // DEBUG_LOG("Warning: found multiple possible statically mapped variables. Selecting latest.");
+        DEBUG_LOG("Warning: found multiple possible statically mapped variables. Selecting latest.");
     }
     return possible_preds.at(0);
 }
 
-void Lifter::load_input_vars(BasicBlock *bb, Operation *op, std::vector<int64_t> &resolved_vars) {
-    for (auto &in_var : op->in_vars) {
+void Lifter::load_input_vars(BasicBlock *bb, Operation *op, std::vector<int64_t> &resolved_vars, std::vector<SSAVar *> &parsed_vars) {
+    for (auto in_var : op->in_vars) {
         if (in_var != nullptr) {
-            auto res = get_var_value(in_var, bb);
-            if (res.has_value()) {
-                resolved_vars.push_back(res.value());
+            // infinity recursion protection: only request the value of vars which weren't already requested.
+            bool not_visited = std::find(parsed_vars.begin(), parsed_vars.end(), in_var) == parsed_vars.end();
+            parsed_vars.push_back(in_var);
+
+            if (not_visited) {
+                auto res = get_var_value(in_var, bb, parsed_vars);
+                if (res.has_value()) {
+                    resolved_vars.push_back(res.value());
+                }
             }
         }
     }
 }
 
-std::optional<int64_t> Lifter::get_var_value(SSAVar *var, BasicBlock *bb) {
+std::optional<int64_t> Lifter::get_var_value(SSAVar *var, BasicBlock *bb, std::vector<SSAVar *> &parsed_vars) {
     if (var->from_static) {
         auto opt_var = get_last_static_assignment(std::get<SSAVar::LifterInfo>(var->lifter_info).static_id, bb);
         if (opt_var.has_value()) {
@@ -979,42 +1014,42 @@ std::optional<int64_t> Lifter::get_var_value(SSAVar *var, BasicBlock *bb) {
 
     switch (op->type) {
     case Instruction::add:
-        load_input_vars(bb, op, resolved_vars);
+        load_input_vars(bb, op, resolved_vars, parsed_vars);
         if (resolved_vars.size() != 2)
             return std::nullopt;
         return resolved_vars[0] + resolved_vars[1];
     case Instruction::sub:
-        load_input_vars(bb, op, resolved_vars);
+        load_input_vars(bb, op, resolved_vars, parsed_vars);
         if (resolved_vars.size() != 2)
             return std::nullopt;
         return resolved_vars[0] - resolved_vars[1];
     case Instruction::immediate:
-        load_input_vars(bb, op, resolved_vars);
+        load_input_vars(bb, op, resolved_vars, parsed_vars);
         if (resolved_vars.size() != 1)
             return std::nullopt;
         return resolved_vars[0];
     case Instruction::shl:
-        load_input_vars(bb, op, resolved_vars);
+        load_input_vars(bb, op, resolved_vars, parsed_vars);
         if (resolved_vars.size() != 2)
             return std::nullopt;
         return resolved_vars[0] << resolved_vars[1];
     case Instruction::_or:
-        load_input_vars(bb, op, resolved_vars);
+        load_input_vars(bb, op, resolved_vars, parsed_vars);
         if (resolved_vars.size() != 2)
             return std::nullopt;
         return resolved_vars[0] | resolved_vars[1];
     case Instruction::_and:
-        load_input_vars(bb, op, resolved_vars);
+        load_input_vars(bb, op, resolved_vars, parsed_vars);
         if (resolved_vars.size() != 2)
             return std::nullopt;
         return resolved_vars[0] & resolved_vars[1];
     case Instruction::_not:
-        load_input_vars(bb, op, resolved_vars);
+        load_input_vars(bb, op, resolved_vars, parsed_vars);
         if (resolved_vars.size() != 1)
             return std::nullopt;
         return ~resolved_vars[0];
     case Instruction::_xor:
-        load_input_vars(bb, op, resolved_vars);
+        load_input_vars(bb, op, resolved_vars, parsed_vars);
         if (resolved_vars.size() != 2)
             return std::nullopt;
         return resolved_vars[0] ^ resolved_vars[1];
@@ -1023,11 +1058,14 @@ std::optional<int64_t> Lifter::get_var_value(SSAVar *var, BasicBlock *bb) {
         if (op->in_vars[0]->type != Type::i32 || var->type != Type::i64) {
             return std::nullopt;
         }
-        load_input_vars(bb, op, resolved_vars);
+        load_input_vars(bb, op, resolved_vars, parsed_vars);
         if (resolved_vars.size() != 1)
             return std::nullopt;
         return (int64_t)resolved_vars[0];
     default:
+        std::stringstream str;
+        str << "Warning: Jump target address is calculated via an unsupported operation: " << op->type;
+        DEBUG_LOG(str.str());
         return std::nullopt;
     }
 }
@@ -1037,5 +1075,6 @@ std::optional<uint64_t> Lifter::backtrace_jmp_addr(CfOp *op, BasicBlock *bb) {
         std::cerr << "Jump address backtracing is currently only supported for indirect, JALR jumps." << std::endl;
         return std::nullopt;
     }
-    return get_var_value(op->in_vars[0], bb);
+    std::vector<SSAVar *> parsed;
+    return get_var_value(op->in_vars[0], bb, parsed);
 }
