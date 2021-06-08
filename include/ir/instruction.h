@@ -6,10 +6,14 @@ enum class Instruction {
     load,
     add,
     sub,
-    mul,
-    umul,
+    mul_l,   //                         => lower half of result
+    ssmul_h, // signed * signed         => upper half of result
+    uumul_h, // unsigned * unsigned     => upper half of result
+    sumul_h, // signed * unsigned       => upper half of result
     div,
     udiv,
+    rem,
+    urem,
     shl,
     shr,
     sar,

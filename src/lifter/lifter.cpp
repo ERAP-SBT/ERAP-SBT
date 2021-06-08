@@ -337,11 +337,11 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, std::op
 void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     std::vector<std::pair<uint64_t, CfOp>> jump_goals;
 
-    // TODO: also parse instructions like MUL
     switch (instr.instr.mnem) {
     case FRV_INVALID:
         liftInvalid(bb, ip);
         break;
+
     case FRV_LB:
         lift_load(bb, instr, mapping, ip, Type::i8, true);
         break;
@@ -363,6 +363,7 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
     case FRV_LWU:
         lift_load(bb, instr, mapping, ip, Type::i32, false);
         break;
+
     case FRV_SB:
         lift_store(bb, instr, mapping, ip, Type::i8);
         break;
@@ -375,6 +376,7 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
     case FRV_SD:
         lift_store(bb, instr, mapping, ip, Type::i64);
         break;
+
     case FRV_ADD:
         lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::add, Type::i64);
         break;
@@ -387,30 +389,77 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
     case FRV_ADDIW:
         lift_arithmetical_logical_immediate(bb, instr, mapping, ip, Instruction::add, Type::i32);
         break;
+
+    case FRV_MUL:
+        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::mul_l, Type::i64);
+        break;
+    case FRV_MULH:
+        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::ssmul_h, Type::i64);
+        break;
+    case FRV_MULHSU:
+        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::sumul_h, Type::i64);
+        break;
+    case FRV_MULHU:
+        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::uumul_h, Type::i64);
+        break;
+    case FRV_MULW:
+        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::mul_l, Type::i32);
+        break;
+
+    case FRV_DIV:
+        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::div, Type::i64);
+        break;
+    case FRV_DIVU:
+        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::udiv, Type::i64);
+        break;
+    case FRV_DIVW:
+        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::div, Type::i32);
+        break;
+    case FRV_DIVUW:
+        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::udiv, Type::i32);
+        break;
+
+    case FRV_REM:
+        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::rem, Type::i64);
+        break;
+    case FRV_REMU:
+        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::urem, Type::i64);
+        break;
+    case FRV_REMW:
+        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::rem, Type::i32);
+        break;
+    case FRV_REMUW:
+        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::urem, Type::i32);
+        break;
+
     case FRV_SUB:
         lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::sub, Type::i64);
         break;
     case FRV_SUBW:
         lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::sub, Type::i32);
         break;
+
     case FRV_AND:
         lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::_and, Type::i64);
-        break;
-    case FRV_OR:
-        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::_or, Type::i64);
-        break;
-    case FRV_XOR:
-        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::_xor, Type::i64);
         break;
     case FRV_ANDI:
         lift_arithmetical_logical_immediate(bb, instr, mapping, ip, Instruction::_and, Type::i64);
         break;
+
+    case FRV_OR:
+        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::_or, Type::i64);
+        break;
     case FRV_ORI:
         lift_arithmetical_logical_immediate(bb, instr, mapping, ip, Instruction::_or, Type::i64);
+        break;
+
+    case FRV_XOR:
+        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::_xor, Type::i64);
         break;
     case FRV_XORI:
         lift_arithmetical_logical_immediate(bb, instr, mapping, ip, Instruction::_xor, Type::i64);
         break;
+
     case FRV_SLL:
         lift_shift(bb, instr, mapping, ip, Instruction::shl, Type::i64);
         break;
@@ -423,6 +472,7 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
     case FRV_SLLIW:
         lift_shift_immediate(bb, instr, mapping, ip, Instruction::shl, Type::i32);
         break;
+
     case FRV_SRL:
         lift_shift(bb, instr, mapping, ip, Instruction::shr, Type::i64);
         break;
@@ -435,6 +485,7 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
     case FRV_SRLIW:
         lift_shift_immediate(bb, instr, mapping, ip, Instruction::shr, Type::i32);
         break;
+
     case FRV_SRA:
         lift_shift(bb, instr, mapping, ip, Instruction::sar, Type::i64);
         break;
@@ -447,6 +498,7 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
     case FRV_SRAIW:
         lift_shift_immediate(bb, instr, mapping, ip, Instruction::sar, Type::i32);
         break;
+
     case FRV_SLTI:
         lift_slt(bb, instr, mapping, ip, false, true);
         break;
@@ -459,24 +511,29 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
     case FRV_SLTU:
         lift_slt(bb, instr, mapping, ip, true, false);
         break;
+
         //        case FRV_FENCE:
         //            liftFENCE(bb, mapping);
         //            break;
         //        case FRV_FENCEI:
         //            liftFENCEI(bb, mapping);
         //            break;
+
     case FRV_AUIPC:
         liftAUIPC(bb, instr, mapping, ip);
         break;
+
     case FRV_LUI:
         liftLUI(bb, instr, mapping, ip);
         break;
+
     case FRV_JAL:
         liftJAL(bb, instr, mapping, ip, next_addr);
         break;
     case FRV_JALR:
         liftJALR(bb, instr, mapping, ip, next_addr);
         break;
+
     case FRV_BEQ:
     case FRV_BNE:
     case FRV_BLT:
@@ -485,10 +542,12 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
     case FRV_BGEU:
         liftBranch(bb, instr, mapping, ip, next_addr);
         break;
+
     case FRV_ECALL:
         // this also includes the EBREAK
         liftECALL(bb, ip, next_addr);
         break;
+
     default:
         char instr_str[16];
         frv_format(&instr.instr, 16, instr_str);
@@ -935,6 +994,52 @@ void Lifter::liftECALL(BasicBlock *bb, uint64_t ip, uint64_t next_addr) {
     // the behavior of the ECALL instruction is system dependant. (= SYSCALL)
     // we give the syscall the address at which the program control flow continues (= next basic block)
     bb->add_cf_op(CFCInstruction::syscall, ip, next_addr);
+}
+
+void Lifter::lift_mul_div_rem(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction &instr_type, const Type &in_type) {
+    SSAVar *dest = bb->add_var(in_type, ip);
+    {
+        SSAVar *rs_1 = mapping.at(instr.instr.rs1);
+        if (rs_1->type != in_type) {
+            auto cast = convert_type(bb, ip, rs_1, in_type);
+            if (cast.has_value()) {
+                rs_1 = cast.value();
+            } else {
+                print_invalid_op_size(instr_type, instr);
+            }
+        }
+
+        SSAVar *rs_2 = mapping.at(instr.instr.rs2);
+        if (rs_2->type != in_type) {
+            auto cast = convert_type(bb, ip, rs_2, in_type);
+            if (cast.has_value()) {
+                rs_2 = cast.value();
+            } else {
+                print_invalid_op_size(instr_type, instr);
+            }
+        }
+
+        auto op = std::make_unique<Operation>(instr_type);
+        op->set_inputs(rs_1, rs_2);
+        op->set_outputs(dest);
+        dest->set_op(std::move(op));
+    }
+
+    // sign extend result to 64-bit register if the instruction was mul_w
+    if (in_type == Type::i32) {
+        dest = bb->add_var(Type::i64, ip);
+        {
+            SSAVar *rs_1 = mapping.at(instr.instr.rs1);
+
+            auto op = std::make_unique<Operation>(Instruction::sign_extend);
+            op->set_inputs(rs_1);
+            op->set_outputs(dest);
+            dest->set_op(std::move(op));
+        }
+    }
+
+    // write SSAVar of the result of the operation back to mapping
+    mapping.at(instr.instr.rd) = dest;
 }
 
 std::optional<SSAVar *> Lifter::get_last_static_assignment(size_t idx, BasicBlock *bb) {

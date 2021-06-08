@@ -10,10 +10,10 @@ enum class Type {
     i32 = 2,
     i16 = 1,
     i8 = 0,
-    f64 = 5,
-    f32 = 4,
-    mt = 6,
-    imm = 7,
+    f64 = 11,
+    f32 = 10,
+    mt = 20,
+    imm = 21,
 };
 
 std::ostream &operator<<(std::ostream &stream, Type type);

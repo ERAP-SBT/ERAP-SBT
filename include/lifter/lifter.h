@@ -66,6 +66,8 @@ class Lifter {
 
     static void lift_arithmetical_logical_immediate(BasicBlock *, RV64Inst &, reg_map &, uint64_t, const Instruction &, const Type &);
 
+    static void lift_mul_div_rem(BasicBlock *, RV64Inst &, reg_map &, uint64_t, const Instruction &, const Type &);
+
     // helpers for lifting and code reduction
     static SSAVar *load_immediate(BasicBlock *bb, int64_t imm, uint64_t ip, size_t reg = 0);
     static SSAVar *load_immediate(BasicBlock *bb, int32_t imm, uint64_t ip, size_t reg = 0);
