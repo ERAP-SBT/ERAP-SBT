@@ -1,72 +1,92 @@
 #include "lifter/elf_file.h"
 
-ELF64File::ELF64File(std::filesystem::path path) : file_path(std::move(path)), header(), section_headers(), section_names(), program_headers(), segment_section_map(), symbols(), symbol_names() {
+error_t ELF64File::parse_elf() {
     DEBUG_LOG("Start reading ELF file.")
-    read_file();
-    init_header();
+    error_t e_code = 0;
 
-    if (!is_valid_elf_file()) {
-        throw std::invalid_argument("Invalid ELF input file");
+    // read binary file into byte vector `file_content`
+    if ((e_code = read_file())) {
+        return e_code;
+    }
+
+    // extract file header
+    if ((e_code = init_header())) {
+        return e_code;
+    }
+
+    // test various characteristics which are required for successful parsing
+    if ((e_code = is_valid_elf_file())) {
+        return e_code;
     }
 
     // It's possible for an elf-file to not contain sections, which is currently not supported.
     if (header.e_shoff == 0) {
-        throw std::invalid_argument("Invalid ELF input file: The input file doesn't contain sections.\n");
+        std::cerr << "Invalid ELF input file: The input file doesn't contain sections.\n";
+        return ENOTSUP;
     }
-    parse_sections();
+
+    if ((e_code = parse_sections())) {
+        return e_code;
+    }
 
     if (header.e_phoff != 0) {
         parse_program_headers();
+    } else {
+        std::cerr << "Elf file doesn't contain program headers which are required.\n";
+        return ENOEXEC;
     }
 
     // This step should be made optional in the future
-    parse_symbols();
+    if ((e_code = parse_symbols())) {
+        return e_code;
+    }
     DEBUG_LOG("Done reading valid ELF file.");
+    return e_code;
 }
 
-bool ELF64File::is_valid_elf_file() const {
+error_t ELF64File::is_valid_elf_file() const {
     // ELF file test
     if (header.e_ident[0] != ELFMAG0 || header.e_ident[1] != ELFMAG1 || header.e_ident[2] != ELFMAG2 || header.e_ident[3] != ELFMAG3) {
         std::cout << "Invalid ELF file (wrong file identification byte(s)).\n";
-        return false;
+        return ENOEXEC;
     }
 
     // 64-Bit test
     if (header.e_type != ELFCLASS64) {
         std::cout << "Invalid ELF file (only 64-bit ELF files are currently supported).\n";
-        return false;
+        return ENOEXEC;
     }
 
     // Little-endian test
     if (file_content.at(EI_DATA) != ELFDATA2LSB) {
         std::cout << "Invalid ELF file (only little-endian ELF files are currently supported).\n";
-        return false;
+        return ENOEXEC;
     }
 
     // RISC-V operating system test
     if (header.e_machine != EM_RISCV) {
         std::cout << "Invalid ELF file (only RISC-V ELF files are supported).\n";
-        return false;
+        return ENOEXEC;
     }
 
     // System V ABI test
     if (file_content.at(EI_OSABI) != ELFOSABI_SYSV && file_content.at(EI_OSABI) != ELFOSABI_LINUX) {
         std::cout << "Invalid ELF file (only ELF files which were compiled for the Unix / System V ABI are currently supported).\n";
-        return false;
+        return ENOEXEC;
     }
 
     // Executable test
     if (header.e_type != ET_EXEC) {
         std::cout << "Invalid ELF file (only executable ELF files are supported).\n";
-        return false;
+        return ENOEXEC;
     }
-    return true;
+    return 0;
 }
 
-void ELF64File::read_file() {
+error_t ELF64File::read_file() {
     if (!std::filesystem::exists(file_path)) {
         std::cerr << "Error during opening of file \"" << file_path.string() << "\": file does not exist.\n";
-        throw std::invalid_argument("Invalid filepath.");
+        return ENOENT;
     }
 
     std::ifstream i_stream;
@@ -76,20 +96,22 @@ void ELF64File::read_file() {
         i_stream.open(file_path, std::ios::in | std::ios::binary);
     } catch (const std::ifstream::failure &error) {
         std::cerr << "Error during opening of file \"" << file_path.string() << "\": " << error.what() << "\n";
-        throw error;
+        return error.code().value();
     }
 
     if (!i_stream.is_open()) {
         std::cerr << "Unknown error during opening of file.\n";
-        return;
+        return EIO;
     }
     file_content = std::vector<uint8_t>((std::istreambuf_iterator<char>(i_stream)), std::istreambuf_iterator<char>());
+    return 0;
 }
 
-void ELF64File::parse_sections() {
+error_t ELF64File::parse_sections() {
     // Check for potential buffer overflows
     if (header.e_shentsize != sizeof(Elf64_Shdr)) {
-        throw std::invalid_argument("Invalid elf file section header size.");
+        std::cerr << "Invalid elf file section header size.";
+        return ENOEXEC;
     }
 
     for (size_t i = 0; i < header.e_shnum; ++i) {
@@ -111,7 +133,7 @@ void ELF64File::parse_sections() {
 
         if (section_headers.at(str_tbl_ind).sh_type != SHT_STRTAB) {
             std::cerr << "Invalid section type: referenced string table section is not of type <STRTAB>.\n";
-            return;
+            return ENOEXEC;
         }
         size_t str_table_offset = section_headers.at(str_tbl_ind).sh_offset;
         for (auto curr_hdr : section_headers) {
@@ -125,15 +147,17 @@ void ELF64File::parse_sections() {
     } else {
         DEBUG_LOG("No section name string table declared in ELF file, skipping.");
     }
+    return 0;
 }
 
-void ELF64File::parse_program_headers() {
+error_t ELF64File::parse_program_headers() {
     if (section_headers.empty()) {
         std::cerr << "No section headers were found in the ELF-File. This is currently not supported.\n";
-        return;
+        return ENOTSUP;
     }
     if (header.e_phentsize != sizeof(Elf64_Phdr)) {
-        throw std::invalid_argument("Invalid elf file program header size.");
+        std::cerr << "Invalid elf file program header size.";
+        return ENOEXEC;
     }
     for (size_t i = 0; i < header.e_phnum; ++i) {
         Elf64_Phdr phdr;
@@ -155,12 +179,13 @@ void ELF64File::parse_program_headers() {
             }
         }
     }
+    return 0;
 }
 
-void ELF64File::parse_symbols() {
+error_t ELF64File::parse_symbols() {
     if (section_headers.empty()) {
         std::cerr << "No section headers were found in the ELF-File. This is currently not supported.\n";
-        return;
+        return ENOTSUP;
     }
 
     size_t sym_tbl_i = SIZE_MAX;
@@ -178,7 +203,8 @@ void ELF64File::parse_symbols() {
     }
     // a symbol section should be present in the current file
     if (sym_tbl_i == SIZE_MAX) {
-        throw std::invalid_argument("No symbol section was found in the ELF file.");
+        std::cerr << "No symbol section was found in the ELF file.";
+        return ENOTSUP;
     }
     Elf64_Shdr sym_tbl = section_headers.at(sym_tbl_i);
 
@@ -200,23 +226,25 @@ void ELF64File::parse_symbols() {
     } else {
         DEBUG_LOG("No symbol name string table found in sections, skipping.");
     }
+    return 0;
 }
 
-void ELF64File::init_header() {
+error_t ELF64File::init_header() {
     if (file_content.size() < sizeof(header)) {
         std::cerr << "The entered ELF-file's size is too small.\n";
-        throw std::invalid_argument("Invalid elf file size.");
+        return ENOEXEC;
     }
     // We have to assume the header is conformant to the specified format
     std::memcpy(&header, file_content.data(), sizeof(header));
+    return 0;
 }
 
-size_t ELF64File::start_symbol() const {
+std::optional<size_t> ELF64File::start_symbol() const {
     // find the symbol with a virtual address corresponding to the entry point defined in the elf header
     for (size_t i = 0; i < symbols.size(); ++i) {
         if (symbols.at(i).st_value == header.e_entry) {
             return i;
         }
     }
-    throw std::invalid_argument("Can't find symbol at entry point address.");
+    return std::nullopt;
 }
