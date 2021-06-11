@@ -1,6 +1,8 @@
 #include "lifter/elf_file.h"
 
-ELF64File::ELF64File(std::filesystem::path path) : file_path(std::move(path)) {
+ELF64File::ELF64File(std::filesystem::path path) : file_path(std::move(path)), header(), section_headers(),
+                                                   section_names(), program_headers(), segment_section_map(), symbols(),
+                                                   symbol_names() {
     DEBUG_LOG("Start reading ELF file.")
     read_file();
     init_header();
@@ -17,6 +19,7 @@ ELF64File::ELF64File(std::filesystem::path path) : file_path(std::move(path)) {
         parse_program_headers();
     }
 
+    // This step should be made optional in the future
     parse_symbols();
     DEBUG_LOG("Done reading valid ELF file.");
 }
@@ -70,8 +73,8 @@ void ELF64File::read_file() {
         std::cerr << "Error during opening of file \"" << file_path.string() << "\": file does not exist.\n";
         throw std::invalid_argument("Invalid filepath.");
     }
-    std::ifstream i_stream;
 
+    std::ifstream i_stream;
     try {
         i_stream.open(file_path, std::ios::in | std::ios::binary);
     } catch (const std::ifstream::failure &error) {
@@ -84,15 +87,22 @@ void ELF64File::read_file() {
                                             std::istreambuf_iterator<char>());
         i_stream.close();
     } else {
-        // do we even need this?
+        // TODO: Is it possible that the stream.open() method doesn't throw an exception, but the stream isn't opened?
         std::cerr << "Couldn't open file \"" << file_path.string() << "\".\n";
         throw std::ios_base::failure("Unable to open file.");
     }
 }
 
 void ELF64File::parse_sections() {
+    // Check for potential buffer overflows
+    if (header.e_shentsize != sizeof(Elf64_Shdr)) {
+        throw std::invalid_argument("Invalid elf file section header size.");
+    }
+
     for (size_t i = 0; i < header.e_shnum; ++i) {
         Elf64_Shdr shdr;
+
+        // manually copy bytes from file into section header struct
         std::memcpy(&shdr, file_content.data() + header.e_shoff + (header.e_shentsize * i), sizeof(Elf64_Shdr));
         section_headers.push_back(shdr);
     }
@@ -123,16 +133,20 @@ void ELF64File::parse_sections() {
 
 void ELF64File::parse_program_headers() {
     assert(!section_headers.empty());
+    if (header.e_phentsize != sizeof(Elf64_Phdr)) {
+        throw std::invalid_argument("Invalid elf file program header size.");
+    }
     for (size_t i = 0; i < header.e_phnum; ++i) {
         Elf64_Phdr phdr;
         std::memcpy(&phdr, file_content.data() + header.e_phoff + (header.e_phentsize * i), sizeof(Elf64_Phdr));
         program_headers.push_back(phdr);
 
         segment_section_map.emplace_back();
-        // rough approximation, for further reference: https://github.com/bminor/binutils-gdb/blob/master/include/elf/internal.h (line 323)
-        for (auto sec : section_headers) {
-            if (sec.sh_offset >= phdr.p_offset && sec.sh_offset + sec.sh_size <= phdr.p_offset + phdr.p_filesz) {
-                segment_section_map.back().push_back(&sec);
+        // rough approximation, for further reference:
+        // https://github.com/bminor/binutils-gdb/blob/4ba8500d63991518aefef86474576de565e00237/include/elf/internal.h#L316
+        for (auto it = section_headers.begin(); it != section_headers.end(); it++) {
+            if (it->sh_offset >= phdr.p_offset && it->sh_offset + it->sh_size <= phdr.p_offset + phdr.p_filesz) {
+                segment_section_map.back().push_back(it.base());
             }
         }
     }
@@ -144,10 +158,10 @@ void ELF64File::parse_symbols() {
     size_t sym_tbl_i = SIZE_MAX;
     size_t sym_str_tbl_i = SIZE_MAX;
     for (size_t i = 0; i < section_headers.size(); i++) {
-        if(section_headers.at(i).sh_type == SHT_SYMTAB) {
+        if (section_headers.at(i).sh_type == SHT_SYMTAB) {
             sym_tbl_i = i;
         }
-        if(section_headers.at(i).sh_type == SHT_STRTAB) {
+        if (section_headers.at(i).sh_type == SHT_STRTAB) {
             sym_str_tbl_i = i;
         }
         if (sym_tbl_i != SIZE_MAX && sym_str_tbl_i != SIZE_MAX) {
@@ -169,13 +183,13 @@ void ELF64File::parse_symbols() {
 
     if (sym_str_tbl_i != SIZE_MAX) {
         Elf64_Shdr sym_str_tbl = section_headers.at(sym_str_tbl_i);
-        for (auto sym : symbols) {
-            std::vector<char> str;
-            size_t j = 0;
-            while (str.emplace_back(file_content[sym_str_tbl.sh_offset + sym.st_name + j]) != '\0') {
-                j++;
-            }
-            symbol_names.emplace_back(str.data());
+        for (Elf64_Sym &sym : symbols) {
+            size_t len = 0;
+            do {
+                len++;
+            } while (file_content[sym_str_tbl.sh_offset + sym.st_name + len] != '\0');
+            symbol_names.emplace_back(&file_content[sym_str_tbl.sh_offset + sym.st_name],
+                                      &file_content[sym_str_tbl.sh_offset + sym.st_name + len]);
         }
     } else {
         DEBUG_LOG("No symbol name string table found in sections, skipping.");
@@ -183,10 +197,12 @@ void ELF64File::parse_symbols() {
 }
 
 void ELF64File::init_header() {
+    // We have to assume the header is conformant to the specified format
     std::memcpy(&header, file_content.data(), sizeof(header));
 }
 
 size_t ELF64File::start_symbol() const {
+    // find the symbol with a virtual address corresponding to the entry point defined in the elf header
     for (size_t i = 0; i < symbols.size(); ++i) {
         if (symbols.at(i).st_value == header.e_entry) {
             return i;

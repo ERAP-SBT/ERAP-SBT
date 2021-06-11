@@ -4,7 +4,7 @@
 #include "lifter/elf_file.h"
 
 // disassembles the code at the entry symbol
-void test_elf_parsing(std::string test_path) {
+void test_elf_parsing(const std::string &test_path) {
     ELF64File file{test_path};
 
     Elf64_Sym sym = file.symbols.at(file.start_symbol());
@@ -14,16 +14,17 @@ void test_elf_parsing(std::string test_path) {
     std::cout << "End addr: 0x" << std::hex << sym.st_value + sym.st_size - 1 << "\n\n";
 
     std::cout << "Bytes (hex):" << "\n";
-    for (auto byte : file.bytes_at_symbol(file.start_symbol())) {
-        std::cout << std::hex << (int) byte;
+
+    auto sym_loc = file.bytes_offset(file.start_symbol());
+    for (size_t i = sym_loc.first; i < sym_loc.first + sym_loc.second; i++) {
+        std::cout << std::hex << (uint) file.file_content[i];
         std::cout << " ";
     }
 
     std::cout << "\n\nDisassembly: \n";
-    auto bytes = file.bytes_at_symbol(sym);
-    for (size_t off = 0; off < bytes.size();) {
+    for (size_t off = sym_loc.first; off < sym_loc.first + sym_loc.second;) {
         FrvInst instr;
-        off += frv_decode(bytes.size() - off, &bytes[off], FRV_RV64, &instr);
+        off += frv_decode(sym_loc.second - off, &file.file_content[off], FRV_RV64, &instr);
         char str[64];
         frv_format(&instr, 64, str);
         std::cout << str << "\n";
@@ -32,7 +33,7 @@ void test_elf_parsing(std::string test_path) {
 }
 
 int main() {
-    test_elf_parsing("<test_path>");
+    test_elf_parsing("../riscv.elf");
 
     IR ir = IR{};
     auto *block = ir.add_basic_block();
