@@ -1,7 +1,7 @@
 #include "generator/generator.h"
 #include "ir/ir.h"
-#include "lifter/lifter.h"
 #include "lifter/elf_file.h"
+#include "lifter/lifter.h"
 
 // disassembles the code at the entry symbol
 void test_elf_parsing(const std::string &test_path) {
@@ -13,11 +13,12 @@ void test_elf_parsing(const std::string &test_path) {
     std::cout << "Start addr: 0x" << std::hex << sym.st_value << "\n";
     std::cout << "End addr: 0x" << std::hex << sym.st_value + sym.st_size - 1 << "\n\n";
 
-    std::cout << "Bytes (hex):" << "\n";
+    std::cout << "Bytes (hex):"
+              << "\n";
 
     auto sym_loc = file.bytes_offset(file.start_symbol());
     for (size_t i = sym_loc.first; i < sym_loc.first + sym_loc.second; i++) {
-        std::cout << std::hex << (uint) file.file_content[i];
+        std::cout << std::hex << (uint)file.file_content[i];
         std::cout << " ";
     }
 

@@ -1,8 +1,6 @@
 #include "lifter/elf_file.h"
 
-ELF64File::ELF64File(std::filesystem::path path) : file_path(std::move(path)), header(), section_headers(),
-                                                   section_names(), program_headers(), segment_section_map(), symbols(),
-                                                   symbol_names() {
+ELF64File::ELF64File(std::filesystem::path path) : file_path(std::move(path)), header(), section_headers(), section_names(), program_headers(), segment_section_map(), symbols(), symbol_names() {
     DEBUG_LOG("Start reading ELF file.")
     read_file();
     init_header();
@@ -26,10 +24,7 @@ ELF64File::ELF64File(std::filesystem::path path) : file_path(std::move(path)), h
 
 bool ELF64File::is_valid_elf_file() const {
     // ELF file test
-    if (header.e_ident[0] != ELFMAG0 ||
-        header.e_ident[1] != ELFMAG1 ||
-        header.e_ident[2] != ELFMAG2 ||
-        header.e_ident[3] != ELFMAG3) {
+    if (header.e_ident[0] != ELFMAG0 || header.e_ident[1] != ELFMAG1 || header.e_ident[2] != ELFMAG2 || header.e_ident[3] != ELFMAG3) {
         std::cout << "Invalid ELF file (wrong file identification byte(s)).\n";
         return false;
     }
@@ -54,15 +49,13 @@ bool ELF64File::is_valid_elf_file() const {
 
     // System V ABI test
     if (file_content.at(EI_OSABI) != ELFOSABI_SYSV && file_content.at(EI_OSABI) != ELFOSABI_LINUX) {
-        std::cout
-                << "Invalid ELF file (only ELF files which were compiled for the Unix / System V ABI are currently supported).\n";
+        std::cout << "Invalid ELF file (only ELF files which were compiled for the Unix / System V ABI are currently supported).\n";
         return false;
     }
 
     // Static executable test
     if (header.e_type != ET_EXEC) {
-        std::cout
-                << "Invalid ELF file (only statically linked, executable ELF files are supported).\n";
+        std::cout << "Invalid ELF file (only statically linked, executable ELF files are supported).\n";
         return false;
     }
     return true;
@@ -75,6 +68,8 @@ void ELF64File::read_file() {
     }
 
     std::ifstream i_stream;
+    i_stream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+
     try {
         i_stream.open(file_path, std::ios::in | std::ios::binary);
     } catch (const std::ifstream::failure &error) {
@@ -82,15 +77,8 @@ void ELF64File::read_file() {
         throw error;
     }
 
-    if (i_stream.is_open()) {
-        file_content = std::vector<uint8_t>((std::istreambuf_iterator<char>(i_stream)),
-                                            std::istreambuf_iterator<char>());
-        i_stream.close();
-    } else {
-        // TODO: Is it possible that the stream.open() method doesn't throw an exception, but the stream isn't opened?
-        std::cerr << "Couldn't open file \"" << file_path.string() << "\".\n";
-        throw std::ios_base::failure("Unable to open file.");
-    }
+    assert(i_stream.is_open());
+    file_content = std::vector<uint8_t>((std::istreambuf_iterator<char>(i_stream)), std::istreambuf_iterator<char>());
 }
 
 void ELF64File::parse_sections() {
@@ -141,12 +129,12 @@ void ELF64File::parse_program_headers() {
         std::memcpy(&phdr, file_content.data() + header.e_phoff + (header.e_phentsize * i), sizeof(Elf64_Phdr));
         program_headers.push_back(phdr);
 
-        segment_section_map.emplace_back();
+        auto &program_map = segment_section_map.emplace_back();
         // rough approximation, for further reference:
         // https://github.com/bminor/binutils-gdb/blob/4ba8500d63991518aefef86474576de565e00237/include/elf/internal.h#L316
         for (auto it = section_headers.begin(); it != section_headers.end(); it++) {
             if (it->sh_offset >= phdr.p_offset && it->sh_offset + it->sh_size <= phdr.p_offset + phdr.p_filesz) {
-                segment_section_map.back().push_back(it.base());
+                program_map.push_back(it.base());
             }
         }
     }
@@ -188,8 +176,7 @@ void ELF64File::parse_symbols() {
             do {
                 len++;
             } while (file_content[sym_str_tbl.sh_offset + sym.st_name + len] != '\0');
-            symbol_names.emplace_back(&file_content[sym_str_tbl.sh_offset + sym.st_name],
-                                      &file_content[sym_str_tbl.sh_offset + sym.st_name + len]);
+            symbol_names.emplace_back(&file_content[sym_str_tbl.sh_offset + sym.st_name], &file_content[sym_str_tbl.sh_offset + sym.st_name + len]);
         }
     } else {
         DEBUG_LOG("No symbol name string table found in sections, skipping.");
@@ -197,6 +184,10 @@ void ELF64File::parse_symbols() {
 }
 
 void ELF64File::init_header() {
+    if (file_content.size() < sizeof(header)) {
+        std::cerr << "The entered ELF-file's size is too small.\n";
+        throw std::invalid_argument("Invalid elf file size.");
+    }
     // We have to assume the header is conformant to the specified format
     std::memcpy(&header, file_content.data(), sizeof(header));
 }

@@ -1,13 +1,13 @@
 #pragma once
 
-#include <frvdec.h>
+#include <cassert>
+#include <cstring>
 #include <elf.h>
 #include <filesystem>
+#include <frvdec.h>
 #include <fstream>
 #include <iostream>
 #include <vector>
-#include <cstring>
-#include <cassert>
 
 #ifdef DEBUG
 #define DEBUG_LOG(string) std::cout << "<debug>: " << (string) << "\n";
@@ -15,9 +15,8 @@
 #define DEBUG_LOG(string)
 #endif
 
-
 class ELF64File {
-private:
+  private:
     void read_file();
 
     void init_header();
@@ -30,7 +29,7 @@ private:
 
     void parse_symbols();
 
-public:
+  public:
     explicit ELF64File(std::filesystem::path);
 
     ELF64File() = delete;
@@ -52,9 +51,7 @@ public:
     std::vector<Elf64_Sym> symbols;
     std::vector<std::string> symbol_names;
 
-    [[nodiscard]] std::pair<size_t, size_t> bytes_offset(size_t sym_i) const {
-        return bytes_offset(&symbols.at(sym_i));
-    }
+    [[nodiscard]] std::pair<size_t, size_t> bytes_offset(size_t sym_i) const { return bytes_offset(&symbols.at(sym_i)); }
 
     [[nodiscard]] std::pair<size_t, size_t> bytes_offset(const Elf64_Sym *sym) const {
         const Elf64_Shdr *sec = &section_headers.at(sym->st_shndx);
