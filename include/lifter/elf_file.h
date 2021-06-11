@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cassert>
+#include <common/internal.h>
 #include <cstring>
 #include <elf.h>
 #include <filesystem>
@@ -8,12 +8,6 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
-
-#ifdef DEBUG
-#define DEBUG_LOG(string) std::cout << "<debug>: " << (string) << "\n";
-#else
-#define DEBUG_LOG(string)
-#endif
 
 class ELF64File {
   private:
@@ -45,7 +39,7 @@ class ELF64File {
     std::vector<Elf64_Phdr> program_headers;
 
     // index in the map = index in the program_headers vector
-    // TODO: evaluate how important this is (the parsing is not near perfect and prune to errors)
+    // TODO: evaluate how important this is (the parsing is not near perfect and prone to errors)
     std::vector<std::vector<Elf64_Shdr *>> segment_section_map;
 
     std::vector<Elf64_Sym> symbols;

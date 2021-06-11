@@ -10,7 +10,9 @@ ELF64File::ELF64File(std::filesystem::path path) : file_path(std::move(path)), h
     }
 
     // It's possible for an elf-file to not contain sections, which is currently not supported.
-    assert(header.e_shoff != 0);
+    if (header.e_shoff == 0) {
+        throw std::invalid_argument("Invalid ELF input file: The input file doesn't contain sections.\n");
+    }
     parse_sections();
 
     if (header.e_phoff != 0) {
@@ -53,9 +55,9 @@ bool ELF64File::is_valid_elf_file() const {
         return false;
     }
 
-    // Static executable test
+    // Executable test
     if (header.e_type != ET_EXEC) {
-        std::cout << "Invalid ELF file (only statically linked, executable ELF files are supported).\n";
+        std::cout << "Invalid ELF file (only executable ELF files are supported).\n";
         return false;
     }
     return true;
@@ -77,7 +79,10 @@ void ELF64File::read_file() {
         throw error;
     }
 
-    assert(i_stream.is_open());
+    if (!i_stream.is_open()) {
+        std::cerr << "Unknown error during opening of file.\n";
+        return;
+    }
     file_content = std::vector<uint8_t>((std::istreambuf_iterator<char>(i_stream)), std::istreambuf_iterator<char>());
 }
 
@@ -104,7 +109,10 @@ void ELF64File::parse_sections() {
             str_tbl_ind = section_headers.at(0).sh_link;
         }
 
-        assert(section_headers.at(str_tbl_ind).sh_type == SHT_STRTAB);
+        if (section_headers.at(str_tbl_ind).sh_type != SHT_STRTAB) {
+            std::cerr << "Invalid section type: referenced string table section is not of type <STRTAB>.\n";
+            return;
+        }
         size_t str_table_offset = section_headers.at(str_tbl_ind).sh_offset;
         for (auto curr_hdr : section_headers) {
             std::vector<char> str;
@@ -120,7 +128,10 @@ void ELF64File::parse_sections() {
 }
 
 void ELF64File::parse_program_headers() {
-    assert(!section_headers.empty());
+    if (section_headers.empty()) {
+        std::cerr << "No section headers were found in the ELF-File. This is currently not supported.\n";
+        return;
+    }
     if (header.e_phentsize != sizeof(Elf64_Phdr)) {
         throw std::invalid_argument("Invalid elf file program header size.");
     }
@@ -128,6 +139,12 @@ void ELF64File::parse_program_headers() {
         Elf64_Phdr phdr;
         std::memcpy(&phdr, file_content.data() + header.e_phoff + (header.e_phentsize * i), sizeof(Elf64_Phdr));
         program_headers.push_back(phdr);
+
+        if (phdr.p_type == PT_INTERP) {
+            std::cerr << "The input file features information for an interpreter. This type of ELF file is not supported.\n";
+        } else if (phdr.p_type == PT_DYNAMIC) {
+            std::cerr << "The input file features dynamic linking information. This type of ELF file is not supported.\n";
+        }
 
         auto &program_map = segment_section_map.emplace_back();
         // rough approximation, for further reference:
@@ -141,7 +158,10 @@ void ELF64File::parse_program_headers() {
 }
 
 void ELF64File::parse_symbols() {
-    assert(!section_headers.empty());
+    if (section_headers.empty()) {
+        std::cerr << "No section headers were found in the ELF-File. This is currently not supported.\n";
+        return;
+    }
 
     size_t sym_tbl_i = SIZE_MAX;
     size_t sym_str_tbl_i = SIZE_MAX;
@@ -158,8 +178,7 @@ void ELF64File::parse_symbols() {
     }
     // a symbol section should be present in the current file
     if (sym_tbl_i == SIZE_MAX) {
-        std::cerr << "No symbol section was found in the ELF file.\n";
-        throw std::invalid_argument("No symbol section found.");
+        throw std::invalid_argument("No symbol section was found in the ELF file.");
     }
     Elf64_Shdr sym_tbl = section_headers.at(sym_tbl_i);
 

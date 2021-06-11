@@ -34,7 +34,7 @@ void test_elf_parsing(const std::string &test_path) {
 }
 
 int main() {
-    test_elf_parsing("../riscv.elf");
+    test_elf_parsing("../rv64test.o");
 
     IR ir = IR{};
     auto *block = ir.add_basic_block();
