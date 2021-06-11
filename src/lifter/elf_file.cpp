@@ -30,7 +30,9 @@ error_t ELF64File::parse_elf() {
     }
 
     if (header.e_phoff != 0) {
-        parse_program_headers();
+        if ((e_code = parse_program_headers())) {
+            return e_code;
+        }
     } else {
         std::cerr << "Elf file doesn't contain program headers which are required.\n";
         return ENOEXEC;
@@ -135,14 +137,9 @@ error_t ELF64File::parse_sections() {
             std::cerr << "Invalid section type: referenced string table section is not of type <STRTAB>.\n";
             return ENOEXEC;
         }
-        size_t str_table_offset = section_headers.at(str_tbl_ind).sh_offset;
+        const char *str_tbl = reinterpret_cast<const char *>(file_content.data() + section_headers.at(str_tbl_ind).sh_offset);
         for (auto curr_hdr : section_headers) {
-            std::vector<char> str;
-            size_t j = 0;
-            while (str.emplace_back(file_content[str_table_offset + curr_hdr.sh_name + j]) != '\0') {
-                j++;
-            }
-            section_names.emplace_back(str.data());
+            section_names.emplace_back(str_tbl + curr_hdr.sh_name);
         }
     } else {
         DEBUG_LOG("No section name string table declared in ELF file, skipping.");
@@ -193,11 +190,6 @@ error_t ELF64File::parse_symbols() {
     for (size_t i = 0; i < section_headers.size(); i++) {
         if (section_headers.at(i).sh_type == SHT_SYMTAB) {
             sym_tbl_i = i;
-        }
-        if (section_headers.at(i).sh_type == SHT_STRTAB) {
-            sym_str_tbl_i = i;
-        }
-        if (sym_tbl_i != SIZE_MAX && sym_str_tbl_i != SIZE_MAX) {
             break;
         }
     }
@@ -214,14 +206,12 @@ error_t ELF64File::parse_symbols() {
         symbols.push_back(sym);
     }
 
-    if (sym_str_tbl_i != SIZE_MAX) {
+    sym_str_tbl_i = sym_tbl.sh_link;
+    if (sym_str_tbl_i) {
         Elf64_Shdr sym_str_tbl = section_headers.at(sym_str_tbl_i);
+        auto str_tbl_start = reinterpret_cast<const char *>(file_content.data() + sym_str_tbl.sh_offset);
         for (Elf64_Sym &sym : symbols) {
-            size_t len = 0;
-            do {
-                len++;
-            } while (file_content[sym_str_tbl.sh_offset + sym.st_name + len] != '\0');
-            symbol_names.emplace_back(&file_content[sym_str_tbl.sh_offset + sym.st_name], &file_content[sym_str_tbl.sh_offset + sym.st_name + len]);
+            symbol_names.emplace_back(str_tbl_start + sym.st_name);
         }
     } else {
         DEBUG_LOG("No symbol name string table found in sections, skipping.");

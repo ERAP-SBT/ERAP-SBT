@@ -12,17 +12,17 @@
 
 class ELF64File {
   private:
-    error_t read_file();
+    [[nodiscard]] error_t read_file();
 
-    error_t init_header();
+    [[nodiscard]] error_t init_header();
 
     [[nodiscard]] error_t is_valid_elf_file() const;
 
-    error_t parse_sections();
+    [[nodiscard]] error_t parse_sections();
 
-    error_t parse_program_headers();
+    [[nodiscard]] error_t parse_program_headers();
 
-    error_t parse_symbols();
+    [[nodiscard]] error_t parse_symbols();
 
   public:
     explicit ELF64File(std::filesystem::path path) : file_path(std::move(path)), header(), section_headers(), section_names(), program_headers(), segment_section_map(), symbols(), symbol_names() {}
@@ -46,7 +46,7 @@ class ELF64File {
     std::vector<Elf64_Sym> symbols;
     std::vector<std::string> symbol_names;
 
-    error_t parse_elf();
+    [[nodiscard]] error_t parse_elf();
 
     [[nodiscard]] std::pair<size_t, size_t> bytes_offset(size_t sym_i) const { return bytes_offset(&symbols.at(sym_i)); }
 
