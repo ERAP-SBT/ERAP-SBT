@@ -1,10 +1,39 @@
 #include "generator/generator.h"
 #include "ir/ir.h"
 #include "lifter/lifter.h"
+#include "lifter/elf_file.h"
 
-#include <iostream>
+// disassembles the code at the entry symbol
+void test_elf_parsing(std::string test_path) {
+    ELF64File file{test_path};
+
+    Elf64_Sym sym = file.symbols.at(file.start_symbol());
+
+    std::cout << "Start symbol: " << file.symbol_names.at(file.start_symbol()) << "\n";
+    std::cout << "Start addr: 0x" << std::hex << sym.st_value << "\n";
+    std::cout << "End addr: 0x" << std::hex << sym.st_value + sym.st_size - 1 << "\n\n";
+
+    std::cout << "Bytes (hex):" << "\n";
+    for (auto byte : file.bytes_at_symbol(file.start_symbol())) {
+        std::cout << std::hex << (int) byte;
+        std::cout << " ";
+    }
+
+    std::cout << "\n\nDisassembly: \n";
+    auto bytes = file.bytes_at_symbol(sym);
+    for (size_t off = 0; off < bytes.size();) {
+        FrvInst instr;
+        off += frv_decode(bytes.size() - off, &bytes[off], FRV_RV64, &instr);
+        char str[64];
+        frv_format(&instr, 64, str);
+        std::cout << str << "\n";
+    }
+    std::cout << "\n";
+}
 
 int main() {
+    test_elf_parsing("<test_path>");
+
     IR ir = IR{};
     auto *block = ir.add_basic_block();
     {
