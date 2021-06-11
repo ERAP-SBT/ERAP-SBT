@@ -7,9 +7,9 @@ before_script:
   # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=988219
   - echo "deb http://deb.debian.org/debian/ experimental main" > /etc/apt/sources.list.d/experimental.list
   - apt-get update
-  # apt-get will prefer unstable, so specify the exact meson version we want, to ensure it is pulled
-  # from the appropiate repository
-  - apt-get install -y clang-format g++ meson=0.58.0-1 git gcovr
+  - apt-get install -y clang-format g++ git gcovr
+  # grab meson from the experimental repository
+  - apt-get install -y -t experimental meson
 
 cache:
   paths:
