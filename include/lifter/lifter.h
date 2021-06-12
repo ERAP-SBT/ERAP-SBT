@@ -56,7 +56,7 @@ class Lifter {
 
     static void liftBranch(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr);
 
-    static void liftECALL(BasicBlock *bb, uint64_t ip, uint64_t next_addr);
+    static void liftECALL(BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t next_addr);
 
     static void lift_load(BasicBlock *, RV64Inst &, reg_map &, uint64_t, const Type &, bool);
 

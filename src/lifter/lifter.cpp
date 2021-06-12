@@ -9,12 +9,6 @@ std::string str_decode_instr(FrvInst *instr) {
     return std::string(str);
 }
 
-void print_param_error(const Instruction &instructionType, RV64Inst &instr) {
-    std::stringstream str;
-    str << "Encountered " << instructionType << " instruction with invalid parameters: " << &instr.instr;
-    DEBUG_LOG(str.str());
-}
-
 void print_invalid_op_size(const Instruction &instructionType, RV64Inst &instr) {
     std::stringstream str;
     str << "Encountered " << instructionType << " instruction with invalid operand size: " << str_decode_instr(&instr.instr);
@@ -27,16 +21,15 @@ void Lifter::lift(Program *prog) {
     if (prog->elf_base->section_headers.empty()) {
         // preload all instructions which are located "in" the program headers which are loaded, executable and readable
         for (auto &prog_hdr : prog->elf_base->program_headers) {
-            if (prog_hdr.p_type == PT_LOAD && prog_hdr.p_flags | PF_X && prog_hdr.p_flags | PF_R) {
+            if (prog_hdr.p_type == PT_LOAD && prog_hdr.p_flags & PF_X && prog_hdr.p_flags & PF_R) {
                 prog->load_instrs(prog->elf_base->file_content.data() + prog_hdr.p_offset, prog_hdr.p_filesz, prog_hdr.p_vaddr);
             }
         }
     } else {
-        for (size_t i = 0; i < prog->elf_base->section_names.size(); i++) {
-            if (prog->elf_base->section_names.at(i) == ".text") {
-                auto prog_sec = prog->elf_base->section_headers.at(i);
-                prog->load_instrs(prog->elf_base->file_content.data() + prog_sec.sh_offset, prog_sec.sh_size, prog_sec.sh_addr);
-                break;
+        for (size_t i = 0; i < prog->elf_base->section_headers.size(); i++) {
+            auto &sh_hdr = prog->elf_base->section_headers.at(i);
+            if (sh_hdr.sh_flags & SHF_EXECINSTR && sh_hdr.sh_type == SHT_PROGBITS) {
+                prog->load_instrs(prog->elf_base->file_content.data() + sh_hdr.sh_offset, sh_hdr.sh_size, sh_hdr.sh_addr);
             }
         }
     }
@@ -62,7 +55,7 @@ void Lifter::lift(Program *prog) {
 #ifdef LIFT_ALL_LOAD
     // This is still extremely inefficient and normally fails
     for (auto it = prog->addrs.begin(); it != prog->addrs.end(); it++) {
-        if (std::none_of(ir->basic_blocks.begin(), ir->basic_blocks.end(), [it](auto &bb) -> bool { return bb->virt_start_addr < *it && bb->virt_end_addr > *it; })) {
+        if (std::none_of(ir->basic_blocks.begin(), ir->basic_blocks.end(), [it](auto &bb) -> bool { return bb->virt_start_addr <= *it && bb->virt_end_addr >= *it; })) {
             BasicBlock *new_bb = ir->add_basic_block(*it);
             {
                 std::stringstream str;
@@ -77,8 +70,11 @@ void Lifter::lift(Program *prog) {
 
 BasicBlock *Lifter::get_bb(uint64_t addr) const {
     for (auto &bb_ptr : ir->basic_blocks) {
-        if (bb_ptr->virt_start_addr <= addr && bb_ptr->virt_end_addr >= addr) {
-            return bb_ptr.get();
+        if (bb_ptr.get() != dummy) {
+            // either the basic block is already parsed and the jmp address is in the parsed range OR the basic block should be parsed soon and the jmp address is the start address
+            if ((bb_ptr->virt_end_addr && bb_ptr->virt_start_addr <= addr && bb_ptr->virt_end_addr >= addr) || (!bb_ptr->virt_end_addr && addr == bb_ptr->virt_start_addr)) {
+                return bb_ptr.get();
+            }
         }
     }
     return nullptr;
@@ -234,6 +230,22 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, std::op
     // for now, we stop after 10000 instructions / data elements in one basic block
     for (size_t i = start_i; i < start_i + 10000 && i < prog->addrs.size(); i++) {
         if (prog->data.at(i).index() == 1) {
+
+            // ignore the first address, otherwise we always find the existing curr_bb basic block
+            if (i > start_i) {
+                // test if another parsed or unparsed basic block starts at this instruction to avoid duplicated instructions
+                auto jmp_addr = prog->addrs.at(i);
+                auto existing_bb_it = std::find_if(ir->basic_blocks.begin(), ir->basic_blocks.end(), [jmp_addr](auto &bb) { return bb->virt_start_addr == jmp_addr; });
+                if (existing_bb_it != ir->basic_blocks.end()) {
+                    auto instr_addr = prog->addrs.at(i - 1);
+                    SSAVar *addr_imm = curr_bb->add_var_imm((int64_t)jmp_addr, instr_addr);
+                    CfOp &jmp = curr_bb->add_cf_op(CFCInstruction::jump, instr_addr, existing_bb_it->get()->virt_start_addr);
+                    jmp.set_inputs(addr_imm);
+                    curr_bb->virt_end_addr = instr_addr;
+                    break;
+                }
+            }
+
             RV64Inst instr = std::get<RV64Inst>(prog->data.at(i));
 #ifdef DEBUG
             std::stringstream str;
@@ -263,7 +275,6 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, std::op
     std::vector<std::pair<uint64_t, BasicBlock *>> to_split;
 
     for (CfOp &cfOp : curr_bb->control_flow_ops) {
-        // TODO: test for 4 byte aligned address
         uint64_t jmp_addr = std::get<CfOp::LifterInfo>(cfOp.lifter_info).jump_addr;
         BasicBlock *next_bb;
 
@@ -318,25 +329,23 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, std::op
             }
         }
     }
-    std::for_each(to_split.begin(), to_split.end(), [this](auto &split_tuple) {
-        std::stringstream str;
-        str << "Splitting basic block #0x" << std::hex << split_tuple.second->id;
-        DEBUG_LOG(str.str());
-        split_basic_block(split_tuple.second, split_tuple.first);
-    });
+    //    std::for_each(to_split.begin(), to_split.end(), [this](auto &split_tuple) {
+    //        std::stringstream str;
+    //        str << "Splitting basic block #0x" << std::hex << split_tuple.second->id;
+    //        DEBUG_LOG(str.str());
+    //        split_basic_block(split_tuple.second, split_tuple.first);
+    //    });
 
     // TODO: make sure not to parse instructions twice!
     std::for_each(next_entrypoints.begin(), next_entrypoints.end(), [this, prog, func](auto &entrypoint_tuple) {
         std::stringstream str;
-        str << "Starting new basic block #0x" << std::hex << entrypoint_tuple.second->id;
+        str << "Parsing next basic block #0x" << std::hex << entrypoint_tuple.second->id;
         DEBUG_LOG(str.str());
         liftRec(prog, func, entrypoint_tuple.first, std::nullopt, entrypoint_tuple.second);
     });
 }
 
 void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
-    std::vector<std::pair<uint64_t, CfOp>> jump_goals;
-
     switch (instr.instr.mnem) {
     case FRV_INVALID:
         liftInvalid(bb, ip);
@@ -545,7 +554,7 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
 
     case FRV_ECALL:
         // this also includes the EBREAK
-        liftECALL(bb, ip, next_addr);
+        liftECALL(bb, mapping, ip, next_addr);
         break;
 
     default:
@@ -696,7 +705,10 @@ void Lifter::lift_slt(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
 }
 
 std::optional<SSAVar *> Lifter::convert_type(BasicBlock *bb, uint64_t ip, SSAVar *var, Type desired_type) {
-    if (var->type > Type::f64 || desired_type > Type::f64 || var->type == desired_type) {
+    if (var->type == desired_type) {
+        return var;
+    }
+    if (var->type > Type::f64 || desired_type > Type::f64) {
         return std::nullopt;
     }
     SSAVar *new_var = bb->add_var(desired_type, ip);
@@ -990,35 +1002,62 @@ void Lifter::liftBranch(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint6
     continue_jmp.set_inputs(uc_jmp_addr_var);
 }
 
-void Lifter::liftECALL(BasicBlock *bb, uint64_t ip, uint64_t next_addr) {
+void Lifter::liftECALL(BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     // the behavior of the ECALL instruction is system dependant. (= SYSCALL)
     // we give the syscall the address at which the program control flow continues (= next basic block)
-    bb->add_cf_op(CFCInstruction::syscall, ip, next_addr);
+    CfOp &ecall_op = bb->add_cf_op(CFCInstruction::syscall, ip, next_addr);
+
+    // the syscall number is required from register a7 (=x17)
+    ecall_op.set_inputs(mapping.at(17));
+
+    // TODO: the ecall changes registers x10(a0) and x11(a1) -> this can't modelled using our current cf_ops
+    // to solve resulting problems with the branch address predictor for now, we insert dummy operations which read unknown values into the registers
+    SSAVar *dummy_addr = bb->add_var_imm(0, ip);
+    SSAVar *res_1 = bb->add_var(Type::i64, ip, 10);
+    {
+        auto dummy_op = std::make_unique<Operation>(Instruction::load);
+        dummy_op->set_inputs(dummy_addr, mapping.at(MEM_IDX));
+        dummy_op->set_outputs(res_1);
+        res_1->set_op(std::move(dummy_op));
+    }
+    mapping.at(10) = res_1;
+
+    SSAVar *res_2 = bb->add_var(Type::i64, ip, 11);
+    {
+        auto dummy_op = std::make_unique<Operation>(Instruction::load);
+        dummy_op->set_inputs(dummy_addr, mapping.at(MEM_IDX));
+        dummy_op->set_outputs(res_2);
+        res_2->set_op(std::move(dummy_op));
+    }
+    mapping.at(11) = res_2;
 }
 
 void Lifter::lift_mul_div_rem(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction &instr_type, const Type &in_type) {
+    // assign the first input and cast it to the correct size if necessary
+    SSAVar *rs_1 = mapping.at(instr.instr.rs1);
+    if (rs_1->type != in_type) {
+        auto cast = convert_type(bb, ip, rs_1, in_type);
+        if (cast.has_value()) {
+            rs_1 = cast.value();
+        } else {
+            print_invalid_op_size(instr_type, instr);
+        }
+    }
+
+    // assign the second input and cast if necessary
+    SSAVar *rs_2 = mapping.at(instr.instr.rs2);
+    if (rs_2->type != in_type) {
+        auto cast = convert_type(bb, ip, rs_2, in_type);
+        if (cast.has_value()) {
+            rs_2 = cast.value();
+        } else {
+            print_invalid_op_size(instr_type, instr);
+        }
+    }
+
+    // create operation destination and the main operation
     SSAVar *dest = bb->add_var(in_type, ip);
     {
-        SSAVar *rs_1 = mapping.at(instr.instr.rs1);
-        if (rs_1->type != in_type) {
-            auto cast = convert_type(bb, ip, rs_1, in_type);
-            if (cast.has_value()) {
-                rs_1 = cast.value();
-            } else {
-                print_invalid_op_size(instr_type, instr);
-            }
-        }
-
-        SSAVar *rs_2 = mapping.at(instr.instr.rs2);
-        if (rs_2->type != in_type) {
-            auto cast = convert_type(bb, ip, rs_2, in_type);
-            if (cast.has_value()) {
-                rs_2 = cast.value();
-            } else {
-                print_invalid_op_size(instr_type, instr);
-            }
-        }
-
         auto op = std::make_unique<Operation>(instr_type);
         op->set_inputs(rs_1, rs_2);
         op->set_outputs(dest);
@@ -1029,10 +1068,8 @@ void Lifter::lift_mul_div_rem(BasicBlock *bb, RV64Inst &instr, reg_map &mapping,
     if (in_type == Type::i32) {
         dest = bb->add_var(Type::i64, ip);
         {
-            SSAVar *rs_1 = mapping.at(instr.instr.rs1);
-
             auto op = std::make_unique<Operation>(Instruction::sign_extend);
-            op->set_inputs(rs_1);
+            op->set_inputs(mapping.at(instr.instr.rs1));
             op->set_outputs(dest);
             dest->set_op(std::move(op));
         }
@@ -1167,9 +1204,25 @@ std::optional<int64_t> Lifter::get_var_value(SSAVar *var, BasicBlock *bb, std::v
         if (resolved_vars.size() != 1)
             return std::nullopt;
         return (int64_t)resolved_vars[0];
+    case Instruction::cast:
+        load_input_vars(bb, op, resolved_vars, parsed_vars);
+        if (resolved_vars.size() != 1)
+            return std::nullopt;
+        switch (op->out_vars[0]->type) {
+        case Type::i64:
+            return resolved_vars[0];
+        case Type::i32:
+            return (int32_t)resolved_vars[0];
+        case Type::i16:
+            return (int16_t)resolved_vars[0];
+        case Type::i8:
+            return (int8_t)resolved_vars[0];
+        default:
+            return std::nullopt;
+        }
     default:
         std::stringstream str;
-        str << "Warning: Jump target address is calculated via an unsupported operation: " << op->type;
+        str << "Warning: Jump target address is can't be calculated (unsupported operation): " << op->type;
         DEBUG_LOG(str.str());
         return std::nullopt;
     }

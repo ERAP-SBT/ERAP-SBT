@@ -6,6 +6,7 @@
  * [mt]: Memory token. This is NOT an address. Addresses are stored as i64 or i32.
  */
 enum class Type {
+    imm = 5,
     i64 = 3,
     i32 = 2,
     i16 = 1,
@@ -13,7 +14,6 @@ enum class Type {
     f64 = 11,
     f32 = 10,
     mt = 20,
-    imm = 21,
 };
 
 std::ostream &operator<<(std::ostream &stream, Type type);
