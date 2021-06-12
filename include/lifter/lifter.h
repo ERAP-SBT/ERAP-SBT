@@ -41,11 +41,9 @@ class Lifter {
     static void lift_shift_immediate(BasicBlock *, RV64Inst &, reg_map &, uint64_t, const Instruction &, const Type &);
 
     static void lift_slt(BasicBlock *, RV64Inst &, reg_map &, uint64_t, bool, bool);
-    //
-    //        void liftFENCE(BasicBlock *, reg_map&);
-    //
-    //        void liftFENCEI(BasicBlock *, reg_map&);
-    //
+
+    static void liftFENCE(BasicBlock *, RV64Inst &, uint64_t);
+
     static void liftAUIPC(BasicBlock *, RV64Inst &instr, reg_map &, uint64_t ip);
 
     static void liftLUI(BasicBlock *, RV64Inst &instr, reg_map &, uint64_t);

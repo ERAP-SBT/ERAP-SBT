@@ -556,12 +556,10 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
         lift_slt(bb, instr, mapping, ip, true, false);
         break;
 
-        //        case FRV_FENCE:
-        //            liftFENCE(bb, mapping);
-        //            break;
-        //        case FRV_FENCEI:
-        //            liftFENCEI(bb, mapping);
-        //            break;
+    case FRV_FENCE:
+    case FRV_FENCEI:
+        liftFENCE(bb, instr, ip);
+        break;
 
     case FRV_AUIPC:
         liftAUIPC(bb, instr, mapping, ip);
@@ -1112,6 +1110,14 @@ void Lifter::lift_mul_div_rem(BasicBlock *bb, RV64Inst &instr, reg_map &mapping,
 
     // write SSAVar of the result of the operation back to mapping
     mapping.at(instr.instr.rd) = dest;
+}
+
+void Lifter::liftFENCE(BasicBlock *bb, RV64Inst &instr, uint64_t ip) {
+#ifdef DEBUG
+    std::stringstream str;
+    str << "Skipping " << str_decode_instr(instr.instr) << " instruction. (BasicBlock #0x" << std::hex << bb->id << ", address <0x" << ip << ">)";
+    DEBUG_LOG(str.str());
+#endif
 }
 
 std::optional<SSAVar *> Lifter::get_last_static_assignment(size_t idx, BasicBlock *bb) {
