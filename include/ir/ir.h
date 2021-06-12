@@ -6,10 +6,13 @@
 #include <cassert>
 #include <memory>
 #include <ostream>
+#include <unordered_set>
 #include <vector>
 
 struct IR {
     std::vector<std::unique_ptr<BasicBlock>> basic_blocks;
+    std::unordered_set<uint64_t> bb_start_addrs;
+
     std::vector<std::unique_ptr<Function>> functions;
     std::vector<StaticMapper> statics;
 
@@ -21,6 +24,7 @@ struct IR {
         auto block = std::make_unique<BasicBlock>(this, cur_block_id++, virt_start_addr);
         const auto ptr = block.get();
         basic_blocks.push_back(std::move(block));
+        bb_start_addrs.emplace(virt_start_addr);
         return ptr;
     }
 
