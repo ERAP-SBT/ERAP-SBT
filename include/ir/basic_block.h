@@ -32,8 +32,8 @@ struct BasicBlock {
         return ptr;
     }
 
-    SSAVar *add_var_imm(const int64_t imm) {
-        auto var = std::make_unique<SSAVar>(cur_ssa_id++, imm);
+    SSAVar *add_var_imm(const int64_t imm, const bool binary_relative = false) {
+        auto var = std::make_unique<SSAVar>(cur_ssa_id++, imm, binary_relative);
         const auto ptr = var.get();
         variables.push_back(std::move(var));
         return ptr;
@@ -46,8 +46,7 @@ struct BasicBlock {
         return var;
     }
 
-    CfOp &add_cf_op(const CFCInstruction type, BasicBlock *target)
-    {
+    CfOp &add_cf_op(const CFCInstruction type, BasicBlock *target) {
         control_flow_ops.emplace_back(type, this, target);
         return control_flow_ops.back();
     }

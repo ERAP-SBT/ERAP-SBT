@@ -100,6 +100,10 @@ void Generator::compile() {
     assert(err_msgs.empty());
 
     printf(".intel_syntax noprefix\n.global _start\n\n.data\n");
+    if (!binary_filepath.empty()) {
+        printf("binary: .incbin \"%s\"\n", binary_filepath.c_str());
+    }
+
     compile_statics();
     printf("param_passing: .space 128\n");
     printf("stack_space: .space 1048576 # 1MiB\n");
@@ -226,7 +230,14 @@ void Generator::compile_vars(const BasicBlock *block) {
         if (var->type == Type::imm) {
             assert(var->info.index() == 1);
 
-            printf("mov %s [rbp - 8 - 8 * %zu], %lld\n", ptr_from_type(var->type), idx, std::get<int64_t>(var->info));
+            const auto &info = std::get<SSAVar::ImmInfo>(var->info);
+            if (info.binary_relative) {
+                printf("mov rax, offset binary\nadd rax, %lld\n", info.val);
+                printf("mov [rbp - 8 - 8 * %zu], rax\n", idx);
+            } else {
+                printf("mov %s [rbp - 8 - 8 * %zu], %lld\n", ptr_from_type(var->type), idx, info.val);
+            }
+
             continue;
         }
 

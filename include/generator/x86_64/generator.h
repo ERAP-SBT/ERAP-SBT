@@ -8,8 +8,9 @@ struct Generator {
 
     IR *ir;
     std::vector<std::pair<ErrType, BasicBlock *>> err_msgs;
+    std::string binary_filepath;
 
-    Generator(IR *ir) : ir(ir) {}
+    Generator(IR *ir, std::string binary_filepath = {}) : ir(ir), binary_filepath(std::move(binary_filepath)) {}
 
     void compile();
 
