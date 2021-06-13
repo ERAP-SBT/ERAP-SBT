@@ -1,5 +1,5 @@
 helper_sources = ['helper.cpp']
 
-if build_machine.system() != 'windows'
-static_library('helper', helper_sources)
+if host_machine.system() == 'linux'
+static_library('helper', helper_sources, cpp_args: ['-ffreestanding', '-fno-exceptions', '-nostdlib'])
 endif
