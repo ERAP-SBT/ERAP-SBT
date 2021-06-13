@@ -1,8 +1,7 @@
 #include "argument_parser.h"
+#include "common/internal.h"
 #include "ir/ir.h"
-
 #include "lifter/elf_file.h"
-#include "lifter/lifter.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -19,6 +18,10 @@ int main(int argc, const char **argv) {
     if (args.has_argument("help")) {
         print_help(false);
         return EXIT_SUCCESS;
+    }
+
+    if (args.has_argument("debug")) {
+        ENABLE_DEBUG = args.get_value_as_bool("debug");
     }
 
     if (args.positional.empty()) {
@@ -65,6 +68,7 @@ void print_help(bool usage_only) {
     if (!usage_only) {
         std::cerr << "Possible arguments are:\n";
         std::cerr << "    --help:     Shows this help message\n";
+        std::cerr << "    --debug:    Enables (or disables) debug logging\n";
         std::cerr << "    --print-ir: Prints a textual representation of the IR\n";
         std::cerr << "    --dump-elf: Show information about the input file\n";
     }

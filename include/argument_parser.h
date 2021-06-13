@@ -26,4 +26,5 @@ struct Args {
         auto entry = arguments.find(arg);
         return entry != arguments.end() ? entry->second : "";
     }
+    bool get_value_as_bool(std::string_view arg) const noexcept;
 };

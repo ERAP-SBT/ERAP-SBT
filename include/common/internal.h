@@ -1,7 +1,15 @@
 #pragma once
 
+inline bool ENABLE_DEBUG
 #ifdef DEBUG
-#define DEBUG_LOG(string) std::cout << __FILE__ << " => L." << __LINE__ << ": " << (string) << "\n";
+    = true;
 #else
-#define DEBUG_LOG(string)
+    = false;
 #endif
+
+#define DEBUG_LOG(string) \
+    do { \
+        if (ENABLE_DEBUG) { \
+            std::cout << __FILE__ << " => L." << __LINE__ << ": " << (string) << "\n"; \
+        } \
+    } while (0)

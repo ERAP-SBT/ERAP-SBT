@@ -17,3 +17,8 @@ Args::Args(const char **begin, const char **end) noexcept {
         }
     }
 }
+
+bool Args::get_value_as_bool(std::string_view arg) const noexcept {
+    auto value = get_argument(arg);
+    return value == "yes" || value == "on" || value == "true";
+}
