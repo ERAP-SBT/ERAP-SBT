@@ -7,6 +7,9 @@ UseTab:          Never
 TabWidth:        8
 IndentWidth:     4
 
+# With a ColumnLimit of 200, right-aligning backslashes moves them too far away from the actual code.
+AlignEscapedNewlines: DontAlign
+
 # Ensure project headers -> test headers -> system headers
 IncludeBlocks: Regroup
 IncludeCategories:
