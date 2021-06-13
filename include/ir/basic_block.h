@@ -22,8 +22,6 @@ struct BasicBlock {
 
     std::vector<SSAVar *> inputs;
     std::vector<std::unique_ptr<SSAVar>> variables;
-    // TODO: this can be used to better trace mapping for the lifter but that data exists in a transformed form for the compiler
-    std::vector<std::pair<SSAVar *, size_t>> static_output_mapping;
 
     BasicBlock(IR *ir, const size_t id, const size_t offset = 0) : ir(ir), id(id), offset(offset) {}
 
@@ -45,12 +43,6 @@ struct BasicBlock {
 
     SSAVar *add_input(SSAVar *var) {
         inputs.emplace_back(var);
-        return var;
-    }
-
-    SSAVar *add_static_output(SSAVar *var, const size_t static_idx)
-    {
-        static_output_mapping.emplace_back(var, static_idx);
         return var;
     }
 
