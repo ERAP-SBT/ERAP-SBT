@@ -18,7 +18,7 @@ void SSAVar::print(std::ostream &stream, const IR *ir) const {
     case 0: // not defined
         break;
     case 1: // immediate
-        stream << " <- immediate " << std::get<1>(info);
+        stream << " <- immediate " << std::get<1>(info).val;
         break;
     case 2: // static
         stream << " <- @" << ir->statics[std::get<2>(info)].id;
@@ -33,6 +33,10 @@ void SSAVar::print(std::ostream &stream, const IR *ir) const {
 
     if (const_evaluable) {
         stream << ", constant";
+    }
+
+    if (info.index() == 1 && std::get<1>(info).binary_relative) {
+        stream << ", bin-rel";
     }
 
     stream << ")";
