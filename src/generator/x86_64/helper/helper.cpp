@@ -13,8 +13,8 @@ size_t syscall4(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4);
 size_t syscall5(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5);
 size_t syscall6(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5, size_t a6);
 
-size_t strlen(const char *str) { return __builtin_strlen(str); }
-void memcpy(void *dst, const void *src, size_t count) { __builtin_memcpy(dst, src, count); }
+size_t strlen(const char *);
+void memcpy(void *dst, const void *src, size_t count);
 
 const char panic_str[] = "PANIC: ";
 
@@ -197,5 +197,23 @@ size_t syscall6(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4, 
     register size_t r10 __asm__("r10") = a4;
     __asm__ volatile("syscall" : "+a"(retval) : "D"(a1), "S"(a2), "d"(a3), "r"(r8), "r"(r9), "r"(r10) : "memory", "rcx", "r11");
     return retval;
+}
+
+// need to implement ourselves without stdlib
+size_t strlen(const char *str) {
+    size_t c = 0;
+    while (*str++)
+        ++c;
+    return c;
+}
+
+void memcpy(void *dst, const void *src, size_t count) {
+    auto *dst_ptr = static_cast<uint8_t *>(dst);
+    const auto *src_ptr = static_cast<const uint8_t *>(src);
+
+    while (count > 0) {
+        *dst_ptr++ = *src_ptr++;
+        count--;
+    }
 }
 } // namespace
