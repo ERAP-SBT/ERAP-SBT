@@ -232,7 +232,7 @@ void Generator::compile_vars(const BasicBlock *block) {
 
             const auto &info = std::get<SSAVar::ImmInfo>(var->info);
             if (info.binary_relative) {
-                printf("mov rax, offset binary\nadd rax, %lld\n", info.val);
+                printf("lea rax, [binary + %lld]\n", info.val);
                 printf("mov [rbp - 8 - 8 * %zu], rax\n", idx);
             } else {
                 printf("mov %s [rbp - 8 - 8 * %zu], %lld\n", ptr_from_type(var->type), idx, info.val);
