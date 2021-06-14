@@ -224,14 +224,23 @@ void CfOp::print(std::ostream &stream, const IR *ir) const {
 
 void CfOp::CJumpInfo::print(std::ostream &stream) const {
     switch (type) {
-    case CJumpInfo::CJumpType::eq:
+    case CJumpType::eq:
         stream << "eq";
         break;
-    case CJumpInfo::CJumpType::neq:
+    case CJumpType::neq:
         stream << "neq";
         break;
-    case CJumpInfo::CJumpType::lt:
+    case CJumpType::lt:
         stream << "lt";
+        break;
+    case CJumpType::gt:
+        stream << "gt";
+        break;
+    case CJumpType::slt:
+        stream << "slt";
+        break;
+    case CJumpType::sgt:
+        stream << "sgt";
         break;
     }
 }

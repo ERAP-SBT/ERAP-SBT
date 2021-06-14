@@ -40,7 +40,7 @@ struct CfOp {
     };
 
     struct CJumpInfo {
-        enum class CJumpType { eq, neq, lt };
+        enum class CJumpType { eq, neq, lt, gt, slt, sgt };
         CJumpType type = CJumpType::eq;
         BasicBlock *target = nullptr;
         std::vector<RefPtr<SSAVar>> target_inputs = {};

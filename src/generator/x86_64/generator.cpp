@@ -417,11 +417,20 @@ void Generator::compile_cjump(const BasicBlock *block, const CfOp &cf_op, const 
     case CfOp::CJumpInfo::CJumpType::eq:
         printf("jne b%zu_cf%zu\n", block->id, cond_idx + 1);
         break;
-    case CfOp::CJumpInfo::CJumpType::lt:
-        printf("jge b%zu_cf%zu\n", block->id, cond_idx + 1);
-        break;
     case CfOp::CJumpInfo::CJumpType::neq:
         printf("je b%zu_cf%zu\n", block->id, cond_idx + 1);
+        break;
+    case CfOp::CJumpInfo::CJumpType::lt:
+        printf("jae b%zu_cf%zu\n", block->id, cond_idx + 1);
+        break;
+    case CfOp::CJumpInfo::CJumpType::gt:
+        printf("jbe b%zu_cf%zu\n", block->id, cond_idx + 1);
+        break;
+    case CfOp::CJumpInfo::CJumpType::slt:
+        printf("jge b%zu_cf%zu\n", block->id, cond_idx + 1);
+        break;
+    case CfOp::CJumpInfo::CJumpType::sgt:
+        printf("jle b%zu_cf%zu\n", block->id, cond_idx + 1);
         break;
     }
 
