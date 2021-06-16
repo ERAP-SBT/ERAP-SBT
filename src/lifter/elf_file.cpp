@@ -1,7 +1,7 @@
 #include "lifter/elf_file.h"
 
 error_t ELF64File::parse_elf() {
-    DEBUG_LOG("Start reading ELF file.")
+    DEBUG_LOG("Start reading ELF file.");
     error_t e_code = 0;
 
     // read binary file into byte vector `file_content`
