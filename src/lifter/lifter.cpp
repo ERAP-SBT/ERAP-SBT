@@ -214,12 +214,10 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr) const {
             // add new BasicBlock to predecessors of the target
             cf_op.target->predecessors.push_back(new_bb);
 
-            // add target to the successors of the new BasicBlock
-            new_bb->successors.push_back(cf_op.target);
-            auto old_succ = std::find(cf_op.target->predecessors.begin(), cf_op.target->predecessors.end(), cf_op.target);
+            /* auto old_succ = std::find(cf_op.target->predecessors.begin(), cf_op.target->predecessors.end(), cf_op.target);
             if (old_succ != cf_op.target->predecessors.end()) {
                 bb->successors.erase(old_succ);
-            }
+            } */
         }
 
         for (SSAVar *&target_input : cf_op.target_inputs) {
@@ -365,12 +363,12 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, std::op
         }
     }
     // splitting basic blocks is not working properly
-    //    std::for_each(to_split.begin(), to_split.end(), [this](auto &split_tuple) {
-    //        std::stringstream str;
-    //        str << "Splitting basic block #0x" << std::hex << split_tuple.second->id;
-    //        DEBUG_LOG(str.str());
-    //        split_basic_block(split_tuple.second, split_tuple.first);
-    //    });
+    std::for_each(to_split.begin(), to_split.end(), [this](auto &split_tuple) {
+        std::stringstream str;
+        str << "Splitting basic block #0x" << std::hex << split_tuple.second->id;
+        DEBUG_LOG(str.str());
+        split_basic_block(split_tuple.second, split_tuple.first);
+    });
 
     std::for_each(next_entrypoints.begin(), next_entrypoints.end(), [this, prog, func](auto &entrypoint_tuple) {
         std::stringstream str;
@@ -1115,7 +1113,7 @@ void Lifter::lift_mul_div_rem(BasicBlock *bb, RV64Inst &instr, reg_map &mapping,
 void Lifter::liftFENCE(BasicBlock *bb, RV64Inst &instr, uint64_t ip) {
 #ifdef DEBUG
     std::stringstream str;
-    str << "Skipping " << str_decode_instr(instr.instr) << " instruction. (BasicBlock #0x" << std::hex << bb->id << ", address <0x" << ip << ">)";
+    str << "Skipping " << str_decode_instr(&instr.instr) << " instruction. (BasicBlock #0x" << std::hex << bb->id << ", address <0x" << ip << ">)";
     DEBUG_LOG(str.str());
 #endif
 }

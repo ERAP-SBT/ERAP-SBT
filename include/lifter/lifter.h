@@ -8,7 +8,7 @@
 // Depth of jump address backtracking
 #define MAX_ADDRESS_SEARCH_DEPTH 100
 // lift all data points from the load program header (not recommended)
-// #define LIFT_ALL_LOAD
+#define LIFT_ALL_LOAD
 
 namespace lifter::RV64 {
 class Lifter {

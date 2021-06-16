@@ -12,3 +12,4 @@ tasks.vs.json
 # clion stuff (workarounds...)
 /cmake-build-debug/
 CMakeLists.txt
+/build_sanitizer/
