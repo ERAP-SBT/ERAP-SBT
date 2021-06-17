@@ -46,7 +46,11 @@ void BasicBlock::print(std::ostream &stream, const IR *ir) const {
             pred->print_name(stream, ir);
         }
     }
-    stream << "] {\n";
+    stream << "] {";
+    if (!dbg_name.empty()) {
+        stream << " // " << dbg_name;
+    }
+    stream << '\n';
 
     for (const auto &var : variables) {
         stream << "  ";
