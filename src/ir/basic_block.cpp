@@ -2,6 +2,16 @@
 
 #include "ir/ir.h"
 
+BasicBlock::~BasicBlock() {
+    control_flow_ops.clear();
+    predecessors.clear();
+    successors.clear();
+    inputs.clear();
+    while (!variables.empty()) {
+        variables.pop_back();
+    }
+}
+
 SSAVar *BasicBlock::add_var_from_static(const size_t static_idx) {
     const auto &static_var = ir->statics[static_idx];
     auto var = std::make_unique<SSAVar>(cur_ssa_id++, static_var.type, static_idx);

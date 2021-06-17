@@ -24,6 +24,7 @@ struct BasicBlock {
     std::vector<std::unique_ptr<SSAVar>> variables;
 
     BasicBlock(IR *ir, const size_t id, const size_t offset = 0) : ir(ir), id(id), offset(offset) {}
+    ~BasicBlock();
 
     SSAVar *add_var(const Type type) {
         auto var = std::make_unique<SSAVar>(cur_ssa_id++, type);
