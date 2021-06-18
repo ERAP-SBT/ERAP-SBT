@@ -7,7 +7,7 @@
 #define MEM_IDX 32
 // Depth of jump address backtracking
 #define MAX_ADDRESS_SEARCH_DEPTH 100
-// lift all data points from the load program header (not recommended)
+// lift all data points from the load program header
 #define LIFT_ALL_LOAD
 
 namespace lifter::RV64 {
@@ -42,19 +42,19 @@ class Lifter {
 
     static void lift_slt(BasicBlock *, RV64Inst &, reg_map &, uint64_t, bool, bool);
 
-    static void liftFENCE(BasicBlock *, RV64Inst &, uint64_t);
+    static void lift_fence(BasicBlock *, RV64Inst &, uint64_t);
 
-    static void liftAUIPC(BasicBlock *, RV64Inst &instr, reg_map &, uint64_t ip);
+    static void lift_auipc(BasicBlock *, RV64Inst &instr, reg_map &, uint64_t ip);
 
-    static void liftLUI(BasicBlock *, RV64Inst &instr, reg_map &, uint64_t);
+    static void lift_lui(BasicBlock *, RV64Inst &instr, reg_map &, uint64_t);
 
-    static void liftJAL(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr);
+    static void lift_jal(BasicBlock *, RV64Inst &, reg_map &, uint64_t, uint64_t);
 
-    static void liftJALR(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr);
+    static void lift_jalr(BasicBlock *, RV64Inst &, reg_map &, uint64_t, uint64_t);
 
-    static void liftBranch(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr);
+    static void lift_branch(BasicBlock *, RV64Inst &, reg_map &, uint64_t, uint64_t);
 
-    static void liftECALL(BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t next_addr);
+    static void lift_ecall(BasicBlock *, reg_map &, uint64_t, uint64_t);
 
     static void lift_load(BasicBlock *, RV64Inst &, reg_map &, uint64_t, const Type &, bool);
 
@@ -76,5 +76,7 @@ class Lifter {
     void split_basic_block(BasicBlock *, uint64_t) const;
     static void load_input_vars(BasicBlock *, Operation *, std::vector<int64_t> &, std::vector<SSAVar *> &);
     static std::optional<SSAVar *> convert_type(BasicBlock *, uint64_t, SSAVar *, Type);
+    static void print_invalid_op_size(const Instruction &, RV64Inst &);
+    static std::string str_decode_instr(FrvInst *);
 };
 } // namespace lifter::RV64
