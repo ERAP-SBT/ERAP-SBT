@@ -232,10 +232,10 @@ void Generator::compile_vars(const BasicBlock *block) {
 
             const auto &info = std::get<SSAVar::ImmInfo>(var->info);
             if (info.binary_relative) {
-                fprintf(out_fd, "lea rax, [binary + %lld]\n", info.val);
+                fprintf(out_fd, "lea rax, [binary + %ld]\n", info.val);
                 fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], rax\n", idx);
             } else {
-                fprintf(out_fd, "mov %s [rbp - 8 - 8 * %zu], %lld\n", ptr_from_type(var->type), idx, info.val);
+                fprintf(out_fd, "mov %s [rbp - 8 - 8 * %zu], %ld\n", ptr_from_type(var->type), idx, info.val);
             }
 
             continue;
