@@ -9,9 +9,9 @@ struct Generator {
     IR *ir;
     std::vector<std::pair<ErrType, BasicBlock *>> err_msgs;
     std::string binary_filepath;
-    FILE* out_fd;
+    FILE *out_fd;
 
-    Generator(IR *ir, std::string binary_filepath = {}, FILE* out_fd = stdout) : ir(ir), binary_filepath(std::move(binary_filepath)), out_fd(out_fd) {}
+    Generator(IR *ir, std::string binary_filepath = {}, FILE *out_fd = stdout) : ir(ir), binary_filepath(std::move(binary_filepath)), out_fd(out_fd) {}
 
     void compile();
 
