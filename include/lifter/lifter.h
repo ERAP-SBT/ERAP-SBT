@@ -19,7 +19,7 @@ class Lifter {
 
     void lift(Program *);
 
-  private:
+    // private:
     // {0}: not used
     // {1, ..., 31}: RV-Registers
     // {32}: the last valid memory token
@@ -58,7 +58,7 @@ class Lifter {
 
     static void lift_load(BasicBlock *, RV64Inst &, reg_map &, uint64_t, const Type &, bool);
 
-    static void lift_store(BasicBlock *, RV64Inst &, reg_map &, uint64_t, const Type &);
+    static void lift_store(BasicBlock *bb, RV64Inst &, reg_map &, uint64_t, const Type &);
 
     static void lift_arithmetical_logical(BasicBlock *, RV64Inst &, reg_map &, uint64_t, const Instruction &, const Type &);
 

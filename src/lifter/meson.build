@@ -13,6 +13,9 @@ lifter_sources = [
     'instructions/shifts.cpp',
 ]
 
+
+
 lifter = static_library('lifter', lifter_sources,
                         include_directories : inc,
                         dependencies : [frvdec_dep])
+subdir('tests')
