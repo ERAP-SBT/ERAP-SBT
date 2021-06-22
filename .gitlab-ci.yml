@@ -24,7 +24,7 @@ build:
   needs: []
   script:
     - meson setup build
-    - meson configure build -Dwerror=true
+    - meson configure build -Dwerror=true -Db_sanitize=undefined
     - ninja -C build
   artifacts:
     paths:
@@ -40,8 +40,11 @@ test:
     - build
   script:
     - meson setup build
-    - meson configure build -Db_coverage=true -Dwerror=true
-    - ninja -C build test
+    # NOTE: address sanitizer appears to requires ptrace permissions which the gitlab runners do not have
+    - meson configure build -Db_coverage=true -Dwerror=true -Db_sanitize=undefined
+    # Clean old coverage reports or libgcov will complain
+    - ninja -C build clean-gcda
+    - LSAN_OPTIONS=verbosity=1:log_threads=1 ninja -C build test
     # seperate line to ensure that test has finished, because coverage-xml has no dependency on
     # test but that is required for meaningful results
     # we need to run coverage-html for the summary, see https://github.com/mesonbuild/meson/pull/4576 for the why
