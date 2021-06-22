@@ -22,8 +22,10 @@ struct BasicBlock {
 
     std::vector<SSAVar *> inputs;
     std::vector<std::unique_ptr<SSAVar>> variables;
+    std::string dbg_name;
 
-    BasicBlock(IR *ir, const size_t id, const size_t offset = 0) : ir(ir), id(id), offset(offset) {}
+    BasicBlock(IR *ir, const size_t id, const size_t offset = 0, const std::string &dbg_name = {}) : ir(ir), id(id), offset(offset), dbg_name(dbg_name) {}
+    ~BasicBlock();
 
     SSAVar *add_var(const Type type) {
         auto var = std::make_unique<SSAVar>(cur_ssa_id++, type);
@@ -32,8 +34,8 @@ struct BasicBlock {
         return ptr;
     }
 
-    SSAVar *add_var_imm(const int64_t imm) {
-        auto var = std::make_unique<SSAVar>(cur_ssa_id++, imm);
+    SSAVar *add_var_imm(const int64_t imm, const bool binary_relative = false) {
+        auto var = std::make_unique<SSAVar>(cur_ssa_id++, imm, binary_relative);
         const auto ptr = var.get();
         variables.push_back(std::move(var));
         return ptr;
