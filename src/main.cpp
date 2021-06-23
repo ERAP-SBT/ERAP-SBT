@@ -1,5 +1,6 @@
 #include "argument_parser.h"
 #include "common/internal.h"
+#include "generator/x86_64/generator.h"
 #include "ir/ir.h"
 #include "lifter/elf_file.h"
 
@@ -48,6 +49,16 @@ int main(int argc, const char **argv) {
         std::cout << "------------------------------------------------------------\n";
     }
 
+    FILE *output = stdout;
+    if (args.has_argument("output")) {
+        std::string output_file(args.get_argument("output"));
+        if (!(output = fopen(output_file.c_str(), "w"))) {
+            auto error_code = errno;
+            std::cerr << "The output file could not be opened: " << std::strerror(error_code) << '\n';
+            return EXIT_FAILURE;
+        }
+    }
+
     // TODO call lifter
 
     if (args.has_argument("print-ir")) {
@@ -57,7 +68,12 @@ int main(int argc, const char **argv) {
         std::cout << "------------------------------------------------------------\n";
     }
 
-    // TODO call generator
+    generator::x86_64::Generator generator(&ir, std::string(elf_path), output);
+    generator.compile();
+
+    if (output != stdout) {
+        fclose(output);
+    }
 
     return EXIT_SUCCESS;
 }
@@ -68,6 +84,7 @@ void print_help(bool usage_only) {
     if (!usage_only) {
         std::cerr << "Possible arguments are:\n";
         std::cerr << "    --help:     Shows this help message\n";
+        std::cerr << "    --output:   Set the output file name (defaults to stdout)\n";
         std::cerr << "    --debug:    Enables (or disables) debug logging\n";
         std::cerr << "    --print-ir: Prints a textual representation of the IR\n";
         std::cerr << "    --dump-elf: Show information about the input file\n";
