@@ -1,5 +1,8 @@
 tests_src = [
-    'test1.cpp'
+    'test.cpp', 'argument_parser.cpp',
+
+    # This is included here since argument_parser.cpp is part of main, which is an executable.
+    '../argument_parser.cpp'
 ]
 
 test('translate',
