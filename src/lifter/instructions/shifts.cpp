@@ -9,9 +9,9 @@ void Lifter::lift_shift(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint6
 
     // cast immediate from 64bit to 32bit if instruction has 32bit size
     if (op_size == Type::i32) {
-        mask = load_immediate(bb, (int32_t)0x1F, ip);
+        mask = load_immediate(bb, (int32_t)0x1F, ip, false);
     } else {
-        mask = load_immediate(bb, (int64_t)0x1F, ip);
+        mask = load_immediate(bb, (int64_t)0x1F, ip, false);
     }
 
     // create new variable with the result of the masking

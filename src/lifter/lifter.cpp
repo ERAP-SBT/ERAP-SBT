@@ -118,8 +118,8 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, std::op
                     auto &bb = *std::find_if(ir->basic_blocks.begin(), ir->basic_blocks.end(), [bb_addr_it](auto &bb) { return bb->virt_start_addr == *bb_addr_it; });
 
                     auto instr_addr = prog->addrs.at(i - 1);
-                    SSAVar *addr_imm = curr_bb->add_var_imm((int64_t)jmp_addr, instr_addr);
-                    CfOp &jmp = curr_bb->add_cf_op(CFCInstruction::jump, instr_addr, bb->virt_start_addr);
+                    SSAVar *addr_imm = curr_bb->add_var_imm((int64_t)jmp_addr, instr_addr, true);
+                    CfOp &jmp = curr_bb->add_cf_op(CFCInstruction::jump, bb.get(), instr_addr, bb->virt_start_addr);
                     jmp.set_inputs(addr_imm);
                     curr_bb->virt_end_addr = instr_addr;
                     break;
@@ -134,6 +134,7 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, std::op
 #endif
             // the next_addr is used for CfOps which require a return address / address of the next instruction
             uint64_t next_addr;
+
             // test if the next address is outside of the already parsed addresses
             if (i < prog->addrs.size() - 1) {
                 next_addr = prog->addrs.at(i + 1);
@@ -186,13 +187,13 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, std::op
         // TODO: This is a problem if we split the basic block later on
         curr_bb->successors.push_back(next_bb);
         next_bb->predecessors.push_back(curr_bb);
-        cfOp.target = next_bb;
+        cfOp.set_target(next_bb);
         cfOp.source = curr_bb;
 
         for (size_t i = 0; i < mapping.size(); i++) {
             auto var = mapping.at(i);
             if (var != nullptr) {
-                cfOp.add_target_input(var);
+                cfOp.add_target_input(var, i);
                 std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = i;
             }
         }

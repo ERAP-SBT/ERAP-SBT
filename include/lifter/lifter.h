@@ -67,8 +67,8 @@ class Lifter {
     static void lift_mul_div_rem(BasicBlock *, RV64Inst &, reg_map &, uint64_t, const Instruction &, const Type &);
 
     // helpers for lifting and code reduction
-    static SSAVar *load_immediate(BasicBlock *bb, int64_t imm, uint64_t ip, size_t reg = 0);
-    static SSAVar *load_immediate(BasicBlock *bb, int32_t imm, uint64_t ip, size_t reg = 0);
+    static SSAVar *load_immediate(BasicBlock *bb, int64_t imm, uint64_t ip, bool binary_relative, size_t reg = 0);
+    static SSAVar *load_immediate(BasicBlock *bb, int32_t imm, uint64_t ip, bool binary_relative, size_t reg = 0);
     static SSAVar *shrink_var(BasicBlock *, SSAVar *, uint64_t ip, const Type &);
     static std::optional<uint64_t> backtrace_jmp_addr(CfOp *, BasicBlock *);
     static std::optional<int64_t> get_var_value(SSAVar *, BasicBlock *, std::vector<SSAVar *> &);
@@ -78,5 +78,7 @@ class Lifter {
     static std::optional<SSAVar *> convert_type(BasicBlock *, uint64_t, SSAVar *, Type);
     static void print_invalid_op_size(const Instruction &, RV64Inst &);
     static std::string str_decode_instr(FrvInst *);
+    std::vector<RefPtr<SSAVar>> filter_target_inputs(const std::vector<RefPtr<SSAVar>> &old_target_inputs, reg_map new_mapping, uint64_t split_addr) const;
+    std::vector<std::pair<RefPtr<SSAVar>, size_t>> filter_target_inputs(const std::vector<std::pair<RefPtr<SSAVar>, size_t>> &old_target_inputs, reg_map new_mapping, uint64_t split_addr) const;
 };
 } // namespace lifter::RV64

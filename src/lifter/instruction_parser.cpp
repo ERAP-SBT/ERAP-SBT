@@ -238,14 +238,14 @@ void Lifter::lift_slt(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
     SSAVar *second_operand;
 
     if (withImmediate) {
-        second_operand = bb->add_var_imm(instr.instr.imm, ip);
+        second_operand = load_immediate(bb, instr.instr.imm, ip, false);
     } else {
         second_operand = mapping.at(instr.instr.rs2);
     }
 
     // create variables for result
-    SSAVar *one = bb->add_var_imm(1, ip);
-    SSAVar *zero = bb->add_var_imm(0, ip);
+    SSAVar *one = load_immediate(bb, 1, ip, false);
+    SSAVar *zero = load_immediate(bb, 0, ip, false);
 
     // create SSAVariable for the destination operand
     SSAVar *destination = bb->add_var(Type::i64, ip, instr.instr.rd);
@@ -266,9 +266,10 @@ void Lifter::lift_slt(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
 
 void Lifter::lift_auipc(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip) {
     // 1. load the immediate
-    SSAVar *immediate = load_immediate(bb, instr.instr.imm, ip);
+    SSAVar *immediate = load_immediate(bb, instr.instr.imm, ip, false);
+
     // 2. load instruction pointer as immediate
-    SSAVar *ip_immediate = load_immediate(bb, (int64_t)ip, ip);
+    SSAVar *ip_immediate = load_immediate(bb, (int64_t)ip, ip, true);
 
     // 3. add immediate to instruction pointer
     SSAVar *result = bb->add_var(Type::i64, ip, instr.instr.rd);
@@ -284,7 +285,7 @@ void Lifter::lift_auipc(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint6
 
 void Lifter::lift_lui(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip) {
     // create the immediate loading operation (with built-in sign extension)
-    SSAVar *immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip, instr.instr.rd);
+    SSAVar *immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip, false, instr.instr.rd);
 
     // write SSAVar back to mapping
     mapping.at(instr.instr.rd) = immediate;

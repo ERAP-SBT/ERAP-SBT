@@ -30,9 +30,6 @@ struct BasicBlock {
     ~BasicBlock();
 
     SSAVar *add_var(const Type type, uint64_t assign_addr, size_t reg = 0) {
-        if (!assign_addr) {
-            reg += 1;
-        }
         auto var = std::make_unique<SSAVar>(cur_ssa_id++, type);
         var->lifter_info = SSAVar::LifterInfo{assign_addr, reg};
         const auto ptr = var.get();
@@ -40,7 +37,7 @@ struct BasicBlock {
         return ptr;
     }
 
-    SSAVar *add_var_imm(const int64_t imm, uint64_t assign_addr, size_t reg = 0, const bool binary_relative = false) {
+    SSAVar *add_var_imm(const int64_t imm, uint64_t assign_addr, const bool binary_relative = false, size_t reg = 0) {
         if (!assign_addr) {
             reg += 1;
         }
@@ -58,16 +55,12 @@ struct BasicBlock {
         return var;
     }
 
-    CfOp &add_cf_op(CFCInstruction type, uint64_t instr_addr = 0, uint64_t jump_addr = 0) {
-        CfOp &cf_op = control_flow_ops.emplace_back(type, this);
-        cf_op.lifter_info = CfOp::LifterInfo{jump_addr, instr_addr};
-        return cf_op;
-    }
+    CfOp &add_cf_op(CFCInstruction type, BasicBlock *target, uint64_t instr_addr = 0, uint64_t jump_addr = 0) { return add_cf_op(type, this, target, instr_addr, jump_addr); }
 
-    CfOp &add_cf_op(CFCInstruction type, BasicBlock *source, uint64_t instr_addr = 0, uint64_t jump_addr = 0) {
-        CfOp &cf_op = control_flow_ops.emplace_back(type, source);
+    CfOp &add_cf_op(CFCInstruction type, BasicBlock *source, BasicBlock *target, uint64_t instr_addr = 0, uint64_t jump_addr = 0) {
+        CfOp &cf_op = control_flow_ops.emplace_back(type, source, target);
         cf_op.lifter_info = CfOp::LifterInfo{jump_addr, instr_addr};
-        return cf_op;
+        return control_flow_ops.back();
     }
 
     void print(std::ostream &, const IR *) const;

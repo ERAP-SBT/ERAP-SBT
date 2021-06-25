@@ -32,9 +32,9 @@ std::optional<SSAVar *> Lifter::get_last_static_assignment(size_t idx, BasicBloc
                 unparsed_preds.emplace_back(pred_pred, pred_depth + 1);
             }
             for (const CfOp &cfo : pred->control_flow_ops) {
-                for (SSAVar *ti : cfo.target_inputs) {
-                    if (!ti->from_static && std::get<SSAVar::LifterInfo>(ti->lifter_info).static_id == idx) {
-                        possible_preds.push_back(ti);
+                for (auto ti : cfo.target_inputs()) {
+                    if (!std::holds_alternative<size_t>(ti->info) && std::get<SSAVar::LifterInfo>(ti->lifter_info).static_id == idx) {
+                        possible_preds.push_back(ti.get());
                     }
                 }
             }
@@ -68,7 +68,7 @@ void Lifter::load_input_vars(BasicBlock *bb, Operation *op, std::vector<int64_t>
 }
 
 std::optional<int64_t> Lifter::get_var_value(SSAVar *var, BasicBlock *bb, std::vector<SSAVar *> &parsed_vars) {
-    if (var->from_static) {
+    if (std::holds_alternative<size_t>(var->info)) {
         auto opt_var = get_last_static_assignment(std::get<SSAVar::LifterInfo>(var->lifter_info).static_id, bb);
         if (opt_var.has_value()) {
             var = opt_var.value();
@@ -76,13 +76,14 @@ std::optional<int64_t> Lifter::get_var_value(SSAVar *var, BasicBlock *bb, std::v
             return std::nullopt;
         }
     }
-    if (var->info.index() == 1) {
-        return std::get<int64_t>(var->info);
+    if (std::holds_alternative<SSAVar::ImmInfo>(var->info)) {
+        return std::get<SSAVar::ImmInfo>(var->info).val;
     }
 
-    if (var->info.index() != 2) {
+    if (std::holds_alternative<std::unique_ptr<Operation>>(var->info)) {
         return std::nullopt;
     }
+
     Operation *op = std::get<std::unique_ptr<Operation>>(var->info).get();
     std::vector<int64_t> resolved_vars;
 

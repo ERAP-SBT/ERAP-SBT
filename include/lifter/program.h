@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <frvdec.h>
 #include <lifter/elf_file.h>
 #include <map>
 #include <variant>

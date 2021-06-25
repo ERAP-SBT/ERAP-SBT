@@ -45,9 +45,9 @@ void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, RV64Inst &instr
     // create immediate var
     SSAVar *immediate;
     if (op_size == Type::i32) {
-        immediate = load_immediate(bb, instr.instr.imm, ip);
+        immediate = load_immediate(bb, instr.instr.imm, ip, false);
     } else {
-        immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip);
+        immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip, false);
     }
 
     // create SSAVariable for the destination operand

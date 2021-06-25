@@ -14,6 +14,18 @@ std::ostream &operator<<(std::ostream &stream, Instruction instr) {
     case Instruction::sub:
         stream << "sub";
         break;
+    case Instruction::mul_l:
+        stream << "mul_l";
+        break;
+    case Instruction::ssmul_h:
+        stream << "ssmul_h";
+        break;
+    case Instruction::uumul_h:
+        stream << "uumul_h";
+        break;
+    case Instruction::sumul_h:
+        stream << "sumul_h";
+        break;
     case Instruction::div:
         stream << "div";
         break;
@@ -68,19 +80,8 @@ std::ostream &operator<<(std::ostream &stream, Instruction instr) {
     case Instruction::sltu:
         stream << "sltu";
         break;
-    case Instruction::mul_l:
-        stream << "mul_l";
-        break;
-    case Instruction::ssmul_h:
-        stream << "ssmul_h";
-        break;
-    case Instruction::uumul_h:
-        stream << "uumul_h";
-        break;
-    case Instruction::sumul_h:
-        stream << "sumul_h";
-        break;
     }
+
     return stream;
 }
 
@@ -111,5 +112,6 @@ std::ostream &operator<<(std::ostream &stream, CFCInstruction instr) {
         stream << "syscall";
         break;
     }
+
     return stream;
 }

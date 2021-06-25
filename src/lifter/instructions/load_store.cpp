@@ -4,7 +4,8 @@ using namespace lifter::RV64;
 
 void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size, bool sign_extend) {
     // 1. load offset
-    SSAVar *offset = load_immediate(bb, instr.instr.imm, ip);
+    SSAVar *offset = load_immediate(bb, instr.instr.imm, ip, false);
+
     // 3. add offset to rs1
     SSAVar *load_addr = bb->add_var(Type::i64, ip);
     {
@@ -41,8 +42,9 @@ void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64
 
 void Lifter::lift_store(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size) {
     // 1. load offset
-    SSAVar *offset = load_immediate(bb, instr.instr.imm, ip);
-    // 3. add offset to rs1
+    SSAVar *offset = load_immediate(bb, instr.instr.imm, ip, false);
+
+    // 2. add offset to rs1
     SSAVar *store_addr = bb->add_var(Type::i64, ip);
     {
         auto add_op = std::make_unique<Operation>(Instruction::add);

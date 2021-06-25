@@ -53,10 +53,10 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_logical2) 
     SSAVar *last_var = bb->variables.back().get();
     ASSERT_EQ(last_ssa_id + 1, last_var->id) << "The id of the result ssavar is not set correctly.";
 
-    ASSERT_FALSE(last_var->from_static) << "The result ssavar is not from static.";
+    ASSERT_FALSE(std::holds_alternative<size_t>(last_var->info)) << "The result ssavar is not from static.";
     ASSERT_EQ(last_var->type, Type::i64) << "The result ssavar has the wrong type.";
 
-    ASSERT_EQ(last_var->info.index(), 2) << "The info is not set correctly: A operation should be stored.";
+    ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(last_var->info)) << "The info is not set correctly: A operation should be stored.";
     Operation *operation = std::get<std::unique_ptr<Operation>>(last_var->info).get();
 
     ASSERT_EQ(operation->type, Instruction::add) << "The operation has the wrong instruction type.";
@@ -105,10 +105,10 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_logical3) 
     SSAVar *last_var = bb->variables.back().get();
     ASSERT_EQ(last_ssa_id + 1, last_var->id) << "The id of the result ssavar is not set correctly.";
 
-    ASSERT_FALSE(last_var->from_static) << "The result ssavar is not from static.";
+    ASSERT_FALSE(std::holds_alternative<size_t>(last_var->info)) << "The result ssavar is not from static.";
     ASSERT_EQ(last_var->type, Type::i64) << "The result ssavar has the wrong type.";
 
-    ASSERT_EQ(last_var->info.index(), 2) << "The info is not set correctly: A operation should be stored.";
+    ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(last_var->info)) << "The info is not set correctly: A operation should be stored.";
     Operation *operation = std::get<std::unique_ptr<Operation>>(last_var->info).get();
 
     ASSERT_EQ(operation->type, Instruction::sub) << "The operation has the wrong instruction type.";
@@ -157,10 +157,10 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_immediate_
     SSAVar *last_var = bb->variables.back().get();
     ASSERT_EQ(last_ssa_id + 2, last_var->id) << "The id of the result ssavar is not set correctly.";
 
-    ASSERT_FALSE(last_var->from_static) << "The result ssavar is not from static.";
+    ASSERT_FALSE(std::holds_alternative<size_t>(last_var->info)) << "The result ssavar is not from static.";
     ASSERT_EQ(last_var->type, Type::i64) << "The result ssavar has the wrong type.";
 
-    ASSERT_EQ(last_var->info.index(), 2) << "The info is not set correctly: A operation should be stored.";
+    ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(last_var->info)) << "The info is not set correctly: A operation should be stored.";
     Operation *operation = std::get<std::unique_ptr<Operation>>(last_var->info).get();
 
     ASSERT_EQ(operation->type, Instruction::_xor) << "The operation has the wrong instruction type.";
@@ -183,10 +183,10 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_immediate_
     ASSERT_EQ(operation->in_vars.at(1)->type, Type::imm) << "The second operand should habe the type immediate.";
     ASSERT_EQ(last_ssa_id + 1, immediate_input_var->id) << "The id of the immediate ssavar is not set correctly.";
     ASSERT_TRUE(operation->in_vars.at(1)->const_evaluable) << "The second operand (the immediate) should be const evaluable.";
-    ASSERT_FALSE(immediate_input_var->from_static) << "The immediate ssavar should not be marked as from static.";
+    ASSERT_FALSE(std::holds_alternative<size_t>(immediate_input_var->info)) << "The immediate ssavar should not be marked as from static.";
 
     ASSERT_EQ(immediate_input_var->info.index(), 1) << "The info of the immediate ssavar should contain an immediate value.";
-    ASSERT_EQ(std::get<int64_t>(immediate_input_var->info), immediate) << "The stored immediate in the variable is not correct.";
+    ASSERT_EQ(std::get<SSAVar::ImmInfo>(immediate_input_var->info).val, immediate) << "The stored immediate in the variable is not correct.";
 
     // count the non-null output vars
     int count_output_vars = 0;

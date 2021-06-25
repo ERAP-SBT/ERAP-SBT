@@ -43,7 +43,7 @@ void Operation::print(std::ostream &stream, const IR *ir) const {
     }
 }
 
-CfOp::CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target) : type(type), source(source), target(target), in_vars() {
+CfOp::CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target) : type(type), source(source), in_vars() {
     if (target != nullptr) {
         target->predecessors.push_back(source);
         source->successors.push_back(target);
@@ -51,37 +51,30 @@ CfOp::CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target) : 
 
     switch (type) {
     case CFCInstruction::jump:
-        assert(target != nullptr);
         info = JumpInfo{};
         std::get<JumpInfo>(info).target = target;
         break;
     case CFCInstruction::ijump:
-        assert(target == nullptr);
         info = IJumpInfo{};
+        std::get<IJumpInfo>(info).target = target;
         break;
     case CFCInstruction::cjump:
-        assert(target != nullptr);
         info = CJumpInfo{};
         std::get<CJumpInfo>(info).target = target;
         break;
     case CFCInstruction::call:
-        assert(target != nullptr);
         info = CallInfo{};
         std::get<CallInfo>(info).target = target;
         break;
     case CFCInstruction::icall:
-        assert(target == nullptr);
         info = ICallInfo{};
         break;
     case CFCInstruction::_return:
-        assert(target == nullptr);
         info = RetInfo{};
         break;
     case CFCInstruction::unreachable:
-        assert(target == nullptr);
         break;
     case CFCInstruction::syscall:
-        assert(target != nullptr);
         info = SyscallInfo{};
         std::get<SyscallInfo>(info).continuation_block = target;
         break;
@@ -99,12 +92,13 @@ void CfOp::set_inputs(SSAVar *op1, SSAVar *op2, SSAVar *op3, SSAVar *op4, SSAVar
     in_vars[6] = op7;
 }
 
-void CfOp::add_target_input(SSAVar *input) {
-    assert(type == CFCInstruction::jump || type == CFCInstruction::cjump || type == CFCInstruction::call);
-
+void CfOp::add_target_input(SSAVar *input, size_t static_idx) {
     switch (type) {
     case CFCInstruction::jump:
         std::get<JumpInfo>(info).target_inputs.emplace_back(input);
+        break;
+    case CFCInstruction::ijump:
+        std::get<IJumpInfo>(info).mapping.emplace_back(input, static_idx);
         break;
     case CFCInstruction::cjump:
         std::get<CJumpInfo>(info).target_inputs.emplace_back(input);
@@ -113,7 +107,35 @@ void CfOp::add_target_input(SSAVar *input) {
         std::get<CallInfo>(info).target_inputs.emplace_back(input);
         break;
     case CFCInstruction::syscall:
+        std::get<SyscallInfo>(info).continuation_mapping.emplace_back(input, static_idx);
+        break;
+    case CFCInstruction::icall:
+    case CFCInstruction::unreachable:
+    case CFCInstruction::_return:
+        assert(0);
+        break;
+    }
+}
+
+void CfOp::set_target(BasicBlock *target) {
+    assert(type == CFCInstruction::jump || type == CFCInstruction::cjump || type == CFCInstruction::ijump || type == CFCInstruction::call || type == CFCInstruction::syscall);
+
+    switch (type) {
+    case CFCInstruction::jump:
+        std::get<JumpInfo>(info).target = target;
+        break;
+    case CFCInstruction::cjump:
+        std::get<CJumpInfo>(info).target = target;
+        break;
     case CFCInstruction::ijump:
+        std::get<IJumpInfo>(info).target = target;
+        break;
+    case CFCInstruction::call:
+        std::get<CallInfo>(info).target = target;
+        break;
+    case CFCInstruction::syscall:
+        std::get<SyscallInfo>(info).continuation_block = target;
+        break;
     case CFCInstruction::icall:
     case CFCInstruction::unreachable:
     case CFCInstruction::_return:
@@ -241,9 +263,6 @@ void CfOp::CJumpInfo::print(std::ostream &stream) const {
         break;
     case CJumpType::sgt:
         stream << "sgt";
-        break;
-    case CJumpType::ltu:
-        stream << "ltu";
         break;
     }
 }
