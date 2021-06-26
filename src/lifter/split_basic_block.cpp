@@ -119,7 +119,7 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr) const {
 
                 // the input must only be changed if the input variable is in the first BasicBlock
                 if (in_var_lifter_info.assign_addr < addr) {
-                    in_var = mapping.at(in_var_lifter_info.static_id);
+                    in_var = new_mapping.at(in_var_lifter_info.static_id);
                 }
             }
         }
