@@ -146,10 +146,10 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr) const {
             std::get<CfOp::JumpInfo>(cf_op.info).target_inputs = filter_target_inputs(std::get<CfOp::JumpInfo>(cf_op.info).target_inputs, new_mapping, addr);
             break;
         case CFCInstruction::cjump:
-            std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs = filter_target_inputs(std::get<CfOp::JumpInfo>(cf_op.info).target_inputs, new_mapping, addr);
+            std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs = filter_target_inputs(std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs, new_mapping, addr);
             break;
         case CFCInstruction::call:
-            std::get<CfOp::CallInfo>(cf_op.info).target_inputs = filter_target_inputs(std::get<CfOp::JumpInfo>(cf_op.info).target_inputs, new_mapping, addr);
+            std::get<CfOp::CallInfo>(cf_op.info).target_inputs = filter_target_inputs(std::get<CfOp::CallInfo>(cf_op.info).target_inputs, new_mapping, addr);
             break;
         case CFCInstruction::ijump:
             std::get<CfOp::IJumpInfo>(cf_op.info).mapping = filter_target_inputs(std::get<CfOp::IJumpInfo>(cf_op.info).mapping, new_mapping, addr);
