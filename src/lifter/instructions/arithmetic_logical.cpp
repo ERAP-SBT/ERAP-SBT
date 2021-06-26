@@ -50,12 +50,6 @@ void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, RV64Inst &instr
         immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip, false);
     }
 
-    // create SSAVariable for the destination operand
-    SSAVar *destination = bb->add_var(op_size, ip, instr.instr.rd);
-
-    // create the operation
-    std::unique_ptr<Operation> operation = std::make_unique<Operation>(instruction_type);
-
     SSAVar *source_one = mapping.at(instr.instr.rs1);
 
     // test for invalid operand sizes
@@ -67,6 +61,12 @@ void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, RV64Inst &instr
             print_invalid_op_size(instruction_type, instr);
         }
     }
+
+    // create SSAVariable for the destination operand
+    SSAVar *destination = bb->add_var(op_size, ip, instr.instr.rd);
+
+    // create the operation
+    std::unique_ptr<Operation> operation = std::make_unique<Operation>(instruction_type);
 
     // set operation in- and outputs
     operation->set_inputs(source_one, immediate);

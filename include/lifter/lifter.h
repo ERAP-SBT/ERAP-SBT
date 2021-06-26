@@ -13,13 +13,13 @@ class Lifter {
     void lift(Program *);
 
     // Index of memory token in <reg_map> register mapping
-    constexpr MEM_IDX = 32;
+    static constexpr size_t MEM_IDX = 32;
 
     // Depth of jump address backtracking
-    constexpr MAX_ADDRESS_SEARCH_DEPTH = 100;
+    static constexpr int MAX_ADDRESS_SEARCH_DEPTH = 100;
 
     // lift all data points from the load program header
-    constexpr LIFT_ALL_LOAD = true;
+    static constexpr bool LIFT_ALL_LOAD = true;
 
     // {0}: not used
     // {1, ..., 31}: RV-Registers
