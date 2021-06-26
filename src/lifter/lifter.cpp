@@ -41,46 +41,46 @@ void Lifter::lift(Program *prog) {
 
     lift_rec(prog, curr_fun, start_addr, std::nullopt, first_bb);
 
-#ifdef LIFT_ALL_LOAD
-    std::vector<uint64_t> unparsed_addrs = std::vector<uint64_t>(prog->addrs);
-    for (auto &bb : ir->basic_blocks) {
-        if (bb->virt_start_addr && bb->virt_end_addr) {
-            auto start_i = (size_t)std::distance(unparsed_addrs.begin(), std::find(unparsed_addrs.begin(), unparsed_addrs.end(), bb->virt_start_addr));
-            while (unparsed_addrs.at(start_i) != bb->virt_end_addr) {
-                unparsed_addrs.erase(std::next(unparsed_addrs.begin(), (long)start_i));
-            }
-            // don't forget to also erase the end address
-            if (unparsed_addrs.size() > start_i) {
-                unparsed_addrs.erase(std::next(unparsed_addrs.begin(), (long)start_i));
-            }
-        }
-    }
-    size_t last_bb_id = ir->basic_blocks.back()->id;
-
-    while (!unparsed_addrs.empty()) {
-        BasicBlock *new_bb = ir->add_basic_block(unparsed_addrs.at(0));
-        {
-            std::stringstream str;
-            str << "Starting new basicblock #0x" << std::hex << new_bb->id;
-            DEBUG_LOG(str.str());
-        }
-        lift_rec(prog, curr_fun, unparsed_addrs.at(0), std::nullopt, new_bb);
-
+    if (LIFT_ALL_LOAD) {
+        std::vector<uint64_t> unparsed_addrs = std::vector<uint64_t>(prog->addrs);
         for (auto &bb : ir->basic_blocks) {
-            if (bb->id > last_bb_id && bb->virt_start_addr && bb->virt_end_addr) {
+            if (bb->virt_start_addr && bb->virt_end_addr) {
                 auto start_i = (size_t)std::distance(unparsed_addrs.begin(), std::find(unparsed_addrs.begin(), unparsed_addrs.end(), bb->virt_start_addr));
-                while (unparsed_addrs.size() > start_i && unparsed_addrs.at(start_i) != bb->virt_end_addr) {
+                while (unparsed_addrs.at(start_i) != bb->virt_end_addr) {
                     unparsed_addrs.erase(std::next(unparsed_addrs.begin(), (long)start_i));
                 }
                 // don't forget to also erase the end address
                 if (unparsed_addrs.size() > start_i) {
                     unparsed_addrs.erase(std::next(unparsed_addrs.begin(), (long)start_i));
                 }
-                last_bb_id = bb->id;
+            }
+        }
+        size_t last_bb_id = ir->basic_blocks.back()->id;
+
+        while (!unparsed_addrs.empty()) {
+            BasicBlock *new_bb = ir->add_basic_block(unparsed_addrs.at(0));
+            {
+                std::stringstream str;
+                str << "Starting new basicblock #0x" << std::hex << new_bb->id;
+                DEBUG_LOG(str.str());
+            }
+            lift_rec(prog, curr_fun, unparsed_addrs.at(0), std::nullopt, new_bb);
+
+            for (auto &bb : ir->basic_blocks) {
+                if (bb->id > last_bb_id && bb->virt_start_addr && bb->virt_end_addr) {
+                    auto start_i = (size_t)std::distance(unparsed_addrs.begin(), std::find(unparsed_addrs.begin(), unparsed_addrs.end(), bb->virt_start_addr));
+                    while (unparsed_addrs.size() > start_i && unparsed_addrs.at(start_i) != bb->virt_end_addr) {
+                        unparsed_addrs.erase(std::next(unparsed_addrs.begin(), (long)start_i));
+                    }
+                    // don't forget to also erase the end address
+                    if (unparsed_addrs.size() > start_i) {
+                        unparsed_addrs.erase(std::next(unparsed_addrs.begin(), (long)start_i));
+                    }
+                    last_bb_id = bb->id;
+                }
             }
         }
     }
-#endif
 }
 
 void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::optional<size_t> addr_idx, BasicBlock *curr_bb) {

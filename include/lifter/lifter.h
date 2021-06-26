@@ -3,13 +3,6 @@
 #include <ir/ir.h>
 #include <lifter/program.h>
 
-// Index of memory token in <reg_map> register mapping
-#define MEM_IDX 32
-// Depth of jump address backtracking
-#define MAX_ADDRESS_SEARCH_DEPTH 100
-// lift all data points from the load program header
-#define LIFT_ALL_LOAD
-
 namespace lifter::RV64 {
 class Lifter {
   public:
@@ -19,7 +12,15 @@ class Lifter {
 
     void lift(Program *);
 
-    // private:
+    // Index of memory token in <reg_map> register mapping
+    constexpr MEM_IDX = 32;
+
+    // Depth of jump address backtracking
+    constexpr MAX_ADDRESS_SEARCH_DEPTH = 100;
+
+    // lift all data points from the load program header
+    constexpr LIFT_ALL_LOAD = true;
+
     // {0}: not used
     // {1, ..., 31}: RV-Registers
     // {32}: the last valid memory token
