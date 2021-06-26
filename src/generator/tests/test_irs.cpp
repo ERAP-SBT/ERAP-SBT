@@ -1,17 +1,5 @@
-#include "ir/ir.h"
+#include "test_irs.h"
 
-// temporary location for IRs that may later be used for testing
-
-namespace {
-void gen_print_ir(IR &);
-void gen_unreachable_ir(IR &);
-void gen_syscall_ir(IR &);
-void gen_third_ir(IR &);
-void gen_sec_ir(IR &);
-void gen_first_ir(IR &);
-} // namespace
-
-namespace {
 void gen_print_ir(IR &ir) {
     const auto static0 = ir.add_static(Type::i64);
     const auto static1 = ir.add_static(Type::i64);
@@ -262,6 +250,7 @@ void gen_print_ir(IR &ir) {
 
 void gen_unreachable_ir(IR &ir) {
     const auto static0 = ir.add_static(Type::i64);
+    (void)static0;
     auto *block1 = ir.add_basic_block();
     { block1->add_cf_op(CFCInstruction::unreachable, nullptr); }
 
@@ -270,6 +259,7 @@ void gen_unreachable_ir(IR &ir) {
 
 void gen_syscall_ir(IR &ir) {
     const auto static0 = ir.add_static(Type::i64);
+    (void)static0;
     auto *block1 = ir.add_basic_block();
     {
         auto *v1 = block1->add_var_imm(93);
@@ -402,7 +392,7 @@ void gen_sec_ir(IR &ir) {
             std::get<CfOp::CJumpInfo>(op.info).type = CfOp::CJumpInfo::CJumpType::lt;
             op.set_inputs(v1, v2);
         }
-        { auto &op = entry_block->add_cf_op(CFCInstruction::jump, block1); }
+        { entry_block->add_cf_op(CFCInstruction::jump, block1); }
     }
 
     ir.entry_block = entry_block->id;
@@ -467,4 +457,3 @@ void gen_first_ir(IR &ir) {
 
     ir.entry_block = block2->id;
 }
-} // namespace
