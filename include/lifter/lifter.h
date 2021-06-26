@@ -32,9 +32,9 @@ class Lifter {
 
     [[nodiscard]] BasicBlock *get_bb(uint64_t addr) const;
 
-    void liftRec(Program *prog, Function *func, uint64_t start_addr, std::optional<size_t> addr_idx, BasicBlock *curr_bb);
+    void lift_rec(Program *prog, Function *func, uint64_t start_addr, std::optional<size_t> addr_idx, BasicBlock *curr_bb);
 
-    static void liftInvalid(BasicBlock *bb, uint64_t ip);
+    static void lift_invalid(BasicBlock *bb, uint64_t ip);
 
     static void lift_shift(BasicBlock *, RV64Inst &, reg_map &, uint64_t, const Instruction &, const Type &);
 

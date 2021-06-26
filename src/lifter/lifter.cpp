@@ -39,7 +39,7 @@ void Lifter::lift(Program *prog) {
     }
     ir->entry_block = first_bb->id;
 
-    liftRec(prog, curr_fun, start_addr, std::nullopt, first_bb);
+    lift_rec(prog, curr_fun, start_addr, std::nullopt, first_bb);
 
 #ifdef LIFT_ALL_LOAD
     std::vector<uint64_t> unparsed_addrs = std::vector<uint64_t>(prog->addrs);
@@ -64,7 +64,7 @@ void Lifter::lift(Program *prog) {
             str << "Starting new basicblock #0x" << std::hex << new_bb->id;
             DEBUG_LOG(str.str());
         }
-        liftRec(prog, curr_fun, unparsed_addrs.at(0), std::nullopt, new_bb);
+        lift_rec(prog, curr_fun, unparsed_addrs.at(0), std::nullopt, new_bb);
 
         for (auto &bb : ir->basic_blocks) {
             if (bb->id > last_bb_id && bb->virt_start_addr && bb->virt_end_addr) {
@@ -83,7 +83,7 @@ void Lifter::lift(Program *prog) {
 #endif
 }
 
-void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, std::optional<size_t> addr_idx, BasicBlock *curr_bb) {
+void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::optional<size_t> addr_idx, BasicBlock *curr_bb) {
     // search for the address index in the program vectors
     size_t start_i;
     if (addr_idx.has_value()) {
@@ -222,6 +222,6 @@ void Lifter::liftRec(Program *prog, Function *func, uint64_t start_addr, std::op
         std::stringstream str;
         str << "Parsing next basic block #0x" << std::hex << entrypoint_tuple.second->id;
         DEBUG_LOG(str.str());
-        liftRec(prog, func, entrypoint_tuple.first, std::nullopt, entrypoint_tuple.second);
+        lift_rec(prog, func, entrypoint_tuple.first, std::nullopt, entrypoint_tuple.second);
     });
 }

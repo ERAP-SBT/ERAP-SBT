@@ -5,7 +5,7 @@ using namespace lifter::RV64;
 void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     switch (instr.instr.mnem) {
     case FRV_INVALID:
-        liftInvalid(bb, ip);
+        lift_invalid(bb, ip);
         break;
 
     case FRV_LB:
@@ -224,7 +224,7 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
     }
 }
 
-inline void Lifter::liftInvalid([[maybe_unused]] BasicBlock *bb, [[maybe_unused]] uint64_t ip) {
+inline void Lifter::lift_invalid([[maybe_unused]] BasicBlock *bb, [[maybe_unused]] uint64_t ip) {
 #ifdef DEBUG
     std::stringstream str;
     str << "Encountered invalid instruction during lifting. (BasicBlock #0x" << std::hex << bb->id << ", address <0x" << ip << ">)";

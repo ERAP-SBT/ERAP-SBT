@@ -90,7 +90,6 @@ struct CfOp {
     std::array<RefPtr<SSAVar>, 7> in_vars = {}; // 7 since syscall takes id + 6 args max
     std::variant<std::monostate, CJumpInfo, RetInfo, JumpInfo, IJumpInfo, CallInfo, ICallInfo, SyscallInfo> info;
 
-    // std::vector<SSAVar *> target_inputs;
     std::variant<std::monostate, LifterInfo> lifter_info;
 
     // TODO: add info for const_evalness here? may be able to optimize control flow this way
