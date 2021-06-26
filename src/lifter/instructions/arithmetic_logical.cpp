@@ -3,12 +3,6 @@
 using namespace lifter::RV64;
 
 void Lifter::lift_arithmetical_logical(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction &instruction_type, const Type &op_size) {
-    // create SSAVariable for the destination operand
-    SSAVar *destination = bb->add_var(op_size, ip, instr.instr.rd);
-
-    // create the shl operation
-    std::unique_ptr<Operation> operation = std::make_unique<Operation>(instruction_type);
-
     SSAVar *source_one = mapping.at(instr.instr.rs1);
     SSAVar *source_two = mapping.at(instr.instr.rs2);
 
@@ -29,6 +23,12 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, RV64Inst &instr, reg_map 
             print_invalid_op_size(instruction_type, instr);
         }
     }
+
+    // create SSAVariable for the destination operand
+    SSAVar *destination = bb->add_var(op_size, ip, instr.instr.rd);
+
+    // create the operation
+    std::unique_ptr<Operation> operation = std::make_unique<Operation>(instruction_type);
 
     // set operation in- and outputs
     operation->set_inputs(source_one, source_two);
@@ -53,7 +53,7 @@ void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, RV64Inst &instr
     // create SSAVariable for the destination operand
     SSAVar *destination = bb->add_var(op_size, ip, instr.instr.rd);
 
-    // create the shl operation
+    // create the operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(instruction_type);
 
     SSAVar *source_one = mapping.at(instr.instr.rs1);
