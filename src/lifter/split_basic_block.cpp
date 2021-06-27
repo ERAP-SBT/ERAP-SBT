@@ -2,40 +2,6 @@
 
 using namespace lifter::RV64;
 
-std::vector<RefPtr<SSAVar>> Lifter::filter_target_inputs(const std::vector<RefPtr<SSAVar>> &old_target_inputs, reg_map new_mapping, uint64_t split_addr) const {
-    std::vector<RefPtr<SSAVar>> new_target_inputs;
-    for (const auto &ref_target_input : old_target_inputs) {
-        if (ref_target_input->lifter_info.index() == 1) {
-            auto &lifterInfo = std::get<SSAVar::LifterInfo>(ref_target_input->lifter_info);
-
-            // only adjust target_inputs if they are in the first BasicBlock
-            if (lifterInfo.assign_addr < split_addr) {
-                new_target_inputs.emplace_back(RefPtr<SSAVar>(new_mapping.at(lifterInfo.static_id)));
-            } else {
-                new_target_inputs.emplace_back(ref_target_input);
-            }
-        }
-    }
-    return new_target_inputs;
-}
-
-std::vector<std::pair<RefPtr<SSAVar>, size_t>> Lifter::filter_target_inputs(const std::vector<std::pair<RefPtr<SSAVar>, size_t>> &old_target_inputs, reg_map new_mapping, uint64_t split_addr) const {
-    std::vector<std::pair<RefPtr<SSAVar>, size_t>> new_target_inputs;
-    for (const auto &ref_target_input : old_target_inputs) {
-        if (ref_target_input.first->lifter_info.index() == 1) {
-            auto &lifterInfo = std::get<SSAVar::LifterInfo>(ref_target_input.first->lifter_info);
-
-            // only adjust target_inputs if they are in the first BasicBlock
-            if (lifterInfo.assign_addr < split_addr) {
-                new_target_inputs.emplace_back(RefPtr<SSAVar>(new_mapping.at(ref_target_input.second)), ref_target_input.second);
-            } else {
-                new_target_inputs.emplace_back(ref_target_input.first, ref_target_input.second);
-            }
-        }
-    }
-    return new_target_inputs;
-}
-
 void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr) const {
     // divide SSAVars in two to categories, the one before the address and the one at or after the address
     std::vector<SSAVar *> first_bb_vars{};
@@ -100,8 +66,13 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr) const {
     for (auto it = second_bb_vars.rbegin(); it != second_bb_vars.rend(); it++) {
         SSAVar *var = it->get();
 
-        // add variable to the new BasicBlock
+        // add variable to the new BasicBlock -> this moving causes invalidated all references on the old ssa-var
         new_bb->variables.push_back(std::move(*it));
+        for (auto &cf_op : new_bb->control_flow_ops) {
+            for (auto &ref_ptr : cf_op.in_vars) {
+                ref_ptr.reset(new_bb->variables.back().get());
+            }
+        }
 
         // set new id according to the new BasicBlocks ids
         var->id = new_bb->cur_ssa_id++;
@@ -141,24 +112,13 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr) const {
             target->predecessors.push_back(new_bb);
         }
 
-        switch (cf_op.type) {
-        case CFCInstruction::jump:
-            std::get<CfOp::JumpInfo>(cf_op.info).target_inputs = filter_target_inputs(std::get<CfOp::JumpInfo>(cf_op.info).target_inputs, new_mapping, addr);
-            break;
-        case CFCInstruction::cjump:
-            std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs = filter_target_inputs(std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs, new_mapping, addr);
-            break;
-        case CFCInstruction::call:
-            std::get<CfOp::CallInfo>(cf_op.info).target_inputs = filter_target_inputs(std::get<CfOp::CallInfo>(cf_op.info).target_inputs, new_mapping, addr);
-            break;
-        case CFCInstruction::ijump:
-            std::get<CfOp::IJumpInfo>(cf_op.info).mapping = filter_target_inputs(std::get<CfOp::IJumpInfo>(cf_op.info).mapping, new_mapping, addr);
-            break;
-        case CFCInstruction::syscall:
-            std::get<CfOp::SyscallInfo>(cf_op.info).continuation_mapping = filter_target_inputs(std::get<CfOp::SyscallInfo>(cf_op.info).continuation_mapping, new_mapping, addr);
-            break;
-        default:
-            assert(0);
+        cf_op.clear_target_inputs();
+        for (size_t j = 0; j < new_mapping.size(); j++) {
+            auto var = new_mapping.at(j);
+            if (var != nullptr) {
+                cf_op.add_target_input(var, j);
+                std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = j;
+            }
         }
     }
 }

@@ -117,6 +117,28 @@ void CfOp::add_target_input(SSAVar *input, size_t static_idx) {
     }
 }
 
+void CfOp::clear_target_inputs() {
+    switch (type) {
+    case CFCInstruction::jump:
+        std::get<CfOp::JumpInfo>(info).target_inputs.clear();
+        break;
+    case CFCInstruction::cjump:
+        std::get<CfOp::CJumpInfo>(info).target_inputs.clear();
+        break;
+    case CFCInstruction::call:
+        std::get<CfOp::CallInfo>(info).target_inputs.clear();
+        break;
+    case CFCInstruction::ijump:
+        std::get<CfOp::IJumpInfo>(info).mapping.clear();
+        break;
+    case CFCInstruction::syscall:
+        std::get<CfOp::SyscallInfo>(info).continuation_mapping.clear();
+        break;
+    default:
+        assert(0);
+    }
+}
+
 void CfOp::set_target(BasicBlock *target) {
     assert(type == CFCInstruction::jump || type == CFCInstruction::cjump || type == CFCInstruction::ijump || type == CFCInstruction::call || type == CFCInstruction::syscall);
 

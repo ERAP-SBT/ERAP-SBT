@@ -102,6 +102,8 @@ struct CfOp {
     // the lifter currently depends on this method
     void add_target_input(SSAVar *input, size_t static_idx);
 
+    void clear_target_inputs();
+
     void set_target(BasicBlock *target);
 
     BasicBlock *target() const;
