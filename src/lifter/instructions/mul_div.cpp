@@ -4,7 +4,7 @@ using namespace lifter::RV64;
 
 void Lifter::lift_mul_div_rem(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction &instr_type, const Type &in_type) {
     // assign the first input and cast it to the correct size if necessary
-    SSAVar *rs_1 = mapping.at(instr.instr.rs1);
+    SSAVar *rs_1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
     if (rs_1->type != in_type) {
         auto cast = convert_type(bb, ip, rs_1, in_type);
         if (cast.has_value()) {
@@ -15,7 +15,7 @@ void Lifter::lift_mul_div_rem(BasicBlock *bb, RV64Inst &instr, reg_map &mapping,
     }
 
     // assign the second input and cast if necessary
-    SSAVar *rs_2 = mapping.at(instr.instr.rs2);
+    SSAVar *rs_2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
     if (rs_2->type != in_type) {
         auto cast = convert_type(bb, ip, rs_2, in_type);
         if (cast.has_value()) {
@@ -35,7 +35,7 @@ void Lifter::lift_mul_div_rem(BasicBlock *bb, RV64Inst &instr, reg_map &mapping,
     }
 
     // sign extend result to 64-bit register if the instruction was mul_w
-    if (in_type == Type::i32) {
+    /* if (in_type == Type::i32) {
         dest = bb->add_var(Type::i64, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::sign_extend);
@@ -43,8 +43,18 @@ void Lifter::lift_mul_div_rem(BasicBlock *bb, RV64Inst &instr, reg_map &mapping,
             op->set_outputs(dest);
             dest->set_op(std::move(op));
         }
+    } */
+    if (in_type == Type::i32) {
+        SSAVar *new_dest = bb->add_var(Type::i64, ip);
+        {
+            auto op = std::make_unique<Operation>(Instruction::sign_extend);
+            op->set_inputs(dest);
+            op->set_outputs(new_dest);
+            new_dest->set_op(std::move(op));
+        }
+        dest = new_dest;
     }
 
     // write SSAVar of the result of the operation back to mapping
-    mapping.at(instr.instr.rd) = dest;
+    write_to_mapping(mapping, dest, instr.instr.rd);
 }

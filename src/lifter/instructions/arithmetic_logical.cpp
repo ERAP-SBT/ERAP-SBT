@@ -50,10 +50,10 @@ void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, RV64Inst &instr
         immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip, false);
     }
 
-    SSAVar *source_one = mapping.at(instr.instr.rs1);
+    SSAVar *source_one = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
 
-    // test for invalid operand sizes
-    if (source_one->type != op_size) {
+    // test for invalid operand sizes and don't check immediates op_size
+    if (!source_one->const_evaluable && source_one->type != op_size) {
         auto cast = convert_type(bb, ip, source_one, op_size);
         if (cast.has_value()) {
             source_one = cast.value();
@@ -76,5 +76,5 @@ void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, RV64Inst &instr
     destination->set_op(std::move(operation));
 
     // write SSAVar of the result of the operation back to mapping
-    mapping.at(instr.instr.rd) = destination;
+    write_to_mapping(mapping, destination, instr.instr.rd);
 }

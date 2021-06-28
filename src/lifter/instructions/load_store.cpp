@@ -10,7 +10,8 @@ void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64
     SSAVar *load_addr = bb->add_var(Type::i64, ip);
     {
         auto add_op = std::make_unique<Operation>(Instruction::add);
-        add_op->set_inputs(mapping.at(instr.instr.rs1), offset);
+        SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
+        add_op->set_inputs(rs1, offset);
         add_op->set_outputs(load_addr);
         load_addr->set_op(std::move(add_op));
     }
@@ -37,7 +38,7 @@ void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64
     }
 
     // write SSAVar of the result of the operation and new memory token back to mapping
-    mapping.at(instr.instr.rd) = extended_result;
+    write_to_mapping(mapping, extended_result, instr.instr.rd);
 }
 
 void Lifter::lift_store(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size) {
@@ -48,13 +49,15 @@ void Lifter::lift_store(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint6
     SSAVar *store_addr = bb->add_var(Type::i64, ip);
     {
         auto add_op = std::make_unique<Operation>(Instruction::add);
-        add_op->set_inputs(mapping.at(instr.instr.rs1), offset);
+        SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
+        add_op->set_inputs(rs1, offset);
         add_op->set_outputs(store_addr);
         store_addr->set_op(std::move(add_op));
     }
 
     // cast variable to store to operand size
-    SSAVar *store_var = shrink_var(bb, mapping.at(instr.instr.rs2), ip, op_size);
+    SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
+    SSAVar *store_var = shrink_var(bb, rs2, ip, op_size);
 
     // create memory_token
     SSAVar *result_memory_token = bb->add_var(Type::mt, ip, MEM_IDX);

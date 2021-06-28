@@ -77,3 +77,16 @@ std::optional<SSAVar *> Lifter::convert_type(BasicBlock *bb, uint64_t ip, SSAVar
     new_var->set_op(std::move(op));
     return new_var;
 }
+
+SSAVar *Lifter::get_from_mapping(BasicBlock *bb, reg_map &mapping, int reg_id, int ip) {
+    if (!reg_id) {
+        return bb->add_var_imm(0, ip);
+    }
+    return mapping.at(reg_id);
+}
+
+void Lifter::write_to_mapping(reg_map &mapping, SSAVar *var, int reg_id) {
+    if (reg_id) {
+        mapping.at(reg_id) = var;
+    }
+}
