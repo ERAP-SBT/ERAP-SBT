@@ -220,9 +220,12 @@ void Generator::compile_vars(const BasicBlock *block) {
         if (std::holds_alternative<size_t>(var->info)) {
             assert(var->info.index() == 2);
 
-            const auto *reg_str = rax_from_type(var->type);
-            fprintf(out_fd, "mov rax, [s%zu]\n", std::get<size_t>(var->info));
-            fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", idx, reg_str);
+            // TODO: properly handle mt-statics (which are always present)
+            if (var->type != Type::mt) {
+                const auto *reg_str = rax_from_type(var->type);
+                fprintf(out_fd, "mov rax, [s%zu]\n", std::get<size_t>(var->info));
+                fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", idx, reg_str);
+            }
             continue;
         }
 

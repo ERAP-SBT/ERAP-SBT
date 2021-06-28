@@ -59,12 +59,15 @@ std::optional<SSAVar *> Lifter::convert_type(BasicBlock *bb, uint64_t ip, SSAVar
     if (var->type == desired_type) {
         return var;
     }
-    if (var->type > Type::f64 || desired_type > Type::f64) {
+
+    int type_order = cast_dir(var->type, desired_type);
+    if (type_order == -1) {
         return std::nullopt;
     }
+
     SSAVar *new_var = bb->add_var(desired_type, ip);
     std::unique_ptr<Operation> op;
-    if (var->type > desired_type) {
+    if (!type_order) {
         op = std::make_unique<Operation>(Instruction::cast);
     } else {
         op = std::make_unique<Operation>(Instruction::sign_extend);
