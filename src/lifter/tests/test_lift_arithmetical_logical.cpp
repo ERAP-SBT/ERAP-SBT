@@ -27,6 +27,11 @@ class TestArithmeticalLogicalLifting : public ::testing::Test {
             mapping.at(i) = bb->add_var(Type::i64, 1, i);
         }
     }
+
+    void TearDown() {
+        delete lifter;
+        delete ir;
+    }
 };
 
 TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_logical1) {
