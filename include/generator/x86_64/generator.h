@@ -16,6 +16,9 @@ struct Generator {
     void compile();
 
   protected:
+    enum class Section { DATA, BSS, TEXT, RODATA };
+    void compile_section(Section section);
+
     void compile_statics();
     void compile_blocks();
     void compile_block(BasicBlock *);

@@ -99,35 +99,53 @@ size_t index_for_var(const BasicBlock *block, const SSAVar *var) {
 void Generator::compile() {
     assert(err_msgs.empty());
 
-    fprintf(out_fd, ".intel_syntax noprefix\n.global _start\n\n.data\n");
+    fprintf(out_fd, ".intel_syntax noprefix\n\n");
     if (!binary_filepath.empty()) {
+        compile_section(Section::DATA);
         fprintf(out_fd, "binary: .incbin \"%s\"\n", binary_filepath.c_str());
     }
 
     compile_statics();
-    fprintf(out_fd, "param_passing: .space 128\n");
-    fprintf(out_fd, "stack_space: .space 1048576 # 1MiB\n");
+
+    compile_section(Section::BSS);
+
+    fprintf(out_fd, "param_passing:\n");
+    fprintf(out_fd, ".space 128\n");
+    fprintf(out_fd, ".type param_passing,STT_OBJECT\n");
+    fprintf(out_fd, ".size param_passing,$-param_passing\n");
+
+    fprintf(out_fd, ".align 16\n");
+    fprintf(out_fd, "stack_space:\n");
+    fprintf(out_fd, ".space 1048576\n"); /* 1MiB */
+    fprintf(out_fd, "stack_space_end:\n");
+    fprintf(out_fd, ".type stack_space,STT_OBJECT\n");
+    fprintf(out_fd, ".size stack_space,$-stack_space\n");
+
     fprintf(out_fd, "init_stack_ptr: .quad 0\n");
 
-    fprintf(out_fd, ".text\n");
     compile_blocks();
 
     compile_entry();
 
     // TODO: does this section name need to be smth else?
-    fprintf(out_fd, "\n.section .rodata\n");
+    compile_section(Section::RODATA);
     compile_err_msgs();
 }
 
 void Generator::compile_statics() {
+    compile_section(Section::DATA);
+
     for (const auto &var : ir->statics) {
         std::fprintf(out_fd, "s%zu: .quad 0\n", var.id); // for now have all of the statics be 64bit
     }
 }
 
 void Generator::compile_blocks() {
-    for (auto &block : ir->basic_blocks)
+    compile_section(Section::TEXT);
+
+    for (auto &block : ir->basic_blocks) {
         compile_block(block.get());
+    }
 }
 
 void Generator::compile_block(BasicBlock *block) {
@@ -186,13 +204,17 @@ void Generator::compile_block(BasicBlock *block) {
 }
 
 void Generator::compile_entry() {
+    compile_section(Section::TEXT);
+    fprintf(out_fd, ".global _start\n");
     fprintf(out_fd, "_start:\n");
     fprintf(out_fd, "mov rbx, offset param_passing\n");
     fprintf(out_fd, "mov rdi, rsp\n");
-    fprintf(out_fd, "mov rsi, offset stack_space\n");
+    fprintf(out_fd, "mov rsi, offset stack_space_end\n");
     fprintf(out_fd, "call copy_stack\n");
     fprintf(out_fd, "mov [init_stack_ptr], rax\n");
     fprintf(out_fd, "jmp b%zu\n", ir->entry_block);
+    fprintf(out_fd, ".type _start,STT_FUNC\n");
+    fprintf(out_fd, ".size _start,$-_start\n");
 }
 
 void Generator::compile_err_msgs() {
@@ -476,5 +498,22 @@ void Generator::compile_continuation_args(const BasicBlock *block, const std::ve
         fprintf(out_fd, "xor rax, rax\n");
         fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
         fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
+    }
+}
+
+void Generator::compile_section(Section section) {
+    switch (section) {
+    case Section::DATA:
+        fprintf(out_fd, ".data\n");
+        break;
+    case Section::BSS:
+        fprintf(out_fd, ".bss\n");
+        break;
+    case Section::TEXT:
+        fprintf(out_fd, ".text\n");
+        break;
+    case Section::RODATA:
+        fprintf(out_fd, ".section .rodata\n");
+        break;
     }
 }
