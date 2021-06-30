@@ -74,7 +74,7 @@ class Lifter {
     static std::optional<uint64_t> backtrace_jmp_addr(CfOp *, BasicBlock *);
     static std::optional<int64_t> get_var_value(SSAVar *, BasicBlock *, std::vector<SSAVar *> &);
     static std::optional<SSAVar *> get_last_static_assignment(size_t, BasicBlock *);
-    void split_basic_block(BasicBlock *, uint64_t) const;
+    void split_basic_block(BasicBlock *, uint64_t, ELF64File *) const;
     static void load_input_vars(BasicBlock *, Operation *, std::vector<int64_t> &, std::vector<SSAVar *> &);
     static std::optional<SSAVar *> convert_type(BasicBlock *, uint64_t, SSAVar *, Type);
     static void print_invalid_op_size(const Instruction &, RV64Inst &);

@@ -2,7 +2,7 @@
 
 using namespace lifter::RV64;
 
-void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr) const {
+void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_base) const {
     // divide SSAVars in two to categories, the one before the address and the one at or after the address
     std::vector<SSAVar *> first_bb_vars{};
     std::vector<std::unique_ptr<SSAVar>> second_bb_vars{};
@@ -32,7 +32,7 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr) const {
         }
     }
     // create the new BasicBlock
-    BasicBlock *new_bb = ir->add_basic_block(addr);
+    BasicBlock *new_bb = ir->add_basic_block(addr, elf_base->symbol_str_at_addr(addr).value_or(""));
 
     // transfer the control flow operations
     new_bb->control_flow_ops = std::move(bb->control_flow_ops);

@@ -4,7 +4,7 @@
 using namespace lifter::RV64;
 
 void Lifter::lift(Program *prog) {
-    dummy = ir->add_basic_block(0);
+    dummy = ir->add_basic_block(0, "Dummy Basic Block");
 
     if (prog->elf_base->section_headers.empty()) {
         // preload all instructions which are located "in" the program headers which are loaded, executable and readable
@@ -31,7 +31,7 @@ void Lifter::lift(Program *prog) {
     // add the memory token as the last static slot
     ir->add_static(Type::mt);
 
-    BasicBlock *first_bb = ir->add_basic_block(start_addr);
+    BasicBlock *first_bb = ir->add_basic_block(start_addr, prog->elf_base->symbol_str_at_addr(start_addr).value_or(""));
     {
         std::stringstream str;
         str << "Starting new basicblock #0x" << std::hex << first_bb->id;
@@ -61,7 +61,7 @@ void Lifter::lift(Program *prog) {
         size_t last_bb_id = ir->basic_blocks.back()->id;
 
         while (!unparsed_addrs.empty()) {
-            BasicBlock *new_bb = ir->add_basic_block(unparsed_addrs.at(0));
+            BasicBlock *new_bb = ir->add_basic_block(unparsed_addrs.at(0), prog->elf_base->symbol_str_at_addr(unparsed_addrs.at(0)).value_or(""));
             {
                 std::stringstream str;
                 str << "Starting new basicblock #0x" << std::hex << new_bb->id;
@@ -182,7 +182,7 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
 
         bool bb_exists = false;
         if (next_bb == nullptr) {
-            next_bb = ir->add_basic_block(jmp_addr);
+            next_bb = ir->add_basic_block(jmp_addr, prog->elf_base->symbol_str_at_addr(jmp_addr).value_or(""));
             func->add_block(next_bb);
         } else {
             bb_exists = true;
@@ -215,11 +215,11 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
         }
     }
 
-    std::for_each(to_split.begin(), to_split.end(), [this](auto &split_tuple) {
+    std::for_each(to_split.begin(), to_split.end(), [this, prog](auto &split_tuple) {
         std::stringstream str;
         str << "Splitting basic block #0x" << std::hex << split_tuple.second->id;
         DEBUG_LOG(str.str());
-        split_basic_block(split_tuple.second, split_tuple.first);
+        split_basic_block(split_tuple.second, split_tuple.first, prog->elf_base.get());
     });
 
     std::for_each(next_entrypoints.begin(), next_entrypoints.end(), [this, prog, func](auto &entrypoint_tuple) {
