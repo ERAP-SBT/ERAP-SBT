@@ -1,17 +1,16 @@
-#include <cstdint>
+#include "stddef.h"
 
-// otherwise gcc complains about size_t for some reason
-using size_t = std::size_t;
+#include <cstdint>
 
 namespace {
 // from https://github.com/aengelke/ria-jit/blob/master/src/runtime/emulateEcall.c
-// size_t syscall0(int syscall_number);
-size_t syscall1(int syscall_number, size_t a1);
-// size_t syscall2(int syscall_number, size_t a1, size_t a2);
-size_t syscall3(int syscall_number, size_t a1, size_t a2, size_t a3);
-// size_t syscall4(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4);
-// size_t syscall5(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5);
-// size_t syscall6(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5, size_t a6);
+[[maybe_unused]] size_t syscall0(int syscall_number);
+[[maybe_unused]] size_t syscall1(int syscall_number, size_t a1);
+[[maybe_unused]] size_t syscall2(int syscall_number, size_t a1, size_t a2);
+[[maybe_unused]] size_t syscall3(int syscall_number, size_t a1, size_t a2, size_t a3);
+[[maybe_unused]] size_t syscall4(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4);
+[[maybe_unused]] size_t syscall5(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5);
+[[maybe_unused]] size_t syscall6(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5, size_t a6);
 
 size_t strlen(const char *);
 void memcpy(void *dst, const void *src, size_t count);
@@ -151,32 +150,30 @@ extern "C" uint8_t *copy_stack(uint8_t *stack, uint8_t *out_stack) {
 
 namespace {
 // from https://github.com/aengelke/ria-jit/blob/master/src/runtime/emulateEcall.c
-#if 0
 size_t syscall0(int syscall_number) {
     size_t retval = syscall_number;
     __asm__ volatile("syscall" : "+a"(retval) : : "memory", "rcx", "r11");
     return retval;
 }
-#endif
 
 size_t syscall1(int syscall_number, size_t a1) {
     size_t retval = syscall_number;
     __asm__ volatile("syscall" : "+a"(retval) : "D"(a1) : "memory", "rcx", "r11");
     return retval;
 }
-#if 0
+
 size_t syscall2(int syscall_number, size_t a1, size_t a2) {
     size_t retval = syscall_number;
     __asm__ volatile("syscall" : "+a"(retval) : "D"(a1), "S"(a2) : "memory", "rcx", "r11");
     return retval;
 }
-#endif
+
 size_t syscall3(int syscall_number, size_t a1, size_t a2, size_t a3) {
     size_t retval = syscall_number;
     __asm__ volatile("syscall" : "+a"(retval) : "D"(a1), "S"(a2), "d"(a3) : "memory", "rcx", "r11");
     return retval;
 }
-#if 0
+
 size_t syscall4(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4) {
     size_t retval = syscall_number;
     register size_t r10 __asm__("r10") = a4;
@@ -200,7 +197,7 @@ size_t syscall6(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4, 
     __asm__ volatile("syscall" : "+a"(retval) : "D"(a1), "S"(a2), "d"(a3), "r"(r8), "r"(r9), "r"(r10) : "memory", "rcx", "r11");
     return retval;
 }
-#endif
+
 // need to implement ourselves without stdlib
 size_t strlen(const char *str) {
     size_t c = 0;
