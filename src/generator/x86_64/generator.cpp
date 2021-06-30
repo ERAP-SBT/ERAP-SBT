@@ -148,14 +148,14 @@ void Generator::compile_blocks() {
     }
 }
 
-void Generator::compile_block(BasicBlock *block) {
+void Generator::compile_block(const BasicBlock *block) {
     for (const auto *input : block->inputs) {
         // don't try to compile blocks that cannot be independent for now
         if (!std::holds_alternative<size_t>(input->info))
             return;
     }
 
-    size_t stack_size = block->variables.size() * 8;
+    const size_t stack_size = block->variables.size() * 8;
     fprintf(out_fd, "b%zu:\npush rbp\nmov rbp, rsp\nsub rsp, %zu\n", block->id, stack_size);
     compile_vars(block);
 
@@ -400,7 +400,7 @@ void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
     fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
 }
 
-void Generator::compile_ret_args(BasicBlock *block, const CfOp &op) {
+void Generator::compile_ret_args(const BasicBlock *block, const CfOp &op) {
     fprintf(out_fd, "# Ret Mapping\n");
     const auto index_for_var = [block](const SSAVar *var) -> size_t {
         for (size_t idx = 0; idx < block->variables.size(); ++idx) {
