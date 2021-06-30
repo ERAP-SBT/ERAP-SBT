@@ -1,54 +1,103 @@
-#include "generator/generator.h"
+#include "argument_parser.h"
+#include "common/internal.h"
 #include "generator/x86_64/generator.h"
 #include "ir/ir.h"
 #include "lifter/elf_file.h"
-#include "lifter/lifter.h"
 
-// disassembles the code at the entry symbol
-error_t test_elf_parsing(const std::string &test_path) {
-    ELF64File file{test_path};
-    error_t err = 0;
-    if ((err = file.parse_elf())) {
-        return err;
+#include <cstdlib>
+#include <iostream>
+
+namespace {
+void print_help(bool usage_only);
+void dump_elf(const ELF64File &);
+} // namespace
+
+int main(int argc, const char **argv) {
+    // Parse arguments, excluding the first entry (executable name)
+    Args args(argv + 1, argv + argc);
+
+    if (args.has_argument("help")) {
+        print_help(false);
+        return EXIT_SUCCESS;
     }
 
-    size_t start_symbol;
-    if (!(start_symbol = file.start_symbol().value_or(0))) {
-        std::cerr << "Can't find symbol at elf file entry point address.\n";
-        return ENOEXEC;
-    }
-    Elf64_Sym sym = file.symbols.at(start_symbol);
-
-    std::cout << "Start symbol: " << file.symbol_names.at(start_symbol) << "\n";
-    std::cout << "Start addr: 0x" << std::hex << sym.st_value << "\n";
-    std::cout << "End addr: 0x" << std::hex << sym.st_value + sym.st_size - 1 << "\n\n";
-
-    std::cout << "Bytes (hex):"
-              << "\n";
-
-    auto sym_loc = file.bytes_offset(start_symbol);
-    for (size_t i = sym_loc.first; i < sym_loc.first + sym_loc.second; i++) {
-        std::cout << std::hex << (uint)file.file_content[i];
-        std::cout << " ";
+    if (args.has_argument("debug")) {
+        ENABLE_DEBUG = args.get_value_as_bool("debug");
     }
 
-    std::cout << "\n\nDisassembly: \n";
-    for (size_t off = sym_loc.first; off < sym_loc.first + sym_loc.second;) {
-        FrvInst instr;
-        off += frv_decode(sym_loc.second - off, &file.file_content[off], FRV_RV64, &instr);
-        char str[64];
-        frv_format(&instr, 64, str);
-        std::cout << str << "\n";
+    if (args.positional.empty()) {
+        std::cerr << "Missing input file argument!\n";
+        print_help(true);
+        return EXIT_FAILURE;
     }
-    std::cout << "\n";
-    return 0;
+
+    auto elf_path = args.positional[0];
+
+    std::cout << "Translating file " << elf_path << '\n';
+
+    IR ir;
+
+    ELF64File elf_file(elf_path);
+    if (elf_file.parse_elf()) {
+        return EXIT_FAILURE;
+    }
+
+    if (args.has_argument("dump-elf")) {
+        std::cout << "------------------------------------------------------------\n";
+        std::cout << "Details of ELF file " << elf_path << ":\n";
+        dump_elf(elf_file);
+        std::cout << "------------------------------------------------------------\n";
+    }
+
+    FILE *output = stdout;
+    if (args.has_argument("output")) {
+        std::string output_file(args.get_argument("output"));
+        if (!(output = fopen(output_file.c_str(), "w"))) {
+            auto error_code = errno;
+            std::cerr << "The output file could not be opened: " << std::strerror(error_code) << '\n';
+            return EXIT_FAILURE;
+        }
+    }
+
+    // TODO call lifter
+
+    if (args.has_argument("print-ir")) {
+        std::cout << "------------------------------------------------------------\n";
+        std::cout << "IR after Lifting:\n";
+        ir.print(std::cout);
+        std::cout << "------------------------------------------------------------\n";
+    }
+
+    generator::x86_64::Generator generator(&ir, std::string(elf_path), output);
+    generator.compile();
+
+    if (output != stdout) {
+        fclose(output);
+    }
+
+    return EXIT_SUCCESS;
 }
 
-int main() {
-    error_t err = 0;
-    if ((err = test_elf_parsing("../rv64test.o"))) {
-        return err;
+namespace {
+void print_help(bool usage_only) {
+    std::cerr << "usage: translate <file> [args...]\n";
+    if (!usage_only) {
+        std::cerr << "Possible arguments are:\n";
+        std::cerr << "    --help:     Shows this help message\n";
+        std::cerr << "    --output:   Set the output file name (defaults to stdout)\n";
+        std::cerr << "    --debug:    Enables (or disables) debug logging\n";
+        std::cerr << "    --print-ir: Prints a textual representation of the IR\n";
+        std::cerr << "    --dump-elf: Show information about the input file\n";
     }
-
-    return 0;
 }
+
+void dump_elf(const ELF64File &file) {
+    if (auto entry_point = file.start_symbol()) {
+        std::cout << "    Entry point:     " << std::hex << *entry_point << std::dec << '\n';
+    };
+
+    std::cout << "    Sections:        " << file.section_headers.size() << '\n';
+    std::cout << "    Program headers: " << file.program_headers.size() << '\n';
+    std::cout << "    Symbol count:    " << file.symbol_names.size() << '\n';
+}
+} // namespace
