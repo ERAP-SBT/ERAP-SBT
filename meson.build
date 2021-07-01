@@ -14,3 +14,30 @@ endif
 inc = include_directories('include')
 
 subdir('src')
+
+# Docs target (this must be run manually)
+doxygen = find_program('doxygen', required : false)
+if doxygen.found()
+  message('Doxygen was found, documentation can be built using the "docs" target')
+
+  cdata = configuration_data()
+
+  cdata.set('VERSION', meson.project_version())
+  cdata.set('ROOTDIR', meson.source_root())
+
+  if find_program('dot', required : false).found()
+    cdata.set('HAVE_DOT', 'YES')
+  else
+    cdata.set('HAVE_DOT', 'NO')
+  endif
+
+  doxyfile = configure_file(
+      input : 'Doxyfile.in',
+      output : 'Doxyfile',
+      configuration : cdata,
+      install : false)
+  custom_target('docs',
+      input : doxyfile,
+      output : 'docs',
+      command : [doxygen, doxyfile])
+endif
