@@ -19,18 +19,21 @@ error_t ELF64File::parse_elf() {
         return e_code;
     }
 
-    // It's possible for an elf-file to not contain sections, which is currently not supported.
-    if (header.e_shoff == 0) {
-        std::cerr << "Invalid ELF input file: The input file doesn't contain sections.\n";
-        return ENOTSUP;
+    // Only sections if the elf files contains any
+    if (header.e_shoff != 0) {
+        if ((e_code = parse_sections())) {
+            return e_code;
+        }
     }
 
-    if ((e_code = parse_sections())) {
-        return e_code;
-    }
-
+    // elf files should always contain program headers
     if (header.e_phoff != 0) {
         if ((e_code = parse_program_headers())) {
+            return e_code;
+        }
+
+        // If the elf file is stripped, this won't add any symbols
+        if ((e_code = parse_symbols())) {
             return e_code;
         }
     } else {
@@ -38,10 +41,6 @@ error_t ELF64File::parse_elf() {
         return ENOEXEC;
     }
 
-    // This step should be made optional in the future
-    if ((e_code = parse_symbols())) {
-        return e_code;
-    }
     DEBUG_LOG("Done reading valid ELF file.");
     return e_code;
 }
@@ -65,8 +64,8 @@ error_t ELF64File::is_valid_elf_file() const {
         return ENOEXEC;
     }
 
-    // RISC-V operating system test
-    if (header.e_machine != EM_RISCV) {
+    // RISC-V operating system test (unknown machine is possible for stripped ELF binaries)
+    if (header.e_machine != EM_RISCV && header.e_machine != EM_NONE) {
         std::cout << "Invalid ELF file (only RISC-V ELF files are supported).\n";
         return ENOEXEC;
     }
@@ -82,7 +81,7 @@ error_t ELF64File::is_valid_elf_file() const {
         std::cout << "Invalid ELF file (only executable ELF files are supported).\n";
         return ENOEXEC;
     }
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 error_t ELF64File::read_file() {
@@ -106,13 +105,13 @@ error_t ELF64File::read_file() {
         return EIO;
     }
     file_content = std::vector<uint8_t>((std::istreambuf_iterator<char>(i_stream)), std::istreambuf_iterator<char>());
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 error_t ELF64File::parse_sections() {
     // Check for potential buffer overflows
     if (header.e_shentsize != sizeof(Elf64_Shdr)) {
-        std::cerr << "Invalid elf file section header size.";
+        std::cerr << "Invalid elf file section header size.\n";
         return ENOEXEC;
     }
 
@@ -144,18 +143,15 @@ error_t ELF64File::parse_sections() {
     } else {
         DEBUG_LOG("No section name string table declared in ELF file, skipping.");
     }
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 error_t ELF64File::parse_program_headers() {
-    if (section_headers.empty()) {
-        std::cerr << "No section headers were found in the ELF-File. This is currently not supported.\n";
-        return ENOTSUP;
-    }
     if (header.e_phentsize != sizeof(Elf64_Phdr)) {
-        std::cerr << "Invalid elf file program header size.";
+        std::cerr << "Invalid elf file program header size.\n";
         return ENOEXEC;
     }
+
     for (size_t i = 0; i < header.e_phnum; ++i) {
         Elf64_Phdr phdr;
         std::memcpy(&phdr, file_content.data() + header.e_phoff + (header.e_phentsize * i), sizeof(Elf64_Phdr));
@@ -163,8 +159,10 @@ error_t ELF64File::parse_program_headers() {
 
         if (phdr.p_type == PT_INTERP) {
             std::cerr << "The input file features information for an interpreter. This type of ELF file is not supported.\n";
+            return ENOEXEC;
         } else if (phdr.p_type == PT_DYNAMIC) {
             std::cerr << "The input file features dynamic linking information. This type of ELF file is not supported.\n";
+            return ENOEXEC;
         }
 
         auto &program_map = segment_section_map.emplace_back();
@@ -176,7 +174,7 @@ error_t ELF64File::parse_program_headers() {
             }
         }
     }
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 error_t ELF64File::parse_symbols() {
@@ -195,8 +193,8 @@ error_t ELF64File::parse_symbols() {
     }
     // a symbol section should be present in the current file
     if (sym_tbl_i == SIZE_MAX) {
-        std::cerr << "No symbol section was found in the ELF file.";
-        return ENOTSUP;
+        std::cerr << "No symbol section was found in the ELF file. Skipping symbol parsing.\n";
+        return EXIT_SUCCESS;
     }
     Elf64_Shdr sym_tbl = section_headers.at(sym_tbl_i);
 
@@ -216,7 +214,7 @@ error_t ELF64File::parse_symbols() {
     } else {
         DEBUG_LOG("No symbol name string table found in sections, skipping.");
     }
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 error_t ELF64File::init_header() {
@@ -226,7 +224,7 @@ error_t ELF64File::init_header() {
     }
     // We have to assume the header is conformant to the specified format
     std::memcpy(&header, file_content.data(), sizeof(header));
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 std::optional<size_t> ELF64File::start_symbol() const {
