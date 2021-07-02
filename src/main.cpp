@@ -73,7 +73,7 @@ int main(int argc, const char **argv) {
     }
 
     generator::x86_64::Generator generator(&ir, std::string(elf_path), output);
-    // generator.compile();
+    generator.compile();
 
     if (output != stdout) {
         fclose(output);
