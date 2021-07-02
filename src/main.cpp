@@ -3,13 +3,14 @@
 #include "generator/x86_64/generator.h"
 #include "ir/ir.h"
 #include "lifter/elf_file.h"
+#include "lifter/lifter.h"
 
 #include <cstdlib>
 #include <iostream>
 
 namespace {
 void print_help(bool usage_only);
-void dump_elf(const ELF64File &);
+void dump_elf(const ELF64File *);
 } // namespace
 
 int main(int argc, const char **argv) {
@@ -37,15 +38,15 @@ int main(int argc, const char **argv) {
 
     IR ir;
 
-    ELF64File elf_file(elf_path);
-    if (elf_file.parse_elf()) {
+    std::unique_ptr<ELF64File> elf_file = std::make_unique<ELF64File>(elf_path);
+    if (elf_file->parse_elf()) {
         return EXIT_FAILURE;
     }
 
     if (args.has_argument("dump-elf")) {
         std::cout << "------------------------------------------------------------\n";
         std::cout << "Details of ELF file " << elf_path << ":\n";
-        dump_elf(elf_file);
+        dump_elf(elf_file.get());
         std::cout << "------------------------------------------------------------\n";
     }
 
@@ -59,7 +60,10 @@ int main(int argc, const char **argv) {
         }
     }
 
-    // TODO call lifter
+    Program prog(std::move(elf_file));
+
+    auto lifter = lifter::RV64::Lifter(&ir);
+    lifter.lift(&prog);
 
     if (args.has_argument("print-ir")) {
         std::cout << "------------------------------------------------------------\n";
@@ -69,7 +73,7 @@ int main(int argc, const char **argv) {
     }
 
     generator::x86_64::Generator generator(&ir, std::string(elf_path), output);
-    generator.compile();
+    // generator.compile();
 
     if (output != stdout) {
         fclose(output);
@@ -91,13 +95,13 @@ void print_help(bool usage_only) {
     }
 }
 
-void dump_elf(const ELF64File &file) {
-    if (auto entry_point = file.start_symbol()) {
+void dump_elf(const ELF64File *file) {
+    if (auto entry_point = file->start_symbol()) {
         std::cout << "    Entry point:     " << std::hex << *entry_point << std::dec << '\n';
     };
 
-    std::cout << "    Sections:        " << file.section_headers.size() << '\n';
-    std::cout << "    Program headers: " << file.program_headers.size() << '\n';
-    std::cout << "    Symbol count:    " << file.symbol_names.size() << '\n';
+    std::cout << "    Sections:        " << file->section_headers.size() << '\n';
+    std::cout << "    Program headers: " << file->program_headers.size() << '\n';
+    std::cout << "    Symbol count:    " << file->symbol_names.size() << '\n';
 }
 } // namespace

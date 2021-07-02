@@ -131,11 +131,7 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
             }
 
             RV64Inst instr = std::get<RV64Inst>(prog->data.at(i));
-#ifdef DEBUG
-            std::stringstream str;
-            str << "0x" << std::hex << prog->addrs.at(i) << ": " << str_decode_instr(&instr.instr);
-            // DEBUG_LOG(str.str());
-#endif
+
             // the next_addr is used for CfOps which require a return address / address of the next instruction
             uint64_t next_addr;
 

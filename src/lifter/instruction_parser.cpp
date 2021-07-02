@@ -225,11 +225,11 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
 }
 
 inline void Lifter::lift_invalid([[maybe_unused]] BasicBlock *bb, [[maybe_unused]] uint64_t ip) {
-#ifdef DEBUG
-    std::stringstream str;
-    str << "Encountered invalid instruction during lifting. (BasicBlock #0x" << std::hex << bb->id << ", address <0x" << ip << ">)";
-    DEBUG_LOG(str.str());
-#endif
+    if (ENABLE_DEBUG) {
+        std::stringstream str;
+        str << "Encountered invalid instruction during lifting. (BasicBlock #0x" << std::hex << bb->id << ", address <0x" << ip << ">)";
+        DEBUG_LOG(str.str());
+    }
 }
 
 void Lifter::lift_slt(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, bool isUnsigned, bool withImmediate) {
@@ -292,9 +292,9 @@ void Lifter::lift_lui(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
 }
 
 void Lifter::lift_fence([[maybe_unused]] BasicBlock *bb, [[maybe_unused]] RV64Inst &instr, [[maybe_unused]] uint64_t ip) {
-#ifdef DEBUG
-    std::stringstream str;
-    str << "Skipping " << str_decode_instr(&instr.instr) << " instruction. (BasicBlock #0x" << std::hex << bb->id << ", address <0x" << ip << ">)";
-    DEBUG_LOG(str.str());
-#endif
+    if (ENABLE_DEBUG) {
+        std::stringstream str;
+        str << "Skipping " << str_decode_instr(&instr.instr) << " instruction. (BasicBlock #0x" << std::hex << bb->id << ", address <0x" << ip << ">)";
+        DEBUG_LOG(str.str());
+    }
 }
