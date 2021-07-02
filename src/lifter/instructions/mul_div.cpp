@@ -35,15 +35,6 @@ void Lifter::lift_mul_div_rem(BasicBlock *bb, RV64Inst &instr, reg_map &mapping,
     }
 
     // sign extend result to 64-bit register if the instruction was mul_w
-    /* if (in_type == Type::i32) {
-        dest = bb->add_var(Type::i64, ip);
-        {
-            auto op = std::make_unique<Operation>(Instruction::sign_extend);
-            op->set_inputs(mapping.at(instr.instr.rs1));
-            op->set_outputs(dest);
-            dest->set_op(std::move(op));
-        }
-    } */
     if (in_type == Type::i32) {
         SSAVar *new_dest = bb->add_var(Type::i64, ip);
         {

@@ -107,6 +107,7 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
     for (size_t i = 0; i < 33; i++) {
         mapping.at(i) = curr_bb->add_var_from_static(i, start_addr);
     }
+    mapping.at(ZERO_IDX) = nullptr;
 
     // for now, we stop after 10000 instructions / data elements in one basic block
     for (size_t i = start_i; i < start_i + 10000 && i < prog->addrs.size(); i++) {

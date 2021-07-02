@@ -7,10 +7,10 @@ void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64
     SSAVar *offset = load_immediate(bb, instr.instr.imm, ip, false);
 
     // 3. add offset to rs1
+    SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, (int64_t)ip);
     SSAVar *load_addr = bb->add_var(Type::i64, ip);
     {
         auto add_op = std::make_unique<Operation>(Instruction::add);
-        SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
         add_op->set_inputs(rs1, offset);
         add_op->set_outputs(load_addr);
         load_addr->set_op(std::move(add_op));
@@ -46,10 +46,10 @@ void Lifter::lift_store(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint6
     SSAVar *offset = load_immediate(bb, instr.instr.imm, ip, false);
 
     // 2. add offset to rs1
+    SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
     SSAVar *store_addr = bb->add_var(Type::i64, ip);
     {
         auto add_op = std::make_unique<Operation>(Instruction::add);
-        SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
         add_op->set_inputs(rs1, offset);
         add_op->set_outputs(store_addr);
         store_addr->set_op(std::move(add_op));

@@ -12,6 +12,9 @@ class Lifter {
 
     void lift(Program *);
 
+    // Register index for constant zero "register" (RISC-V default: 0)
+    static constexpr size_t ZERO_IDX = 0;
+
     // Index of memory token in <reg_map> register mapping
     static constexpr size_t MEM_IDX = 32;
 

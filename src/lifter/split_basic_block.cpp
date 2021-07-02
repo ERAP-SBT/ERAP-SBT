@@ -31,6 +31,7 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
             }
         }
     }
+
     // create the new BasicBlock
     BasicBlock *new_bb = ir->add_basic_block(addr, elf_base->symbol_str_at_addr(addr).value_or(""));
 
@@ -60,6 +61,7 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
             }
             new_mapping.at(i) = new_bb->add_var_from_static(i, addr);
         }
+        new_mapping.at(ZERO_IDX) = nullptr;
     }
 
     // store the variables in the new basic block and adjust their inputs (if necessary)
