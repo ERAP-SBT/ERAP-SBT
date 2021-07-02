@@ -469,6 +469,11 @@ void Generator::compile_syscall(const BasicBlock *block, const CfOp &cf_op) {
     for (size_t i = 0; i < call_reg.size(); ++i) {
         if (cf_op.in_vars[i] == nullptr)
             break;
+
+        if (cf_op.in_vars[i]->type == Type::mt)
+            continue;
+
+        fprintf(out_fd, "# syscall argument %lu\n", i);
         fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", call_reg[i], index_for_var(block, cf_op.in_vars[i]));
     }
     if (cf_op.in_vars[6] == nullptr) {
