@@ -236,3 +236,11 @@ std::optional<size_t> ELF64File::start_symbol() const {
     }
     return std::nullopt;
 }
+
+std::optional<std::string> ELF64File::symbol_str_at_addr(uint64_t virt_addr) const {
+    auto it = std::find_if(symbols.begin(), symbols.end(), [virt_addr](auto &sym) { return sym.st_value == virt_addr; });
+    if (it != symbols.end()) {
+        return symbol_names.at(std::distance(symbols.begin(), it));
+    }
+    return std::nullopt;
+}

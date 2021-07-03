@@ -12,11 +12,15 @@ BasicBlock::~BasicBlock() {
     }
 }
 
-SSAVar *BasicBlock::add_var_from_static(const size_t static_idx) {
+SSAVar *BasicBlock::add_var_from_static(const size_t static_idx, uint64_t assign_addr) {
     const auto &static_var = ir->statics[static_idx];
     auto var = std::make_unique<SSAVar>(cur_ssa_id++, static_var.type, static_idx);
+    var->lifter_info = SSAVar::LifterInfo{assign_addr, static_idx};
     const auto ptr = var.get();
     variables.push_back(std::move(var));
+    if (static_idx) {
+        add_input(ptr);
+    }
     return ptr;
 }
 

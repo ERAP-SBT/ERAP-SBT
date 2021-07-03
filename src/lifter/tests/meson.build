@@ -1,10 +1,11 @@
-lifter_tests_src = ['test1.cpp']
+lifter_tests_src = ['test_lift_arithmetical_logical.cpp']
 
 test('lifter',
      executable('gtest-lifter',
                 lifter_tests_src,
                 dependencies : [
-                    gtest_dep
+                    gtest_dep,
+                    frvdec_dep
                 ],
                 include_directories : inc,
-                link_with : [lifter]))
+                link_with : [lifter, ir]))

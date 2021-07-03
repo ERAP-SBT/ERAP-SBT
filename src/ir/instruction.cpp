@@ -14,11 +14,17 @@ std::ostream &operator<<(std::ostream &stream, Instruction instr) {
     case Instruction::sub:
         stream << "sub";
         break;
-    case Instruction::mul:
-        stream << "mul";
+    case Instruction::mul_l:
+        stream << "mul_l";
         break;
-    case Instruction::umul:
-        stream << "umul";
+    case Instruction::ssmul_h:
+        stream << "ssmul_h";
+        break;
+    case Instruction::uumul_h:
+        stream << "uumul_h";
+        break;
+    case Instruction::sumul_h:
+        stream << "sumul_h";
         break;
     case Instruction::div:
         stream << "div";
@@ -55,6 +61,18 @@ std::ostream &operator<<(std::ostream &stream, Instruction instr) {
         break;
     case Instruction::setup_stack:
         stream << "setup_stack";
+        break;
+    case Instruction::zero_extend:
+        stream << "zext";
+        break;
+    case Instruction::sign_extend:
+        stream << "sext";
+        break;
+    case Instruction::slt:
+        stream << "slt";
+        break;
+    case Instruction::sltu:
+        stream << "sltu";
         break;
     }
 

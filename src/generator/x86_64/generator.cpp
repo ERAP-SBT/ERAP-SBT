@@ -133,7 +133,7 @@ void Generator::compile_blocks() {
 void Generator::compile_block(BasicBlock *block) {
     for (const auto *input : block->inputs) {
         // don't try to compile blocks that cannot be independent for now
-        if (!input->from_static)
+        if (!std::holds_alternative<size_t>(input->info))
             return;
     }
 
@@ -217,12 +217,15 @@ void Generator::compile_vars(const BasicBlock *block) {
         if (var->info.index() == 0)
             continue;
 
-        if (var->from_static) {
+        if (std::holds_alternative<size_t>(var->info)) {
             assert(var->info.index() == 2);
 
-            const auto *reg_str = rax_from_type(var->type);
-            fprintf(out_fd, "mov rax, [s%zu]\n", std::get<size_t>(var->info));
-            fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", idx, reg_str);
+            // TODO: properly handle mt-statics (which are always present)
+            if (var->type != Type::mt) {
+                const auto *reg_str = rax_from_type(var->type);
+                fprintf(out_fd, "mov rax, [s%zu]\n", std::get<size_t>(var->info));
+                fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", idx, reg_str);
+            }
             continue;
         }
 
@@ -283,11 +286,6 @@ void Generator::compile_vars(const BasicBlock *block) {
             assert(arg_count == 2);
             fprintf(out_fd, "sub rax, rbx\n");
             break;
-        case Instruction::mul:
-        case Instruction::umul:
-            assert(arg_count == 2);
-            fprintf(out_fd, "imul rax, rbx\n");
-            break;
         case Instruction::div:
             assert(arg_count == 2);
             fprintf(out_fd, "cqo\nidiv rbx\n");
@@ -334,6 +332,9 @@ void Generator::compile_vars(const BasicBlock *block) {
             assert(arg_count == 0);
             fprintf(out_fd, "mov rax, [init_stack_ptr]\n");
             break;
+        default:
+            // TODO: ssmul_h, uumul_h, sumul_h, rem, urem, slt, sltu, sign_extend, zero_extend
+            break;
         }
 
         if (var->type != Type::mt) {
@@ -359,7 +360,7 @@ void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
         assert(target_var->type != Type::imm && target_var->info.index() > 1);
 
         fprintf(out_fd, "# Setting input %zu\n", i);
-        if (target_var->from_static) {
+        if (std::holds_alternative<size_t>(target_var->info)) {
             fprintf(out_fd, "xor rax, rax\n");
             fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(source_var->type), index_for_var(block, source_var));
             fprintf(out_fd, "mov [s%zu], rax\n", std::get<size_t>(target_var->info));
@@ -456,8 +457,14 @@ void Generator::compile_syscall(const BasicBlock *block, const CfOp &cf_op) {
     }
 
     fprintf(out_fd, "call syscall_impl\n");
-    if (info.static_mapping.has_value()) {
-        fprintf(out_fd, "mov [s%zu], rax\n", *info.static_mapping);
+    if (info.static_mapping.size() > 0) {
+        fprintf(out_fd, "mov [s%zu], rax\n", info.static_mapping.at(0));
+        if (info.static_mapping.size() == 2) {
+            fprintf(out_fd, "mov [s%zu], rdx\n", info.static_mapping.at(1));
+        } else {
+            // syscalls only return max 2 values
+            assert(0);
+        }
     }
     fprintf(out_fd, "# destroy stack space\n");
     fprintf(out_fd, "mov rsp, rbp\npop rbp\n");

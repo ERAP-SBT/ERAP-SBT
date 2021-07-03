@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cerrno>
 #include <common/internal.h>
 #include <cstring>
@@ -64,4 +65,6 @@ class ELF64File {
     }
 
     [[nodiscard]] std::optional<size_t> start_symbol() const;
+
+    [[nodiscard]] std::optional<std::string> symbol_str_at_addr(uint64_t virt_addr) const;
 };

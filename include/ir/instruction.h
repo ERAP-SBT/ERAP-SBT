@@ -6,9 +6,11 @@ enum class Instruction {
     load,
     add,
     sub,
-    mul,
-    umul,
-    div,
+    mul_l,   //                         => lower half of result
+    ssmul_h, // signed * signed         => upper half of result
+    uumul_h, // unsigned * unsigned     => upper half of result
+    sumul_h, // signed * unsigned       => upper half of result
+    div,     // two possible return values: 1. result, 2. remainder
     udiv,
     shl,
     shr,
@@ -18,6 +20,10 @@ enum class Instruction {
     _not,
     _xor,
     cast,
+    slt,
+    sltu,
+    sign_extend,
+    zero_extend,
     immediate,
     setup_stack,
 };
