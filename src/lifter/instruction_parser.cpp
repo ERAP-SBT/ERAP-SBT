@@ -57,45 +57,45 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
         break;
 
     case FRV_MUL:
-        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::mul_l, Type::i64);
+        lift_mul(bb, instr, mapping, ip, Instruction::mul_l, Type::i64);
         break;
     case FRV_MULH:
-        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::ssmul_h, Type::i64);
+        lift_mul(bb, instr, mapping, ip, Instruction::ssmul_h, Type::i64);
         break;
     case FRV_MULHSU:
-        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::sumul_h, Type::i64);
+        lift_mul(bb, instr, mapping, ip, Instruction::sumul_h, Type::i64);
         break;
     case FRV_MULHU:
-        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::uumul_h, Type::i64);
+        lift_mul(bb, instr, mapping, ip, Instruction::uumul_h, Type::i64);
         break;
     case FRV_MULW:
-        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::mul_l, Type::i32);
+        lift_mul(bb, instr, mapping, ip, Instruction::mul_l, Type::i32);
         break;
 
     case FRV_DIV:
-        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::div, Type::i64);
+        lift_div(bb, instr, mapping, ip, true, false, Type::i64);
         break;
     case FRV_DIVU:
-        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::udiv, Type::i64);
+        lift_div(bb, instr, mapping, ip, false, false, Type::i64);
         break;
     case FRV_DIVW:
-        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::div, Type::i32);
+        lift_div(bb, instr, mapping, ip, true, false, Type::i32);
         break;
     case FRV_DIVUW:
-        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::udiv, Type::i32);
+        lift_div(bb, instr, mapping, ip, false, false, Type::i32);
         break;
 
     case FRV_REM:
-        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::rem, Type::i64);
+        lift_div(bb, instr, mapping, ip, true, true, Type::i64);
         break;
     case FRV_REMU:
-        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::urem, Type::i64);
+        lift_div(bb, instr, mapping, ip, false, true, Type::i64);
         break;
     case FRV_REMW:
-        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::rem, Type::i32);
+        lift_div(bb, instr, mapping, ip, true, true, Type::i32);
         break;
     case FRV_REMUW:
-        lift_mul_div_rem(bb, instr, mapping, ip, Instruction::urem, Type::i32);
+        lift_div(bb, instr, mapping, ip, false, true, Type::i32);
         break;
 
     case FRV_SUB:
