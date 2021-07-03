@@ -44,8 +44,8 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
     bb->successors.push_back(new_bb);
 
     // correct the start and end addresses
-    std::get<1>(new_bb->lifter_info).second = std::get<1>(bb->lifter_info).second;
-    std::get<1>(bb->lifter_info).second = std::get<SSAVar::LifterInfo>(first_bb_vars.front()->lifter_info).assign_addr;
+    ir->set_bb_end_addr(new_bb, std::get<1>(bb->lifter_info).second);
+    ir->set_bb_end_addr(bb, std::get<SSAVar::LifterInfo>(first_bb_vars.front()->lifter_info).assign_addr);
 
     // the register mapping in the BasicBlock
     reg_map new_mapping{};

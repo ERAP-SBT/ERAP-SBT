@@ -21,6 +21,7 @@ class TestArithmeticalLogicalLifting : public ::testing::Test {
         ir = new IR();
         lifter = new Lifter(ir);
         virt_start_addr = random();
+        ir->setup_bb_addr_vec(virt_start_addr, virt_start_addr + 100);
         bb = ir->add_basic_block(virt_start_addr);
         mapping = Lifter::reg_map{};
         for (size_t i = 0; i < mapping.size(); i++) {

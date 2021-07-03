@@ -22,6 +22,8 @@ void Lifter::lift(Program *prog) {
         }
     }
 
+    ir->setup_bb_addr_vec(prog->addrs.at(0), prog->addrs.back());
+
     uint64_t start_addr = prog->elf_base->header.e_entry;
     Function *curr_fun = ir->add_func();
 
@@ -117,16 +119,13 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
             if (i > start_i) {
                 // test if another parsed or unparsed basic block starts at this instruction to avoid duplicated instructions
                 auto jmp_addr = prog->addrs.at(i);
-                auto bb_addr_it = ir->bb_start_addrs.find(jmp_addr);
-                if (bb_addr_it != ir->bb_start_addrs.end()) {
-                    auto &bb = *std::find_if(ir->basic_blocks.begin(), ir->basic_blocks.end(), [bb_addr_it](auto &bb) { return std::get<1>(bb->lifter_info).first == *bb_addr_it; });
-
+                auto bb = ir->bb_at_addr(jmp_addr);
+                if (bb) {
                     auto instr_addr = prog->addrs.at(i - 1);
                     SSAVar *addr_imm = curr_bb->add_var_imm((int64_t)jmp_addr, instr_addr, true);
-                    CfOp &jmp = curr_bb->add_cf_op(CFCInstruction::jump, bb.get(), instr_addr, std::get<1>(bb->lifter_info).first);
+                    CfOp &jmp = curr_bb->add_cf_op(CFCInstruction::jump, bb, instr_addr, std::get<1>(bb->lifter_info).first);
                     jmp.set_inputs(addr_imm);
-
-                    std::get<1>(curr_bb->lifter_info).second = instr_addr;
+                    ir->set_bb_end_addr(curr_bb, instr_addr);
                     break;
                 }
             }
@@ -144,7 +143,7 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
             }
             parse_instruction(instr, curr_bb, mapping, prog->addrs.at(i), next_addr);
             if (!curr_bb->control_flow_ops.empty()) {
-                std::get<1>(curr_bb->lifter_info).second = prog->addrs.at(i);
+                ir->set_bb_end_addr(curr_bb, prog->addrs.at(i));
                 break;
             }
         }
