@@ -45,12 +45,13 @@ void Lifter::lift(Program *prog) {
 
     if (LIFT_ALL_LOAD) {
         std::vector<uint64_t> unparsed_addrs = std::vector<uint64_t>(prog->addrs);
-        for (auto &bb : ir->basic_blocks) {
-            uint64_t virt_start_addr = std::get<1>(bb->lifter_info).first;
-            uint64_t virt_end_addr = std::get<1>(bb->lifter_info).second;
+
+        for (const auto &bb : ir->basic_blocks) {
+            const uint64_t virt_start_addr = bb->virt_start_addr;
+            const uint64_t virt_end_addr = bb->virt_end_addr;
 
             if (virt_start_addr && virt_end_addr) {
-                auto start_i = (size_t)std::distance(unparsed_addrs.begin(), std::find(unparsed_addrs.begin(), unparsed_addrs.end(), virt_start_addr));
+                const auto start_i = (size_t)std::distance(unparsed_addrs.begin(), std::find(unparsed_addrs.begin(), unparsed_addrs.end(), virt_start_addr));
                 while (unparsed_addrs.at(start_i) != virt_end_addr) {
                     unparsed_addrs.erase(std::next(unparsed_addrs.begin(), (long)start_i));
                 }
@@ -60,6 +61,7 @@ void Lifter::lift(Program *prog) {
                 }
             }
         }
+
         size_t last_bb_id = ir->basic_blocks.back()->id;
 
         while (!unparsed_addrs.empty()) {
@@ -72,9 +74,9 @@ void Lifter::lift(Program *prog) {
             lift_rec(prog, curr_fun, unparsed_addrs.at(0), std::nullopt, new_bb);
 
             for (auto &bb : ir->basic_blocks) {
-                if (bb->id > last_bb_id && std::get<1>(bb->lifter_info).first && std::get<1>(bb->lifter_info).second) {
-                    auto start_i = (size_t)std::distance(unparsed_addrs.begin(), std::find(unparsed_addrs.begin(), unparsed_addrs.end(), std::get<1>(bb->lifter_info).first));
-                    while (unparsed_addrs.size() > start_i && unparsed_addrs.at(start_i) != std::get<1>(bb->lifter_info).second) {
+                if (bb->id > last_bb_id && bb->virt_start_addr && bb->virt_end_addr) {
+                    auto start_i = (size_t)std::distance(unparsed_addrs.begin(), std::find(unparsed_addrs.begin(), unparsed_addrs.end(), bb->virt_start_addr));
+                    while (unparsed_addrs.size() > start_i && unparsed_addrs.at(start_i) != bb->virt_end_addr) {
                         unparsed_addrs.erase(std::next(unparsed_addrs.begin(), (long)start_i));
                     }
                     // don't forget to also erase the end address
@@ -123,9 +125,9 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
                 if (bb) {
                     auto instr_addr = prog->addrs.at(i - 1);
                     SSAVar *addr_imm = curr_bb->add_var_imm((int64_t)jmp_addr, instr_addr, true);
-                    CfOp &jmp = curr_bb->add_cf_op(CFCInstruction::jump, bb, instr_addr, std::get<1>(bb->lifter_info).first);
+                    CfOp &jmp = curr_bb->add_cf_op(CFCInstruction::jump, bb, instr_addr, bb->virt_start_addr);
                     jmp.set_inputs(addr_imm);
-                    ir->set_bb_end_addr(curr_bb, instr_addr);
+                    curr_bb->set_virt_end_addr(instr_addr);
                     break;
                 }
             }
@@ -143,7 +145,7 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
             }
             parse_instruction(instr, curr_bb, mapping, prog->addrs.at(i), next_addr);
             if (!curr_bb->control_flow_ops.empty()) {
-                ir->set_bb_end_addr(curr_bb, prog->addrs.at(i));
+                curr_bb->set_virt_end_addr(prog->addrs.at(i));
                 break;
             }
         }
@@ -200,7 +202,7 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
 
         if (next_bb != dummy) {
             if (bb_exists) {
-                if (std::get<1>(next_bb->lifter_info).first != jmp_addr) {
+                if (next_bb->virt_start_addr != jmp_addr) {
                     // the jump address is inside a parsed basic block -> split the block
                     // the split basic block function needs the cfOps fully initialized.
                     to_split.emplace_back(jmp_addr, next_bb);

@@ -44,14 +44,14 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
     bb->successors.push_back(new_bb);
 
     // correct the start and end addresses
-    ir->set_bb_end_addr(new_bb, std::get<1>(bb->lifter_info).second);
-    ir->set_bb_end_addr(bb, std::get<SSAVar::LifterInfo>(first_bb_vars.front()->lifter_info).assign_addr);
+    new_bb->set_virt_end_addr(bb->virt_end_addr);
+    bb->set_virt_end_addr(std::get<SSAVar::LifterInfo>(first_bb_vars.front()->lifter_info).assign_addr);
 
     // the register mapping in the BasicBlock
     reg_map new_mapping{};
     {
         // add a jump from the first to the second BasicBlock
-        auto &cf_op = bb->add_cf_op(CFCInstruction::jump, new_bb, std::get<1>(bb->lifter_info).second, addr);
+        auto &cf_op = bb->add_cf_op(CFCInstruction::jump, new_bb, bb->virt_end_addr, addr);
 
         // static assignments
         for (size_t i = 0; i < mapping.size(); i++) {

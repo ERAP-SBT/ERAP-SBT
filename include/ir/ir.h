@@ -49,16 +49,6 @@ struct IR {
 
     BasicBlock *bb_at_addr(uint64_t addr) { return virt_bb_ptrs.at((addr - virt_bb_start_addr) / 2); }
 
-    void set_bb_end_addr(BasicBlock *bb, uint64_t end_addr) {
-        uint64_t start_addr = std::get<std::pair<uint64_t, uint64_t>>(bb->lifter_info).first;
-        assert(start_addr);
-        std::get<std::pair<uint64_t, uint64_t>>(bb->lifter_info).second = end_addr;
-
-        for (size_t addr = (start_addr - virt_bb_start_addr) / 2; addr <= (end_addr - virt_bb_start_addr) / 2; addr++) {
-            virt_bb_ptrs.at(addr) = bb;
-        }
-    }
-
     void setup_bb_addr_vec(uint64_t start_addr, uint64_t end_addr) {
         virt_bb_ptrs = std::vector<BasicBlock *>((end_addr - start_addr) / 2 + 1);
         virt_bb_start_addr = start_addr;
