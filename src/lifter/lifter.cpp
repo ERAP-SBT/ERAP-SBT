@@ -113,43 +113,52 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
     }
     mapping.at(ZERO_IDX) = nullptr;
 
-    // for now, we stop after 10000 instructions / data elements in one basic block
     for (size_t i = start_i; i < start_i + 10000 && i < prog->addrs.size(); i++) {
-        if (prog->data.at(i).index() == 1) {
+        if (prog->data.at(i).index() != 1) {
+            /* ignore non RV64 Instructions */
+            continue;
+        }
 
-            // ignore the first address, otherwise we always find the existing curr_bb basic block
-            if (i > start_i) {
-                // test if another parsed or unparsed basic block starts at this instruction to avoid duplicated instructions
-                auto jmp_addr = prog->addrs.at(i);
-                auto bb = ir->bb_at_addr(jmp_addr);
-                if (bb) {
-                    auto instr_addr = prog->addrs.at(i - 1);
-                    SSAVar *addr_imm = curr_bb->add_var_imm((int64_t)jmp_addr, instr_addr, true);
-                    CfOp &jmp = curr_bb->add_cf_op(CFCInstruction::jump, bb, instr_addr, bb->virt_start_addr);
-                    jmp.set_inputs(addr_imm);
-                    curr_bb->set_virt_end_addr(instr_addr);
-                    break;
-                }
-            }
-
-            RV64Inst instr = std::get<RV64Inst>(prog->data.at(i));
-
-            // the next_addr is used for CfOps which require a return address / address of the next instruction
-            uint64_t next_addr;
-
-            // test if the next address is outside of the already parsed addresses
-            if (i < prog->addrs.size() - 1) {
-                next_addr = prog->addrs.at(i + 1);
-            } else {
-                next_addr = prog->addrs.at(i) + 2;
-            }
-            parse_instruction(instr, curr_bb, mapping, prog->addrs.at(i), next_addr);
-            if (!curr_bb->control_flow_ops.empty()) {
-                curr_bb->set_virt_end_addr(prog->addrs.at(i));
+        // ignore the first address, otherwise we always find the existing curr_bb basic block
+        if (i > start_i) {
+            // test if another parsed or unparsed basic block starts at this instruction to avoid duplicated instructions
+            const auto jmp_addr = prog->addrs.at(i);
+            auto bb = ir->bb_at_addr(jmp_addr);
+            if (bb) {
+                const auto instr_addr = prog->addrs.at(i - 1);
+                SSAVar *addr_imm = curr_bb->add_var_imm((int64_t)jmp_addr, instr_addr, true);
+                CfOp &jmp = curr_bb->add_cf_op(CFCInstruction::jump, bb, instr_addr, bb->virt_start_addr);
+                jmp.set_inputs(addr_imm);
+                curr_bb->set_virt_end_addr(instr_addr);
                 break;
             }
         }
+
+        const RV64Inst instr = std::get<RV64Inst>(prog->data.at(i));
+
+        // the next_addr is used for CfOps which require a return address / address of the next instruction
+        uint64_t next_addr;
+
+        // test if the next address is outside of the already parsed addresses
+        if (i < prog->addrs.size() - 1) {
+            next_addr = prog->addrs.at(i + 1);
+        } else {
+            next_addr = prog->addrs.at(i) + 2;
+        }
+        parse_instruction(instr, curr_bb, mapping, prog->addrs.at(i), next_addr);
+        if (!curr_bb->control_flow_ops.empty()) {
+            curr_bb->set_virt_end_addr(prog->addrs.at(i));
+            break;
+        }
+
+        // for now, we stop after 10000 instructions / data elements in one basic block
+        if (i + 1 >= start_i + 10000 || i + 1 >= prog->addrs.size()) {
+            curr_bb->set_virt_end_addr(prog->addrs.at(i));
+            break;
+        }
     }
+    assert(curr_bb->virt_start_addr != 0);
+    assert(curr_bb->virt_end_addr != 0);
 
     // store the entry addresses where the parsing continues next
     std::vector<std::pair<uint64_t, BasicBlock *>> next_entrypoints;
