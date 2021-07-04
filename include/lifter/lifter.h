@@ -19,7 +19,7 @@ class Lifter {
     static constexpr size_t MEM_IDX = 32;
 
     // Depth of jump address backtracking
-    static constexpr int MAX_ADDRESS_SEARCH_DEPTH = 100;
+    static constexpr int MAX_ADDRESS_SEARCH_DEPTH = 10;
 
     // lift all data points from the load program header
     static constexpr bool LIFT_ALL_LOAD = true;

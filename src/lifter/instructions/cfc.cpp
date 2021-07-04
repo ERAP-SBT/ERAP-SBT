@@ -19,27 +19,6 @@ void Lifter::lift_ecall(BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t 
 
     // the result should be placed in the statics for register a0 (x10) and a1 (x11)
     std::get<CfOp::SyscallInfo>(ecall_op.info).static_mapping = {10, 11};
-
-    // TODO: the ecall changes registers x10(a0) and x11(a1) -> this can't modelled using our current cf_ops
-    // to solve resulting problems with the branch address predictor for now, we insert dummy operations which read unknown values into the registers
-    SSAVar *dummy_addr = load_immediate(bb, 0, ip, false);
-    SSAVar *res_1 = bb->add_var(Type::i64, ip, 10);
-    {
-        auto dummy_op = std::make_unique<Operation>(Instruction::load);
-        dummy_op->set_inputs(dummy_addr, mapping.at(MEM_IDX));
-        dummy_op->set_outputs(res_1);
-        res_1->set_op(std::move(dummy_op));
-    }
-    mapping.at(10) = res_1;
-
-    SSAVar *res_2 = bb->add_var(Type::i64, ip, 11);
-    {
-        auto dummy_op = std::make_unique<Operation>(Instruction::load);
-        dummy_op->set_inputs(dummy_addr, mapping.at(MEM_IDX));
-        dummy_op->set_outputs(res_2);
-        res_2->set_op(std::move(dummy_op));
-    }
-    mapping.at(11) = res_2;
 }
 
 void Lifter::lift_branch(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {

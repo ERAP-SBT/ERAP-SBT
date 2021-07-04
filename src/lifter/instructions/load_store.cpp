@@ -29,16 +29,19 @@ void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64
     load_dest->set_op(std::move(operation));
 
     // last step: extend load_dest variable to 64 bit
-    SSAVar *extended_result = bb->add_var(Type::i64, ip, instr.instr.rd);
-    {
-        auto extend_operation = std::make_unique<Operation>((sign_extend ? Instruction::sign_extend : Instruction::zero_extend));
-        extend_operation->set_inputs(load_dest);
-        extend_operation->set_outputs(extended_result);
-        extended_result->set_op(std::move(extend_operation));
+    if (cast_dir(op_size, Type::i64)) {
+        SSAVar *extended_result = bb->add_var(Type::i64, ip, instr.instr.rd);
+        {
+            auto extend_operation = std::make_unique<Operation>((sign_extend ? Instruction::sign_extend : Instruction::zero_extend));
+            extend_operation->set_inputs(load_dest);
+            extend_operation->set_outputs(extended_result);
+            extended_result->set_op(std::move(extend_operation));
+        }
+        load_dest = extended_result;
     }
 
     // write SSAVar of the result of the operation and new memory token back to mapping
-    write_to_mapping(mapping, extended_result, instr.instr.rd);
+    write_to_mapping(mapping, load_dest, instr.instr.rd);
 }
 
 void Lifter::lift_store(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size) {

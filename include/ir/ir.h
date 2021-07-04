@@ -27,7 +27,7 @@ struct IR {
         const auto ptr = block.get();
         basic_blocks.push_back(std::move(block));
 
-        if (virt_start_addr != 0) {
+        if (virt_start_addr != 0 && virt_start_addr >= virt_bb_start_addr) {
             virt_bb_ptrs.at((virt_start_addr - virt_bb_start_addr) / 2) = ptr;
         }
         return ptr;
