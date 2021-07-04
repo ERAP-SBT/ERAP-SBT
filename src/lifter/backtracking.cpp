@@ -13,28 +13,38 @@ std::optional<uint64_t> Lifter::backtrace_jmp_addr(CfOp *op, BasicBlock *bb) {
 
 std::optional<SSAVar *> Lifter::get_last_static_assignment(size_t idx, BasicBlock *bb) {
     std::vector<SSAVar *> possible_preds;
-    // store the unparsed predecessors with their depth in the search;
-    std::vector<std::pair<BasicBlock *, size_t>> unparsed_preds;
+
+    // tuple<predecessor, desired target block, depth>
+    std::vector<std::tuple<BasicBlock *, BasicBlock *, size_t>> unparsed_preds;
     for (BasicBlock *pred : bb->predecessors) {
-        unparsed_preds.emplace_back(pred, 0);
+        unparsed_preds.emplace_back(pred, bb, 0);
     }
+
     // store the already parsed ids
     std::vector<size_t> parsed_preds;
     parsed_preds.push_back(bb->id);
 
     while (!unparsed_preds.empty()) {
-        BasicBlock *pred = unparsed_preds.front().first;
-        size_t pred_depth = unparsed_preds.front().second;
+        BasicBlock *pred = std::get<0>(unparsed_preds.front());
+        BasicBlock *des_target = std::get<1>(unparsed_preds.front());
+        size_t pred_depth = std::get<2>(unparsed_preds.front());
         auto is_parsed = [pred](size_t b_id) -> bool { return b_id == pred->id; };
+
         if (pred_depth <= MAX_ADDRESS_SEARCH_DEPTH && std::find_if(parsed_preds.begin(), parsed_preds.end(), is_parsed) == parsed_preds.end()) {
             parsed_preds.push_back(pred->id);
             for (BasicBlock *pred_pred : pred->predecessors) {
-                unparsed_preds.emplace_back(pred_pred, pred_depth + 1);
+                unparsed_preds.emplace_back(pred_pred, pred, pred_depth + 1);
             }
-            for (const CfOp &cfo : pred->control_flow_ops) {
-                for (auto ti : cfo.target_inputs()) {
-                    if (!std::holds_alternative<size_t>(ti->info) && std::get<SSAVar::LifterInfo>(ti->lifter_info).static_id == idx) {
-                        possible_preds.push_back(ti.get());
+
+            for (auto &cfOp : pred->control_flow_ops) {
+                if (cfOp.target() == des_target) {
+                    // syscalls place their result in registers x10 and x11 and therefore invalidate the variables in these registers.
+                    if (cfOp.type != CFCInstruction::syscall || (idx != 10 && idx != 11)) {
+                        for (RefPtr<SSAVar> ti : cfOp.target_inputs()) {
+                            if (!std::holds_alternative<size_t>(ti->info) && std::get<SSAVar::LifterInfo>(ti->lifter_info).static_id == idx) {
+                                possible_preds.emplace_back(ti.release());
+                            }
+                        }
                     }
                 }
             }
@@ -80,7 +90,7 @@ std::optional<int64_t> Lifter::get_var_value(SSAVar *var, BasicBlock *bb, std::v
         return std::get<SSAVar::ImmInfo>(var->info).val;
     }
 
-    if (std::holds_alternative<std::unique_ptr<Operation>>(var->info)) {
+    if (!std::holds_alternative<std::unique_ptr<Operation>>(var->info)) {
         return std::nullopt;
     }
 
