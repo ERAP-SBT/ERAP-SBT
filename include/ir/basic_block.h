@@ -15,8 +15,9 @@ struct BasicBlock {
     size_t id;
     size_t cur_ssa_id = 0;
 
-    // store virtual start and end address
-    std::variant<std::monostate, std::pair<uint64_t, uint64_t>> lifter_info;
+    /* Only the dummy basicblock should have an virt_start_addr=0 */
+    const uint64_t virt_start_addr;
+    uint64_t virt_end_addr = 0;
 
     std::vector<CfOp> control_flow_ops;
     std::vector<BasicBlock *> predecessors;
@@ -26,7 +27,7 @@ struct BasicBlock {
     std::vector<std::unique_ptr<SSAVar>> variables;
     std::string dbg_name;
 
-    BasicBlock(IR *ir, const size_t id, const size_t virt_start_addr = 0, std::string dbg_name = {}) : ir(ir), id(id), lifter_info(std::pair(virt_start_addr, 0)), dbg_name(std::move(dbg_name)) {}
+    BasicBlock(IR *ir, const size_t id, const size_t virt_start_addr, std::string dbg_name = {}) : ir(ir), id(id), virt_start_addr{virt_start_addr}, dbg_name(std::move(dbg_name)) {}
     ~BasicBlock();
 
     SSAVar *add_var(const Type type, uint64_t assign_addr, size_t reg = 0) {
@@ -49,6 +50,9 @@ struct BasicBlock {
     }
 
     SSAVar *add_var_from_static(size_t static_idx, uint64_t assign_addr = 0);
+
+    /* NOTE: has side-effects on *ir, end_addr=0 is invalid */
+    void set_virt_end_addr(uint64_t end_addr);
 
     SSAVar *add_input(SSAVar *var) {
         inputs.emplace_back(var);

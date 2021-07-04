@@ -26,17 +26,18 @@ void Lifter::print_invalid_op_size(const Instruction &instructionType, RV64Inst 
 
 BasicBlock *Lifter::get_bb(uint64_t addr) const {
     for (auto &bb_ptr : ir->basic_blocks) {
-        uint64_t start_addr = std::get<1>(bb_ptr->lifter_info).first;
+        const uint64_t virt_start_addr = bb_ptr->virt_start_addr;
+        const uint64_t virt_end_addr = bb_ptr->virt_end_addr;
 
         // only the dummy basic block should have the start address 0x0 and we don't want to return the dummy bb
-        if (start_addr) {
-            uint64_t end_addr = std::get<1>(bb_ptr->lifter_info).second;
+        if (virt_start_addr) {
             // either the basic block is already parsed and the jmp address is in the parsed range OR the basic block should be parsed soon and the jmp address is the start address
-            if ((end_addr && start_addr <= addr && end_addr >= addr) || (!end_addr && addr == start_addr)) {
+            if ((virt_end_addr && virt_start_addr <= addr && virt_end_addr >= addr) || (!virt_end_addr && addr == virt_start_addr)) {
                 return bb_ptr.get();
             }
         }
     }
+
     return nullptr;
 }
 
