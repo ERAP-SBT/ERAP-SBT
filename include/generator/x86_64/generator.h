@@ -5,11 +5,19 @@
 namespace generator::x86_64 {
 struct Generator {
     enum class ErrType { unreachable, unresolved_ijump };
+    enum Optimization : uint32_t { OPT_UNUSED_STATIC = 1 << 0 };
+
+    // Optimization Warnings:
+    // OPT_UNUSED_STATIC:
+    // this optimization does not allow the swapping of statics to occur in cfops
+    // so e.g. in a syscall continuation mapping s0 is mapped to s1 and the other way around
+    // though this should never happen in code lifted from a binary
 
     IR *ir;
     std::vector<std::pair<ErrType, const BasicBlock *>> err_msgs;
     std::string binary_filepath;
     FILE *out_fd;
+    uint32_t optimizations = 0;
 
     Generator(IR *ir, std::string binary_filepath = {}, FILE *out_fd = stdout) : ir(ir), binary_filepath(std::move(binary_filepath)), out_fd(out_fd) {}
 
