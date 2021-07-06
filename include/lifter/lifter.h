@@ -83,7 +83,7 @@ class Lifter {
     static void load_input_vars(BasicBlock *, Operation *, std::vector<int64_t> &, std::vector<SSAVar *> &);
     static std::optional<SSAVar *> convert_type(BasicBlock *, uint64_t, SSAVar *, Type);
     static void print_invalid_op_size(const Instruction &, RV64Inst &);
-    static std::string str_decode_instr(FrvInst *);
+    static std::string str_decode_instr(const FrvInst *);
     std::vector<RefPtr<SSAVar>> filter_target_inputs(const std::vector<RefPtr<SSAVar>> &old_target_inputs, reg_map new_mapping, uint64_t split_addr) const;
     std::vector<std::pair<RefPtr<SSAVar>, size_t>> filter_target_inputs(const std::vector<std::pair<RefPtr<SSAVar>, size_t>> &old_target_inputs, reg_map new_mapping, uint64_t split_addr) const;
     static SSAVar *get_from_mapping(BasicBlock *, reg_map &, int, int);

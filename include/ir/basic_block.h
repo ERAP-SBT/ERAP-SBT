@@ -11,8 +11,8 @@
 struct IR;
 
 struct BasicBlock {
-    IR *ir;
-    size_t id;
+    IR *const ir;
+    const size_t id;
     size_t cur_ssa_id = 0;
 
     /* Only the dummy basicblock should have an virt_start_addr=0 */
@@ -25,7 +25,7 @@ struct BasicBlock {
 
     std::vector<SSAVar *> inputs;
     std::vector<std::unique_ptr<SSAVar>> variables;
-    std::string dbg_name;
+    const std::string dbg_name;
 
     BasicBlock(IR *ir, const size_t id, const size_t virt_start_addr, std::string dbg_name = {}) : ir(ir), id(id), virt_start_addr{virt_start_addr}, dbg_name(std::move(dbg_name)) {}
     ~BasicBlock();
