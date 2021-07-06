@@ -12,7 +12,7 @@ SSAVar *Lifter::load_immediate(BasicBlock *bb, int64_t imm, uint64_t ip, bool bi
     return input_imm;
 }
 
-std::string Lifter::str_decode_instr(FrvInst *instr) {
+std::string Lifter::str_decode_instr(const FrvInst *instr) {
     char str[16];
     frv_format(instr, 16, str);
     return std::string(str);
@@ -88,8 +88,9 @@ SSAVar *Lifter::get_from_mapping(BasicBlock *bb, reg_map &mapping, int reg_id, i
 }
 
 void Lifter::write_to_mapping(reg_map &mapping, SSAVar *var, int reg_id) {
-    if (reg_id != ZERO_IDX) {
-        mapping.at(reg_id) = var;
+    if (reg_id == ZERO_IDX) {
+        return;
     }
-    // else write ignored
+
+    mapping.at(reg_id) = var;
 }

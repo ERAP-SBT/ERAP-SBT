@@ -37,20 +37,16 @@ std::array<const char *, 4> &op_reg_map_for_type(const Type type) {
 std::array<const char *, 6> call_reg = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
 const char *rax_from_type(const Type type) {
-    const auto *reg_str = "rax";
     switch (type) {
     case Type::imm:
     case Type::i64:
-        break;
+        return "rax";
     case Type::i32:
-        reg_str = "eax";
-        break;
+        return "eax";
     case Type::i16:
-        reg_str = "ax";
-        break;
+        return "ax";
     case Type::i8:
-        reg_str = "al";
-        break;
+        return "al";
     case Type::f32:
     case Type::f64:
     case Type::mt:
@@ -58,31 +54,30 @@ const char *rax_from_type(const Type type) {
         exit(1);
     }
 
-    return reg_str;
+    assert(0);
+    exit(1);
 }
 
 const char *ptr_from_type(const Type type) {
-    const auto *ptr_type = "qword ptr";
     switch (type) {
     case Type::imm:
     case Type::i64:
-        break;
+        return "QWORD PTR";
     case Type::i32:
-        ptr_type = "dword ptr";
-        break;
+        return "DWORD PTR";
     case Type::i16:
-        ptr_type = "word ptr";
-        break;
+        return "WORD PTR";
     case Type::i8:
-        ptr_type = "byte ptr";
-        break;
+        return "BYTE PTR";
     case Type::f32:
     case Type::f64:
     case Type::mt:
         assert(0);
         exit(1);
     }
-    return ptr_type;
+
+    assert(0);
+    exit(1);
 }
 
 size_t index_for_var(const BasicBlock *block, const SSAVar *var) {
@@ -127,8 +122,6 @@ void Generator::compile() {
 
     compile_entry();
 
-    // TODO: does this section name need to be smth else?
-    compile_section(Section::RODATA);
     compile_err_msgs();
 }
 
@@ -221,6 +214,8 @@ void Generator::compile_entry() {
 }
 
 void Generator::compile_err_msgs() {
+    compile_section(Section::RODATA);
+
     for (const auto &[type, block] : err_msgs) {
         switch (type) {
         case ErrType::unreachable:
@@ -236,8 +231,8 @@ void Generator::compile_err_msgs() {
 
 void Generator::compile_vars(const BasicBlock *block) {
     for (size_t idx = 0; idx < block->variables.size(); ++idx) {
-        fprintf(out_fd, "# Handling var %zu\n", idx);
         const auto *var = block->variables[idx].get();
+        fprintf(out_fd, "# Handling v%zu (v%zu)\n", idx, var->id);
         // assert(var->info.index() != 0);
         if (var->info.index() == 0)
             continue;
@@ -405,21 +400,12 @@ void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
 
 void Generator::compile_ret_args(const BasicBlock *block, const CfOp &op) {
     fprintf(out_fd, "# Ret Mapping\n");
-    const auto index_for_var = [block](const SSAVar *var) -> size_t {
-        for (size_t idx = 0; idx < block->variables.size(); ++idx) {
-            if (block->variables[idx].get() == var)
-                return idx;
-        }
-
-        assert(0);
-        exit(1);
-    };
 
     assert(op.info.index() == 2);
     const auto &ret_info = std::get<CfOp::RetInfo>(op.info);
     for (const auto &[var, s_idx] : ret_info.mapping) {
         fprintf(out_fd, "xor rax, rax\n");
-        fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(var));
+        fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
         fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
     }
 
