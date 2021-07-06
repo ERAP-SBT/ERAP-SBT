@@ -69,7 +69,7 @@ void Lifter::lift_store(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint6
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(Instruction::store);
 
     // set in- and outputs
-    operation->set_inputs(store_var, store_addr, mapping.at(MEM_IDX));
+    operation->set_inputs(store_addr, store_var, mapping.at(MEM_IDX));
     operation->set_outputs(result_memory_token);
 
     // set operation
