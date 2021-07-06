@@ -14,6 +14,7 @@ struct IR {
 
     std::vector<BasicBlock *> virt_bb_ptrs;
     uint64_t base_addr;
+    uint64_t load_size;
     uint64_t virt_bb_start_addr;
     uint64_t virt_bb_end_addr;
 

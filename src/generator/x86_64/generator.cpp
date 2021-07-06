@@ -97,9 +97,21 @@ void Generator::compile() {
 
     fprintf(out_fd, ".intel_syntax noprefix\n\n");
     if (!binary_filepath.empty()) {
-        compile_section(Section::DATA);
-        fprintf(out_fd, "binary: .incbin \"%s\"\n", binary_filepath.c_str());
+        /* TODO: extract read-write-execute information from source ELF program headers */
+
+        /* Put the original image into a seperate section so we can set the start address */
+        fprintf(out_fd, ".section .orig_binary, \"aw\"\n");
+        fprintf(out_fd, ".incbin \"%s.bin\"\n", binary_filepath.c_str());
     }
+
+    /* we expect the linker to link the original binary image (if any) at
+     * exactly this address
+     */
+    fprintf(out_fd, ".global orig_binary_vaddr\n");
+    fprintf(out_fd, "orig_binary_vaddr = %#lx\n", ir->base_addr);
+    fprintf(out_fd, ".global orig_binary_size\n");
+    fprintf(out_fd, "orig_binary_size = %#lx\n", ir->load_size);
+    fprintf(out_fd, "binary = orig_binary_vaddr\n");
 
     compile_statics();
 
@@ -212,7 +224,7 @@ void Generator::compile_block(const BasicBlock *block) {
             break;
         case CFCInstruction::unreachable:
             err_msgs.emplace_back(ErrType::unreachable, block);
-            fprintf(out_fd, "mov rdi, offset err_unreachable_b%zu\n", block->id);
+            fprintf(out_fd, "lea rdi, [rip + err_unreachable_b%zu]\n", block->id);
             fprintf(out_fd, "jmp panic\n");
             break;
         case CFCInstruction::icall:
@@ -272,12 +284,13 @@ void Generator::compile_ijump(const BasicBlock *block, const CfOp &op) {
 
         fprintf(out_fd, "cmp rax, ijump_lookup_end - ijump_lookup\n");
         fprintf(out_fd, "ja 0f\n");
-        fprintf(out_fd, "mov rdi, [ijump_lookup + 4 * rax]\n");
+        fprintf(out_fd, "lea rdi, [rip + ijump_lookup]\n");
+        fprintf(out_fd, "mov rdi, [rdi + 4 * rax]\n");
         fprintf(out_fd, "test rdi, rdi\n");
         fprintf(out_fd, "je 0f\n");
         fprintf(out_fd, "jmp rdi\n");
         fprintf(out_fd, "0:\n");
-        fprintf(out_fd, "mov rdi, offset err_unresolved_ijump_b%zu\n", block->id);
+        fprintf(out_fd, "lea rdi, [rip + err_unresolved_ijump_b%zu]\n", block->id);
         fprintf(out_fd, "jmp panic\n");
     }
 }
