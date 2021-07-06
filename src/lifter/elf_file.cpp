@@ -165,6 +165,10 @@ error_t ELF64File::parse_program_headers() {
             return ENOEXEC;
         }
 
+        if (phdr.p_paddr < base_addr) {
+            base_addr = phdr.p_paddr;
+        }
+
         auto &program_map = segment_section_map.emplace_back();
         // rough approximation, for further reference:
         // https://github.com/bminor/binutils-gdb/blob/4ba8500d63991518aefef86474576de565e00237/include/elf/internal.h#L316
