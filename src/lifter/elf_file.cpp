@@ -163,18 +163,18 @@ error_t ELF64File::parse_program_headers() {
         } else if (phdr.p_type == PT_DYNAMIC) {
             std::cerr << "The input file features dynamic linking information. This type of ELF file is not supported.\n";
             return ENOEXEC;
-        }
+        } else if (phdr.p_type == PT_LOAD) {
+            if (phdr.p_paddr < base_addr) {
+                base_addr = phdr.p_paddr;
+            }
 
-        if (phdr.p_paddr < base_addr) {
-            base_addr = phdr.p_paddr;
-        }
-
-        auto &program_map = segment_section_map.emplace_back();
-        // rough approximation, for further reference:
-        // https://github.com/bminor/binutils-gdb/blob/4ba8500d63991518aefef86474576de565e00237/include/elf/internal.h#L316
-        for (auto it = section_headers.begin(); it != section_headers.end(); it++) {
-            if (it->sh_offset >= phdr.p_offset && it->sh_offset + it->sh_size <= phdr.p_offset + phdr.p_filesz) {
-                program_map.push_back(it.base());
+            auto &program_map = segment_section_map.emplace_back();
+            // rough approximation, for further reference:
+            // https://github.com/bminor/binutils-gdb/blob/4ba8500d63991518aefef86474576de565e00237/include/elf/internal.h#L316
+            for (auto it = section_headers.begin(); it != section_headers.end(); it++) {
+                if (it->sh_offset >= phdr.p_offset && it->sh_offset + it->sh_size <= phdr.p_offset + phdr.p_filesz) {
+                    program_map.push_back(it.base());
+                }
             }
         }
     }
