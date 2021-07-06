@@ -27,7 +27,8 @@ std::array<const char *, 4> &op_reg_map_for_type(const Type type) {
     case Type::f64:
     case Type::f32:
     case Type::mt:
-        break;
+        assert(0);
+        exit(1);
     }
 
     assert(0);
@@ -233,19 +234,19 @@ void Generator::compile_vars(const BasicBlock *block) {
     for (size_t idx = 0; idx < block->variables.size(); ++idx) {
         const auto *var = block->variables[idx].get();
         fprintf(out_fd, "# Handling v%zu (v%zu)\n", idx, var->id);
-        // assert(var->info.index() != 0);
-        if (var->info.index() == 0)
+        if (var->info.index() == 0) {
             continue;
+        }
+
+        if (var->type == Type::mt) {
+            continue;
+        }
 
         if (std::holds_alternative<size_t>(var->info)) {
             assert(var->info.index() == 2);
 
-            // TODO: properly handle mt-statics (which are always present)
-            if (var->type != Type::mt) {
-                const auto *reg_str = rax_from_type(var->type);
-                fprintf(out_fd, "mov rax, [s%zu]\n", std::get<size_t>(var->info));
-                fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", idx, reg_str);
-            }
+            fprintf(out_fd, "mov rax, [s%zu]\n", std::get<size_t>(var->info));
+            fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", idx, rax_from_type(var->type));
             continue;
         }
 
@@ -379,6 +380,11 @@ void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
 
         assert(target_var->type != Type::imm && target_var->info.index() > 1);
 
+        if (target_var->type == Type::mt || source_var->type == Type::mt) {
+            assert(target_var->type == source_var->type);
+            continue;
+        }
+
         fprintf(out_fd, "# Setting input %zu\n", i);
         if (std::holds_alternative<size_t>(target_var->info)) {
             fprintf(out_fd, "xor rax, rax\n");
@@ -489,6 +495,10 @@ void Generator::compile_syscall(const BasicBlock *block, const CfOp &cf_op) {
 
 void Generator::compile_continuation_args(const BasicBlock *block, const std::vector<std::pair<RefPtr<SSAVar>, size_t>> &mapping) {
     for (const auto &[var, s_idx] : mapping) {
+        if (var->type == Type::mt) {
+            continue;
+        }
+
         fprintf(out_fd, "xor rax, rax\n");
         fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
         fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
