@@ -15,6 +15,7 @@ struct IR {
     std::vector<BasicBlock *> virt_bb_ptrs;
     uint64_t base_addr;
     uint64_t virt_bb_start_addr;
+    uint64_t virt_bb_end_addr;
 
     std::vector<std::unique_ptr<Function>> functions;
     std::vector<StaticMapper> statics;
@@ -51,8 +52,10 @@ struct IR {
     BasicBlock *bb_at_addr(uint64_t addr) { return virt_bb_ptrs.at((addr - virt_bb_start_addr) / 2); }
 
     void setup_bb_addr_vec(uint64_t start_addr, uint64_t end_addr) {
-        virt_bb_ptrs = std::vector<BasicBlock *>((end_addr - start_addr) / 2 + 1);
         virt_bb_start_addr = start_addr;
+        virt_bb_end_addr = end_addr;
+
+        virt_bb_ptrs = std::vector<BasicBlock *>((end_addr - start_addr) / 2 + 1);
     }
 
     void print(std::ostream &) const;

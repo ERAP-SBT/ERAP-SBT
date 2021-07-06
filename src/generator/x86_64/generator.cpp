@@ -124,6 +124,30 @@ void Generator::compile() {
     compile_entry();
 
     compile_err_msgs();
+
+    compile_ijump_lookup();
+}
+
+void Generator::compile_ijump_lookup() {
+    compile_section(Section::RODATA);
+
+    fprintf(out_fd, "ijump_lookup:\n");
+
+    assert(ir->virt_bb_start_addr <= ir->virt_bb_end_addr);
+
+    /* Incredibly space inefficient but also O(1) fast */
+    for (uint64_t i = ir->virt_bb_start_addr; i < ir->virt_bb_end_addr; i += 2) {
+        const auto bb = ir->bb_at_addr(i);
+        if (bb != nullptr && bb->virt_start_addr == i) {
+            fprintf(out_fd, ".8byte b%zu\n", bb->id);
+        } else {
+            fprintf(out_fd, ".8byte 0x0\n");
+        }
+    }
+
+    fprintf(out_fd, "ijump_lookup_end:\n");
+    fprintf(out_fd, ".type ijump_lookup,STT_OBJECT\n");
+    fprintf(out_fd, ".size ijump_lookup,ijump_lookup_end-ijump_lookup\n");
 }
 
 void Generator::compile_statics() {
@@ -151,6 +175,7 @@ void Generator::compile_block(const BasicBlock *block) {
 
     const size_t stack_size = block->variables.size() * 8;
     fprintf(out_fd, "b%zu:\npush rbp\nmov rbp, rsp\nsub rsp, %zu\n", block->id, stack_size);
+    fprintf(out_fd, "# block->virt_start_addr: %#lx\n", block->virt_start_addr);
     compile_vars(block);
 
     for (size_t i = 0; i < block->control_flow_ops.size(); ++i) {
@@ -182,13 +207,15 @@ void Generator::compile_block(const BasicBlock *block) {
         case CFCInstruction::syscall:
             compile_syscall(block, cf_op);
             break;
+        case CFCInstruction::ijump:
+            compile_ijump(block, cf_op);
+            break;
         case CFCInstruction::unreachable:
             err_msgs.emplace_back(ErrType::unreachable, block);
             fprintf(out_fd, "mov rdi, offset err_unreachable_b%zu\n", block->id);
             fprintf(out_fd, "jmp panic\n");
             break;
         case CFCInstruction::icall:
-        case CFCInstruction::ijump:
             assert(0);
             exit(1);
         }
@@ -198,6 +225,61 @@ void Generator::compile_block(const BasicBlock *block) {
     fprintf(out_fd, ".size b%zu,$-b%zu\n", block->id, block->id);
 
     fprintf(out_fd, "\n");
+}
+
+void Generator::compile_ijump(const BasicBlock *block, const CfOp &op) {
+    assert(op.type == CFCInstruction::ijump);
+
+    fprintf(out_fd, "# IJump Mapping\n");
+
+    const auto &ijump_info = std::get<CfOp::IJumpInfo>(op.info);
+
+    for (const auto &[var, s_idx] : ijump_info.mapping) {
+        if (var->type == Type::mt) {
+            continue;
+        }
+
+        fprintf(out_fd, "# s%zu from var v%zu\n", s_idx, var->id);
+        fprintf(out_fd, "xor rax, rax\n");
+        fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+        fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
+    }
+
+    assert(op.in_vars[0] != nullptr);
+
+    if (ijump_info.target != nullptr && ijump_info.target != ir->basic_blocks.at(0).get()) {
+        fprintf(out_fd, "# destroy stack space\n");
+        fprintf(out_fd, "mov rsp, rbp\n");
+        fprintf(out_fd, "pop rbp\n");
+
+        fprintf(out_fd, "# statically resolved ijump\n");
+        fprintf(out_fd, "jmp b%zu\n", ijump_info.target->id);
+    } else {
+        fprintf(out_fd, "# Get IJump Destination\n");
+        fprintf(out_fd, "xor rax, rax\n");
+        fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(op.in_vars[0]->type), index_for_var(block, op.in_vars[0]));
+
+        fprintf(out_fd, "# destroy stack space\n");
+        fprintf(out_fd, "mov rsp, rbp\n");
+        fprintf(out_fd, "pop rbp\n");
+
+        err_msgs.emplace_back(ErrType::unresolved_ijump, block);
+
+        /* we trust the lifter that the ijump destination is already aligned */
+
+        /* turn absolute address into relative offset from start of first basicblock */
+        fprintf(out_fd, "sub rax, %zu\n", ir->virt_bb_start_addr);
+
+        fprintf(out_fd, "cmp rax, ijump_lookup_end - ijump_lookup\n");
+        fprintf(out_fd, "ja 0f\n");
+        fprintf(out_fd, "mov rdi, [ijump_lookup + 4 * rax]\n");
+        fprintf(out_fd, "test rdi, rdi\n");
+        fprintf(out_fd, "je 0f\n");
+        fprintf(out_fd, "jmp rdi\n");
+        fprintf(out_fd, "0:\n");
+        fprintf(out_fd, "mov rdi, offset err_unresolved_ijump_b%zu\n", block->id);
+        fprintf(out_fd, "jmp panic\n");
+    }
 }
 
 void Generator::compile_entry() {
@@ -220,9 +302,10 @@ void Generator::compile_err_msgs() {
     for (const auto &[type, block] : err_msgs) {
         switch (type) {
         case ErrType::unreachable:
-            printf(R"#(err_unreachable_b%zu: .ascii "Reached unreachable code in block %zu\n\0")#"
-                   "\n",
-                   block->id, block->id);
+            fprintf(out_fd, "err_unreachable_b%zu: .ascii \"Reached unreachable code in block %zu\\n\\0\"\n", block->id, block->id);
+            break;
+        case ErrType::unresolved_ijump:
+            fprintf(out_fd, "err_unresolved_ijump_b%zu: .ascii \"Reached unresolved indirect jump in block%zu\\n\\0\"\n", block->id, block->id);
             break;
         }
     }
