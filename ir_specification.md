@@ -1,6 +1,6 @@
 # IR Specification
- 
-Important: reduce implicit state. 
+
+Important: reduce implicit state.
 
 A list of functions, which contain a list of basic blocks.
 ```EBNF
@@ -72,7 +72,11 @@ Floating Point Types
 
 ### Memory types
 
-Memory References (Address | addr) := (Int64 | Int32)
+Memory references (addresses) are simply stored as i64 or i32.
+
+To preserve the order of loads/stores when reordering instructions, a memory token type `mt` is used.
+This type is _NOT_ an address; it only exists in the IR.
+
 
 ## Variables
 
@@ -80,7 +84,7 @@ All variables are SSA and are only valid in the scope of the BasicBlock they wer
 
 ## Statics
 
-For any values which needs to be preserved at some points in a known locations to preserve ABI compatibility. 
+For any values which needs to be preserved at some points in a known locations to preserve ABI compatibility.
 Their meaning is defined by the Lifter / Compiler and depends on the source architecture.
 They are declared globally.
 
@@ -114,27 +118,34 @@ block b122233(v1 <- @x1, v2 <- @x3) <= [b1, b202] {
 
 ### Instructions / Operations
 
-* `<memory-token> <- store <variable: Int64>, <variable>`
-* `<variable> <- load <variable: Int64>, <memory-token>`
-* `<variable> <- add <variable>, <variable>`
-* `<variable> <- sub <variable>, <variable>`
-* `<variable> <- mul <variable>, <variable>`
-* `<variable> <- umul <variable>, <variable>`
-* `<variable> <- div <variable>, <variable>`
-* `<variable> <- udiv <variable>, <variable>`
-* `<variable> <- shl <variable>, <variable>`
-* `<variable> <- shr <variable>, <variable>`
-* `<variable> <- sar <variable>, <variable>`
-* `<variable> <- or <variable>, <variable>`
-* `<variable> <- and <variable>, <variable>`
-* `<variable> <- not <variable>, <variable>`
-* `<variable> <- xor <variable>, <variable>`
-* `<variable> <- cast <variable>`
+* `<memory-token> <- store <addr: Int64>, <value>, <memory-token>`
+* `<result> <- load <addr: Int64>, <memory-token>`
+* `<result> <- add <a>, <b>`
+* `<result> <- sub <a>, <b>`
+* `<result> <- mul_l <a>, <b>`
+* `<result> <- ssmul_h <signed>, <signed>`
+* `<result> <- uumul_h <unsigned>, <unsigned>`
+* `<result> <- sumul_h <signed>, <unsigned>`
+* `<result>, <remainder> <- div <a>, <b>`
+* `<result>, <remainder> <- udiv <a>, <b>`
+* `<result> <- shl <value>, <amount>`
+* `<result> <- shr <value>, <amount>`
+* `<result> <- sar <value>, <amount>`
+* `<result> <- or <a>, <b>`
+* `<result> <- and <a>, <b>`
+* `<result> <- not <value>`
+* `<result> <- xor <a>, <b>`
+* `<result> <- cast <value>`
+* `<result> <- slt <a>, <b>, <value if less>, <value otherwise>`
+* `<result> <- sltu <a>, <b>, <value if less>, <value otherwise>`
+* `<result> <- sign_extend <value>`
+* `<result> <- zero_extend <value>`
+* `<result> <- setup_stack`
 
 More can be added as necessary or useful.
 
 #### Immediate
-* `<variable> <- immediate 1337`
+* `<variable> <- imm 1337`
 This is a pseudo-instruction that is only printed as one but the variable is instantly assigned with the value upon its creation
 
 #### Intrinsic Instructions
