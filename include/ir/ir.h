@@ -13,6 +13,7 @@ struct IR {
     std::vector<std::unique_ptr<BasicBlock>> basic_blocks;
 
     std::vector<BasicBlock *> virt_bb_ptrs;
+    uint64_t base_addr;
     uint64_t virt_bb_start_addr;
 
     std::vector<std::unique_ptr<Function>> functions;
