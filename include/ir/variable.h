@@ -15,6 +15,10 @@ struct SSAVar : Refable {
 
     struct ImmInfo {
         int64_t val;
+
+        /* true: val is relative to ir->base_addr
+         * false: val is absolute
+         */
         bool binary_relative = false;
     };
 

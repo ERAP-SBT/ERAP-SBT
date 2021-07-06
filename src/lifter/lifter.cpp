@@ -4,6 +4,7 @@
 using namespace lifter::RV64;
 
 void Lifter::lift(Program *prog) {
+    ir->base_addr = prog->elf_base->base_addr;
     dummy = ir->add_basic_block(0, "Dummy Basic Block");
 
     if (prog->elf_base->section_headers.empty()) {
