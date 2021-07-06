@@ -200,6 +200,9 @@ void Generator::compile_block(const BasicBlock *block) {
         }
     }
 
+    fprintf(out_fd, ".type b%zu,STT_FUNC\n", block->id);
+    fprintf(out_fd, ".size b%zu,$-b%zu\n", block->id, block->id);
+
     fprintf(out_fd, "\n");
 }
 
