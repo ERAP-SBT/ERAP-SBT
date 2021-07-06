@@ -298,7 +298,7 @@ void Generator::compile_vars(const BasicBlock *block) {
             fprintf(out_fd, "mov %s [%s], %s\n", ptr_from_type(op->in_vars[1]->type), in_regs[0], in_regs[1]);
             break;
         case Instruction::load:
-            assert(op->in_vars[0]->type == Type::i64);
+            assert(op->in_vars[0]->type == Type::i64 || op->in_vars[0]->type == Type::imm);
             assert(op->out_vars[0] == var);
             assert(arg_count == 2);
             fprintf(out_fd, "mov %s, %s [%s]\n", op_reg_map_for_type(var->type)[0], ptr_from_type(var->type), in_regs[0]);
