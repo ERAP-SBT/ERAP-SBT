@@ -50,6 +50,48 @@
 
 \PraesentationTitelseite % Fügt die Startseite ein
 
+% TODO: Create Program Flow Diagram
+
+%draws an arrow from (#2,#3) to (#2+#4,#3) with height of #5 (arrow in x direction)
+%color, startX, startY, length (X dir), height (Y dir)
+\newcommand{\TikZArrowX}[5]{\draw[#1] (#2,#3) -- (#2,#3+#5*2/3) -- (#2+#4/2,#3+#5*2/3) -- (#2+#4/2,#3+#5) -- (#2+#4,#3) -- (#2+#4/2,#3-#5) -- (#2+#4/2,#3-#5*2/3) -- (#2,#3-#5*2/3) -- (#2,#3);}
+
+%draws an arrow from #2,#3) to (#2,#3+#5) with height of #4 (arrow in y direction)
+%color, startX, startY, length (X dir), height (Y dir)
+\newcommand{\TikZArrowY}[5]{\draw[#1] (#2,#3) -- (#2+#4*2/3,#3) -- (#2+#4*2/3,#3+#5/2) -- (#2+#4,#3+#5/2) -- (#2,#3+#5) -- (#2-#4,#3+#5/2) -- (#2-#4*2/3,#3+#5/2) -- (#2-#4*2/3,#3) -- (#2,#3);}
+
+%draws the schematic presentation of the program
+%scale, fontSize
+\newcommand{\ProgramSchematic}[2]{
+    \begin{center}
+        \begin{tikzpicture}[very thick, scale=#1]
+            \draw[TUMBlau] (-2,-2) rectangle (2,2);
+            \node[align=center] at (0,0) (riscv_text) {\fontsize{#2}{#2} \selectfont RISC-V};
+            \TikZArrowX{TUMBlau}{2}{0}{6}{1.5}
+            \node[align=center] at (4.5,0) (lifter_text) {\fontsize{#2}{#2} \selectfont Lifter};
+            \draw[TUMBlau] (8,-2) rectangle (12,2);
+            \node[align=center] at (10,0) (ir_text_1) {\fontsize{#2}{#2} \selectfont IR};
+            \TikZArrowX{TUMBlau}{12}{0}{6}{1.5}
+            \node[align=center] at (14.5,0) (optimizer_text) {\fontsize{#2}{#2} \selectfont Optimizer};
+            \draw[TUMBlau] (18,-2) rectangle (22, 2);
+            \node[align=center] at (20,0) (ir_text_2) {\fontsize{#2}{#2} \selectfont IR};
+            \TikZArrowX{TUMBlau}{22}{0}{6}{1.5}
+            \node[align=center] at (24.5,0) (compiler_text) {\fontsize{#2}{#2} \selectfont Compiler};
+            \draw[TUMBlau] (28,-2) rectangle (32,2);
+            \node[align=center] at (30,0) (x86_64_text) {\fontsize{#2}{#2} \selectfont x86\_64};
+        \end{tikzpicture}
+    \end{center}
+}
+
+\begin{frame}
+    \frametitle{Programmübersicht}
+    %alignment to have some space between headline an the schematic
+    ~\\
+    ~\\
+    \ProgramSchematic{0.6}{18}
+\end{frame}
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \end{document} % !!! NICHT ENTFERNEN !!!
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
