@@ -164,8 +164,8 @@ error_t ELF64File::parse_program_headers() {
             std::cerr << "The input file features dynamic linking information. This type of ELF file is not supported.\n";
             return ENOEXEC;
         } else if (phdr.p_type == PT_LOAD) {
-            if (phdr.p_paddr < base_addr) {
-                base_addr = phdr.p_paddr;
+            if (phdr.p_vaddr < base_addr) {
+                base_addr = phdr.p_vaddr;
             }
 
             auto &program_map = segment_section_map.emplace_back();

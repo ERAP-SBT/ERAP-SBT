@@ -40,7 +40,7 @@ class ELF64File {
     // program headers describe segments
     std::vector<Elf64_Phdr> program_headers;
 
-    // Elf base address, the lowest physical program header address
+    // Elf base address, the lowest virtual program header address
     uint64_t base_addr = UINT64_MAX;
 
     // index in the map = index in the program_headers vector
