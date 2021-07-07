@@ -177,6 +177,7 @@ BasicBlock *CfOp::target() const {
     case CFCInstruction::syscall:
         return std::get<SyscallInfo>(info).continuation_block;
     case CFCInstruction::ijump:
+        return std::get<IJumpInfo>(info).target;
     case CFCInstruction::icall:
     case CFCInstruction::unreachable:
     case CFCInstruction::_return:
@@ -189,6 +190,7 @@ BasicBlock *CfOp::target() const {
 
 const std::vector<RefPtr<SSAVar>> &CfOp::target_inputs() const {
     static auto vec = std::vector<RefPtr<SSAVar>>{};
+    vec.clear();
 
     switch (type) {
     case CFCInstruction::jump:

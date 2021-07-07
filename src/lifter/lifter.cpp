@@ -129,9 +129,12 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
 
     // load ssa variables from static vars and fill mapping
     for (size_t i = 0; i < 33; i++) {
-        mapping.at(i) = curr_bb->add_var_from_static(i, start_addr);
+        if (i != ZERO_IDX) {
+            mapping.at(i) = curr_bb->add_var_from_static(i, start_addr);
+        } else {
+            mapping.at(i) = nullptr;
+        }
     }
-    mapping.at(ZERO_IDX) = nullptr;
 
     for (size_t i = start_i; i < start_i + 10000 && i < prog->addrs.size(); i++) {
         if (prog->data.at(i).index() != 1) {
