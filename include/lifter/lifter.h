@@ -4,6 +4,10 @@
 #include <lifter/program.h>
 
 namespace lifter::RV64 {
+
+/* maximum number of riscv64 instructions a basicblock can have while lifting */
+constexpr size_t BASIC_BLOCK_MAX_INSTRUCTIONS = 10000;
+
 class Lifter {
   public:
     IR *ir;
@@ -88,5 +92,7 @@ class Lifter {
     std::vector<std::pair<RefPtr<SSAVar>, size_t>> filter_target_inputs(const std::vector<std::pair<RefPtr<SSAVar>, size_t>> &old_target_inputs, reg_map new_mapping, uint64_t split_addr) const;
     static SSAVar *get_from_mapping(BasicBlock *, reg_map &, int, int);
     static void write_to_mapping(reg_map &, SSAVar *, int);
+
+    void postprocess();
 };
 } // namespace lifter::RV64

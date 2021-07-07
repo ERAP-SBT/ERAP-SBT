@@ -92,15 +92,32 @@ void Lifter::lift(Program *prog) {
         }
     }
 
-    // TODO: move this post-processing to separate function
+    this->postprocess();
+}
+
+void Lifter::postprocess() {
+
+    /* Remove any guessed ijumps */
+    for (auto &bb : ir->basic_blocks) {
+        for (auto &cfOp : bb->control_flow_ops) {
+            if (cfOp.type == CFCInstruction::ijump) {
+                cfOp.set_target(nullptr);
+            }
+        }
+    }
+
+    /* Replace any remaining unresolved */
     for (auto bb : dummy->predecessors) {
         for (auto &cfOp : bb->control_flow_ops) {
             if (cfOp.target() == dummy) {
+                /* This jump could not be resolved, and won't be able to resolve it at runtime */
                 cfOp.type = CFCInstruction::unreachable;
                 cfOp.info = std::monostate{};
             }
         }
     }
+
+    /* TODO: this isn't very nice: make all relative immediates actually relative */
     for (auto &bb : ir->basic_blocks) {
         for (auto &var : bb->variables) {
             if (std::holds_alternative<SSAVar::ImmInfo>(var->info) && std::get<SSAVar::ImmInfo>(var->info).binary_relative) {
@@ -136,7 +153,7 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
         }
     }
 
-    for (size_t i = start_i; i < start_i + 10000 && i < prog->addrs.size(); i++) {
+    for (size_t i = start_i; true; i++) {
         if (prog->data.at(i).index() != 1) {
             /* ignore non RV64 Instructions */
             continue;
@@ -175,7 +192,7 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
         }
 
         // for now, we stop after 10000 instructions / data elements in one basic block
-        if (i + 1 >= start_i + 10000 || i + 1 >= prog->addrs.size()) {
+        if (i + 1 >= start_i + BASIC_BLOCK_MAX_INSTRUCTIONS || i + 1 >= prog->addrs.size()) {
             curr_bb->set_virt_end_addr(prog->addrs.at(i));
             break;
         }

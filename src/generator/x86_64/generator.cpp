@@ -173,7 +173,7 @@ void Generator::compile_statics() {
 void Generator::compile_blocks() {
     compile_section(Section::TEXT);
 
-    for (auto &block : ir->basic_blocks) {
+    for (const auto &block : ir->basic_blocks) {
         compile_block(block.get());
     }
 }
@@ -258,41 +258,33 @@ void Generator::compile_ijump(const BasicBlock *block, const CfOp &op) {
     }
 
     assert(op.in_vars[0] != nullptr);
+    assert(ijump_info.target == nullptr);
 
-    if (ijump_info.target != nullptr && ijump_info.target != ir->basic_blocks.at(0).get()) {
-        fprintf(out_fd, "# destroy stack space\n");
-        fprintf(out_fd, "mov rsp, rbp\n");
-        fprintf(out_fd, "pop rbp\n");
+    fprintf(out_fd, "# Get IJump Destination\n");
+    fprintf(out_fd, "xor rax, rax\n");
+    fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(op.in_vars[0]->type), index_for_var(block, op.in_vars[0]));
 
-        fprintf(out_fd, "# statically resolved ijump\n");
-        fprintf(out_fd, "jmp b%zu\n", ijump_info.target->id);
-    } else {
-        fprintf(out_fd, "# Get IJump Destination\n");
-        fprintf(out_fd, "xor rax, rax\n");
-        fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(op.in_vars[0]->type), index_for_var(block, op.in_vars[0]));
+    fprintf(out_fd, "# destroy stack space\n");
+    fprintf(out_fd, "mov rsp, rbp\n");
+    fprintf(out_fd, "pop rbp\n");
 
-        fprintf(out_fd, "# destroy stack space\n");
-        fprintf(out_fd, "mov rsp, rbp\n");
-        fprintf(out_fd, "pop rbp\n");
+    err_msgs.emplace_back(ErrType::unresolved_ijump, block);
 
-        err_msgs.emplace_back(ErrType::unresolved_ijump, block);
+    /* we trust the lifter that the ijump destination is already aligned */
 
-        /* we trust the lifter that the ijump destination is already aligned */
+    /* turn absolute address into relative offset from start of first basicblock */
+    fprintf(out_fd, "sub rax, %zu\n", ir->virt_bb_start_addr);
 
-        /* turn absolute address into relative offset from start of first basicblock */
-        fprintf(out_fd, "sub rax, %zu\n", ir->virt_bb_start_addr);
-
-        fprintf(out_fd, "cmp rax, ijump_lookup_end - ijump_lookup\n");
-        fprintf(out_fd, "ja 0f\n");
-        fprintf(out_fd, "lea rdi, [rip + ijump_lookup]\n");
-        fprintf(out_fd, "mov rdi, [rdi + 4 * rax]\n");
-        fprintf(out_fd, "test rdi, rdi\n");
-        fprintf(out_fd, "je 0f\n");
-        fprintf(out_fd, "jmp rdi\n");
-        fprintf(out_fd, "0:\n");
-        fprintf(out_fd, "lea rdi, [rip + err_unresolved_ijump_b%zu]\n", block->id);
-        fprintf(out_fd, "jmp panic\n");
-    }
+    fprintf(out_fd, "cmp rax, ijump_lookup_end - ijump_lookup\n");
+    fprintf(out_fd, "ja 0f\n");
+    fprintf(out_fd, "lea rdi, [rip + ijump_lookup]\n");
+    fprintf(out_fd, "mov rdi, [rdi + 4 * rax]\n");
+    fprintf(out_fd, "test rdi, rdi\n");
+    fprintf(out_fd, "je 0f\n");
+    fprintf(out_fd, "jmp rdi\n");
+    fprintf(out_fd, "0:\n");
+    fprintf(out_fd, "lea rdi, [rip + err_unresolved_ijump_b%zu]\n", block->id);
+    fprintf(out_fd, "jmp panic\n");
 }
 
 void Generator::compile_entry() {
