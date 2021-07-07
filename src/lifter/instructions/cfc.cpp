@@ -137,11 +137,13 @@ void Lifter::lift_jal(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
         sum->set_op(std::move(addition));
     }
 
-    // 5. load return address as another immediate
-    SSAVar *return_addr = load_immediate(bb, (int64_t)next_addr, ip, true, instr.instr.rd);
+    if (instr.instr.rd != ZERO_IDX) {
+        // 5. load return address as another immediate
+        SSAVar *return_addr = load_immediate(bb, (int64_t)next_addr, ip, true, instr.instr.rd);
 
-    // write SSAVar of the result of the operation back to mapping
-    write_to_mapping(mapping, return_addr, instr.instr.rd);
+        // write SSAVar of the result of the operation back to mapping
+        write_to_mapping(mapping, return_addr, instr.instr.rd);
+    }
 
     // 6. jump!
     // create the jump operation
@@ -185,9 +187,11 @@ void Lifter::lift_jalr(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64
     // set operation in- and outputs
     cf_operation.set_inputs(jump_addr);
 
-    // the return value address is encoded as immediate
-    SSAVar *return_immediate = load_immediate(bb, (int64_t)next_addr, ip, instr.instr.rd);
+    if (instr.instr.rd != ZERO_IDX) {
+        // the return value address is encoded as immediate
+        SSAVar *return_immediate = load_immediate(bb, (int64_t)next_addr, ip, instr.instr.rd);
 
-    // write SSAVar of the result of the operation back to mapping
-    write_to_mapping(mapping, return_immediate, instr.instr.rd);
+        // write SSAVar of the result of the operation back to mapping
+        write_to_mapping(mapping, return_immediate, instr.instr.rd);
+    }
 }
