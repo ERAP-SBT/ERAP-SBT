@@ -89,6 +89,23 @@ void Lifter::lift(Program *prog) {
             }
         }
     }
+
+    // TODO: move this post-processing to separate function
+    for (auto bb : dummy->predecessors) {
+        for (auto &cfOp : bb->control_flow_ops) {
+            if (cfOp.target() == dummy) {
+                cfOp.type = CFCInstruction::unreachable;
+                cfOp.info = std::monostate{};
+            }
+        }
+    }
+    for (auto &bb : ir->basic_blocks) {
+        for (auto &var : bb->variables) {
+            if (std::holds_alternative<SSAVar::ImmInfo>(var->info) && std::get<SSAVar::ImmInfo>(var->info).binary_relative) {
+                std::get<SSAVar::ImmInfo>(var->info).val -= ir->base_addr;
+            }
+        }
+    }
 }
 
 void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::optional<size_t> addr_idx, BasicBlock *curr_bb) {
@@ -193,8 +210,12 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
 
         bool bb_exists = false;
         if (next_bb == nullptr) {
-            next_bb = ir->add_basic_block(jmp_addr, prog->elf_base->symbol_str_at_addr(jmp_addr).value_or(""));
-            func->add_block(next_bb);
+            if (jmp_addr > prog->addrs.back()) {
+                next_bb = dummy;
+            } else {
+                next_bb = ir->add_basic_block(jmp_addr, prog->elf_base->symbol_str_at_addr(jmp_addr).value_or(""));
+                func->add_block(next_bb);
+            }
         } else {
             bb_exists = true;
         }

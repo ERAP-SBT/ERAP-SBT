@@ -30,7 +30,7 @@ struct IR {
         basic_blocks.push_back(std::move(block));
 
         // the third condition is just temporary and will be replaced in a future commit
-        if (virt_start_addr != 0 && virt_start_addr >= virt_bb_start_addr && (virt_start_addr - virt_bb_start_addr) / 2 < virt_bb_ptrs.size()) {
+        if (virt_start_addr != 0 && virt_start_addr >= virt_bb_start_addr) {
             virt_bb_ptrs.at((virt_start_addr - virt_bb_start_addr) / 2) = ptr;
         }
         return ptr;
