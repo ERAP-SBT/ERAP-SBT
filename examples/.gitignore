@@ -1,0 +1,5 @@
+*.bin
+*.o
+*_translated.s
+*_translated
+helloworld
