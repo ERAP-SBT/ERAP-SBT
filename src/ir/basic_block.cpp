@@ -24,6 +24,17 @@ SSAVar *BasicBlock::add_var_from_static(const size_t static_idx, uint64_t assign
     return ptr;
 }
 
+void BasicBlock::set_virt_end_addr(uint64_t addr) {
+    assert(addr != 0);
+
+    this->virt_end_addr = addr;
+
+    /* Update this->ir->virt_bb_ptrs */
+    for (size_t i = (this->virt_start_addr - this->ir->virt_bb_start_addr) / 2; i <= (this->virt_end_addr - this->ir->virt_bb_start_addr) / 2; i++) {
+        this->ir->virt_bb_ptrs.at(i) = this;
+    }
+}
+
 void BasicBlock::print(std::ostream &stream, const IR *ir) const {
     stream << "block b" << id << "(";
     // not very cool rn

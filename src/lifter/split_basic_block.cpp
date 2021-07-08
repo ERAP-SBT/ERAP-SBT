@@ -26,7 +26,11 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
     for (auto it = first_bb_vars.rbegin(); it != first_bb_vars.rend(); ++it) {
         if ((*it)->lifter_info.index() == 1) {
             auto &lifterInfo = std::get<SSAVar::LifterInfo>((*it)->lifter_info);
-            if (!std::holds_alternative<size_t>((*it)->info) && mapping.at(lifterInfo.static_id) == nullptr) {
+            // always fill the mapping if it is empty
+            if (mapping.at(lifterInfo.static_id) == nullptr) {
+                mapping.at(lifterInfo.static_id) = *it;
+            } else if (!std::holds_alternative<size_t>(mapping.at(lifterInfo.static_id)->info)) {
+                // replace statics if other variables are available
                 mapping.at(lifterInfo.static_id) = *it;
             }
         }
@@ -36,22 +40,24 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
     BasicBlock *new_bb = ir->add_basic_block(addr, elf_base->symbol_str_at_addr(addr).value_or(""));
 
     // transfer the control flow operations
-    new_bb->control_flow_ops = std::move(bb->control_flow_ops);
+    new_bb->control_flow_ops.swap(bb->control_flow_ops);
+    bb->control_flow_ops.clear();
 
     // transfer and add predecessors and successors
     new_bb->predecessors.push_back(bb);
-    new_bb->successors = std::move(bb->successors);
+    new_bb->successors.swap(bb->successors);
+    bb->successors.clear();
     bb->successors.push_back(new_bb);
 
     // correct the start and end addresses
-    ir->set_bb_end_addr(new_bb, std::get<1>(bb->lifter_info).second);
-    ir->set_bb_end_addr(bb, std::get<SSAVar::LifterInfo>(first_bb_vars.front()->lifter_info).assign_addr);
+    new_bb->set_virt_end_addr(bb->virt_end_addr);
+    bb->set_virt_end_addr(std::get<SSAVar::LifterInfo>(first_bb_vars.front()->lifter_info).assign_addr);
 
     // the register mapping in the BasicBlock
     reg_map new_mapping{};
     {
         // add a jump from the first to the second BasicBlock
-        auto &cf_op = bb->add_cf_op(CFCInstruction::jump, new_bb, std::get<1>(bb->lifter_info).second, addr);
+        auto &cf_op = bb->add_cf_op(CFCInstruction::jump, new_bb, bb->virt_end_addr, addr);
 
         // static assignments
         for (size_t i = 0; i < mapping.size(); i++) {
@@ -59,22 +65,19 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
                 cf_op.add_target_input(mapping.at(i), i);
                 std::get<SSAVar::LifterInfo>(mapping.at(i)->lifter_info).static_id = i;
             }
-            new_mapping.at(i) = new_bb->add_var_from_static(i, addr);
+            if (i != ZERO_IDX) {
+                new_mapping.at(i) = new_bb->add_var_from_static(i, addr);
+            } else {
+                mapping.at(i) = nullptr;
+            }
         }
-        new_mapping.at(ZERO_IDX) = nullptr;
     }
 
     // store the variables in the new basic block and adjust their inputs (if necessary)
     for (auto it = second_bb_vars.rbegin(); it != second_bb_vars.rend(); it++) {
-        SSAVar *var = it->get();
-
-        // add variable to the new BasicBlock -> this moving causes invalidated all references on the old ssa-var
+        // add variable to the new BasicBlock
         new_bb->variables.push_back(std::move(*it));
-        for (auto &cf_op : new_bb->control_flow_ops) {
-            for (auto &ref_ptr : cf_op.in_vars) {
-                ref_ptr.reset(new_bb->variables.back().get());
-            }
-        }
+        SSAVar *var = new_bb->variables.back().get();
 
         // set new id according to the new BasicBlocks ids
         var->id = new_bb->cur_ssa_id++;

@@ -19,27 +19,6 @@ void Lifter::lift_ecall(BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t 
 
     // the result should be placed in the statics for register a0 (x10) and a1 (x11)
     std::get<CfOp::SyscallInfo>(ecall_op.info).static_mapping = {10, 11};
-
-    // TODO: the ecall changes registers x10(a0) and x11(a1) -> this can't modelled using our current cf_ops
-    // to solve resulting problems with the branch address predictor for now, we insert dummy operations which read unknown values into the registers
-    SSAVar *dummy_addr = load_immediate(bb, 0, ip, false);
-    SSAVar *res_1 = bb->add_var(Type::i64, ip, 10);
-    {
-        auto dummy_op = std::make_unique<Operation>(Instruction::load);
-        dummy_op->set_inputs(dummy_addr, mapping.at(MEM_IDX));
-        dummy_op->set_outputs(res_1);
-        res_1->set_op(std::move(dummy_op));
-    }
-    mapping.at(10) = res_1;
-
-    SSAVar *res_2 = bb->add_var(Type::i64, ip, 11);
-    {
-        auto dummy_op = std::make_unique<Operation>(Instruction::load);
-        dummy_op->set_inputs(dummy_addr, mapping.at(MEM_IDX));
-        dummy_op->set_outputs(res_2);
-        res_2->set_op(std::move(dummy_op));
-    }
-    mapping.at(11) = res_2;
 }
 
 void Lifter::lift_branch(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
@@ -49,7 +28,7 @@ void Lifter::lift_branch(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint
     // 2. this immediate is originally encoded in multiples of 2 bytes, but is already converted by frvdec
 
     // 3. load IP
-    SSAVar *ip_imm = load_immediate(bb, (int64_t)ip, ip, true);
+    SSAVar *ip_imm = load_immediate(bb, (int64_t)(ip), ip, true);
 
     // 4. add offset to ip
     SSAVar *jmp_addr = bb->add_var(Type::i64, ip);
@@ -98,7 +77,7 @@ void Lifter::lift_branch(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint
     }
 
     uint64_t encoded_addr = (int64_t)(instr.instr.imm) + ip;
-    SSAVar *next_addr_var = load_immediate(bb, (int64_t)next_addr, ip, true);
+    SSAVar *next_addr_var = load_immediate(bb, (int64_t)(next_addr), ip, true);
 
     // stores the address which is used if the branch condition is false
     uint64_t uc_jmp_addr = reverse_jumps ? encoded_addr : next_addr;
@@ -126,7 +105,7 @@ void Lifter::lift_jal(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
     // 2. the original immediate is encoded in multiples of 2 bytes, but frvdec already took of that for us.
 
     // 3. load IP
-    SSAVar *ip_imm = load_immediate(bb, (int64_t)ip, ip, true);
+    SSAVar *ip_imm = load_immediate(bb, (int64_t)(ip), ip, true);
 
     // 4. add offset to ip
     SSAVar *sum = bb->add_var(Type::i64, ip);
@@ -139,7 +118,7 @@ void Lifter::lift_jal(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
 
     if (instr.instr.rd != ZERO_IDX) {
         // 5. load return address as another immediate
-        SSAVar *return_addr = load_immediate(bb, (int64_t)next_addr, ip, true, instr.instr.rd);
+        SSAVar *return_addr = load_immediate(bb, (int64_t)(next_addr), ip, true, instr.instr.rd);
 
         // write SSAVar of the result of the operation back to mapping
         write_to_mapping(mapping, return_addr, instr.instr.rd);
@@ -189,7 +168,7 @@ void Lifter::lift_jalr(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64
 
     if (instr.instr.rd != ZERO_IDX) {
         // the return value address is encoded as immediate
-        SSAVar *return_immediate = load_immediate(bb, (int64_t)next_addr, ip, instr.instr.rd);
+        SSAVar *return_immediate = load_immediate(bb, (int64_t)next_addr, ip, false, instr.instr.rd);
 
         // write SSAVar of the result of the operation back to mapping
         write_to_mapping(mapping, return_immediate, instr.instr.rd);

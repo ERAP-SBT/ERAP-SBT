@@ -50,6 +50,25 @@ int main(int argc, const char **argv) {
         std::cout << "------------------------------------------------------------\n";
     }
 
+    if (args.has_argument("output-binary")) {
+        FILE *output;
+        std::string output_file{args.get_argument("output-binary")};
+        if (!(output = fopen(output_file.c_str(), "w"))) {
+            auto error_code = errno;
+            std::cerr << "The output file could not be opened: " << std::strerror(error_code) << "\n";
+            return EXIT_FAILURE;
+        }
+
+        const error_t r = elf_file->write_binary_image(output);
+
+        fclose(output);
+
+        if (r != EXIT_SUCCESS) {
+            std::cerr << "Error: " << r << "\n";
+            return EXIT_FAILURE;
+        }
+    }
+
     FILE *output = stdout;
     if (args.has_argument("output")) {
         std::string output_file(args.get_argument("output"));

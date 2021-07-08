@@ -269,7 +269,7 @@ void Lifter::lift_auipc(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint6
     SSAVar *immediate = load_immediate(bb, instr.instr.imm, ip, false);
 
     // 2. load instruction pointer as immediate
-    SSAVar *ip_immediate = load_immediate(bb, (int64_t)ip, ip, true);
+    SSAVar *ip_immediate = load_immediate(bb, (int64_t)(ip), ip, true);
 
     // 3. add immediate to instruction pointer
     SSAVar *result = bb->add_var(Type::i64, ip, instr.instr.rd);

@@ -77,6 +77,10 @@ extern "C" [[noreturn]] void panic(const char *err_msg) {
     __builtin_unreachable();
 }
 
+/**
+ * @param stack x86 stack, as setup by the Operating System
+ * @param out_stack RISC-V pseudo stack
+ */
 extern "C" uint8_t *copy_stack(uint8_t *stack, uint8_t *out_stack) {
     /*
      * stack looks like this:

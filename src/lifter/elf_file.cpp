@@ -1,5 +1,7 @@
 #include "lifter/elf_file.h"
 
+#include <cassert>
+
 error_t ELF64File::parse_elf() {
     DEBUG_LOG("Start reading ELF file.");
     error_t e_code = 0;
@@ -163,14 +165,23 @@ error_t ELF64File::parse_program_headers() {
         } else if (phdr.p_type == PT_DYNAMIC) {
             std::cerr << "The input file features dynamic linking information. This type of ELF file is not supported.\n";
             return ENOEXEC;
-        }
+        } else if (phdr.p_type == PT_LOAD) {
+            if (phdr.p_vaddr < base_addr) {
+                base_addr = phdr.p_vaddr;
+            }
 
-        auto &program_map = segment_section_map.emplace_back();
-        // rough approximation, for further reference:
-        // https://github.com/bminor/binutils-gdb/blob/4ba8500d63991518aefef86474576de565e00237/include/elf/internal.h#L316
-        for (auto it = section_headers.begin(); it != section_headers.end(); it++) {
-            if (it->sh_offset >= phdr.p_offset && it->sh_offset + it->sh_size <= phdr.p_offset + phdr.p_filesz) {
-                program_map.push_back(it.base());
+            const uintptr_t end_addr = phdr.p_memsz + phdr.p_vaddr;
+            if (end_addr > this->load_end_addr) {
+                this->load_end_addr = end_addr;
+            }
+
+            auto &program_map = segment_section_map.emplace_back();
+            // rough approximation, for further reference:
+            // https://github.com/bminor/binutils-gdb/blob/4ba8500d63991518aefef86474576de565e00237/include/elf/internal.h#L316
+            for (auto it = section_headers.begin(); it != section_headers.end(); it++) {
+                if (it->sh_offset >= phdr.p_offset && it->sh_offset + it->sh_size <= phdr.p_offset + phdr.p_filesz) {
+                    program_map.push_back(it.base());
+                }
             }
         }
     }
@@ -243,4 +254,28 @@ std::optional<std::string> ELF64File::symbol_str_at_addr(uint64_t virt_addr) con
         return symbol_names.at(std::distance(symbols.begin(), it));
     }
     return std::nullopt;
+}
+
+error_t ELF64File::write_binary_image(FILE *out_fd) const {
+    assert(this->program_headers.size() > 0);
+
+    for (const Elf64_Phdr &phdr : this->program_headers) {
+        if (phdr.p_type == PT_LOAD) {
+            if (fseek(out_fd, phdr.p_vaddr - this->base_addr, SEEK_SET) != 0) {
+                return errno;
+            }
+
+            const size_t size = phdr.p_filesz;
+
+            if (phdr.p_offset + size >= file_content.size()) {
+                return EINVAL;
+            }
+
+            if (fwrite(this->file_content.data() + phdr.p_offset, 1, size, out_fd) != size) {
+                return errno;
+            }
+        }
+    }
+
+    return EXIT_SUCCESS;
 }
