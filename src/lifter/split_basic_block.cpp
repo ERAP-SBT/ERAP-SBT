@@ -23,16 +23,14 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
 
     // recreate the register mapping at the given address
     reg_map mapping{};
-    for (auto it = first_bb_vars.rbegin(); it != first_bb_vars.rend(); ++it) {
-        if ((*it)->lifter_info.index() == 1) {
-            auto &lifterInfo = std::get<SSAVar::LifterInfo>((*it)->lifter_info);
-            // always fill the mapping if it is empty
-            if (mapping.at(lifterInfo.static_id) == nullptr) {
-                mapping.at(lifterInfo.static_id) = *it;
-            } else if (!std::holds_alternative<size_t>(mapping.at(lifterInfo.static_id)->info)) {
-                // replace statics if other variables are available
-                mapping.at(lifterInfo.static_id) = *it;
-            }
+    for (auto *var : first_bb_vars) {
+        if (var->lifter_info.index() != 1) {
+            continue;
+        }
+
+        const auto static_id = std::get<SSAVar::LifterInfo>(var->lifter_info).static_id;
+        if (mapping.at(static_id) == nullptr || std::holds_alternative<size_t>(mapping.at(static_id)->info)) {
+            mapping.at(static_id) = var;
         }
     }
     mapping.at(ZERO_IDX) = nullptr;
@@ -61,7 +59,8 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
         // static assignments
         for (size_t i = 0; i < mapping.size(); i++) {
             if (mapping.at(i) != nullptr) {
-                cf_op.add_target_input(mapping.at(i), i);
+                if (i != 0)
+                    cf_op.add_target_input(mapping.at(i), i);
                 std::get<SSAVar::LifterInfo>(mapping.at(i)->lifter_info).static_id = i;
             }
             if (i != ZERO_IDX) {
