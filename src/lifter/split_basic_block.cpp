@@ -35,6 +35,7 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
             }
         }
     }
+    mapping.at(ZERO_IDX) = nullptr;
 
     // create the new BasicBlock
     BasicBlock *new_bb = ir->add_basic_block(addr, elf_base->symbol_str_at_addr(addr).value_or(""));
@@ -104,6 +105,8 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
     // adjust the inputs of the cfop (if necessary)
     for (size_t i = 0; i < new_bb->control_flow_ops.size(); ++i) {
         auto &cf_op = new_bb->control_flow_ops.at(i);
+        cf_op.source = new_bb;
+
         BasicBlock *target;
         target = cf_op.target();
         if (target) {
