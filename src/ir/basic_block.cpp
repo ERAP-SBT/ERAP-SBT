@@ -2,6 +2,8 @@
 
 #include "ir/ir.h"
 
+#include <sstream>
+
 BasicBlock::~BasicBlock() {
     control_flow_ops.clear();
     predecessors.clear();
@@ -33,6 +35,65 @@ void BasicBlock::set_virt_end_addr(uint64_t addr) {
     for (size_t i = (this->virt_start_addr - this->ir->virt_bb_start_addr) / 2; i <= (this->virt_end_addr - this->ir->virt_bb_start_addr) / 2; i++) {
         this->ir->virt_bb_ptrs.at(i) = this;
     }
+}
+
+static void verify_print_bb_name(const BasicBlock &bb, std::ostream &out) {
+    out << "In basic block ";
+    out << 'b' << bb.id;
+    if (!bb.dbg_name.empty()) {
+        out << " (" << bb.dbg_name << ')';
+    }
+    out << ": ";
+}
+
+bool BasicBlock::verify(std::vector<std::string> &messages_out) const {
+    bool ok = true;
+    std::unordered_set<decltype(SSAVar::id)> variable_ids;
+
+    for (const auto &var : variables) {
+        // The variable's id must not occur twice
+        if (variable_ids.find(var->id) != variable_ids.end()) {
+            std::stringstream s;
+            verify_print_bb_name(*this, s);
+            s << "Variable " << var->id << " is declared twice.";
+            messages_out.push_back(s.str());
+            ok = false;
+        }
+
+        if (auto op = std::get_if<std::unique_ptr<Operation>>(&var->info)) {
+            for (const auto &param : (*op)->in_vars) {
+                // Operation parameters must be declared before the operation itself
+                if (param) {
+                    if (variable_ids.find(param->id) == variable_ids.end()) {
+                        std::stringstream s;
+                        verify_print_bb_name(*this, s);
+                        s << "Variable " << var->id << " has a dependency on variable " << param->id;
+                        s << ", which has not been declared yet.";
+                        messages_out.push_back(s.str());
+                        ok = false;
+                    }
+                }
+            }
+        }
+
+        variable_ids.insert(var->id);
+    }
+
+    for (const auto &cf_op : control_flow_ops) {
+        for (const auto &input : cf_op.target_inputs()) {
+            // Contrrol flow operations must only reference variables in the current basic block
+            if (variable_ids.find(input->id) == variable_ids.end()) {
+                std::stringstream s;
+                verify_print_bb_name(*this, s);
+                s << "Control flow operation with type " << cf_op.type << " references variable " << input->id;
+                s << ", which is not declared in this basic block.";
+                messages_out.push_back(s.str());
+                ok = false;
+            }
+        }
+    }
+
+    return ok;
 }
 
 void BasicBlock::print(std::ostream &stream, const IR *ir) const {

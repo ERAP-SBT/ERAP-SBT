@@ -91,6 +91,16 @@ int main(int argc, const char **argv) {
         std::cout << "------------------------------------------------------------\n";
     }
 
+    {
+        std::vector<std::string> verification_messages;
+        if (!ir.verify(verification_messages)) {
+            std::cerr << "WARNING: IR irregularities have been found:\n";
+            for (const auto &message : verification_messages) {
+                std::cerr << "  " << message << '\n';
+            }
+        }
+    }
+
     generator::x86_64::Generator generator(&ir, std::string(elf_path), output);
     generator.compile();
 

@@ -67,6 +67,8 @@ struct BasicBlock {
         return control_flow_ops.back();
     }
 
+    bool verify(std::vector<std::string> &messages_out) const;
+
     void print(std::ostream &, const IR *) const;
     void print_name(std::ostream &, const IR *) const;
 };

@@ -33,6 +33,15 @@ class TestArithmeticalLogicalLifting : public ::testing::Test {
         delete lifter;
         delete ir;
     }
+
+    void verify() {
+        std::vector<std::string> messages;
+        bool valid = ir->verify(messages);
+        for (const auto &message : messages) {
+            std::cerr << message << '\n';
+        }
+        ASSERT_TRUE(valid) << "The IR has structural errors (see previous messages)";
+    }
 };
 
 TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_logical1) {
@@ -40,6 +49,7 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_logical1) 
     RV64Inst instr{FrvInst{FRV_ADD, 2, 3, 4, 0, 0, 0}, 4};
     size_t prev_size_variables = bb->variables.size();
     lifter->lift_arithmetical_logical(bb, instr, mapping, 0x69420, Instruction::add, Type::i64);
+    verify();
     ASSERT_TRUE(bb->variables.size() > prev_size_variables) << "There have to be added some ssa variables!";
 }
 
@@ -53,6 +63,7 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_logical2) 
 
     // lift the instruction
     lifter->lift_arithmetical_logical(bb, instr, mapping, 0x69420, Instruction::add, Type::i64);
+    verify();
 
     ASSERT_TRUE(bb->variables.size() > prev_size_variables) << "There have to be added some ssa variables.";
 
@@ -105,6 +116,7 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_logical3) 
 
     // lift the instruction
     lifter->lift_arithmetical_logical(bb, instr, mapping, 0x69420, Instruction::sub, Type::i64);
+    verify();
 
     ASSERT_TRUE(bb->variables.size() > prev_size_variables) << "There have to be added some ssa variables.";
 
@@ -157,6 +169,7 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_immediate_
     size_t last_ssa_id = bb->variables.back().get()->id;
 
     lifter->lift_arithmetical_logical_immediate(bb, instr, mapping, 0x13370, Instruction::_xor, Type::i64);
+    verify();
 
     ASSERT_TRUE(bb->variables.size() > prev_size_variables) << "There have to be added some ssa variables.";
 

@@ -59,5 +59,7 @@ struct IR {
         virt_bb_ptrs = std::vector<BasicBlock *>((end_addr - start_addr) / 2 + 1);
     }
 
+    bool verify(std::vector<std::string> &messages_out) const;
+
     void print(std::ostream &) const;
 };
