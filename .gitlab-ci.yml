@@ -43,7 +43,7 @@ test:
     # NOTE: address sanitizer appears to requires ptrace permissions which the gitlab runners do not have
     - meson configure build -Db_coverage=true -Dwerror=true -Db_sanitize=undefined
     # Clean old coverage reports or libgcov will complain
-    - ninja -C build clean-gcda
+    - ninja -C build clean-gcda clean-gcno
     - LSAN_OPTIONS=verbosity=1:log_threads=1 ninja -C build test
     # seperate line to ensure that test has finished, because coverage-xml has no dependency on
     # test but that is required for meaningful results
