@@ -369,8 +369,10 @@ void Generator::compile_vars(const BasicBlock *block) {
                 continue;
 
             const auto *reg_str = op_reg_map_for_type(in_var->type)[in_idx];
+            const auto *full_reg_str = op_reg_map_for_type(Type::i64)[in_idx];
 
-            fprintf(out_fd, "xor %s, %s\n", reg_str, reg_str);
+            // zero the full register so stuff doesn't go broke e.g. in zero-extend
+            fprintf(out_fd, "xor %s, %s\n", full_reg_str, full_reg_str);
             fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", reg_str, index_for_var(block, in_var));
             in_regs[in_idx] = reg_str;
         }
@@ -396,12 +398,14 @@ void Generator::compile_vars(const BasicBlock *block) {
             fprintf(out_fd, "sub rax, rbx\n");
             break;
         case Instruction::div:
-            assert(arg_count == 2);
+            assert(arg_count == 2 || arg_count == 3);
             fprintf(out_fd, "cqo\nidiv rbx\n");
+            fprintf(out_fd, "mov rbx, rdx\n"); // second output is remainder and needs to be in rbx atm
             break;
         case Instruction::udiv:
             assert(arg_count == 2);
             fprintf(out_fd, "xor rdx, rdx\ndiv rbx\n");
+            fprintf(out_fd, "mov rbx, rdx\n"); // second output is remainder and needs to be in rbx atm
             break;
         case Instruction::shl:
             assert(arg_count == 2);
@@ -441,8 +445,31 @@ void Generator::compile_vars(const BasicBlock *block) {
             assert(arg_count == 0);
             fprintf(out_fd, "mov rax, [init_stack_ptr]\n");
             break;
+        case Instruction::zero_extend:
+            assert(arg_count == 1);
+            // nothing to be done
+            break;
+        case Instruction::sign_extend:
+            assert(arg_count == 1);
+            if (op->in_vars[0]->type != Type::i64) {
+                fprintf(out_fd, "movsx rax, %s\n", in_regs[0]);
+            }
+            break;
+        case Instruction::slt:
+            assert(arg_count == 4);
+            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
+            fprintf(out_fd, "cmovl %s, %s\n", in_regs[0], in_regs[2]);
+            fprintf(out_fd, "cmoge %s, %s\n", in_regs[0], in_regs[3]);
+            break;
+        case Instruction::sltu:
+            assert(arg_count == 4);
+            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
+            fprintf(out_fd, "cmovb %s, %s\n", in_regs[0], in_regs[2]);
+            fprintf(out_fd, "cmoae %s, %s\n", in_regs[0], in_regs[3]);
+            break;
         default:
-            // TODO: ssmul_h, uumul_h, sumul_h, rem, urem, slt, sltu, sign_extend, zero_extend
+            assert(0);
+            // TODO: ssmul_h, uumul_h, sumul_h
             break;
         }
 
@@ -450,7 +477,7 @@ void Generator::compile_vars(const BasicBlock *block) {
             for (size_t out_idx = 0; out_idx < op->out_vars.size(); ++out_idx) {
                 const auto &out_var = op->out_vars[out_idx];
                 if (!out_var)
-                    break;
+                    continue;
 
                 const auto *reg_str = op_reg_map_for_type(out_var->type)[out_idx];
                 fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", index_for_var(block, out_var), reg_str);
