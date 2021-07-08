@@ -9,11 +9,13 @@ void gen_print_ir(IR &ir) {
     const auto static4 = ir.add_static(Type::i64);
     const auto static5 = ir.add_static(Type::i64);
 
-    auto *strlen_entry = ir.add_basic_block(0, "strlen_entry");
+    ir.setup_bb_addr_vec(10, 200);
+
+    auto *strlen_entry = ir.add_basic_block(10, "strlen_entry");
     {
-        auto *strlen_cmp = ir.add_basic_block(0, "strlen_cmp");
-        auto *strlen_inc = ir.add_basic_block(0, "strlen_inc");
-        auto *strlen_ret = ir.add_basic_block(0, "strlen_ret");
+        auto *strlen_cmp = ir.add_basic_block(20, "strlen_cmp");
+        auto *strlen_inc = ir.add_basic_block(30, "strlen_inc");
+        auto *strlen_ret = ir.add_basic_block(40, "strlen_ret");
         {
             // entry
             auto *str_ptr = strlen_entry->add_var_from_static(static0);
@@ -78,14 +80,14 @@ void gen_print_ir(IR &ir) {
         }
     }
 
-    auto *entry_block = ir.add_basic_block(0, "entry_block");
+    auto *entry_block = ir.add_basic_block(50, "entry_block");
     {
-        auto *entry_cmp = ir.add_basic_block(0, "entry_cmp");
-        auto *entry_exit = ir.add_basic_block(0, "entry_exit");
-        auto *entry_strlen = ir.add_basic_block(0, "entry_strlen");
-        auto *entry_write = ir.add_basic_block(0, "entry_write");
-        auto *entry_write2 = ir.add_basic_block(0, "entry_write2");
-        auto *entry_inc = ir.add_basic_block(0, "entry_inc");
+        auto *entry_cmp = ir.add_basic_block(60, "entry_cmp");
+        auto *entry_exit = ir.add_basic_block(70, "entry_exit");
+        auto *entry_strlen = ir.add_basic_block(80, "entry_strlen");
+        auto *entry_write = ir.add_basic_block(90, "entry_write");
+        auto *entry_write2 = ir.add_basic_block(100, "entry_write2");
+        auto *entry_inc = ir.add_basic_block(110, "entry_inc");
         {
             // entry block
             auto *mem_token = entry_block->add_var(Type::mt, 0);
@@ -251,7 +253,10 @@ void gen_print_ir(IR &ir) {
 
 void gen_unreachable_ir(IR &ir) {
     (void)ir.add_static(Type::i64);
-    auto *block1 = ir.add_basic_block();
+
+    ir.setup_bb_addr_vec(10, 100);
+
+    auto *block1 = ir.add_basic_block(10);
     { block1->add_cf_op(CFCInstruction::unreachable, nullptr); }
 
     ir.entry_block = block1->id;
@@ -259,7 +264,10 @@ void gen_unreachable_ir(IR &ir) {
 
 void gen_syscall_ir(IR &ir) {
     (void)ir.add_static(Type::i64);
-    auto *block1 = ir.add_basic_block();
+
+    ir.setup_bb_addr_vec(10, 100);
+
+    auto *block1 = ir.add_basic_block(10);
     {
         auto *v1 = block1->add_var_imm(93, 0);
         auto *v2 = block1->add_var_imm(50, 0);
@@ -274,7 +282,9 @@ void gen_third_ir(IR &ir) {
     (void)ir.add_static(Type::i64);
     const auto static0 = ir.add_static(Type::i64);
 
-    auto *block1 = ir.add_basic_block();
+    ir.setup_bb_addr_vec(10, 100);
+
+    auto *block1 = ir.add_basic_block(10);
     {
         auto *v1 = block1->add_var_imm(2, 0);
         auto *v2 = block1->add_var_imm(3, 0);
@@ -369,21 +379,23 @@ void gen_sec_ir(IR &ir) {
     (void)ir.add_static(Type::i64);
     const auto static0 = ir.add_static(Type::i64);
 
-    auto *block1 = ir.add_basic_block();
+    ir.setup_bb_addr_vec(10, 100);
+
+    auto *block1 = ir.add_basic_block(10);
     {
         auto *v1 = block1->add_var_imm(1, 0);
         auto &op = block1->add_cf_op(CFCInstruction::_return, nullptr);
         std::get<CfOp::RetInfo>(op.info).mapping.emplace_back(v1, static0);
     }
 
-    auto *block2 = ir.add_basic_block();
+    auto *block2 = ir.add_basic_block(20);
     {
         auto *v1 = block2->add_var_imm(0, 0);
         auto &op = block2->add_cf_op(CFCInstruction::_return, nullptr);
         std::get<CfOp::RetInfo>(op.info).mapping.emplace_back(v1, static0);
     }
 
-    auto *entry_block = ir.add_basic_block();
+    auto *entry_block = ir.add_basic_block(30);
     {
         auto *v1 = entry_block->add_var_from_static(static0);
         auto *v2 = entry_block->add_var_imm(3, 0);
@@ -400,12 +412,14 @@ void gen_sec_ir(IR &ir) {
 }
 
 void gen_first_ir(IR &ir) {
-    auto *block = ir.add_basic_block();
-    {
-        (void)ir.add_static(Type::i64);
-        const auto static0 = ir.add_static(Type::i64);
-        const auto static1 = ir.add_static(Type::i64);
+    (void)ir.add_static(Type::i64);
+    const auto static0 = ir.add_static(Type::i64);
+    const auto static1 = ir.add_static(Type::i64);
 
+    ir.setup_bb_addr_vec(10, 100);
+
+    auto *block = ir.add_basic_block(10);
+    {
         auto *in1 = block->add_var_from_static(static0);
         auto *in2 = block->add_var_from_static(static1);
 
@@ -442,7 +456,7 @@ void gen_first_ir(IR &ir) {
         }
     }
 
-    auto *block2 = ir.add_basic_block();
+    auto *block2 = ir.add_basic_block(20);
     {
         {
             // auto &op = block->add_cf_op(CFCInstruction::cjump, block2);
