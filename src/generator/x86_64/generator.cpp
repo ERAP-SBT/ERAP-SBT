@@ -326,12 +326,10 @@ void Generator::compile_vars(const BasicBlock *block) {
             continue;
         }
 
-        if (var->type == Type::mt) {
-            continue;
-        }
-
         if (std::holds_alternative<size_t>(var->info)) {
-            assert(var->info.index() == 2);
+            if (var->type == Type::mt) {
+                continue;
+            }
 
             fprintf(out_fd, "mov rax, [s%zu]\n", std::get<size_t>(var->info));
             fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", idx, rax_from_type(var->type));
@@ -380,7 +378,7 @@ void Generator::compile_vars(const BasicBlock *block) {
         switch (op->type) {
         case Instruction::store:
             assert(op->in_vars[0]->type == Type::i64);
-            assert(arg_count == 2);
+            assert(arg_count == 3);
             fprintf(out_fd, "mov %s [%s], %s\n", ptr_from_type(op->in_vars[1]->type), in_regs[0], in_regs[1]);
             break;
         case Instruction::load:
@@ -459,13 +457,13 @@ void Generator::compile_vars(const BasicBlock *block) {
             assert(arg_count == 4);
             fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "cmovl %s, %s\n", in_regs[0], in_regs[2]);
-            fprintf(out_fd, "cmoge %s, %s\n", in_regs[0], in_regs[3]);
+            fprintf(out_fd, "cmovge %s, %s\n", in_regs[0], in_regs[3]);
             break;
         case Instruction::sltu:
             assert(arg_count == 4);
             fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "cmovb %s, %s\n", in_regs[0], in_regs[2]);
-            fprintf(out_fd, "cmoae %s, %s\n", in_regs[0], in_regs[3]);
+            fprintf(out_fd, "cmovae %s, %s\n", in_regs[0], in_regs[3]);
             break;
         default:
             assert(0);
@@ -488,6 +486,8 @@ void Generator::compile_vars(const BasicBlock *block) {
 
 void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
     const auto *target = cf_op.target();
+    printf("Target: %zu, CFOP: %zu\n", target->inputs.size(), cf_op.target_inputs().size());
+    fflush(stdout);
     assert(target->inputs.size() == cf_op.target_inputs().size());
     for (size_t i = 0; i < cf_op.target_inputs().size(); ++i) {
         const auto *target_var = target->inputs[i];
