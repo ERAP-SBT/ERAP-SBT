@@ -143,8 +143,44 @@
     \ProgramSchemeVersionThree{0.6}{18}
 \end{frame}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% ELF File Parser Folie %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Lifter}{ELF Binärdatei laden und Instruktionsbytes dekodieren}
+
+    \begin{enumerate}
+        \item ELF File auf korrekte Attribute prüfen (Prüfbits, OS, Class, ...).
+        \item Program Header, Sections und (falls vorhanden) Symbole auslesen.
+        \item Dekodiere alle Bytes in ausführbaren Sections oder ausführbaren Programmheadern zu Instruktionen mittels \textbf{frvdec}.
+    \end{enumerate}
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Folie %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Lifter}{RISC-V Instruktionen in IR Code umwandeln}
+
+    \begin{enumerate}
+        \setlength\itemsep{0.5em}
+        \item Instruktionen nach Kontrollfluss einlesen (Start bei ELF Einstiegspunkt)
+        \begin{itemize}
+            \setlength\itemsep{0.5em}
+            \item Rekursives Vorgehen
+            \item Instruktionen sequenziell in entsprechende Folge von Instruktionen in der IR umwandeln.
+            \item Wiederhole bis eine \textbf{Kontrollfluss ändernde Instruktion} auftritt.
+            \item Diese wird in zwei Kontrollflussänderungen bei bedingten Sprüngen gespalten.
+            \item Aktueller Basic Block wird beendet und für jede Kontrollflussänderung wird eine neuer Block gestartet der weiter rekursiv eingelesen wird. 
+        \end{itemize}
+        \item Sollte Schritt 1 nicht alle vorhandenen Instruktionen in Basic Blöcke gepackt haben:\\ Beginne ab erster unbetrachteter Adresse / Instruktion erneut mit Schritt 1.
+    \end{enumerate}
+\end{frame}
+\clearpage
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \end{document} % !!! NICHT ENTFERNEN !!!
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
