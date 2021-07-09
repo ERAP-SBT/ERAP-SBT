@@ -125,6 +125,28 @@ void Lifter::postprocess() {
             }
         }
     }
+
+    // add setup_stack block
+    auto *program_entry = ir->basic_blocks[ir->entry_block].get();
+    auto *entry_block = ir->add_basic_block(0, "___STACK_ENTRY");
+    auto &cf_op = entry_block->add_cf_op(CFCInstruction::jump, program_entry);
+    // stack_var
+    auto *var = entry_block->add_var(Type::i64, 0, 2);
+    auto op = std::make_unique<Operation>(Instruction::setup_stack);
+    op->set_outputs(var);
+    var->set_op(std::move(op));
+    cf_op.add_target_input(var, 2);
+    ir->entry_block = entry_block->id;
+
+    // i wonder if that's okay...
+    program_entry->inputs.clear();
+
+    for (auto &var : program_entry->variables) {
+        if (std::holds_alternative<size_t>(var->info) && std::get<size_t>(var->info) == 2) {
+            program_entry->add_input(var.get());
+            break;
+        }
+    }
 }
 
 void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::optional<size_t> addr_idx, BasicBlock *curr_bb) {
