@@ -253,11 +253,11 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
     // test for correct splitting
     BasicBlock *first_block = block;
 
-    // ASSERT_EQ(first_block->successors.size(), 1) << "The first basic block must have only one successors, the second block!";
+    ASSERT_EQ(first_block->successors.size(), 1) << "The first basic block must have only one successors, the second block!";
     BasicBlock *second_block = first_block->successors[0];
-    // ASSERT_NE(first_block, second_block) << "The first and the second basic block cannot be the same!";
-    // ASSERT_EQ(second_block->predecessors.size(), 1) << "The second basic block must have only one predecessor, the first block!";
-    // ASSERT_EQ(first_block, second_block->predecessors[0]) << "The second basic blocks predecessor must be the first basic block!";
+    ASSERT_NE(first_block, second_block) << "The first and the second basic block cannot be the same!";
+    ASSERT_EQ(second_block->predecessors.size(), 1) << "The second basic block must have only one predecessor, the first block!";
+    ASSERT_EQ(first_block, second_block->predecessors[0]) << "The second basic blocks predecessor must be the first basic block!";
 
     // first basic block validation
     {
