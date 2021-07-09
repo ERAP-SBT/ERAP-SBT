@@ -4,6 +4,7 @@
 #include "lifter/lifter.h"
 
 #include "gtest/gtest.h"
+#include <string>
 
 using namespace lifter::RV64;
 using reg_map = Lifter::reg_map;
@@ -96,7 +97,6 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_small) {
     {
         // first basic block
         {
-            std::cout << count_var_per_instr[0] << "\n";
             int count_non_static_vars = first_block->variables.size() - count_static_vars;
             ASSERT_GE(count_non_static_vars, count_var_per_instr[0]) << "The variables before the split address must be in the first basic block!";
             ASSERT_LE(count_non_static_vars, count_var_per_instr[0]) << "The variables after the split address must not be in the first basic block!";
@@ -121,11 +121,15 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
     const size_t bb_split_addr = 24;
     const size_t bb_end_addr = 36;
 
+    // constants for some dummy blocks (used as jump targets)
+    const size_t count_dummy_blocks = 2;
+    const size_t dummy_block_addrs[count_dummy_blocks] = {76, 80};
+
     IR ir{};
     ir.setup_bb_addr_vec(prog_start, prog_end);
 
     // add static mapper
-    for (int i = 0; i < 33; i++) {
+    for (unsigned long i = 0; i < 33; i++) {
         ir.add_static(Type::i64);
     }
 
@@ -133,6 +137,14 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
 
     // create a basic block which should be splitted
     BasicBlock *block = ir.add_basic_block(bb_start_addr, "test_block_1");
+
+    // create dummy basic blocks which are only used as target for cfops
+    BasicBlock *dummy_blocks[count_dummy_blocks];
+    for (unsigned long i = 0; i < count_dummy_blocks; i++) {
+        std::stringstream str;
+        str << "dummy_block" << i;
+        dummy_blocks[i] = ir.add_basic_block(dummy_block_addrs[i], str.str());
+    }
 
     block->set_virt_end_addr(bb_end_addr);
 
@@ -175,21 +187,130 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
     // sub x7, x7, x6
     instructions[10] = RV64Inst{FrvInst{FRV_SUB, 7, 7, 6, 0, 0, 0}, 0};
 
-    uint64_t count_vars_before = 0;
-    uint64_t count_vars_after = 0;
-    {
-        uint64_t curr_ip = bb_start_addr;
-        for (RV64Inst &instr : instructions) {
-            lifter.parse_instruction(instr, block, mapping, curr_ip, curr_ip + 4);
-            if (curr_ip >= bb_split_addr) {
-                count_vars_after = block->variables.size() - count_static_vars - count_vars_before;
-            } else {
-                count_vars_before = block->variables.size() - count_static_vars;
+    // store which ssavar belongs to which part of the basic block
+    std::vector<SSAVar *> vars_before{};
+    std::vector<SSAVar *> vars_after{};
+
+    uint64_t curr_ip = bb_start_addr;
+    unsigned long previous_count_var = count_static_vars;
+    for (RV64Inst &instr : instructions) {
+        // lift the instruction
+        lifter.parse_instruction(instr, block, mapping, curr_ip, curr_ip + 4);
+
+        // store which variable should belong to which part of the basic block (before or after the split address)
+        if (curr_ip >= bb_split_addr) {
+            for (unsigned long i = previous_count_var; i < block->variables.size(); i++) {
+                vars_after.push_back(block->variables[i].get());
             }
-            curr_ip += 4;
+        } else {
+            for (unsigned long i = previous_count_var; i < block->variables.size(); i++) {
+                vars_before.push_back(block->variables[i].get());
+            }
+        }
+        previous_count_var = block->variables.size();
+        curr_ip += 4;
+    }
+
+    std::vector<SSAVar *> vars_from_cfop{};
+
+    // add a branch cfop (<=> creates 2 cfops in the basic block)
+    {
+        // beq x7, x0, off (the offset is so that the jump goes to the basic block at address dummy_bb_addr1)
+        RV64Inst instr = {{FRV_BEQ, 0, 7, 0, 0, 0, (int32_t)(dummy_block_addrs[0] - curr_ip)}, 0};
+        lifter.parse_instruction(instr, block, mapping, curr_ip, curr_ip + 4);
+        for (unsigned long i = previous_count_var; i < block->variables.size(); i++) {
+            vars_after.push_back(block->variables[i].get());
+        }
+        previous_count_var = block->variables.size();
+    }
+
+    std::vector<CfOp *> control_flow_ops{};
+
+    // set cfop inputs and such stuff
+    for (unsigned long i = 0; i < block->control_flow_ops.size(); i++) {
+        CfOp &cfop = block->control_flow_ops[i];
+        cfop.set_target(dummy_blocks[i]);
+
+        block->successors.push_back(dummy_blocks[i]);
+        dummy_blocks[i]->predecessors.push_back(block);
+
+        for (unsigned long i = 0; i < mapping.size(); i++) {
+            SSAVar *var = mapping[i];
+            if (var != nullptr) {
+                cfop.add_target_input(var, i);
+                std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = i;
+            }
+        }
+        
+        control_flow_ops.push_back(&cfop);
+    }
+
+    lifter.split_basic_block(block, bb_split_addr, nullptr);
+
+    // test that the ir is vaild after splitting
+    verify(&ir);
+
+    // test for correct splitting
+    BasicBlock *first_block = block;
+
+    // ASSERT_EQ(first_block->successors.size(), 1) << "The first basic block must have only one successors, the second block!";
+    BasicBlock *second_block = first_block->successors[0];
+    // ASSERT_NE(first_block, second_block) << "The first and the second basic block cannot be the same!";
+    // ASSERT_EQ(second_block->predecessors.size(), 1) << "The second basic block must have only one predecessor, the first block!";
+    // ASSERT_EQ(first_block, second_block->predecessors[0]) << "The second basic blocks predecessor must be the first basic block!";
+
+    // first basic block validation
+    {
+        unsigned long count_non_static = first_block->variables.size() - count_static_vars;
+        ASSERT_GE(count_non_static, vars_before.size()) << "The first basic block has too few variables!";
+        ASSERT_LE(count_non_static, vars_before.size()) << "The first basic block has to much variables!";
+
+        // test that no variable must be in the second basic block
+        for (std::unique_ptr<SSAVar> &ptr : first_block->variables) {
+            SSAVar *var = ptr.get();
+
+            // skip statics
+            if (std::holds_alternative<size_t>(var->info)) {
+                continue;
+            }
+            ASSERT_NE(std::find(vars_before.begin(), vars_before.end(), var), vars_before.end()) << "The first basic block contains a wrong variable!";
         }
     }
 
-    std::cout << count_vars_before << "\n";
-    std::cout << count_vars_after << "\n";
+    // second basic block validation
+    {
+        unsigned long count_non_static = second_block->variables.size() - count_static_vars;
+        ASSERT_GE(count_non_static, vars_after.size() + vars_from_cfop.size()) << "The second basic block has too few variables!";
+        ASSERT_LE(count_non_static, vars_after.size() + vars_from_cfop.size()) << "The second basic block has too much variables!";
+
+        // test that no variable must be in the first basic block
+        for (std::unique_ptr<SSAVar> &ptr : second_block->variables) {
+            SSAVar *var = ptr.get();
+
+            // skip statics
+            if (std::holds_alternative<size_t>(var->info)) {
+                continue;
+            }
+
+            bool is_in_vars_after = std::find(vars_after.begin(), vars_after.end(), var) != vars_after.end();
+            bool is_in_cfop_vars = std::find(vars_from_cfop.begin(), vars_from_cfop.end(), var) != vars_from_cfop.end();
+            ASSERT_TRUE(is_in_vars_after || is_in_cfop_vars) << "The second basic block contains a wrong variable!";
+        }
+
+        ASSERT_EQ(second_block->control_flow_ops.size(), control_flow_ops.size()) << "The second basic block must have the cfops of the original basic block!";
+
+        // test that all cfops of the second_block are those which were in the original basic block
+        for (CfOp &cfop : second_block->control_flow_ops) {
+            ASSERT_NE(std::find(control_flow_ops.begin(), control_flow_ops.end(), &cfop), control_flow_ops.end()) << "The second basic block contains a cfop which should not be there!";
+        }
+    }
+
+    // test for correct cfop between first and second basic block
+    {
+        ASSERT_EQ(first_block->control_flow_ops.size(), 1) << "The first basic block must have only one cfop!"; //, a jump to the second basic block!";
+        CfOp &jump = first_block->control_flow_ops[0];
+        ASSERT_EQ(jump.type, CFCInstruction::jump) << "Between first and second basic block has to be a jump!";
+        ASSERT_EQ(jump.source, first_block) << "The source of the jump between first and second basic block has to be the first basic block!";
+        ASSERT_EQ(jump.target(), second_block) << "The source of the jump between first and second basic block has to be the second basic block!";
+    }
 }
