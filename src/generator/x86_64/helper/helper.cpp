@@ -17,9 +17,9 @@ void memcpy(void *dst, const void *src, size_t count);
 
 const char panic_str[] = "PANIC: ";
 
-enum RV_SYSCALL_ID : uint32_t { RISCV_READ = 63, RISCV_WRITE = 64, RISCV_EXIT = 93 };
+enum RV_SYSCALL_ID : uint32_t { RISCV_IOCTL = 29, RISCV_LSEEK = 62, RISCV_READ = 63, RISCV_WRITE = 64, RISCV_READV = 65, RISCV_WRITEV = 66, RISCV_EXIT = 93, RISCV_EXIT_GROUP = 94 };
 
-enum AMD64_SYSCALL_ID : uint32_t { AMD64_READ = 0, AMD64_WRITE = 1, AMD64_EXIT = 60 };
+enum AMD64_SYSCALL_ID : uint32_t { AMD64_READ = 0, AMD64_WRITE = 1, AMD64_LSEEK = 8, AMD64_IOCTL = 16, AMD64_READV = 19, AMD64_WRITEV = 20, AMD64_EXIT = 60, AMD64_EXIT_GROUP = 231 };
 
 struct auxv_t {
     // see https://fossies.org/dox/Checker-0.9.9.1/gcc-startup_8c_source.html#l00042
@@ -55,12 +55,22 @@ extern "C" [[noreturn]] void panic(const char *err_msg);
 
 extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t, uint64_t, uint64_t) {
     switch (id) {
+    case RISCV_IOCTL:
+        return syscall3(AMD64_IOCTL, arg0, arg1, arg2);
+    case RISCV_LSEEK:
+        return syscall3(AMD64_LSEEK, arg0, arg1, arg2);
     case RISCV_READ:
         return syscall3(AMD64_READ, arg0, arg1, arg2);
     case RISCV_WRITE:
         return syscall3(AMD64_WRITE, arg0, arg1, arg2);
+    case RISCV_READV:
+        return syscall3(AMD64_READV, arg0, arg1, arg2);
+    case RISCV_WRITEV:
+        return syscall3(AMD64_WRITEV, arg0, arg1, arg2);
     case RISCV_EXIT:
         return syscall1(AMD64_EXIT, arg0);
+    case RISCV_EXIT_GROUP:
+        return syscall1(AMD64_EXIT_GROUP, arg0);
     default:
         break;
     }
