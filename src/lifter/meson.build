@@ -11,6 +11,7 @@ lifter_sources = [
     'instructions/load_store.cpp',
     'instructions/mul_div.cpp',
     'instructions/shifts.cpp',
+    'instructions/amo.cpp',
 ]
 
 lifter = static_library('lifter', lifter_sources,

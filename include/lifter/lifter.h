@@ -67,9 +67,9 @@ class Lifter {
 
     static void lift_ecall(BasicBlock *, reg_map &, uint64_t, uint64_t);
 
-    static void lift_load(BasicBlock *, RV64Inst &, reg_map &, uint64_t, const Type &, bool);
+    static void lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size, bool sign_extend);
 
-    static void lift_store(BasicBlock *bb, RV64Inst &, reg_map &, uint64_t, const Type &);
+    static void lift_store(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size);
 
     static void lift_arithmetical_logical(BasicBlock *, RV64Inst &, reg_map &, uint64_t, const Instruction &, const Type &);
 
@@ -78,6 +78,17 @@ class Lifter {
     static void lift_mul(BasicBlock *, RV64Inst &, reg_map &, uint64_t, const Instruction &, const Type &);
 
     static void lift_div(BasicBlock *, RV64Inst &, reg_map &, uint64_t, bool, bool, const Type &);
+
+    // atomics
+    static void lift_amo_load_reserve(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size);
+    static void lift_amo_store_conditional(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size);
+    static void lift_amo_add(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size);
+    static void lift_amo_swap(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size);
+    static void lift_amo_xor(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size);
+    static void lift_amo_or(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size);
+    static void lift_amo_and(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size);
+    static void lift_amo_min(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size, bool _signed);
+    static void lift_amo_max(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size, bool _signed);
 
     // helpers for lifting and code reduction
     static SSAVar *load_immediate(BasicBlock *bb, int64_t imm, uint64_t ip, bool binary_relative, size_t reg = 0);
@@ -93,7 +104,7 @@ class Lifter {
     static std::string str_decode_instr(const FrvInst *);
     std::vector<RefPtr<SSAVar>> filter_target_inputs(const std::vector<RefPtr<SSAVar>> &old_target_inputs, reg_map new_mapping, uint64_t split_addr) const;
     std::vector<std::pair<RefPtr<SSAVar>, size_t>> filter_target_inputs(const std::vector<std::pair<RefPtr<SSAVar>, size_t>> &old_target_inputs, reg_map new_mapping, uint64_t split_addr) const;
-    static SSAVar *get_from_mapping(BasicBlock *, reg_map &, int, int);
+    static SSAVar *get_from_mapping(BasicBlock *bb, reg_map &mapping, int reg_id, int ip);
     static void write_to_mapping(reg_map &, SSAVar *, int);
 
     void postprocess();

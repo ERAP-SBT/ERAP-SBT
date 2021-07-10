@@ -1,4 +1,4 @@
-#include <lifter/lifter.h>
+#include "lifter/lifter.h"
 
 using namespace lifter::RV64;
 
@@ -210,6 +210,81 @@ void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping,
     case FRV_ECALL:
         // this also includes the EBREAK
         lift_ecall(bb, mapping, ip, next_addr);
+        break;
+
+    case FRV_LRW:
+        lift_amo_load_reserve(bb, instr, mapping, ip, Type::i32);
+        break;
+    case FRV_LRD:
+        lift_amo_load_reserve(bb, instr, mapping, ip, Type::i64);
+        break;
+
+    case FRV_SCW:
+        lift_amo_store_conditional(bb, instr, mapping, ip, Type::i32);
+        break;
+    case FRV_SCD:
+        lift_amo_store_conditional(bb, instr, mapping, ip, Type::i64);
+        break;
+
+    case FRV_AMOADDW:
+        lift_amo_add(bb, instr, mapping, ip, Type::i32);
+        break;
+    case FRV_AMOADDD:
+        lift_amo_add(bb, instr, mapping, ip, Type::i64);
+        break;
+
+    case FRV_AMOSWAPW:
+        lift_amo_swap(bb, instr, mapping, ip, Type::i32);
+        break;
+    case FRV_AMOSWAPD:
+        lift_amo_swap(bb, instr, mapping, ip, Type::i64);
+        break;
+
+    case FRV_AMOXORW:
+        lift_amo_xor(bb, instr, mapping, ip, Type::i32);
+        break;
+    case FRV_AMOXORD:
+        lift_amo_xor(bb, instr, mapping, ip, Type::i64);
+        break;
+
+    case FRV_AMOORW:
+        lift_amo_or(bb, instr, mapping, ip, Type::i32);
+        break;
+    case FRV_AMOORD:
+        lift_amo_or(bb, instr, mapping, ip, Type::i64);
+        break;
+
+    case FRV_AMOANDW:
+        lift_amo_and(bb, instr, mapping, ip, Type::i32);
+        break;
+    case FRV_AMOANDD:
+        lift_amo_and(bb, instr, mapping, ip, Type::i64);
+        break;
+
+    case FRV_AMOMINW:
+        lift_amo_min(bb, instr, mapping, ip, Type::i32, true);
+        break;
+    case FRV_AMOMIND:
+        lift_amo_min(bb, instr, mapping, ip, Type::i64, true);
+        break;
+    case FRV_AMOMINUW:
+        lift_amo_min(bb, instr, mapping, ip, Type::i32, false);
+        break;
+    case FRV_AMOMINUD:
+        lift_amo_min(bb, instr, mapping, ip, Type::i64, false);
+        break;
+
+    case FRV_AMOMAXW:
+        lift_amo_max(bb, instr, mapping, ip, Type::i32, true);
+        break;
+    case FRV_AMOMAXD:
+        lift_amo_max(bb, instr, mapping, ip, Type::i64, true);
+        break;
+    case FRV_AMOMAXUW:
+        lift_amo_max(bb, instr, mapping, ip, Type::i32, false);
+        break;
+    case FRV_AMOMAXUD:
+        lift_amo_max(bb, instr, mapping, ip, Type::i64, false);
         break;
 
     default:
