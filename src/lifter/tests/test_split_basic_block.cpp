@@ -241,7 +241,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
                 std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = i;
             }
         }
-        
+
         control_flow_ops.push_back(&cfop);
     }
 
@@ -313,4 +313,6 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
         ASSERT_EQ(jump.source, first_block) << "The source of the jump between first and second basic block has to be the first basic block!";
         ASSERT_EQ(jump.target(), second_block) << "The source of the jump between first and second basic block has to be the second basic block!";
     }
+
+    ir.print(std::cout);
 }
