@@ -108,6 +108,24 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
         }
     }
 
+    // there can be recursive jumps into the block as well which need to be fixed
+    for (auto &cf_op : new_bb->control_flow_ops) {
+        if (cf_op.lifter_info.index() != 1) {
+            continue;
+        }
+
+        const auto jmp_addr = std::get<CfOp::LifterInfo>(cf_op.lifter_info).jump_addr;
+        if (jmp_addr == 0 || std::holds_alternative<CfOp::IJumpInfo>(cf_op.info) || std::holds_alternative<CfOp::ICallInfo>(cf_op.info) || std::holds_alternative<CfOp::RetInfo>(cf_op.info)) {
+            continue;
+        }
+
+        if (jmp_addr < new_virt_start_addr || jmp_addr > new_virt_end_addr) {
+            continue;
+        }
+
+        cf_op.set_target(new_bb);
+    }
+
     // the register mapping in the BasicBlock
     reg_map new_mapping{};
     {
