@@ -56,9 +56,6 @@ std::ostream &operator<<(std::ostream &stream, Instruction instr) {
     case Instruction::cast:
         stream << "cast";
         break;
-    case Instruction::immediate:
-        stream << "immediate";
-        break;
     case Instruction::setup_stack:
         stream << "setup_stack";
         break;

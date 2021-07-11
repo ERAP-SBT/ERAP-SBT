@@ -108,11 +108,6 @@ std::optional<int64_t> Lifter::get_var_value(SSAVar *var, BasicBlock *bb, std::v
         if (resolved_vars.size() != 2)
             return std::nullopt;
         return resolved_vars[0] - resolved_vars[1];
-    case Instruction::immediate:
-        load_input_vars(bb, op, resolved_vars, parsed_vars);
-        if (resolved_vars.size() != 1)
-            return std::nullopt;
-        return resolved_vars[0];
     case Instruction::shl:
         load_input_vars(bb, op, resolved_vars, parsed_vars);
         if (resolved_vars.size() != 2)
