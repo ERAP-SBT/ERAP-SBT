@@ -142,12 +142,74 @@
 
 
 \begin{frame}
-    \frametitle{Programmschema, Version 1}
+    \frametitle{Programmübersicht}
     %alignment to have some space between headline an the schematic
     ~\\
     ~\\
     \ProgramSchemeVersionOne{0.6}{18}
 \end{frame}
+
+\begin{frame}
+    \frametitle{Aufbau der IR}
+
+    \begin{itemize}
+        \item Die IR besteht aus mehreren "`Basic Blocks"'
+        \item Ein Basic Block besteht aus Eingaben, Variablen in SSA-Form, und Kontrollflussoperationen
+    \end{itemize}
+
+    \textbf{Static single assignment (SSA):} Einer Variable wird genau einmal ihr Wert zugewiesen.
+    Soll der Wert dieser Variable verändert werden, muss eine neue Variable erstellt werden.
+\end{frame}
+
+%%%%%%%%%%%%%%
+%% IR Folie %%
+%%%%%%%%%%%%%%
+
+\begin{frame}[fragile]
+    \frametitle{Intermediate Representation (IR)}
+    ~\\
+    ~\\
+    ~\\
+    \begin{columns}[c]
+        \column{0.275 \textwidth}
+        %\begin{tikzpicture}[scale=2]
+        %    \filldraw[TUMOrange] (0,0) rectangle (3.35,3);
+        %    \draw[black] (0,0) rectangle (3.35,3);
+        %    \node[align=left] at (1.65,1.5) (programm_text) {\fontsize{24}{24} \selectfont \quad [...]\\ \fontsize{24}{24} \selectfont \quad addi a1, x0, 100\\ \fontsize{24}{24} \selectfont loop:\\ \fontsize{24}{24} \selectfont \quad addi a1, a1, -1\\ \fontsize{24}{24} \selectfont \quad bne a1, x0, loop\\ \fontsize{24}{24} \selectfont \quad [...]};
+        %\end{tikzpicture}
+        \begin{lstlisting}
+        [...]
+        addi a1, x0, 100
+    loop:
+        addi a1, a1, -1
+        bne a1, x0, loop
+        [...]
+        \end{lstlisting}
+
+        \column{0.125 \textwidth}
+        \begin{tikzpicture}[scale=0.75]
+            \TikZArrowX{TUMOrange}{0}{0}{4}{1}
+        \end{tikzpicture}
+
+        \column{0.6 \textwidth}
+        \begin{lstlisting}
+block b1(inputs) <= [predecessors] {
+    [...] //statics
+    imm v33 <- immediate 0
+    imm v34 <- immediate 100
+    i64 <- addi i64 v33, i64 v33
+} => [(jump, [b2, ...])]
+
+block b2(inputs) <= [predecessors] { // loop
+    [...] // statics
+    imm v33 <- immediate -1
+    i64 v34 <- add i64 v11, i64 v33
+} => [(cjump, [b2, ...]), (jump, [...])]
+    \end{lstlisting}
+    \end{columns}
+
+\end{frame}
+\clearpage
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% ELF File Parser Folie %%
@@ -157,16 +219,22 @@
     \frametitle{Lifter}{ELF Binärdatei laden und Instruktionsbytes dekodieren}
 
     \begin{enumerate}
-        \item ELF File auf korrekte Attribute prüfen (Prüfbits, OS, Class, ...).
-        \item Program Header, Sections und (falls vorhanden) Symbole auslesen.
-        \item Dekodiere alle Bytes in ausführbaren Sections oder ausführbaren Programmheadern zu Instruktionen mittels \textbf{frvdec}.
+        \item ELF File auf korrekte Attribute prüfen .
+        \item Program Header, Sections und Symbole auslesen.
+        \item Bytes $\rightarrow$ Instruktionen durch \textbf{frvdec} decodieren.
     \end{enumerate}
 \end{frame}
 \clearpage
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Lifter Folie %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\note[itemize]{
+    \item ELF Prüfung: Prüfbits, System-V ABI, 64-Bit, Little Endian, RISC-V Machine
+    \item Symbole weren bei gestrippten ELF-Binaries nicht eingelesen
+    \item 32-Byte bzw. 16-Byte Compressed mit frvdec decodieren
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter General Folie %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{frame}
     \frametitle{Lifter}{RISC-V Instruktionen in IR Code umwandeln}
@@ -174,16 +242,81 @@
     \begin{enumerate}
         \setlength\itemsep{0.5em}
         \item Instruktionen nach Kontrollfluss einlesen (Start bei ELF Einstiegspunkt)
-              \begin{itemize}
+              \begin{enumerate}
                   \setlength\itemsep{0.5em}
-                  \item Rekursives Vorgehen
-                  \item Instruktionen sequenziell in entsprechende Folge von Instruktionen in der IR umwandeln.
+                  \item Rekursives Vorgehen.
+                  \item Instruktionen sequenziell in IR parsen.
                   \item Wiederhole bis eine \textbf{Kontrollfluss ändernde Instruktion} auftritt.
-                  \item Diese wird in zwei Kontrollflussänderungen bei bedingten Sprüngen gespalten.
-                  \item Aktueller Basic Block wird beendet und für jede Kontrollflussänderung wird eine neuer Block gestartet der weiter rekursiv eingelesen wird.
-              \end{itemize}
+                  \item Aktueller Basic Block wird beendet und für jede Kontrollflussänderung wird eine neuer Block gestartet $\rightarrow$ beginne bei 1.
+              \end{enumerate}
         \item Sollte Schritt 1 nicht alle vorhandenen Instruktionen in Basic Blöcke gepackt haben:\\ Beginne ab erster unbetrachteter Adresse / Instruktion erneut mit Schritt 1.
     \end{enumerate}
+\end{frame}
+\clearpage
+
+\note[itemize]{
+    \item Rekursives parsen
+    \item Start bei ELF Einstiegspunkt
+    \item RISC-V Instruktionen sequentiell in IR Instruktionen übertragen
+    \item Kontrollfluss-ändernde Instruktionen beenden Basic Blöcke
+    \item Alle möglichen Sprungziele starten neue Basic Blöcke
+    \item Diese werden rekursiv weiter geliftet
+    \item Am Ende gehen wir über alle nicht-geliftete Adressen und starten neue Basic Blöcke
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Backtracking Folie %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Lifter}{Adressbacktracking für indirekte Sprünge}
+
+    \begin{enumerate}
+        \setlength\itemsep{0.5em}
+        \item JALR und JAL Sprünge legen Programmcounter in Register x1 -> "ret"
+        \item Unbekanntes Sprungziel -> Backtracking
+        \item Backtracking nur für Kontrollfluss im Lifter
+    \end{enumerate}
+\end{frame}
+\clearpage
+
+\note[itemize]{
+
+}
+
+%%%%%%%%%%%%%%%%%%%%%
+%% Generator Folie %%
+%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Generator}{Übersetztung der IR zu x86\_64}
+
+    \begin{itemize}
+        \item Sehr einfache, aber korrekte übersetztung
+        \item RISC-V Stack wird simuliert (nicht x86 stack verwendet)
+        \item Indirekte Sprünge (RISC-V ret / call) werden per Lookup zur Laufzeit aufgelöst
+        \item RISC-V System-V ABI (Startup, Syscall) zur Laufzeit emuliert
+        \item Original ELF Programm als binäres speicher bild an exakter addresse eingebunden => no address fixup
+        \item First optimizations (eliminate redundant load / store of statics)
+    \end{itemize}
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Technische Demonstration %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Technische Demonstration}{Demonstration des aktuellen Standes}
+
+    % 4-6 Minuten
+    % helloworld, helloworld2, fibonacci
+    % besser: irgendein program das mit musl libc compiliert ist (im besten falle gzip)
+    % + etwas erklären was da geliftet wurde
+    % 1. originales program kurz erklären (was es macht, wie es gebaut wurde, andere besonderheiten)
+    % 2. originales program ausführen
+    % 3. translaten
+    % 4. translates program ausführen
 \end{frame}
 \clearpage
 
