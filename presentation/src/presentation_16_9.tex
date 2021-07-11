@@ -284,6 +284,34 @@ block b2(inputs) <= [predecessors] { // loop
 
 }
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter CfOps Folie %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Lifter}{Kontrollflussoperationen}
+
+    \begin{enumerate}
+        \setlength\itemsep{0.5em}
+        \item System Calls (ecall)
+        \begin{itemize}
+            \item Schreibt Rückgabewerte auf Statics
+        \end{itemize}
+        \item Bedingte Sprünge (branch)
+        \begin{itemize}
+            \item Vergleiche "gleich", "signed lower", "unsigned lower"
+            \item Generiert 2 Kontrollflussoperationen
+        \end{itemize}
+        \item Indirekte Sprünge (jalr)
+        \item Direkte Sprünge (jal)
+    \end{enumerate}
+\end{frame}
+\clearpage
+
+\note[itemize]{
+
+}
+
 %%%%%%%%%%%%%%%%%%%%%
 %% Generator Folie %%
 %%%%%%%%%%%%%%%%%%%%%
