@@ -50,6 +50,8 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_small) {
         mapping.at(i) = block->add_var_from_static(i, bb_start_addr);
     }
 
+    ASSERT_EQ(block->variables.size(), COUNT_STATIC_VARS) << "The amount of statics variables is not as expected!";
+
     // lifting some instructions to generate some variables
     // instructions = (addi x2, x0, 50), (andi x3, x2, 16), (sub x2, x3, x2)
     RV64Inst instructions[3] = {RV64Inst{FrvInst{FRV_ADDI, 2, 0, 0, 0, 0, 50}, 0}, RV64Inst{FrvInst{FRV_ANDI, 3, 2, 0, 0, 0, 16}, 0}, RV64Inst{FrvInst{FRV_SUB, 2, 3, 2, 0, 0, 0}, 0}};
@@ -152,6 +154,8 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
     for (unsigned long i = 1; i < mapping.size(); i++) {
         mapping.at(i) = block->add_var_from_static(i, bb_start_addr);
     }
+
+    ASSERT_EQ(block->variables.size(), COUNT_STATIC_VARS) << "The amount of statics variables is not as expected!";
 
     // create instructions
     RV64Inst instructions[11];
