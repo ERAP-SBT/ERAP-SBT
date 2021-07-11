@@ -50,7 +50,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_small) {
         mapping.at(i) = block->add_var_from_static(i, bb_start_addr);
     }
 
-    ASSERT_EQ(block->variables.size(), COUNT_STATIC_VARS) << "The amount of statics variables is not as expected!";
+    ASSERT_EQ(block->variables.size(), COUNT_STATIC_VARS - 1) << "The amount of statics variables is not as expected!";
 
     // lifting some instructions to generate some variables
     // instructions = (addi x2, x0, 50), (andi x3, x2, 16), (sub x2, x3, x2)
@@ -59,7 +59,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_small) {
     std::vector<int> count_var_per_instr{};
     {
         int curr_ip = bb_start_addr;
-        size_t previous_size = COUNT_STATIC_VARS;
+        size_t previous_size = COUNT_STATIC_VARS - 1;
         for (RV64Inst &instr : instructions) {
             lifter.parse_instruction(instr, block, mapping, curr_ip, curr_ip + 4);
             count_var_per_instr.push_back((int)(block->variables.size() - previous_size));
@@ -97,14 +97,14 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_small) {
     {
         // first basic block
         {
-            int count_non_static_vars = first_block->variables.size() - COUNT_STATIC_VARS;
+            int count_non_static_vars = first_block->variables.size() - COUNT_STATIC_VARS + 1;
             ASSERT_GE(count_non_static_vars, count_var_per_instr[0]) << "The variables before the split address must be in the first basic block!";
             ASSERT_LE(count_non_static_vars, count_var_per_instr[0]) << "The variables after the split address must not be in the first basic block!";
         }
 
         // second basic block
         {
-            int count_non_static_vars = second_block->variables.size() - COUNT_STATIC_VARS;
+            int count_non_static_vars = second_block->variables.size() - COUNT_STATIC_VARS + 1;
             ASSERT_GE(count_non_static_vars, count_var_per_instr[1] + count_var_per_instr[2]) << "The variables after the split address must be in the second basic block!";
             ASSERT_LE(count_non_static_vars, count_var_per_instr[1] + count_var_per_instr[2]) << "The variables before the split address must not be in the second basic block!";
         }
@@ -155,7 +155,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
         mapping.at(i) = block->add_var_from_static(i, bb_start_addr);
     }
 
-    ASSERT_EQ(block->variables.size(), COUNT_STATIC_VARS) << "The amount of statics variables is not as expected!";
+    ASSERT_EQ(block->variables.size(), COUNT_STATIC_VARS - 1) << "The amount of statics variables is not as expected!";
 
     // create instructions
     RV64Inst instructions[11];
@@ -192,7 +192,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
     std::vector<SSAVar *> vars_after{};
 
     uint64_t curr_ip = bb_start_addr;
-    unsigned long previous_count_var = COUNT_STATIC_VARS;
+    unsigned long previous_count_var = COUNT_STATIC_VARS - 1;
     for (RV64Inst &instr : instructions) {
         // lift the instruction
         lifter.parse_instruction(instr, block, mapping, curr_ip, curr_ip + 4);
@@ -261,7 +261,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
 
     // first basic block validation
     {
-        unsigned long count_non_static = first_block->variables.size() - COUNT_STATIC_VARS;
+        unsigned long count_non_static = first_block->variables.size() - COUNT_STATIC_VARS + 1;
         ASSERT_GE(count_non_static, vars_before.size()) << "The first basic block has too few variables!";
         ASSERT_LE(count_non_static, vars_before.size()) << "The first basic block has to much variables!";
 
@@ -279,7 +279,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
 
     // second basic block validation
     {
-        unsigned long count_non_static = second_block->variables.size() - COUNT_STATIC_VARS;
+        unsigned long count_non_static = second_block->variables.size() - COUNT_STATIC_VARS + 1;
         ASSERT_GE(count_non_static, vars_after.size() + vars_from_cfop.size()) << "The second basic block has too few variables!";
         ASSERT_LE(count_non_static, vars_after.size() + vars_from_cfop.size()) << "The second basic block has too much variables!";
 

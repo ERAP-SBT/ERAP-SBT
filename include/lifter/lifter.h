@@ -8,8 +8,8 @@ namespace lifter::RV64 {
 /* maximum number of riscv64 instructions a basicblock can have while lifting */
 constexpr size_t BASIC_BLOCK_MAX_INSTRUCTIONS = 10000;
 
-/* amount of static variables: 31 registers (x1-x32) + memory token*/
-constexpr size_t COUNT_STATIC_VARS = 32;
+/* amount of static variables: 31 registers (x0-x32) + memory token*/
+constexpr size_t COUNT_STATIC_VARS = 33;
 
 class Lifter {
   public:
@@ -34,7 +34,7 @@ class Lifter {
     // {0}: not used
     // {1, ..., 31}: RV-Registers
     // {32}: the last valid memory token
-    using reg_map = std::array<SSAVar *, COUNT_STATIC_VARS + 1>;
+    using reg_map = std::array<SSAVar *, COUNT_STATIC_VARS>;
 
     // currently used for unresolved jumps
     BasicBlock *dummy;
