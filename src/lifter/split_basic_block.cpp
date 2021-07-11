@@ -45,10 +45,8 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
     bb->control_flow_ops.clear();
 
     // transfer and add predecessors and successors
-    new_bb->predecessors.push_back(bb);
     new_bb->successors.swap(bb->successors);
     bb->successors.clear();
-    bb->successors.push_back(new_bb);
 
     // correct the start and end addresses
     new_bb->set_virt_end_addr(bb->virt_end_addr);
