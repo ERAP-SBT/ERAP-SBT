@@ -5,8 +5,11 @@ all: pdf
 
 .PHONY: pdflatex
 pdf: export TEXINPUTS = ${source_dir}:$TEXINPUTS:
-pdf:
+pdf: | build
 	pdflatex -output-directory=./build -halt-on-error ${presentation_filename}.tex
+
+build:
+	mkdir -p build
 
 .PHONY: clean
 clean:
