@@ -65,8 +65,6 @@
     \draw[#1, black] (#2,#3) -- (#2+#4*2/3,#3) -- (#2+#4*2/3,#3+#5/2) -- (#2+#4,#3+#5/2) -- (#2,#3+#5) -- (#2-#4,#3+#5/2) -- (#2-#4*2/3,#3+#5/2) -- (#2-#4*2/3,#3) -- (#2,#3);
 }
 
-
-
 % draws one entry of the color legend for the program scheme
 % color, text, posX, posY (left, top coordinate)
 \newcommand{\colorLegendEntry}[4]{
@@ -142,138 +140,13 @@
     \end{center}
 }
 
-\newcommand{\ProgramSchemeVersionTwo}[2]{
-    ~\\
-    \hspace{7ex}
-    \begin{centering}
-        \begin{tikzpicture}[very thick, scale=#1]
-            % riscv elf file rectangle
-            % background
-            \filldraw[purple] (-2,-2) rectangle (2,2);
-            % black border
-            \draw[black] (-2,-2) rectangle (2,2);
-            % label
-            \node[align=center] at (0,0) (riscv_text) {\fontsize{#2}{#2} \selectfont RISC-V};
-
-            % lifter arrow
-            \TikZArrowX{TUMOrange}{2}{0}{6}{1.5}
-            % arrow label
-            \node[align=center] at (4.5,0) (lifter_text) {\fontsize{#2}{#2} \selectfont Lifter};
-
-            % ir (unoptimized) rectangle
-            % background
-            \filldraw[TUMBlauDunkel] (8,-2) rectangle (12,2);
-            % black border
-            \draw[black] (8,-2) rectangle (12,2);
-            % label
-            \node[align=center] at (10,0) (ir_text_1) {\fontsize{#2}{#2} \selectfont IR};
-
-            % optimizer arrow
-            \TikZArrowY{TUMOrange}{10}{-2}{1.5}{-6}
-            % arrow label
-            \node[align=center] at (10,-4) (optimizer_text) {\fontsize{#2}{#2} \selectfont Optimizer};
-
-            % ir (optimized) rectangle
-            % background
-            \filldraw[TUMBlauDunkel] (8,-8) rectangle (12, -12);
-            % black border
-            \draw[black] (8,-8) rectangle (12, -12);
-            % label
-            \node[align=center] at (10,-10) (ir_text_2) {\fontsize{#2}{#2} \selectfont IR};
-
-            % compiler arrow
-            \TikZArrowX{TUMOrange}{8}{-10}{-6}{1.5}
-            % arrow label
-            \node[align=center] at (5.5,-10) (compiler_text) {\fontsize{#2}{#2} \selectfont Compiler};
-
-            % x86_64 rectangle
-            %background
-            \filldraw[purple] (-2,-8) rectangle (2,-12);
-            % black border
-            \draw[black] (-2,-8) rectangle (2,-12);
-            % label
-            \node[align=center] at (0,-10) (x86_64_text) {\fontsize{#2}{#2} \selectfont x86\_64};
-            % draw color legend
-            \colorLegend{-16}{-8.75}
-        \end{tikzpicture}
-    \end{centering}
-}
-
-\newcommand{\ProgramSchemeVersionThree}[2]{
-    ~\\
-    \hspace{7ex}
-    \begin{centering}
-        \begin{tikzpicture}[very thick, scale=#1]
-
-            % riscv elf file rectangle
-            % background
-            \filldraw[purple] (-2,-2) rectangle (2,2);
-            % black border
-            \draw[black] (-2,-2) rectangle (2,2);
-            % label
-            \node[align=center] at (0,0) (riscv_text) {\fontsize{#2}{#2} \selectfont RISC-V};
-
-            % lifter arrow
-            \TikZArrowX{TUMOrange}{2}{0}{6}{1.5}
-            % arrow label
-            \node[align=center] at (4.5,0) (lifter_text) {\fontsize{#2}{#2} \selectfont Lifter};
-
-            % ir (unoptimized) rectangle
-            % background
-            \filldraw[TUMBlauDunkel] (8,-2) rectangle (12,2);
-            % black border
-            \draw[black] (8,-2) rectangle (12,2);
-            % label
-            \node[align=center] at (10,0) (ir_text_1) {\fontsize{#2}{#2} \selectfont IR};
-
-            % optimizer arrow
-            \TikZArrowY{TUMOrange}{10}{-2}{1.5}{-6}
-            % arrow label
-            \node[align=center] at (10,-4) (optimizer_text) {\fontsize{#2}{#2} \selectfont Optimizer};
-
-            % ir (optimized) rectangle
-            % background
-            \filldraw[TUMBlauDunkel] (8,-8) rectangle (12, -12);
-            % black border
-            \draw[black] (8,-8) rectangle (12, -12);
-            % label
-            \node[align=center] at (10,-10) (ir_text_2) {\fontsize{#2}{#2} \selectfont IR};
-
-            % compiler arrow
-            \TikZArrowX{TUMOrange}{12}{-10}{6}{1.5}
-            % arrow label
-            \node[align=center] at (14.5,-10) (compiler_text) {\fontsize{#2}{#2} \selectfont Compiler};
-
-            % x86_64 rectangle
-            %background
-            \filldraw[purple] (18,-8) rectangle (22,-12);
-            % black border
-            \draw[black] (18,-8) rectangle (22,-12);
-            % label
-            \node[align=center] at (20,-10) (x86_64_text) {\fontsize{#2}{#2} \selectfont x86\_64};
-
-            % draw color legend
-            \colorLegend{-7}{-9}
-        \end{tikzpicture}
-    \end{centering}
-}
 
 \begin{frame}
-    \frametitle{Programmschma, Version 1}
+    \frametitle{Programmschema, Version 1}
     %alignment to have some space between headline an the schematic
     ~\\
     ~\\
     \ProgramSchemeVersionOne{0.6}{18}
-\end{frame}
-
-\begin{frame}
-    \frametitle{Programmschema, Version 2}
-    \ProgramSchemeVersionTwo{0.6}{18}
-\end{frame}
-
-\begin{frame}
-    \frametitle{Programmschema, Version 3}
-    \ProgramSchemeVersionThree{0.6}{18}
 \end{frame}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
