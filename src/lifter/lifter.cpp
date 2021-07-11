@@ -109,7 +109,7 @@ void Lifter::postprocess() {
     /* Replace any remaining unresolved */
     for (auto bb : dummy->predecessors) {
         for (auto &cfOp : bb->control_flow_ops) {
-            if (cfOp.target() == dummy) {
+            if (cfOp.target() == dummy && cfOp.type != CFCInstruction::syscall) {
                 /* This jump could not be resolved, and won't be able to resolve it at runtime */
                 cfOp.type = CFCInstruction::unreachable;
                 cfOp.info = std::monostate{};

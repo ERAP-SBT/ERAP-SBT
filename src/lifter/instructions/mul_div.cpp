@@ -78,7 +78,7 @@ void Lifter::lift_div(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
     {
         auto op = std::make_unique<Operation>(_signed ? Instruction::div : Instruction::udiv);
         op->set_inputs(rs_1, rs_2);
-        op->set_outputs(remainder ? dest : nullptr, remainder ? nullptr : dest);
+        op->set_outputs(remainder ? nullptr : dest, remainder ? dest : nullptr);
         dest->set_op(std::move(op));
     }
 

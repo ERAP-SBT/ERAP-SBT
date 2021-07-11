@@ -80,17 +80,19 @@ bool BasicBlock::verify(std::vector<std::string> &messages_out) const {
     }
 
     for (const auto &cf_op : control_flow_ops) {
-        if (cf_op.type != CFCInstruction::unreachable && cf_op.type != CFCInstruction::_return) {
-            for (const auto &input : cf_op.target_inputs()) {
-                // Control flow operations must only reference variables in the current basic block
-                if (variable_ids.find(input->id) == variable_ids.end()) {
-                    std::stringstream s;
-                    verify_print_bb_name(*this, s);
-                    s << "Control flow operation with type " << cf_op.type << " references variable " << input->id;
-                    s << ", which is not declared in this basic block.";
-                    messages_out.push_back(s.str());
-                    ok = false;
-                }
+        if (cf_op.type == CFCInstruction::unreachable || cf_op.type == CFCInstruction::_return) {
+            continue;
+        }
+
+        for (const auto &input : cf_op.target_inputs()) {
+            // Control flow operations must only reference variables in the current basic block
+            if (variable_ids.find(input->id) == variable_ids.end()) {
+                std::stringstream s;
+                verify_print_bb_name(*this, s);
+                s << "Control flow operation with type " << cf_op.type << " references variable " << input->id;
+                s << ", which is not declared in this basic block.";
+                messages_out.push_back(s.str());
+                ok = false;
             }
         }
     }
