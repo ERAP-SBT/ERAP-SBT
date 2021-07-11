@@ -24,7 +24,33 @@ struct Operation {
     void set_inputs(SSAVar *in1 = nullptr, SSAVar *in2 = nullptr, SSAVar *in3 = nullptr, SSAVar *in4 = nullptr);
     void set_outputs(SSAVar *out1 = nullptr, SSAVar *out2 = nullptr, SSAVar *out3 = nullptr);
 
+    void set_inputs(std::initializer_list<SSAVar *> inputs);
+    void set_outputs(std::initializer_list<SSAVar *> outputs);
+
     void print(std::ostream &, const IR *) const;
+
+    static std::unique_ptr<Operation> new_store(SSAVar *out_memory_token, SSAVar *in_address, SSAVar *in_value, SSAVar *in_memory_token);
+    static std::unique_ptr<Operation> new_load(SSAVar *out_result, SSAVar *in_address, SSAVar *in_memory_token);
+    static std::unique_ptr<Operation> new_add(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b);
+    static std::unique_ptr<Operation> new_sub(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b);
+    static std::unique_ptr<Operation> new_mul_l(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b);
+    static std::unique_ptr<Operation> new_ssmul_h(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b);
+    static std::unique_ptr<Operation> new_uumul_h(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b);
+    static std::unique_ptr<Operation> new_sumul_h(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b);
+    static std::unique_ptr<Operation> new_div(SSAVar *out_result, SSAVar *out_remainder, SSAVar *in_a, SSAVar *in_b);
+    static std::unique_ptr<Operation> new_udiv(SSAVar *out_result, SSAVar *out_remainder, SSAVar *in_a, SSAVar *in_b);
+    static std::unique_ptr<Operation> new_shl(SSAVar *out_result, SSAVar *in_value, SSAVar *in_amount);
+    static std::unique_ptr<Operation> new_shr(SSAVar *out_result, SSAVar *in_value, SSAVar *in_amount);
+    static std::unique_ptr<Operation> new_sar(SSAVar *out_result, SSAVar *in_value, SSAVar *in_amount);
+    static std::unique_ptr<Operation> new_or(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b);
+    static std::unique_ptr<Operation> new_and(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b);
+    static std::unique_ptr<Operation> new_not(SSAVar *out_result, SSAVar *in_value);
+    static std::unique_ptr<Operation> new_xor(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b);
+    static std::unique_ptr<Operation> new_cast(SSAVar *out_result, SSAVar *in_value);
+    static std::unique_ptr<Operation> new_sltu(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b, SSAVar *in_value_if_less, SSAVar *in_value_otherwise);
+    static std::unique_ptr<Operation> new_sign_extend(SSAVar *out_result, SSAVar *in_value);
+    static std::unique_ptr<Operation> new_zero_extend(SSAVar *out_result, SSAVar *in_value);
+    static std::unique_ptr<Operation> new_setup_stack(SSAVar *out_sp);
 };
 
 struct CfOp {
