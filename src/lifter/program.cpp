@@ -39,7 +39,7 @@ uint64_t Program::load_symbol_instrs(const std::string &name) {
     throw std::invalid_argument("Invalid symbol name: not found in elf file.");
 }
 
-uint64_t Program::load_symbol_instrs(size_t sym_i) { return load_symbol_instrs(&elf_base->symbols.at(sym_i)); }
+uint64_t Program::load_symbol_instrs(size_t sym_i) { return load_symbol_instrs(&elf_base->symbols[sym_i]); }
 
 uint64_t Program::load_symbol_instrs(Elf64_Sym *sym) {
     if (!sym->st_size) {
@@ -58,7 +58,7 @@ uint64_t Program::load_symbol_instrs(Elf64_Sym *sym) {
                   << "\n";
         return sym->st_value;
     }
-    if (sym->st_value < elf_base->section_headers.at(sym->st_shndx).sh_addr) {
+    if (sym->st_value < elf_base->section_headers[sym->st_shndx].sh_addr) {
         std::cout << "Symbol address outside of associated section. This doesn't seem right..."
                   << "\n";
         return sym->st_value;
@@ -75,7 +75,7 @@ uint64_t Program::load_symbol_data(const std::string &name) {
     throw std::invalid_argument("Invalid symbol name: not found in elf file.");
 }
 
-uint64_t Program::load_symbol_data(size_t sym_i) { return load_symbol_data(&elf_base->symbols.at(sym_i)); }
+uint64_t Program::load_symbol_data(size_t sym_i) { return load_symbol_data(&elf_base->symbols[sym_i]); }
 
 uint64_t Program::load_symbol_data(Elf64_Sym *sym) {
     if (!sym->st_size) {
@@ -88,7 +88,7 @@ uint64_t Program::load_symbol_data(Elf64_Sym *sym) {
                   << "\n";
         return sym->st_value;
     }
-    if (sym->st_value < elf_base->section_headers.at(sym->st_shndx).sh_addr) {
+    if (sym->st_value < elf_base->section_headers[sym->st_shndx].sh_addr) {
         std::cout << "Symbol address outside of associated section. This doesn't seem right..."
                   << "\n";
         return sym->st_value;
@@ -99,7 +99,7 @@ uint64_t Program::load_symbol_data(Elf64_Sym *sym) {
 uint64_t Program::load_section(Elf64_Shdr *sec) {
     size_t shdr_i = 0;
     for (; shdr_i < elf_base->section_headers.size(); shdr_i++) {
-        if (elf_base->section_headers.at(shdr_i).sh_name == sec->sh_name) {
+        if (elf_base->section_headers[shdr_i].sh_name == sec->sh_name) {
             break;
         }
     }
@@ -114,7 +114,7 @@ uint64_t Program::load_section(const std::string &sec_name) {
 }
 
 uint64_t Program::load_section(size_t shdr_i) {
-    Elf64_Shdr &shdr = elf_base->section_headers.at(shdr_i);
+    Elf64_Shdr &shdr = elf_base->section_headers[shdr_i];
 
     size_t phdr_i = 0;
     for (auto &mapping : elf_base->segment_section_map) {
@@ -127,7 +127,7 @@ uint64_t Program::load_section(size_t shdr_i) {
         std::cerr << "Can't find program header for section \"" << elf_base->section_names[shdr_i] << "\", ignoring header checks.\n";
         check_phdr = false;
     }
-    Elf64_Phdr *phdr = (check_phdr) ? &elf_base->program_headers.at(phdr_i) : nullptr;
+    Elf64_Phdr *phdr = (check_phdr) ? &elf_base->program_headers[phdr_i] : nullptr;
 
     if (shdr.sh_flags & SHF_EXECINSTR || (check_phdr && phdr->p_flags & PF_X)) {
         for (Elf64_Sym &sym : elf_base->symbols) {
@@ -142,7 +142,7 @@ uint64_t Program::load_section(size_t shdr_i) {
             }
         }
     } else {
-        throw std::invalid_argument("Currently unsupported section: \"" + elf_base->section_names.at(shdr_i) + "\"");
+        throw std::invalid_argument("Currently unsupported section: \"" + elf_base->section_names[shdr_i] + "\"");
     }
     return shdr.sh_addr;
 }

@@ -9,13 +9,13 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
 
     // Additionally, reset all static mappings where variables were mapped to a static mapper (not received from one)
     for (int i = (int)bb->variables.size() - 1; i >= 0; --i) {
-        auto &var = bb->variables.at(i);
+        auto &var = bb->variables[i];
         if (var->lifter_info.index() == 1) {
             auto &lifterInfo = std::get<SSAVar::LifterInfo>(var->lifter_info);
             if (lifterInfo.assign_addr < addr) {
                 first_bb_vars.push_back(var.get());
             } else {
-                second_bb_vars.push_back(std::move(bb->variables.at(i)));
+                second_bb_vars.push_back(std::move(bb->variables[i]));
                 bb->variables.erase(std::next(bb->variables.begin(), i));
             }
         }
@@ -29,11 +29,11 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
         }
 
         const auto static_id = std::get<SSAVar::LifterInfo>(var->lifter_info).static_id;
-        if (mapping.at(static_id) == nullptr || std::holds_alternative<size_t>(mapping.at(static_id)->info)) {
-            mapping.at(static_id) = var;
+        if (mapping[static_id] == nullptr || std::holds_alternative<size_t>(mapping[static_id]->info)) {
+            mapping[static_id] = var;
         }
     }
-    mapping.at(ZERO_IDX) = nullptr;
+    mapping[ZERO_IDX] = nullptr;
 
     // create the new BasicBlock
     BasicBlock *new_bb = ir->add_basic_block(addr, elf_base ? elf_base->symbol_str_at_addr(addr).value_or("") : "");
@@ -134,15 +134,16 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
 
         // static assignments
         for (size_t i = 0; i < mapping.size(); i++) {
-            if (mapping.at(i) != nullptr) {
-                if (i != 0)
-                    cf_op.add_target_input(mapping.at(i), i);
-                std::get<SSAVar::LifterInfo>(mapping.at(i)->lifter_info).static_id = i;
+            if (mapping[i] != nullptr) {
+                if (i != 0) {
+                    cf_op.add_target_input(mapping[i], i);
+                }
+                std::get<SSAVar::LifterInfo>(mapping[i]->lifter_info).static_id = i;
             }
             if (i != ZERO_IDX) {
-                new_mapping.at(i) = new_bb->add_var_from_static(i, addr);
+                new_mapping[i] = new_bb->add_var_from_static(i, addr);
             } else {
-                new_mapping.at(i) = nullptr;
+                new_mapping[i] = nullptr;
             }
         }
     }
@@ -169,7 +170,7 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
 
                 // the input must only be changed if the input variable is in the first BasicBlock
                 if (in_var_lifter_info.assign_addr < addr) {
-                    in_var = new_mapping.at(in_var_lifter_info.static_id);
+                    in_var = new_mapping[in_var_lifter_info.static_id];
                 }
             }
         }
@@ -182,7 +183,7 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
 
     // adjust the inputs of the cfop (if necessary)
     for (size_t i = 0; i < new_bb->control_flow_ops.size(); ++i) {
-        auto &cf_op = new_bb->control_flow_ops.at(i);
+        auto &cf_op = new_bb->control_flow_ops[i];
         cf_op.source = new_bb;
 
         for (auto &var : cf_op.in_vars) {
@@ -212,7 +213,7 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
 
         cf_op.clear_target_inputs();
         for (size_t j = 0; j < new_mapping.size(); j++) {
-            auto var = new_mapping.at(j);
+            auto var = new_mapping[j];
             if (var != nullptr) {
                 cf_op.add_target_input(var, j);
                 std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = j;
