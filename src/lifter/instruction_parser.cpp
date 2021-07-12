@@ -2,7 +2,7 @@
 
 using namespace lifter::RV64;
 
-void Lifter::parse_instruction(RV64Inst instr, BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
+void Lifter::parse_instruction(const RV64Inst &instr, BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     switch (instr.instr.mnem) {
     case FRV_INVALID:
         lift_invalid(bb, ip);
@@ -307,12 +307,12 @@ inline void Lifter::lift_invalid([[maybe_unused]] BasicBlock *bb, [[maybe_unused
     }
 }
 
-void Lifter::lift_slt(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, bool isUnsigned, bool withImmediate) {
+void Lifter::lift_slt(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, bool is_unsigned, bool with_immediate) {
     // get operands for operations (the operands which were compared)
     SSAVar *first_operand = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
     SSAVar *second_operand;
 
-    if (withImmediate) {
+    if (with_immediate) {
         second_operand = load_immediate(bb, instr.instr.imm, ip, false);
     } else {
         second_operand = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
@@ -326,7 +326,7 @@ void Lifter::lift_slt(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
     SSAVar *destination = bb->add_var(Type::i64, ip, instr.instr.rd);
 
     // create slt operation
-    std::unique_ptr<Operation> operation = std::make_unique<Operation>(isUnsigned ? Instruction::sltu : Instruction::slt);
+    std::unique_ptr<Operation> operation = std::make_unique<Operation>(is_unsigned ? Instruction::sltu : Instruction::slt);
 
     // set in- and outputs
     operation->set_inputs(first_operand, second_operand, one, zero);
@@ -339,7 +339,7 @@ void Lifter::lift_slt(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
     write_to_mapping(mapping, destination, instr.instr.rd);
 }
 
-void Lifter::lift_auipc(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip) {
+void Lifter::lift_auipc(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip) {
     // 1. load the immediate
     SSAVar *immediate = load_immediate(bb, instr.instr.imm, ip, false);
 
@@ -358,7 +358,7 @@ void Lifter::lift_auipc(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint6
     write_to_mapping(mapping, result, instr.instr.rd);
 }
 
-void Lifter::lift_lui(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip) {
+void Lifter::lift_lui(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip) {
     // create the immediate loading operation (with built-in sign extension)
     SSAVar *immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip, false, instr.instr.rd);
 
@@ -366,7 +366,7 @@ void Lifter::lift_lui(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
     write_to_mapping(mapping, immediate, instr.instr.rd);
 }
 
-void Lifter::lift_fence([[maybe_unused]] BasicBlock *bb, [[maybe_unused]] RV64Inst &instr, [[maybe_unused]] uint64_t ip) {
+void Lifter::lift_fence([[maybe_unused]] BasicBlock *bb, [[maybe_unused]] const RV64Inst &instr, [[maybe_unused]] uint64_t ip) {
     if (ENABLE_DEBUG) {
         std::stringstream str;
         str << "Skipping " << str_decode_instr(&instr.instr) << " instruction. (BasicBlock #0x" << std::hex << bb->id << ", address <0x" << ip << ">)";

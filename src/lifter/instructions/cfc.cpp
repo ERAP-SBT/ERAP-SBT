@@ -21,7 +21,7 @@ void Lifter::lift_ecall(BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t 
     std::get<CfOp::SyscallInfo>(ecall_op.info).static_mapping = {10, 11};
 }
 
-void Lifter::lift_branch(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
+void Lifter::lift_branch(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     // 1. load the immediate from the instruction
     SSAVar *jmp_imm = load_immediate(bb, (int64_t)instr.instr.imm, ip, false);
 
@@ -98,7 +98,7 @@ void Lifter::lift_branch(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint
     continue_jmp.set_inputs(uc_jmp_addr_var);
 }
 
-void Lifter::lift_jal(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
+void Lifter::lift_jal(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     // 1. load the immediate from the instruction (with built-in sign extension)
     SSAVar *jmp_imm = load_immediate(bb, (int64_t)instr.instr.imm, ip, false);
 
@@ -132,7 +132,7 @@ void Lifter::lift_jal(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
     cf_operation.set_inputs(sum);
 }
 
-void Lifter::lift_jalr(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
+void Lifter::lift_jalr(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     // the address is encoded as an immediate offset....
     // 1. load the immediate offset
     SSAVar *immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip, false);
