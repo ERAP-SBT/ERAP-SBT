@@ -1,4 +1,4 @@
-lifter_tests_src = ['test_lift_arithmetical_logical.cpp']
+lifter_tests_src = ['test_lifter.cpp','test_lift_arithmetical_logical.cpp', 'test_split_basic_block.cpp']
 
 test('lifter',
      executable('gtest-lifter',

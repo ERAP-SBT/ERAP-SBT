@@ -239,11 +239,11 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
             bb_exists = true;
         }
 
-        // TODO: This is a problem if we split the basic block later on
-        curr_bb->successors.push_back(next_bb);
-        next_bb->predecessors.push_back(curr_bb);
-        cfOp.set_target(next_bb);
-        cfOp.source = curr_bb;
+        if (cfOp.target() == nullptr) {
+            curr_bb->successors.push_back(next_bb);
+            next_bb->predecessors.push_back(curr_bb);
+            cfOp.set_target(next_bb);
+        }
 
         for (size_t i = 0; i < mapping.size(); i++) {
             auto var = mapping.at(i);

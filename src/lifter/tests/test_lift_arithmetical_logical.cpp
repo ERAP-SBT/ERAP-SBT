@@ -222,8 +222,3 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_immediate_
 }
 
 } // namespace lifter_test
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
