@@ -151,6 +151,7 @@ void Generator::compile_ijump_lookup() {
     /* Incredibly space inefficient but also O(1) fast */
     for (uint64_t i = ir->virt_bb_start_addr; i < ir->virt_bb_end_addr; i += 2) {
         const auto bb = ir->bb_at_addr(i);
+        fprintf(out_fd, "/* 0x%#.8lx: */", i);
         if (bb != nullptr && bb->virt_start_addr == i) {
             fprintf(out_fd, ".8byte b%zu\n", bb->id);
         } else {
