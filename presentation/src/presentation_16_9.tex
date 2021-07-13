@@ -52,14 +52,14 @@
 
 
 % draws an arrow from (#2,#3) to (#2+#4,#3) with height of #5 (arrow in x direction)
-% color, startX, startY, length (X dir), height (Y dir)
+% color (and other arguments, like visible on), startX, startY, length (X dir), height (Y dir)
 \newcommand{\TikZArrowX}[5]{
     \filldraw[#1] (#2,#3) -- (#2,#3+#5*2/3) -- (#2+#4/2,#3+#5*2/3) -- (#2+#4/2,#3+#5) -- (#2+#4,#3) -- (#2+#4/2,#3-#5) -- (#2+#4/2,#3-#5*2/3) -- (#2,#3-#5*2/3) -- (#2,#3);
     \draw[#1, black] (#2,#3) -- (#2,#3+#5*2/3) -- (#2+#4/2,#3+#5*2/3) -- (#2+#4/2,#3+#5) -- (#2+#4,#3) -- (#2+#4/2,#3-#5) -- (#2+#4/2,#3-#5*2/3) -- (#2,#3-#5*2/3) -- (#2,#3);
 }
 
 % draws an arrow from #2,#3) to (#2,#3+#5) with height of #4 (arrow in y direction)
-% color, startX, startY, length (X dir), height (Y dir), color
+% color (and other arguments, like visible on), startX, startY, length (X dir), height (Y dir), color
 \newcommand{\TikZArrowY}[5]{
     \filldraw[#1] (#2,#3) -- (#2+#4*2/3,#3) -- (#2+#4*2/3,#3+#5/2) -- (#2+#4,#3+#5/2) -- (#2,#3+#5) -- (#2-#4,#3+#5/2) -- (#2-#4*2/3,#3+#5/2) -- (#2-#4*2/3,#3) -- (#2,#3);
     \draw[#1, black] (#2,#3) -- (#2+#4*2/3,#3) -- (#2+#4*2/3,#3+#5/2) -- (#2+#4,#3+#5/2) -- (#2,#3+#5) -- (#2-#4,#3+#5/2) -- (#2-#4*2/3,#3+#5/2) -- (#2-#4*2/3,#3) -- (#2,#3);
@@ -77,7 +77,7 @@
 % draws a color legend for the program scheme
 % posX, posY (left, top coordinate)
 \newcommand{\colorLegend}[2] {
-    \colorLegendEntry{TUMOrange}{Main program parts}{#1}{#2}
+    \colorLegendEntry{TUMOrange}{Static Translator Parts}{#1}{#2}
     \colorLegendEntry{TUMBlauDunkel}{Immediate Representation (IR)}{#1}{#2-1.5}
     \colorLegendEntry{purple}{Maschine Code / ELF File}{#1}{#2-3}
 }
@@ -87,55 +87,55 @@
 \newcommand{\ProgramSchemeVersionOne}[2]{
     \begin{center}
         \begin{tikzpicture}[very thick, scale=#1]
+            % draw color legend
+            \colorLegend{-2}{-6}
+
             % riscv elf file rectangle
             % background
-            \filldraw[purple] (-2,-2) rectangle (2,2);
+            \filldraw[purple, visible on=<2->] (-2,-2) rectangle (2,2);
             % black border
-            \draw[black] (-2,-2) rectangle (2,2);
+            \draw[black, visible on=<2->] (-2,-2) rectangle (2,2);
             % label
-            \node[align=center] at (0,0) (riscv_text) {\fontsize{#2}{#2} \selectfont RISC-V};
+            \node[align=center, visible on=<2->] at (0,0) (riscv_text) {\fontsize{#2}{#2} \selectfont RISC-V};
 
             % lifter arrow
-            \TikZArrowX{TUMOrange}{2}{0}{6}{1.5}
+            \TikZArrowX{TUMOrange, visible on=<3->}{2}{0}{6}{1.5}
             % arrow label
-            \node[align=center] at (4.5,0) (lifter_text) {\fontsize{#2}{#2} \selectfont Lifter};
+            \node[align=center, visible on=<3->] at (4.5,0) (lifter_text) {\fontsize{#2}{#2} \selectfont Lifter};
 
             % ir (unoptimized) rectangle
             % background
-            \filldraw[TUMBlauDunkel] (8,-2) rectangle (12,2);
+            \filldraw[TUMBlauDunkel, visible on=<4->] (8,-2) rectangle (12,2);
             % black border
-            \draw[black] (8,-2) rectangle (12,2);
+            \draw[black, visible on=<4->] (8,-2) rectangle (12,2);
             % label
-            \node[align=center] at (10,0) (ir_text_1) {\fontsize{#2}{#2} \selectfont IR};
+            \node[align=center, visible on=<4->] at (10,0) (ir_text_1) {\fontsize{#2}{#2} \selectfont IR};
 
             % optimizer arrow
-            \TikZArrowX{TUMOrange}{12}{0}{6}{1.5}
+            \TikZArrowX{TUMOrange, visible on=<5->}{12}{0}{6}{1.5}
             % arrow label
-            \node[align=center] at (14.5,0) (optimizer_text) {\fontsize{#2}{#2} \selectfont Optimizer};
+            \node[align=center, visible on=<5->] at (14.5,0) (optimizer_text) {\fontsize{#2}{#2} \selectfont Optimizer};
 
             % ir (optimized) rectangle
             % background
-            \filldraw[TUMBlauDunkel] (18,-2) rectangle (22,2);
+            \filldraw[TUMBlauDunkel, visible on=<6->] (18,-2) rectangle (22,2);
             % black border
-            \draw[black] (18,-2) rectangle (22, 2);
+            \draw[black, visible on=<6->] (18,-2) rectangle (22, 2);
             % label
-            \node[align=center] at (20,0) (ir_text_2) {\fontsize{#2}{#2} \selectfont IR};
+            \node[align=center, visible on=<6->] at (20,0) (ir_text_2) {\fontsize{#2}{#2} \selectfont IR};
 
             % compiler arrow
-            \TikZArrowX{TUMOrange}{22}{0}{6}{1.5}
+            \TikZArrowX{TUMOrange, visible on=<7->}{22}{0}{6}{1.5}
             % arrow label
-            \node[align=center] at (24.5,0) (compiler_text) {\fontsize{#2}{#2} \selectfont Compiler};
+            \node[align=center, visible on=<7->] at (24.5,0) (compiler_text) {\fontsize{#2}{#2} \selectfont Compiler};
 
             % x86_64 rectangle
             %background
-            \filldraw[purple] (28,-2) rectangle (32,2);
+            \filldraw[purple, visible on=<8->] (28,-2) rectangle (32,2);
             % black border
-            \draw[black] (28,-2) rectangle (32,2);
+            \draw[black, visible on=<8->] (28,-2) rectangle (32,2);
             % label
-            \node[align=center] at (30,0) (x86_64_text) {\fontsize{#2}{#2} \selectfont x86\_64};
-
-            % draw color legend
-            \colorLegend{-2}{-6}
+            \node[align=center, visible on=<8->] at (30,0) (x86_64_text) {\fontsize{#2}{#2} \selectfont x86\_64};
         \end{tikzpicture}
     \end{center}
 }
@@ -149,16 +149,28 @@
     \ProgramSchemeVersionOne{0.6}{18}
 \end{frame}
 
+%%%%%%%%%%%%%%%%%%%%%
+%% IR Aufbau Folie %%
+%%%%%%%%%%%%%%%%%%%%%
+
 \begin{frame}
-    \frametitle{Aufbau der IR}
-
+    \frametitle{Intermediate Representation}{Aufbau}
+    \pause
     \begin{itemize}
-        \item Die IR besteht aus mehreren "`Basic Blocks"'
-        \item Ein Basic Block besteht aus Eingaben, Variablen in SSA-Form, und Kontrollflussoperationen
+        \item Die IR besteht aus mehreren "`\textbf{Basic Blocks}"'
+              \pause
+        \item Basic Block: Eine Folge von sequentiellen Instruktionen, beendet durch eine Kontrollflussopertion
+              \pause
+        \item Ein Basic Block enthält Variablen in SSA-Form und Operationen
+              \pause
+        \item \textbf{Static single assignment (SSA):} Jeder Variable wird genau einmal ein Wert zu gewiesen
+              \pause
+        \item Ein Basic Block erhält Eingaben in Form von Statics
+              \pause
+        \item Die Basic Blocks sind durch die Kontrollflussoperationen miteinander verbunden
+              \pause
+        \item Zur Nachvervolgung von Lese- und Schreiboperationen gibt es Memory Tokens $\rightarrow$ Optimierungen
     \end{itemize}
-
-    \textbf{Static single assignment (SSA):} Einer Variable wird genau einmal ihr Wert zugewiesen.
-    Soll der Wert dieser Variable verändert werden, muss eine neue Variable erstellt werden.
 \end{frame}
 
 %%%%%%%%%%%%%%
@@ -166,17 +178,13 @@
 %%%%%%%%%%%%%%
 
 \begin{frame}[fragile]
-    \frametitle{Intermediate Representation (IR)}
+    \frametitle{Intermediate Representation}{Beispiel}
+    \pause
     ~\\
     ~\\
     ~\\
     \begin{columns}[c]
         \column{0.275 \textwidth}
-        %\begin{tikzpicture}[scale=2]
-        %    \filldraw[TUMOrange] (0,0) rectangle (3.35,3);
-        %    \draw[black] (0,0) rectangle (3.35,3);
-        %    \node[align=left] at (1.65,1.5) (programm_text) {\fontsize{24}{24} \selectfont \quad [...]\\ \fontsize{24}{24} \selectfont \quad addi a1, x0, 100\\ \fontsize{24}{24} \selectfont loop:\\ \fontsize{24}{24} \selectfont \quad addi a1, a1, -1\\ \fontsize{24}{24} \selectfont \quad bne a1, x0, loop\\ \fontsize{24}{24} \selectfont \quad [...]};
-        %\end{tikzpicture}
         \begin{lstlisting}
         [...]
         addi a1, x0, 100
@@ -186,15 +194,19 @@
         [...]
         \end{lstlisting}
 
+        \pause
         \column{0.125 \textwidth}
         \begin{tikzpicture}[scale=0.75]
             \TikZArrowX{TUMOrange}{0}{0}{4}{1}
         \end{tikzpicture}
 
+        \pause
+
         \column{0.6 \textwidth}
         \begin{lstlisting}
 block b1(inputs) <= [predecessors] {
-    [...] //statics
+    i64 v0 <- @1
+    [...] // more statics
     imm v33 <- immediate 0
     imm v34 <- immediate 100
     i64 <- addi i64 v33, i64 v33
@@ -217,38 +229,40 @@ block b2(inputs) <= [predecessors] { // loop
 
 \begin{frame}[fragile]
     \frametitle{Lifter}{ELF Binärdatei laden und Instruktionsbytes decodieren}
-
+    \pause
     \begin{columns}[c]
         \column{0.5 \textwidth}
 
         \begin{enumerate}
             \item ELF File prüfen.
+                  \pause
             \item Program Header, Sections und Symbole auslesen.
+                  \pause
             \item Section Bytes $\rightarrow$ Instruktionen durch \textbf{frvdec} decodieren.
         \end{enumerate}
-
-        \column{0.5 \textwidth}
-        \begin{lstlisting}[basicstyle=\tiny, breaklines=true]
-        ELF Header:
-            Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00 
-            Class:                             ELF64
-            Data:                              2's complement, little endian
-            Version:                           1 (current)
-            OS/ABI:                            UNIX - System V
-            ABI Version:                       0
-            Type:                              EXEC (Executable file)
-            Machine:                           RISC-V
-            Version:                           0x1
-            Entry point address:               0x100b0
-            Start of program headers:          64 (bytes into file)
-            Start of section headers:          688 (bytes into file)
-            Flags:                             0x5, RVC, double-float ABI
-            Size of this header:               64 (bytes)
-            Size of program headers:           56 (bytes)
-            Number of program headers:         2
-            Size of section headers:           64 (bytes)
-            Number of section headers:         6
-            Section header string table index: 5
+        \pause
+        \column{0.50 \textwidth}
+        \begin{lstlisting}[basicstyle=\footnotesize, breaklines=true]
+ELF Header:
+    Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00 
+    Class:                             ELF64
+    Data:                              2's complement, little endian
+    Version:                           1 (current)
+    OS/ABI:                            UNIX - System V
+    ABI Version:                       0
+    Type:                              EXEC (Executable file)
+    Machine:                           RISC-V
+    Version:                           0x1
+    Entry point address:               0x100b0
+    Start of program headers:          64 (bytes into file)
+    Start of section headers:          688 (bytes into file)
+    Flags:                             0x5, RVC, double-float ABI
+    Size of this header:               64 (bytes)
+    Size of program headers:           56 (bytes)
+    Number of program headers:         2
+    Size of section headers:           64 (bytes)
+    Number of section headers:         6
+    Section header string table index: 5
         \end{lstlisting}
     \end{columns}
 \end{frame}
@@ -266,19 +280,24 @@ block b2(inputs) <= [predecessors] { // loop
 
 \begin{frame}
     \frametitle{Lifter}{RISC-V Instruktionen in IR Code umwandeln}
-
+    \pause
     \begin{enumerate}
         \setlength\itemsep{0.6em}
         \item Instruktionen sequenziell lesen:
-            \vspace{0.5em}
-            \begin{enumerate}
-                \setlength\itemsep{0.6em}
-                \item Instruktionen in IR parsen.
-                \item Wiederhole bis eine \textbf{Kontrollfluss ändernde Instruktion} auftritt.
-                \item Beende Basic Block $\rightarrow$ starte neuen Basic Blöck für jede Kontrollflussänderung 
-                \item Starte für jeden \textbf{neuen} Basic Block wieder bei 1.
-            \end{enumerate}
-        \item Sollte Schritt 1 nicht alle vorhandenen Instruktionen in Basic Blöcke gepackt haben:\\ Beginne ab erster unbetrachteter Adresse / Instruktion erneut mit Schritt 1.
+              \pause
+              \vspace{0.5em}
+              \begin{enumerate}
+                  \setlength\itemsep{0.6em}
+                  \item Instruktionen in IR parsen
+                        \pause
+                  \item Wiederhole bis eine \textbf{Kontrollfluss ändernde Instruktion} auftritt
+                        \pause
+                  \item Beende Basic Block $\rightarrow$ starte neuen Basic Blöck für jede Kontrollflussänderung
+                        \pause
+                  \item Starte für jeden \textbf{neuen} Basic Block wieder bei 1
+              \end{enumerate}
+              \pause
+        \item Sollte Schritt 1 nicht alle vorhandenen Instruktionen in Basic Blöcke gepackt haben:\\ Beginne ab erster \textbf{unbetrachteter} Adresse / Instruktion erneut mit Schritt 1
     \end{enumerate}
 \end{frame}
 \clearpage
@@ -294,45 +313,32 @@ block b2(inputs) <= [predecessors] { // loop
 }
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Lifter Backtracking Folie %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\begin{frame}
-    \frametitle{Lifter}{Adressbacktracking für indirekte Sprünge}
-
-    \begin{enumerate}
-        \setlength\itemsep{0.5em}
-        \item JALR und JAL Sprünge legen Befehlzähler in Register x1 $\rightarrow$ "return"
-        \item Unbekanntes Sprungziel $\rightarrow$ Backtracking
-        \item Backtracking nur für Kontrollfluss im Lifter
-    \end{enumerate}
-\end{frame}
-\clearpage
-
-\note[itemize]{
-
-}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Lifter CfOps Folie %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{frame}
     \frametitle{Lifter}{Kontrollflussoperationen}
-
+    \pause
     \begin{enumerate}
         \setlength\itemsep{0.5em}
         \item System Calls (ecall)
-        \begin{itemize}
-            \item Schreibt Rückgabewerte auf Statics
-        \end{itemize}
+              \begin{itemize}
+                  \item Schreibt Rückgabewerte auf Statics
+              \end{itemize}
+              \pause
         \item Bedingte Sprünge (branch)
-        \begin{itemize}
-            \item Vergleiche "gleich", "signed lower", "unsigned lower"
-            \item Generiert 2 Kontrollflussoperationen
-        \end{itemize}
-        \item Indirekte Sprünge (jalr)
+              \begin{itemize}
+                  \item Vergleiche: "`gleich"', "`ungleich gleich"', "`signed lower"', "`unsigned lower"'
+                  \item Generiert 2 Kontrollflussoperationen
+              \end{itemize}
+              \pause
         \item Direkte Sprünge (jal)
+              \pause
+        \item Indirekte Sprünge (jalr)
+              \begin{itemize}
+                  \item Unbekanntes Sprungziel $\rightarrow$ Backtracking
+                  \item Backtracking nur zur Kontrollflussbestimmung im Lifter
+              \end{itemize}
     \end{enumerate}
 \end{frame}
 \clearpage
@@ -340,6 +346,7 @@ block b2(inputs) <= [predecessors] { // loop
 \note[itemize]{
 
 }
+
 
 %%%%%%%%%%%%%%%%%%%%%
 %% Generator Folie %%
@@ -347,14 +354,19 @@ block b2(inputs) <= [predecessors] { // loop
 
 \begin{frame}
     \frametitle{Generator}{Übersetztung der IR zu x86\_64}
-
+    \pause
     \begin{itemize}
         \item Sehr einfache, aber korrekte übersetztung
-        \item RISC-V Stack wird simuliert (nicht x86 stack verwendet)
-        \item Indirekte Sprünge (RISC-V ret / call) werden per Lookup zur Laufzeit aufgelöst
+              \pause
+        \item RISC-V Stack wird simuliert % es wird nicht der x86-64 Stack verwendet
+              \pause
+        \item Indirekte Sprünge werden per Lookup zur Laufzeit aufgelöst
+              \pause
         \item RISC-V System-V ABI (Startup, Syscall) zur Laufzeit emuliert
-        \item Original ELF Programm als binäres speicher bild an exakter addresse eingebunden => no address fixup
-        \item First optimizations (eliminate redundant load / store of statics)
+              \pause
+        \item Original ELF Programm als binäres Speicherbild an exakter Adresse eingebunden
+              \pause
+        \item Erste Optimierung: Eliminerung von Redundanzen bei den Statics
     \end{itemize}
 \end{frame}
 \clearpage
