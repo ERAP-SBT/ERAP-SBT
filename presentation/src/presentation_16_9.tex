@@ -229,31 +229,32 @@ block b2(inputs) <= [predecessors] { // loop
 
 \begin{frame}[fragile]
     \frametitle{Lifter}{ELF Binärdatei laden und Instruktionsbytes decodieren}
-    \pause
     \begin{columns}[c]
         \column{0.5 \textwidth}
-
         \begin{enumerate}
+            \visible<2-> {
             \item ELF File prüfen.
-                  \pause
+                  }
+                  \visible<3-> {
             \item Program Header, Sections und Symbole auslesen.
-                  \pause
+                  \visible<4-> {
             \item Section Bytes $\rightarrow$ Instruktionen durch \textbf{frvdec} decodieren.
+                  }
         \end{enumerate}
-        \pause
+        }
         \column{0.50 \textwidth}
-        \begin{lstlisting}[basicstyle=\footnotesize, breaklines=true]
+        \begin{lstlisting}[basicstyle=\footnotesize, breaklines=true, escapeinside={@@}]
 ELF Header:
     Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00 
-    Class:                             ELF64
-    Data:                              2's complement, little endian
+    Class:                             @\textcolor{TUMBlauDunkel}{ELF64}@
+    Data:                              @\textcolor{TUMBlauDunkel}{2's complement, little endian}@
     Version:                           1 (current)
-    OS/ABI:                            UNIX - System V
+    OS/ABI:                            UNIX - @\textcolor{TUMBlauDunkel}{System V}@
     ABI Version:                       0
-    Type:                              EXEC (Executable file)
-    Machine:                           RISC-V
+    Type:                              @\textcolor{TUMBlauDunkel}{EXEC}@ (Executable file)
+    Machine:                           @\textcolor{TUMBlauDunkel}{RISC-V}@
     Version:                           0x1
-    Entry point address:               0x100b0
+    Entry point address:               @\textcolor{TUMBlauDunkel}{0x100b0}@
     Start of program headers:          64 (bytes into file)
     Start of section headers:          688 (bytes into file)
     Flags:                             0x5, RVC, double-float ABI
@@ -280,7 +281,6 @@ ELF Header:
 
 \begin{frame}
     \frametitle{Lifter}{RISC-V Instruktionen in IR Code umwandeln}
-    \pause
     \begin{enumerate}
         \setlength\itemsep{0.6em}
         \item Instruktionen sequenziell lesen:
@@ -321,20 +321,26 @@ ELF Header:
     \pause
     \begin{enumerate}
         \setlength\itemsep{0.5em}
-        \item System Calls (ecall)
+        \item System Calls (\lstinline[columns=fixed]{ecall})
               \begin{itemize}
                   \item Schreibt Rückgabewerte auf Statics
               \end{itemize}
               \pause
-        \item Bedingte Sprünge (branch)
+        \item Bedingte Sprünge (\lstinline[columns=fixed]{branch})
+              \vspace{0.5em}
+              \setlength\itemsep{0.6em}
               \begin{itemize}
-                  \item Vergleiche: "`gleich"', "`ungleich gleich"', "`signed lower"', "`unsigned lower"'
+                  \item Vergleiche: \setlength\itemsep{0.6em}\begin{itemize}
+                            \item \lstinline[columns=fixed]{gleich}
+                            \item \lstinline[columns=fixed]{signed lower}
+                            \item \lstinline[columns=fixed]{unsigned lower}
+                        \end{itemize}
                   \item Generiert 2 Kontrollflussoperationen
               \end{itemize}
               \pause
-        \item Direkte Sprünge (jal)
+        \item Direkte Sprünge (\lstinline[columns=fixed]{jal})
               \pause
-        \item Indirekte Sprünge (jalr)
+        \item Indirekte Sprünge (\lstinline[columns=fixed]{jalr})
               \begin{itemize}
                   \item Unbekanntes Sprungziel $\rightarrow$ Backtracking
                   \item Backtracking nur zur Kontrollflussbestimmung im Lifter
