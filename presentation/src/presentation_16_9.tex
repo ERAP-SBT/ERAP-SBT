@@ -185,7 +185,7 @@
     ~\\
     \begin{columns}[c]
         \column{0.275 \textwidth}
-        \begin{lstlisting}
+        \begin{lstlisting}[language=rv64]
         [...]
         addi a1, x0, 100
     loop:
@@ -196,20 +196,20 @@
 
         \pause
         \column{0.125 \textwidth}
-        \begin{tikzpicture}[scale=0.75]
+        \begin{tikzpicture}[scale=0.72]
             \TikZArrowX{TUMOrange}{0}{0}{4}{1}
         \end{tikzpicture}
 
         \pause
 
         \column{0.6 \textwidth}
-        \begin{lstlisting}
+        \begin{lstlisting}[language=SbtIr]
 block b1(inputs) <= [predecessors] {
     i64 v0 <- @1
     [...] // more statics
     imm v33 <- immediate 0
     imm v34 <- immediate 100
-    i64 <- addi i64 v33, i64 v33
+    i64 <- add i64 v33, i64 v33
 } => [(jump, [b2, ...])]
 
 block b2(inputs) <= [predecessors] { // loop

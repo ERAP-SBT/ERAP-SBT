@@ -55,8 +55,32 @@
 % Debugging:
 %\DeactivateWarningFilters[layout] % Unterdrückte Warnungen einschalten
 \usepackage{listings}
+
+\lstdefinelanguage{rv64}{
+    morekeywords={
+        addi, bne,
+        a1, x0
+    },
+    sensitive=false
+}
+
+\definecolor{SbtComment}{RGB}{80, 80, 80}
+
+\lstdefinelanguage{SbtIr}{
+    morekeywords={
+        block,
+        i64, i32, i16, i8, imm,
+        immediate, add,
+        cjump, jump
+    },
+    morecomment=[l]{//},
+    morecomment=[s]{/*}{*/}
+}
+
 \usepackage[verbatim]{lstfiracode}
 \lstset{
-style=FiraCodeStyle, % Use predefined FiraCodeStyle
-basicstyle=\ttfamily, % Use \ttfamily for source code listings
+    style=FiraCodeStyle, % Use predefined FiraCodeStyle
+    basicstyle=\ttfamily, % Use \ttfamily for source code listings
+    keywordstyle=\color{TUMBlauDunkel},
+    commentstyle=\color{SbtComment}
 }
