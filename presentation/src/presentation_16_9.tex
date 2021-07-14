@@ -408,19 +408,72 @@ ELF Header:
 %% Technische Demonstration %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\begin{frame}
-    \frametitle{Technische Demonstration}{Demonstration des aktuellen Standes}
+\begin{frame}[fragile]
+    \frametitle{Technische Demonstration}{Live Demonstration des aktuellen Standes}
 
-    % 4-6 Minuten
-    % helloworld, helloworld2, fibonacci
-    % besser: irgendein program das mit musl libc compiliert ist (im besten falle gzip)
-    % + etwas erklären was da geliftet wurde
-    % 1. originales program kurz erklären (was es macht, wie es gebaut wurde, andere besonderheiten)
-    % 2. originales program ausführen
-    % 3. translaten
-    % 4. translates program ausführen
+    % Dauer: ~3m
+    \note[item]{Kompilieren zu RISCV-64 mit einer unmodifizierten musl libc (standardbibliothek)}
+    \note[item]{Unser Program übersetzt zu x86 assembly + binary image}
+    \note[item]{Assemblieren mittels GNU tools}
+    \note[item]{Linken von binary image, übersetztem assembly und hilfsbibliothek}
+    \note[item]{Ausführen}
+    \note[item]{Ausführen, ungefährere Vergleich (native, qemu, translated) => Wo sind wir mit optimierungen, fast faktor 10 langsamer als QEMU}
+
+    \begin{lstlisting}[language=bash, basicstyle=\footnotesize\ttfamily, extendedchars=true,escapeinside={@@}]
+        ./big_tests/sysroot/bin/riscv64-linux-gnu-gcc \
+            -static \
+            examples/helloworld3.c \
+            -o examples/helloworld3
+
+        ./build/src/translate \
+            @-@-debug=true \
+            @-@-output-binary=examples/helloworld3.bin \
+            @-@-output=examples/helloworld3_translated.s \
+            examples/helloworld3
+
+        gcc \
+            -c examples/helloworld3_translated.s \
+            -o examples/helloworld3_translated.o
+
+        ld \
+            -T src/generator/x86_64/helper/link.ld \
+            examples/helloworld3_translated.o \
+            build/src/generator/x86_64/helper/libhelper.a \
+            -o examples/helloworld3_translated
+
+        ./examples/helloworld3_translated
+    \end{lstlisting}
 \end{frame}
 \clearpage
+
+%%%%%%%%%%%%%%%%%%%%%
+%% Erreichte Ziele %%
+%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Erreichte Ziele}{Erreichte Hauptziele und Ausblick}
+
+    % Dauer: mind. 1 Minute, ansonsten flexible
+    \note[item]{Freistehend => ohne standard bibliothek, z\.B\. handgeschriebenes assembly oder einfache C programme}
+    \note[item]{Atomics werden nur also nicht atomics übersetzt so weit nötig}
+    \note[item]{Demonstriert im Beispiel}
+    \note[item]{2 Bugs in musl libc, malloc, fehlender BasicBlock in printf\_core wegen switch statement ohne control fluss änderung am ende von cases}
+    \note[item]{Und noch vereinzelt weiter instructionen je nach bedarf}
+    \note[item]{ijump eigentlich bei erweiterte Ziele, aber extrem wichtig da für return verwendet}
+
+    \pause{}
+
+    \begin{itemize}
+        \item Korrektes Übersetzten einfacher freistehender Programme
+            \pause{}
+        \item Übersetzten von unmodifizierter musl libc
+            \pause{}
+        \item Unterstützung von RV64I, RV64C, \ldots{}
+            \pause{}
+        \item Auflösung indirekter Sprünge zur Laufzeit
+            \pause{}
+    \end{itemize}
+\end{frame}
 
 %%%%%%%%%%%%%%%%%%%
 %% Noch Fragen ? %%
