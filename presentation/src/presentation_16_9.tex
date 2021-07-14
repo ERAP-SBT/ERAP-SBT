@@ -382,6 +382,34 @@ ELF Header:
 
 }
 
+\begin{frame}
+    \frametitle{Lifter}{Aufteilen eines Baisc Blocks}
+    \pause
+    \begin{itemize}
+        \item \textbf{Aufteilen} eines Baisc Blocks an einer Adresse, wenn in den Block an die Adresse gesprungen wird
+        \pause
+        \item Warum? \pause $\rightarrow$ Sprung nur an den Beginn eines Basic Blocks
+        \pause
+        \item Verbindung der beiden Blöcke mit einem unbedingten Sprung
+        \pause
+        \item Variablen werden anhand ihrer Zuweisungsadresse aufgeteilt
+        \pause
+        \item Kontrollflussoperationen werden in den zweiten Basic Block geschoben
+        \pause
+        \item Hat für große Probleme gesorgt, da bestehende Datenstruktur verändert werden muss
+    \end{itemize}
+\end{frame}
+\clearpage
+
+\note[itemize]{
+    \item Ein Basic Block muss aufgeteilt werden, wenn eine Kontrollflussoperation an eine Adresse springt, welche bereits geliftet ist und sich in diesem Basic Block befindet
+    \item Warum muss ein Basic Block geteilt werden? -> damit nach Definition der IR immer an den Beginn eines Basic Blocks gesprungen werden kann
+    \item bei Schleifen nötig -> siehe IR Beispiel vorher
+    \item Unbedingter Sprung als Verbindung (nach )
+    \item Variablen anhand Zuweisungsadresse (Adresse der Instruktion, welche sie erzeugt hat) auf die beiden Basic Blöcke aufgeteilt
+    \item Sorgt für Probleme, weil Datenstruktur verändert wird, v.a. richtige Aufteilen der Variablen, korrekter Sprung, korrekter Transfer der Cfops
+    \item Die Kontrollflussoperationen werden in den zweiten Basic Block (mit der höheren Adresse) geschoben, weil diese das Ende des Basic Blocks sind und sich damit garantiert im zweiten Befinden
+}
 
 %%%%%%%%%%%%%%%%%%%%%
 %% Generator Folie %%
