@@ -39,6 +39,8 @@ class ELF64File {
 
     // program headers describe segments
     std::vector<Elf64_Phdr> program_headers;
+    uint64_t phdr_offset = 0;
+    uint64_t phdr_size = 0;
 
     // Elf base address, the lowest virtual program header address
     uint64_t base_addr = UINT64_MAX;

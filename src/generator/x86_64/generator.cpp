@@ -114,6 +114,7 @@ void Generator::compile() {
     fprintf(out_fd, "binary = orig_binary_vaddr\n");
 
     compile_statics();
+    compile_phdr_info();
 
     compile_section(Section::BSS);
 
@@ -168,6 +169,13 @@ void Generator::compile_statics() {
     for (const auto &var : ir->statics) {
         std::fprintf(out_fd, "s%zu: .quad 0\n", var.id); // for now have all of the statics be 64bit
     }
+}
+
+void Generator::compile_phdr_info() {
+    std::fprintf(out_fd, "phdr_off: .quad %lu\n", ir->phdr_off);
+    std::fprintf(out_fd, "phdr_num: .quad %lu\n", ir->phdr_num);
+    std::fprintf(out_fd, "phdr_size: .quad %lu\n", ir->phdr_size);
+    std::fprintf(out_fd, ".global phdr_off\n.global phdr_num\n.global phdr_size\n");
 }
 
 void Generator::compile_blocks() {
@@ -395,6 +403,18 @@ void Generator::compile_vars(const BasicBlock *block) {
             assert(arg_count == 2);
             fprintf(out_fd, "sub rax, rbx\n");
             break;
+        case Instruction::mul_l:
+            assert(arg_count == 2);
+            fprintf(out_fd, "imul rax, rbx\n");
+            break;
+        case Instruction::ssmul_h:
+            assert(arg_count == 2);
+            fprintf(out_fd, "imul rbx\nmov rax, rdx\n");
+            break;
+        case Instruction::uumul_h:
+            assert(arg_count == 2);
+            fprintf(out_fd, "mul rbx\nmov rax, rdx\n");
+            break;
         case Instruction::div:
             assert(arg_count == 2 || arg_count == 3);
             fprintf(out_fd, "cqo\nidiv rbx\n");
@@ -467,7 +487,7 @@ void Generator::compile_vars(const BasicBlock *block) {
             break;
         default:
             assert(0);
-            // TODO: ssmul_h, uumul_h, sumul_h
+            // TODO: sumul_h
             break;
         }
 

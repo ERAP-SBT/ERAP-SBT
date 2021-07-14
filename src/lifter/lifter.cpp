@@ -7,6 +7,9 @@ void Lifter::lift(Program *prog) {
     assert(prog->elf_base->base_addr <= prog->elf_base->load_end_addr);
     ir->base_addr = prog->elf_base->base_addr;
     ir->load_size = prog->elf_base->load_end_addr - prog->elf_base->base_addr;
+    ir->phdr_num = prog->elf_base->program_headers.size();
+    ir->phdr_off = prog->elf_base->phdr_offset;
+    ir->phdr_size = prog->elf_base->phdr_size;
     dummy = ir->add_basic_block(0, "Dummy Basic Block");
 
     if (prog->elf_base->section_headers.empty()) {

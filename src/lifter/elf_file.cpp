@@ -154,6 +154,8 @@ error_t ELF64File::parse_program_headers() {
         return ENOEXEC;
     }
 
+    phdr_size = header.e_phentsize;
+    phdr_offset = header.e_phoff;
     for (size_t i = 0; i < header.e_phnum; ++i) {
         Elf64_Phdr phdr;
         std::memcpy(&phdr, file_content.data() + header.e_phoff + (header.e_phentsize * i), sizeof(Elf64_Phdr));
