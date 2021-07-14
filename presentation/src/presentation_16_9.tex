@@ -105,41 +105,49 @@
 
             % ir (unoptimized) rectangle
             % background
-            \filldraw[TUMBlauDunkel, visible on=<4->] (8,-2) rectangle (12,2);
+            \filldraw[TUMBlauDunkel, visible on=<3->] (8,-2) rectangle (12,2);
             % black border
-            \draw[black, visible on=<4->] (8,-2) rectangle (12,2);
+            \draw[black, visible on=<3->] (8,-2) rectangle (12,2);
             % label
-            \node[align=center, visible on=<4->] at (10,0) (ir_text_1) {\fontsize{#2}{#2} \selectfont IR};
+            \node[align=center, visible on=<3->] at (10,0) (ir_text_1) {\fontsize{#2}{#2} \selectfont IR};
 
             % optimizer arrow
-            \TikZArrowX{TUMOrange, visible on=<5->}{12}{0}{6}{1.5}
+            \TikZArrowX{TUMOrange, visible on=<4->}{12}{0}{6}{1.5}
             % arrow label
-            \node[align=center, visible on=<5->] at (14.5,0) (optimizer_text) {\fontsize{#2}{#2} \selectfont Optimizer};
+            \node[align=center, visible on=<4->] at (14.5,0) (optimizer_text) {\fontsize{#2}{#2} \selectfont Optimizer};
 
             % ir (optimized) rectangle
             % background
-            \filldraw[TUMBlauDunkel, visible on=<6->] (18,-2) rectangle (22,2);
+            \filldraw[TUMBlauDunkel, visible on=<4->] (18,-2) rectangle (22,2);
             % black border
-            \draw[black, visible on=<6->] (18,-2) rectangle (22, 2);
+            \draw[black, visible on=<4->] (18,-2) rectangle (22, 2);
             % label
-            \node[align=center, visible on=<6->] at (20,0) (ir_text_2) {\fontsize{#2}{#2} \selectfont IR};
+            \node[align=center, visible on=<4->] at (20,0) (ir_text_2) {\fontsize{#2}{#2} \selectfont IR};
 
             % compiler arrow
-            \TikZArrowX{TUMOrange, visible on=<7->}{22}{0}{6}{1.5}
+            \TikZArrowX{TUMOrange, visible on=<5->}{22}{0}{6}{1.5}
             % arrow label
-            \node[align=center, visible on=<7->] at (24.5,0) (compiler_text) {\fontsize{#2}{#2} \selectfont Compiler};
+            \node[align=center, visible on=<5->] at (24.5,0) (compiler_text) {\fontsize{#2}{#2} \selectfont Compiler};
 
             % x86_64 rectangle
             %background
-            \filldraw[purple, visible on=<8->] (28,-2) rectangle (32,2);
+            \filldraw[purple, visible on=<5->] (28,-2) rectangle (32,2);
             % black border
-            \draw[black, visible on=<8->] (28,-2) rectangle (32,2);
+            \draw[black, visible on=<5->] (28,-2) rectangle (32,2);
             % label
-            \node[align=center, visible on=<8->] at (30,0) (x86_64_text) {\fontsize{#2}{#2} \selectfont x86\_64};
+            \node[align=center, visible on=<5->] at (30,0) (x86_64_text) {\fontsize{#2}{#2} \selectfont x86\_64};
         \end{tikzpicture}
     \end{center}
 }
 
+\note[itemize]{
+    \item RISC
+    \item 32-Bit Befehlsworte
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%
+%% Programmübersicht %%
+%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{frame}
     \frametitle{Programmübersicht}
@@ -341,11 +349,11 @@ ELF Header:
     \item Am Ende gehen wir über alle nicht-geliftete Adressen und starten neue Basic Blöcke
 }
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%
 %% Lifter CfOps Folie %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%
 
-\begin{frame}
+\begin{frame}<presentation:0>
     \frametitle{Lifter}{Kontrollflussoperationen}
     \pause
     \begin{enumerate}
@@ -382,22 +390,30 @@ ELF Header:
 
 }
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Backtracking und Splitting %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 \begin{frame}
-    \frametitle{Lifter}{Aufteilen eines Baisc Blocks}
+    \frametitle{Lifter}{Lifter Backtracking und Splitting}
+    \vspace{2em}
     \pause
-    \begin{itemize}
-        \item \textbf{Aufteilen} eines Baisc Blocks an einer Adresse, wenn in den Block an die Adresse gesprungen wird
-        \pause
-        \item Warum? \pause $\rightarrow$ Sprung nur an den Beginn eines Basic Blocks
-        \pause
-        \item Verbindung der beiden Blöcke mit einem unbedingten Sprung
-        \pause
-        \item Variablen werden anhand ihrer Zuweisungsadresse aufgeteilt
-        \pause
-        \item Kontrollflussoperationen werden in den zweiten Basic Block geschoben
-        \pause
-        \item Hat für große Probleme gesorgt, da bestehende Datenstruktur verändert werden muss
-    \end{itemize}
+    \begin{columns}[c]
+        \column{0.4 \textwidth}
+        \textbf{Aufteilen eines Basic Blocks}
+        \begin{itemize}
+            \item Situation: Sprung \textbf{in} einen Basic Block
+            \item Aufteilung an Sprungadresse in zwei Basic Blöcke
+            \item Verbindung mit einem direkten Sprung
+        \end{itemize}
+        \column{0.4 \textwidth}
+        \textbf{Backtracking einer indirekten Sprungadresse}
+        \begin{itemize}
+            \item rekursive Rückverfolgung aller Argumente
+            \item für "`statics"' werden alle möglichen Vorgänger betrachtet
+            \item Aussortierung von Vorgängern mögliche Fehlerquelle
+        \end{itemize}
+    \end{columns}
 \end{frame}
 \clearpage
 
