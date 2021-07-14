@@ -485,9 +485,8 @@ void Generator::compile_vars(const BasicBlock *block) {
             fprintf(out_fd, "cmovb %s, %s\n", in_regs[0], in_regs[2]);
             fprintf(out_fd, "cmovae %s, %s\n", in_regs[0], in_regs[3]);
             break;
-        default:
+        case Instruction::sumul_h: /* TODO: implement */
             assert(0);
-            // TODO: sumul_h
             break;
         }
 
