@@ -128,11 +128,11 @@ void Lifter::lift_amo_and(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uin
 void Lifter::lift_amo_min([[maybe_unused]] BasicBlock *bb, [[maybe_unused]] RV64Inst &instr, [[maybe_unused]] reg_map &mapping, [[maybe_unused]] uint64_t ip, [[maybe_unused]] const Type &op_size,
                           [[maybe_unused]] bool _signed) {
     // TODO: not implemented
-    assert(0);
+    bb->add_cf_op(CFCInstruction::unreachable, nullptr, ip);
 }
 
 void Lifter::lift_amo_max([[maybe_unused]] BasicBlock *bb, [[maybe_unused]] RV64Inst &instr, [[maybe_unused]] reg_map &mapping, [[maybe_unused]] uint64_t ip, [[maybe_unused]] const Type &op_size,
                           [[maybe_unused]] bool _signed) {
     // TODO: not implemented
-    assert(0);
+    bb->add_cf_op(CFCInstruction::unreachable, nullptr, ip);
 }
