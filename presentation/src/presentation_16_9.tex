@@ -167,27 +167,27 @@
 
 \begin{frame}
     \frametitle{Intermediate Representation}{Aufbau}
-    \pause
+    \pause{}
     \begin{itemize}
         \item Die IR besteht aus mehreren "`\textbf{Basic Blocks}"'
-              \pause
+              \pause{}
         \item Basic Block: Eine Folge von sequentiellen Instruktionen, beendet durch eine Kontrollflussoperation
-              \pause
+              \pause{}
         \item Ein Basic Block enthält Variablen in SSA-Form und dazugehörige Operationen
-              \pause
+              \pause{}
         \item \textbf{Static single assignment (SSA):} Jeder Variable wird genau einmal ein Wert zugewiesen
-              \pause
+              \pause{}
         \item Ein Basic Block erhält Eingaben in Form von Statics
-              \pause
+              \pause{}
         \item Die Basic Blocks sind durch die Kontrollflussoperationen miteinander verbunden
-              \pause
+              \pause{}
         \item Zur Nachvervolgung von Lese- und Schreiboperationen gibt es Memory Tokens $\rightarrow$ Optimierungen
     \end{itemize}
 \end{frame}
 
 \begin{frame}
     \frametitle{Intermediate Representation}{Operationen}
-    \pause
+    \pause{}
 
     ~\\
     ~\\
@@ -202,7 +202,7 @@
             \item Sonstige: Typkonvertierung, ...
         \end{itemize}
 
-        \pause
+        \pause{}
         \column{0.4\textwidth}
         Kontrollflussoperationen:
         \begin{itemize}
@@ -219,7 +219,7 @@
 
 \begin{frame}[fragile]
     \frametitle{Intermediate Representation}{Beispiel}
-    \pause
+    \pause{}
     ~\\
     ~\\
     ~\\
@@ -234,13 +234,13 @@
         [...]
         \end{lstlisting}
 
-        \pause
+        \pause{}
         \column{0.125 \textwidth}
         \begin{tikzpicture}[scale=0.72]
             \TikZArrowX{TUMOrange}{0}{0}{4}{1}
         \end{tikzpicture}
 
-        \pause
+        \pause{}
 
         \column{0.6 \textwidth}
         \begin{lstlisting}[language=SbtIr]
@@ -324,19 +324,19 @@ ELF Header:
     \begin{enumerate}
         \setlength\itemsep{0.6em}
         \item Instruktionen sequenziell lesen:
-              \pause
+              \pause{}
               \vspace{0.5em}
               \begin{enumerate}
                   \setlength\itemsep{0.6em}
                   \item Instruktionen in IR parsen
-                        \pause
+                        \pause{}
                   \item Wiederhole bis eine \textbf{Kontrollfluss ändernde Instruktion} auftritt
-                        \pause
+                        \pause{}
                   \item Beende Basic Block $\rightarrow$ starte neuen Basic Blöck für jede Kontrollflussänderung
-                        \pause
+                        \pause{}
                   \item Starte für jeden \textbf{neuen} Basic Block wieder bei 1
               \end{enumerate}
-              \pause
+              \pause{}
         \item Sollte Schritt 1 nicht alle vorhandenen Instruktionen in Basic Blöcke gepackt haben:\\ Beginne ab erster \textbf{unbetrachteter} Adresse / Instruktion erneut mit Schritt 1
     \end{enumerate}
 \end{frame}
@@ -358,14 +358,14 @@ ELF Header:
 
 \begin{frame}<presentation:0>
     \frametitle{Lifter}{Kontrollflussoperationen}
-    \pause
+    \pause{}
     \begin{enumerate}
         \setlength\itemsep{0.5em}
         \item System Calls (\lstinline[columns=fixed]{ecall})
               \begin{itemize}
                   \item Schreibt Rückgabewerte auf Statics
               \end{itemize}
-              \pause
+              \pause{}
         \item Bedingte Sprünge (\lstinline[columns=fixed]{branch})
               \vspace{0.5em}
               \setlength\itemsep{0.6em}
@@ -377,9 +377,9 @@ ELF Header:
                         \end{itemize}
                   \item Generiert 2 Kontrollflussoperationen
               \end{itemize}
-              \pause
+              \pause{}
         \item Direkte Sprünge (\lstinline[columns=fixed]{jal})
-              \pause
+              \pause{}
         \item Indirekte Sprünge (\lstinline[columns=fixed]{jalr})
               \begin{itemize}
                   \item Unbekanntes Sprungziel $\rightarrow$ Backtracking
@@ -400,7 +400,7 @@ ELF Header:
 \begin{frame}
     \frametitle{Lifter}{Lifter Backtracking und Splitting}
     \vspace{2em}
-    \pause
+    \pause{}
     \begin{columns}[c]
         \column{0.4 \textwidth}
         \textbf{Aufteilen eines Basic Blocks}
@@ -436,18 +436,18 @@ ELF Header:
 
 \begin{frame}
     \frametitle{Generator}{Übersetztung der IR zu x86\_64}
-    \pause
+    \pause{}
     \begin{itemize}
         \item Sehr einfache, aber korrekte übersetztung
-              \pause
+              \pause{}
         \item RISC-V Stack wird simuliert % es wird nicht der x86-64 Stack verwendet
-              \pause
+              \pause{}
         \item Indirekte Sprünge werden per Lookup zur Laufzeit aufgelöst
-              \pause
+              \pause{}
         \item RISC-V System-V ABI (Startup, Syscall) zur Laufzeit emuliert
-              \pause
+              \pause{}
         \item Original ELF Programm als binäres Speicherbild an exakter Adresse eingebunden
-              \pause
+              \pause{}
         \item Erste Optimierung: Eliminerung von Redundanzen bei den Statics
     \end{itemize}
 \end{frame}
