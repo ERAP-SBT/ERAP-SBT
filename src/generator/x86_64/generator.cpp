@@ -541,8 +541,6 @@ void Generator::compile_vars(const BasicBlock *block) {
 
 void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
     const auto *target = cf_op.target();
-    printf("Target: %zu, CFOP: %zu\n", target->inputs.size(), cf_op.target_inputs().size());
-    fflush(stdout);
     assert(target->inputs.size() == cf_op.target_inputs().size());
     for (size_t i = 0; i < cf_op.target_inputs().size(); ++i) {
         const auto *target_var = target->inputs[i];
