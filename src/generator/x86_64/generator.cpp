@@ -114,6 +114,7 @@ void Generator::compile() {
     fprintf(out_fd, "binary = orig_binary_vaddr\n");
 
     compile_statics();
+    compile_phdr_info();
 
     compile_section(Section::BSS);
 
@@ -168,6 +169,13 @@ void Generator::compile_statics() {
     for (const auto &var : ir->statics) {
         std::fprintf(out_fd, "s%zu: .quad 0\n", var.id); // for now have all of the statics be 64bit
     }
+}
+
+void Generator::compile_phdr_info() {
+    std::fprintf(out_fd, "phdr_off: .quad %lu\n", ir->phdr_off);
+    std::fprintf(out_fd, "phdr_num: .quad %lu\n", ir->phdr_num);
+    std::fprintf(out_fd, "phdr_size: .quad %lu\n", ir->phdr_size);
+    std::fprintf(out_fd, ".global phdr_off\n.global phdr_num\n.global phdr_size\n");
 }
 
 void Generator::compile_blocks() {
@@ -326,12 +334,10 @@ void Generator::compile_vars(const BasicBlock *block) {
             continue;
         }
 
-        if (var->type == Type::mt) {
-            continue;
-        }
-
         if (std::holds_alternative<size_t>(var->info)) {
-            assert(var->info.index() == 2);
+            if (var->type == Type::mt) {
+                continue;
+            }
 
             fprintf(out_fd, "mov rax, [s%zu]\n", std::get<size_t>(var->info));
             fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", idx, rax_from_type(var->type));
@@ -369,8 +375,10 @@ void Generator::compile_vars(const BasicBlock *block) {
                 continue;
 
             const auto *reg_str = op_reg_map_for_type(in_var->type)[in_idx];
+            const auto *full_reg_str = op_reg_map_for_type(Type::i64)[in_idx];
 
-            fprintf(out_fd, "xor %s, %s\n", reg_str, reg_str);
+            // zero the full register so stuff doesn't go broke e.g. in zero-extend
+            fprintf(out_fd, "xor %s, %s\n", full_reg_str, full_reg_str);
             fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", reg_str, index_for_var(block, in_var));
             in_regs[in_idx] = reg_str;
         }
@@ -378,7 +386,7 @@ void Generator::compile_vars(const BasicBlock *block) {
         switch (op->type) {
         case Instruction::store:
             assert(op->in_vars[0]->type == Type::i64);
-            assert(arg_count == 2);
+            assert(arg_count == 3);
             fprintf(out_fd, "mov %s [%s], %s\n", ptr_from_type(op->in_vars[1]->type), in_regs[0], in_regs[1]);
             break;
         case Instruction::load:
@@ -395,13 +403,27 @@ void Generator::compile_vars(const BasicBlock *block) {
             assert(arg_count == 2);
             fprintf(out_fd, "sub rax, rbx\n");
             break;
-        case Instruction::div:
+        case Instruction::mul_l:
             assert(arg_count == 2);
+            fprintf(out_fd, "imul rax, rbx\n");
+            break;
+        case Instruction::ssmul_h:
+            assert(arg_count == 2);
+            fprintf(out_fd, "imul rbx\nmov rax, rdx\n");
+            break;
+        case Instruction::uumul_h:
+            assert(arg_count == 2);
+            fprintf(out_fd, "mul rbx\nmov rax, rdx\n");
+            break;
+        case Instruction::div:
+            assert(arg_count == 2 || arg_count == 3);
             fprintf(out_fd, "cqo\nidiv rbx\n");
+            fprintf(out_fd, "mov rbx, rdx\n"); // second output is remainder and needs to be in rbx atm
             break;
         case Instruction::udiv:
             assert(arg_count == 2);
             fprintf(out_fd, "xor rdx, rdx\ndiv rbx\n");
+            fprintf(out_fd, "mov rbx, rdx\n"); // second output is remainder and needs to be in rbx atm
             break;
         case Instruction::shl:
             assert(arg_count == 2);
@@ -441,8 +463,30 @@ void Generator::compile_vars(const BasicBlock *block) {
             assert(arg_count == 0);
             fprintf(out_fd, "mov rax, [init_stack_ptr]\n");
             break;
-        default:
-            // TODO: ssmul_h, uumul_h, sumul_h, rem, urem, slt, sltu, sign_extend, zero_extend
+        case Instruction::zero_extend:
+            assert(arg_count == 1);
+            // nothing to be done
+            break;
+        case Instruction::sign_extend:
+            assert(arg_count == 1);
+            if (op->in_vars[0]->type != Type::i64) {
+                fprintf(out_fd, "movsx rax, %s\n", in_regs[0]);
+            }
+            break;
+        case Instruction::slt:
+            assert(arg_count == 4);
+            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
+            fprintf(out_fd, "cmovl %s, %s\n", in_regs[0], in_regs[2]);
+            fprintf(out_fd, "cmovge %s, %s\n", in_regs[0], in_regs[3]);
+            break;
+        case Instruction::sltu:
+            assert(arg_count == 4);
+            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
+            fprintf(out_fd, "cmovb %s, %s\n", in_regs[0], in_regs[2]);
+            fprintf(out_fd, "cmovae %s, %s\n", in_regs[0], in_regs[3]);
+            break;
+        case Instruction::sumul_h: /* TODO: implement */
+            assert(0);
             break;
         }
 
@@ -450,7 +494,7 @@ void Generator::compile_vars(const BasicBlock *block) {
             for (size_t out_idx = 0; out_idx < op->out_vars.size(); ++out_idx) {
                 const auto &out_var = op->out_vars[out_idx];
                 if (!out_var)
-                    break;
+                    continue;
 
                 const auto *reg_str = op_reg_map_for_type(out_var->type)[out_idx];
                 fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", index_for_var(block, out_var), reg_str);
@@ -461,6 +505,8 @@ void Generator::compile_vars(const BasicBlock *block) {
 
 void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
     const auto *target = cf_op.target();
+    printf("Target: %zu, CFOP: %zu\n", target->inputs.size(), cf_op.target_inputs().size());
+    fflush(stdout);
     assert(target->inputs.size() == cf_op.target_inputs().size());
     for (size_t i = 0; i < cf_op.target_inputs().size(); ++i) {
         const auto *target_var = target->inputs[i];

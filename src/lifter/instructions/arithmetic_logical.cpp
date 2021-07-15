@@ -37,6 +37,17 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, RV64Inst &instr, reg_map 
     // assign the operation as variable of the destination
     destination->set_op(std::move(operation));
 
+    if (op_size == Type::i32) {
+        // sign extend
+        auto *sign_extension = bb->add_var(Type::i64, ip, instr.instr.rd);
+        auto op = std::make_unique<Operation>(Instruction::sign_extend);
+        op->set_inputs(destination);
+        op->set_outputs(sign_extension);
+        sign_extension->set_op(std::move(op));
+
+        destination = sign_extension;
+    }
+
     // write SSAVar of the result of the operation back to mapping
     write_to_mapping(mapping, destination, instr.instr.rd);
 }
@@ -74,6 +85,17 @@ void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, RV64Inst &instr
 
     // assign the operation as variable of the destination
     destination->set_op(std::move(operation));
+
+    if (op_size == Type::i32) {
+        // sign extend
+        auto *sign_extension = bb->add_var(Type::i64, ip, instr.instr.rd);
+        auto op = std::make_unique<Operation>(Instruction::sign_extend);
+        op->set_inputs(destination);
+        op->set_outputs(sign_extension);
+        sign_extension->set_op(std::move(op));
+
+        destination = sign_extension;
+    }
 
     // write SSAVar of the result of the operation back to mapping
     write_to_mapping(mapping, destination, instr.instr.rd);

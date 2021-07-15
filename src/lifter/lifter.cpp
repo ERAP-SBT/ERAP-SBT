@@ -7,6 +7,9 @@ void Lifter::lift(Program *prog) {
     assert(prog->elf_base->base_addr <= prog->elf_base->load_end_addr);
     ir->base_addr = prog->elf_base->base_addr;
     ir->load_size = prog->elf_base->load_end_addr - prog->elf_base->base_addr;
+    ir->phdr_num = prog->elf_base->program_headers.size();
+    ir->phdr_off = prog->elf_base->phdr_offset;
+    ir->phdr_size = prog->elf_base->phdr_size;
     dummy = ir->add_basic_block(0, "Dummy Basic Block");
 
     if (prog->elf_base->section_headers.empty()) {
@@ -109,7 +112,7 @@ void Lifter::postprocess() {
     /* Replace any remaining unresolved */
     for (auto bb : dummy->predecessors) {
         for (auto &cfOp : bb->control_flow_ops) {
-            if (cfOp.target() == dummy) {
+            if (cfOp.target() == dummy && cfOp.type != CFCInstruction::syscall) {
                 /* This jump could not be resolved, and won't be able to resolve it at runtime */
                 cfOp.type = CFCInstruction::unreachable;
                 cfOp.info = std::monostate{};
@@ -123,6 +126,28 @@ void Lifter::postprocess() {
             if (std::holds_alternative<SSAVar::ImmInfo>(var->info) && std::get<SSAVar::ImmInfo>(var->info).binary_relative) {
                 std::get<SSAVar::ImmInfo>(var->info).val -= ir->base_addr;
             }
+        }
+    }
+
+    // add setup_stack block
+    auto *program_entry = ir->basic_blocks[ir->entry_block].get();
+    auto *entry_block = ir->add_basic_block(0, "___STACK_ENTRY");
+    auto &cf_op = entry_block->add_cf_op(CFCInstruction::jump, program_entry);
+    // stack_var
+    auto *var = entry_block->add_var(Type::i64, 0, 2);
+    auto op = std::make_unique<Operation>(Instruction::setup_stack);
+    op->set_outputs(var);
+    var->set_op(std::move(op));
+    cf_op.add_target_input(var, 2);
+    ir->entry_block = entry_block->id;
+
+    // i wonder if that's okay...
+    program_entry->inputs.clear();
+
+    for (auto &var : program_entry->variables) {
+        if (std::holds_alternative<size_t>(var->info) && std::get<size_t>(var->info) == 2) {
+            program_entry->add_input(var.get());
+            break;
         }
     }
 }

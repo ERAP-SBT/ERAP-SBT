@@ -1,3 +1,5 @@
+ENTRY(_start);
+
 SECTIONS {
     /*
      * riscv64-linux-gnu-gcc links starting with 0x10000 as default

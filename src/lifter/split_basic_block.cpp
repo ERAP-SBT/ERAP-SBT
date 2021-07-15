@@ -23,16 +23,14 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
 
     // recreate the register mapping at the given address
     reg_map mapping{};
-    for (auto it = first_bb_vars.rbegin(); it != first_bb_vars.rend(); ++it) {
-        if ((*it)->lifter_info.index() == 1) {
-            auto &lifterInfo = std::get<SSAVar::LifterInfo>((*it)->lifter_info);
-            // always fill the mapping if it is empty
-            if (mapping.at(lifterInfo.static_id) == nullptr) {
-                mapping.at(lifterInfo.static_id) = *it;
-            } else if (!std::holds_alternative<size_t>(mapping.at(lifterInfo.static_id)->info)) {
-                // replace statics if other variables are available
-                mapping.at(lifterInfo.static_id) = *it;
-            }
+    for (auto *var : first_bb_vars) {
+        if (var->lifter_info.index() != 1) {
+            continue;
+        }
+
+        const auto static_id = std::get<SSAVar::LifterInfo>(var->lifter_info).static_id;
+        if (mapping.at(static_id) == nullptr || std::holds_alternative<size_t>(mapping.at(static_id)->info)) {
+            mapping.at(static_id) = var;
         }
     }
     mapping.at(ZERO_IDX) = nullptr;
@@ -52,6 +50,82 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
     new_bb->set_virt_end_addr(bb->virt_end_addr);
     bb->set_virt_end_addr(std::get<SSAVar::LifterInfo>(first_bb_vars.front()->lifter_info).assign_addr);
 
+    // fix jump references
+    const auto new_virt_start_addr = new_bb->virt_start_addr;
+    const auto new_virt_end_addr = new_bb->virt_end_addr;
+    for (auto *block : bb->predecessors) {
+        for (auto &cf_op : block->control_flow_ops) {
+            if (cf_op.lifter_info.index() != 1) {
+                continue;
+            }
+
+            const auto jmp_addr = std::get<CfOp::LifterInfo>(cf_op.lifter_info).jump_addr;
+            if (jmp_addr == 0 || std::holds_alternative<CfOp::IJumpInfo>(cf_op.info) || std::holds_alternative<CfOp::ICallInfo>(cf_op.info) || std::holds_alternative<CfOp::RetInfo>(cf_op.info)) {
+                continue;
+            }
+
+            if (jmp_addr < new_virt_start_addr || jmp_addr > new_virt_end_addr) {
+                continue;
+            }
+
+            BasicBlock *old_target = nullptr; // this should always turn out to be bb
+            if (std::holds_alternative<CfOp::JumpInfo>(cf_op.info)) {
+                auto &info = std::get<CfOp::JumpInfo>(cf_op.info);
+                old_target = info.target;
+                info.target = new_bb;
+            } else if (std::holds_alternative<CfOp::CJumpInfo>(cf_op.info)) {
+                auto &info = std::get<CfOp::CJumpInfo>(cf_op.info);
+                old_target = info.target;
+                info.target = new_bb;
+            } else if (std::holds_alternative<CfOp::CallInfo>(cf_op.info)) {
+                // TODO: needs more sophisticated logic
+                assert(0);
+                continue;
+            } else if (std::holds_alternative<CfOp::SyscallInfo>(cf_op.info)) {
+                auto &info = std::get<CfOp::SyscallInfo>(cf_op.info);
+                old_target = info.continuation_block;
+                info.continuation_block = new_bb;
+            }
+
+            auto target_still_present = false;
+            for (const auto &cf_op : block->control_flow_ops) {
+                if (cf_op.target() == old_target) {
+                    target_still_present = true;
+                    break;
+                }
+            }
+            if (!target_still_present) {
+                block->successors.erase(std::remove_if(block->successors.begin(), block->successors.end(), [old_target](const auto *b) { return old_target == b; }), block->successors.end());
+
+                if (old_target) {
+                    old_target->predecessors.erase(std::remove_if(old_target->predecessors.begin(), old_target->predecessors.end(), [old_target](const auto *b) { return old_target == b; }),
+                                                   old_target->predecessors.end());
+                }
+            }
+
+            block->successors.emplace_back(new_bb);
+            new_bb->predecessors.emplace_back(block);
+        }
+    }
+
+    // there can be recursive jumps into the block as well which need to be fixed
+    for (auto &cf_op : new_bb->control_flow_ops) {
+        if (cf_op.lifter_info.index() != 1) {
+            continue;
+        }
+
+        const auto jmp_addr = std::get<CfOp::LifterInfo>(cf_op.lifter_info).jump_addr;
+        if (jmp_addr == 0 || std::holds_alternative<CfOp::IJumpInfo>(cf_op.info) || std::holds_alternative<CfOp::ICallInfo>(cf_op.info) || std::holds_alternative<CfOp::RetInfo>(cf_op.info)) {
+            continue;
+        }
+
+        if (jmp_addr < new_virt_start_addr || jmp_addr > new_virt_end_addr) {
+            continue;
+        }
+
+        cf_op.set_target(new_bb);
+    }
+
     // the register mapping in the BasicBlock
     reg_map new_mapping{};
     {
@@ -61,13 +135,14 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
         // static assignments
         for (size_t i = 0; i < mapping.size(); i++) {
             if (mapping.at(i) != nullptr) {
-                cf_op.add_target_input(mapping.at(i), i);
+                if (i != 0)
+                    cf_op.add_target_input(mapping.at(i), i);
                 std::get<SSAVar::LifterInfo>(mapping.at(i)->lifter_info).static_id = i;
             }
             if (i != ZERO_IDX) {
                 new_mapping.at(i) = new_bb->add_var_from_static(i, addr);
             } else {
-                mapping.at(i) = nullptr;
+                new_mapping.at(i) = nullptr;
             }
         }
     }
@@ -98,12 +173,29 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
                 }
             }
         }
+
+        const auto static_id = std::get<SSAVar::LifterInfo>(var->lifter_info).static_id;
+        if (static_id != ZERO_IDX) {
+            new_mapping[static_id] = var;
+        }
     }
 
     // adjust the inputs of the cfop (if necessary)
     for (size_t i = 0; i < new_bb->control_flow_ops.size(); ++i) {
         auto &cf_op = new_bb->control_flow_ops.at(i);
         cf_op.source = new_bb;
+
+        for (auto &var : cf_op.in_vars) {
+            if (!var) {
+                continue;
+            }
+
+            const auto &lifter_info = std::get<SSAVar::LifterInfo>(var->lifter_info);
+            if (lifter_info.assign_addr < addr) {
+                // TODO: this if should be unnecessary
+                var.reset(new_mapping[lifter_info.static_id]);
+            }
+        }
 
         BasicBlock *target;
         target = cf_op.target();

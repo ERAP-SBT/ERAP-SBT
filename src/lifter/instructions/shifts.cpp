@@ -9,9 +9,9 @@ void Lifter::lift_shift(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint6
 
     // cast immediate from 64bit to 32bit if instruction has 32bit size
     if (op_size == Type::i32) {
-        mask = load_immediate(bb, (int32_t)0x1F, ip, false);
+        mask = load_immediate(bb, (int32_t)0x3F, ip, false);
     } else {
-        mask = load_immediate(bb, (int64_t)0x1F, ip, false);
+        mask = load_immediate(bb, (int64_t)0x3F, ip, false);
     }
 
     SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
@@ -29,6 +29,6 @@ void Lifter::lift_shift(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint6
 
 void Lifter::lift_shift_immediate(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction &instruction_type, const Type &op_size) {
     // masking the operand
-    instr.instr.imm = instr.instr.imm & 0x1F;
+    instr.instr.imm = instr.instr.imm & 0x3F;
     lift_arithmetical_logical_immediate(bb, instr, mapping, ip, instruction_type, op_size);
 }

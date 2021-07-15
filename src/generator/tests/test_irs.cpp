@@ -1,13 +1,17 @@
 #include "test_irs.h"
 
 void gen_print_ir(IR &ir) {
-    (void)ir.add_static(Type::i64);
-    const auto static0 = ir.add_static(Type::i64);
-    const auto static1 = ir.add_static(Type::i64);
-    const auto static2 = ir.add_static(Type::i64);
-    const auto static3 = ir.add_static(Type::i64);
-    const auto static4 = ir.add_static(Type::i64);
-    const auto static5 = ir.add_static(Type::i64);
+    (void)ir.add_static(Type::i64);                /* x0 */
+    const auto static0 = ir.add_static(Type::i64); /* x1 */
+    const auto static1 = ir.add_static(Type::i64); /* x2 */
+    const auto static2 = ir.add_static(Type::i64); /* x3 */
+    const auto static3 = ir.add_static(Type::i64); /* x4 */
+    const auto static4 = ir.add_static(Type::i64); /* x5 */
+    const auto static5 = ir.add_static(Type::i64); /* x6 */
+    for (int i = 7; i < 32; i++) {
+        ir.add_static(Type::i64);
+    }
+    const auto static32 = ir.add_static(Type::mt); /* MemoryToken */
 
     ir.setup_bb_addr_vec(10, 200);
 
@@ -187,6 +191,7 @@ void gen_print_ir(IR &ir) {
             auto *stack_ptr = entry_write2->add_var_from_static(static1);
             auto *argc = entry_write2->add_var_from_static(static2);
             auto *argv = entry_write2->add_var_from_static(static3);
+            auto *mt0 = entry_write2->add_var_from_static(static32);
 
             auto *newline = entry_write2->add_var_imm(0xA, 0);
             auto *eight = entry_write2->add_var_imm(8, 0);
@@ -197,12 +202,12 @@ void gen_print_ir(IR &ir) {
                 op->set_outputs(new_stack_ptr);
                 new_stack_ptr->set_op(std::move(op));
             }
-            auto *mt = entry_write2->add_var(Type::mt, 0);
+            auto *mt1 = entry_write2->add_var(Type::mt, 0);
             {
                 auto op = std::make_unique<Operation>(Instruction::store);
-                op->set_inputs(new_stack_ptr, newline);
-                op->set_outputs(mt);
-                mt->set_op(std::move(op));
+                op->set_inputs(new_stack_ptr, newline, mt0);
+                op->set_outputs(mt1);
+                mt1->set_op(std::move(op));
             }
 
             auto *id = entry_write2->add_var_imm(64, 0); // write

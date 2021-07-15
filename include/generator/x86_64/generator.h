@@ -20,6 +20,7 @@ struct Generator {
     void compile_section(Section section);
 
     void compile_statics();
+    void compile_phdr_info();
     void compile_blocks();
     void compile_block(const BasicBlock *block);
     void compile_entry();

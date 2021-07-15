@@ -2,6 +2,13 @@
 
 #include <cstdint>
 
+extern "C" {
+extern uint8_t *orig_binary_vaddr;
+extern uint64_t phdr_off;
+extern uint64_t phdr_num;
+extern uint64_t phdr_size;
+}
+
 namespace {
 // from https://github.com/aengelke/ria-jit/blob/master/src/runtime/emulateEcall.c
 [[maybe_unused]] size_t syscall0(int syscall_number);
@@ -14,12 +21,37 @@ namespace {
 
 size_t strlen(const char *);
 void memcpy(void *dst, const void *src, size_t count);
+void itoa(char *str_addr, unsigned int num, unsigned int num_digits);
 
 const char panic_str[] = "PANIC: ";
 
-enum RV_SYSCALL_ID : uint32_t { RISCV_READ = 63, RISCV_WRITE = 64, RISCV_EXIT = 93 };
+enum RV_SYSCALL_ID : uint32_t {
+    RISCV_IOCTL = 29,
+    RISCV_LSEEK = 62,
+    RISCV_READ = 63,
+    RISCV_WRITE = 64,
+    RISCV_READV = 65,
+    RISCV_WRITEV = 66,
+    RISCV_EXIT = 93,
+    RISCV_EXIT_GROUP = 94,
+    RISCV_SET_TID_ADDR = 96,
+    RISCV_BRK = 214,
+    RISCV_MMAP = 222
+};
 
-enum AMD64_SYSCALL_ID : uint32_t { AMD64_READ = 0, AMD64_WRITE = 1, AMD64_EXIT = 60 };
+enum AMD64_SYSCALL_ID : uint32_t {
+    AMD64_READ = 0,
+    AMD64_WRITE = 1,
+    AMD64_LSEEK = 8,
+    AMD64_MMAP = 9,
+    AMD64_BRK = 12,
+    AMD64_IOCTL = 16,
+    AMD64_READV = 19,
+    AMD64_WRITEV = 20,
+    AMD64_EXIT = 60,
+    AMD64_SET_TID_ADDR = 218,
+    AMD64_EXIT_GROUP = 231
+};
 
 struct auxv_t {
     // see https://fossies.org/dox/Checker-0.9.9.1/gcc-startup_8c_source.html#l00042
@@ -53,19 +85,39 @@ struct auxv_t {
 
 extern "C" [[noreturn]] void panic(const char *err_msg);
 
-extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t, uint64_t, uint64_t) {
+extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
     switch (id) {
+    case RISCV_IOCTL:
+        return syscall3(AMD64_IOCTL, arg0, arg1, arg2);
+    case RISCV_LSEEK:
+        return syscall3(AMD64_LSEEK, arg0, arg1, arg2);
     case RISCV_READ:
         return syscall3(AMD64_READ, arg0, arg1, arg2);
     case RISCV_WRITE:
         return syscall3(AMD64_WRITE, arg0, arg1, arg2);
+    case RISCV_READV:
+        return syscall3(AMD64_READV, arg0, arg1, arg2);
+    case RISCV_WRITEV:
+        return syscall3(AMD64_WRITEV, arg0, arg1, arg2);
     case RISCV_EXIT:
         return syscall1(AMD64_EXIT, arg0);
+    case RISCV_EXIT_GROUP:
+        return syscall1(AMD64_EXIT_GROUP, arg0);
+    case RISCV_SET_TID_ADDR:
+        return syscall1(AMD64_SET_TID_ADDR, arg0);
+    case RISCV_BRK:
+        return syscall1(AMD64_BRK, arg0);
+    case RISCV_MMAP:
+        return syscall6(AMD64_MMAP, arg0, arg1, arg2, arg3, arg4, arg5);
     default:
         break;
     }
 
-    panic("Couldn't translate syscall ID\n");
+    char syscall_str[31 + 8 + 1 + 1] = "Couldn't translate syscall ID: ";
+    itoa(syscall_str + 31, id, 8);
+    syscall_str[31 + 8] = '\n';
+    syscall_str[sizeof(syscall_str) - 1] = '\0';
+    panic(syscall_str);
 }
 
 extern "C" [[noreturn]] void panic(const char *err_msg) {
@@ -121,8 +173,17 @@ extern "C" uint8_t *copy_stack(uint8_t *stack, uint8_t *out_stack) {
     }
 
     size_t auxv_len = 0;
-    for (const auto *cur_auxv = auxv; cur_auxv->a_type != auxv_t::type::null; ++cur_auxv) {
+    for (auto *cur_auxv = auxv; cur_auxv->a_type != auxv_t::type::null; ++cur_auxv) {
         ++auxv_len;
+
+        // modifying here because this loop already exists
+        if (cur_auxv->a_type == auxv_t::type::phdr) {
+            cur_auxv->p_ptr = (reinterpret_cast<uint8_t *>(&orig_binary_vaddr) + phdr_off);
+        } else if (cur_auxv->a_type == auxv_t::type::phent) {
+            cur_auxv->a_val = phdr_size;
+        } else if (cur_auxv->a_type == auxv_t::type::phnum) {
+            cur_auxv->a_val = phdr_num;
+        }
     }
 
     auxv_len = 8 + auxv_len * sizeof(auxv_t);
@@ -219,4 +280,12 @@ void memcpy(void *dst, const void *src, size_t count) {
         count--;
     }
 }
+
+void itoa(char *str_addr, unsigned int num, unsigned int num_digits) {
+    for (int j = num_digits - 1; j >= 0; j--) {
+        str_addr[j] = num % 10 + '0';
+        num /= 10;
+    }
+}
+
 } // namespace
