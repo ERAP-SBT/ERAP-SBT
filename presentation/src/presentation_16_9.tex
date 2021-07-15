@@ -268,24 +268,22 @@ block b1(/* inputs */) <= [/* predecessors */] {
 
 \begin{frame}[fragile]
     \frametitle{Lifter}{ELF Binärdatei laden und Instruktionsbytes decodieren}
-
-    \note[item]{ELF Prüfung: Prüfbits, System-V ABI, 64-Bit, Little Endian, RISC-V Machine}
-    \note[item]{Symbole weren bei gestrippten ELF-Binaries nicht eingelesen}
-    \note[item]{32-Byte bzw. 16-Byte Compressed mit frvdec decodieren}
-
     \begin{columns}[c]
         \column{0.5 \textwidth}
         \begin{enumerate}
             \visible<2-> {
+            \note[item]{ELF Prüfung: Prüfbits, System-V ABI, 64-Bit, Little Endian, RISC-V Machine}
             \item ELF File prüfen.
                   }
                   \visible<3-> {
+                  \note[item]{Symbole weren bei gestrippten ELF-Binaries nicht eingelesen}
             \item Program Header, Sections und Symbole auslesen.
+                  }
                   \visible<4-> {
+                  \note[item]{32-Byte bzw. 16-Byte Compressed mit frvdec decodieren}
             \item Section Bytes $\rightarrow$ Instruktionen durch \textbf{frvdec} decodieren.
                   }
         \end{enumerate}
-        }
         \column{0.50 \textwidth}
         \begin{lstlisting}[basicstyle=\footnotesize, breaklines=true, escapeinside={@@}]
 ELF Header:
@@ -319,15 +317,6 @@ ELF Header:
 
 \begin{frame}
     \frametitle{Lifter}{RISC-V Instruktionen in IR Code umwandeln}
-
-    \note[item]{Rekursives parsen}
-    \note[item]{Start bei ELF Einstiegspunkt}
-    \note[item]{RISC-V Instruktionen sequentiell in IR Instruktionen übertragen}
-    \note[item]{Kontrollfluss-ändernde Instruktionen beenden Basic Blöcke}
-    \note[item]{Alle möglichen Sprungziele starten neue Basic Blöcke}
-    \note[item]{Diese werden rekursiv weiter geliftet}
-    \note[item]{Am Ende gehen wir über alle nicht-geliftete Adressen und starten neue Basic Blöcke}
-
     \begin{enumerate}
         \setlength\itemsep{0.6em}
         \item Instruktionen sequenziell lesen:
@@ -349,78 +338,48 @@ ELF Header:
 \end{frame}
 \clearpage
 
-%%%%%%%%%%%%%%%%%%%%%%%%
-%% Lifter CfOps Folie %%
-%%%%%%%%%%%%%%%%%%%%%%%%
-
-\begin{frame}<presentation:0>
-    \frametitle{Lifter}{Kontrollflussoperationen}
-    \pause{}
-    \begin{enumerate}
-        \setlength\itemsep{0.5em}
-        \item System Calls (\lstinline[columns=fixed]{ecall})
-              \begin{itemize}
-                  \item Schreibt Rückgabewerte auf Statics
-              \end{itemize}
-              \pause{}
-        \item Bedingte Sprünge (\lstinline[columns=fixed]{branch})
-              \vspace{0.5em}
-              \setlength\itemsep{0.6em}
-              \begin{itemize}
-                  \item Vergleiche: \setlength\itemsep{0.6em}\begin{itemize}
-                            \item \lstinline[columns=fixed]{gleich}
-                            \item \lstinline[columns=fixed]{signed lower}
-                            \item \lstinline[columns=fixed]{unsigned lower}
-                        \end{itemize}
-                  \item Generiert 2 Kontrollflussoperationen
-              \end{itemize}
-              \pause{}
-        \item Direkte Sprünge (\lstinline[columns=fixed]{jal})
-              \pause{}
-        \item Indirekte Sprünge (\lstinline[columns=fixed]{jalr})
-              \begin{itemize}
-                  \item Unbekanntes Sprungziel $\rightarrow$ Backtracking
-                  \item Backtracking nur zur Kontrollflussbestimmung im Lifter
-              \end{itemize}
-    \end{enumerate}
-\end{frame}
-\clearpage
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Lifter Backtracking und Splitting %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{frame}
-    \frametitle{Lifter}{Lifter Backtracking und Splitting}
-
-    \note[item]{Ein Basic Block muss aufgeteilt werden, wenn eine Kontrollflussoperation an eine Adresse springt, welche bereits geliftet ist und sich in diesem Basic Block befindet}
-    \note[item]{Warum muss ein Basic Block geteilt werden? -> damit nach Definition der IR immer an den Beginn eines Basic Blocks gesprungen werden kann}
-    \note[item]{bei Schleifen nötig -> siehe IR Beispiel vorher}
-    \note[item]{Unbedingter Sprung als Verbindung (nach )}
-    \note[item]{Variablen anhand Zuweisungsadresse (Adresse der Instruktion, welche sie erzeugt hat) auf die beiden Basic Blöcke aufgeteilt}
-    \note[item]{Sorgt für Probleme, weil Datenstruktur verändert wird, v.a. richtige Aufteilen der Variablen, korrekter Sprung, korrekter Transfer der Cfops}
-    \note[item]{Die Kontrollflussoperationen werden in den zweiten Basic Block (mit der höheren Adresse) geschoben, weil diese das Ende des Basic Blocks sind und sich damit garantiert im zweiten Befinden}
-
+    \frametitle{Lifter}{Lifter Splitting und Backtracking}
     \vspace{2em}
     \pause{}
     \begin{columns}[c]
         \column{0.4 \textwidth}
         \textbf{Aufteilen eines Basic Blocks}
+        \note[item]{Sprung zurück in bereits geparsten Codebereich}
+        \note[item]{Split an Einsprungaddresse und Verbindung mit direktem Sprung}
         \begin{itemize}
             \item Situation: Sprung \textbf{in} einen Basic Block
             \item Aufteilung an Sprungadresse in zwei Basic Blöcke
             \item Verbindung mit einem direkten Sprung
         \end{itemize}
+        \pause{}
         \column{0.4 \textwidth}
         \textbf{Backtracking einer indirekten Sprungadresse}
+        \note[item]{Indirekte Sprünge, also Sprünge mit Register als Eingabeparameter}
+        \note[item]{Rekursives Backtracking um Wert des Registers zu ermitteln}
+        \note[item]{Mehrere Werte möglich -> im Moment wird erster gewählt (mögliche Fehlerquelle)}
         \begin{itemize}
             \item rekursive Rückverfolgung aller Argumente
             \item für "`statics"' werden alle möglichen Vorgänger betrachtet
-            \item Aussortierung von Vorgängern mögliche Fehlerquelle
+            \item Aussortierung von Vorgängern
         \end{itemize}
     \end{columns}
 \end{frame}
 \clearpage
+
+\note[itemize]{
+    \item {Ein Basic Block muss aufgeteilt werden, wenn eine Kontrollflussoperation an eine Adresse springt, welche bereits geliftet ist und sich in diesem Basic Block befindet}
+    \item {Warum muss ein Basic Block geteilt werden? -> damit nach Definition der IR immer an den Beginn eines Basic Blocks gesprungen werden kann}
+    \item {bei Schleifen nötig -> siehe IR Beispiel vorher}
+    \item {Unbedingter Sprung als Verbindung (nach )}
+    \item {Variablen anhand Zuweisungsadresse (Adresse der Instruktion, welche sie erzeugt hat) auf die beiden Basic Blöcke aufgeteilt}
+    \item {Sorgt für Probleme, weil Datenstruktur verändert wird, v.a. richtige Aufteilen der Variablen, korrekter Sprung, korrekter Transfer der Cfops}
+    \item {Die Kontrollflussoperationen werden in den zweiten Basic Block (mit der höheren Adresse) geschoben, weil diese das Ende des Basic Blocks sind und sich damit garantiert im zweiten Befinden}
+}
 
 %%%%%%%%%%%%%%%%%%%%%
 %% Generator Folie %%
