@@ -386,20 +386,22 @@ ELF Header:
 %%%%%%%%%%%%%%%%%%%%%
 
 \begin{frame}
+    \note[item]{Sehr einfache, aber korrekte Übersetztung}
+    \note[item]{Originales ELF-Programm als binäres Speicherbild an exakter Adresse eingebunden}
+    \note[item]{RISC-V System-V ABI (Startup, Syscall) zur Laufzeit emuliert}
+    \note[item]{Stack wird nur initialisiert, danach nicht mehr im Generator speziell behandelt}
+    \note[item]{Indirekte Sprünge werden per Lookup zur Laufzeit aufgelöst}
+    \note[item]{Erste Optimierung: Eliminierung von Redundanzen bei den Statics}
+
     \frametitle{Generator}{Übersetztung der IR zu x86\_64}
-    \pause{}
+    \pause
     \begin{itemize}
-        \item Sehr einfache, aber korrekte Übersetzung
-              \pause{}
-        \item RISC-V Stack wird simuliert % es wird nicht der x86-64 Stack verwendet
-              \pause{}
-        \item Indirekte Sprünge werden per Lookup zur Laufzeit aufgelöst
-              \pause{}
+        \item Sehr einfache, aber korrekte Übersetztung
+        \item Originales ELF-Programm als binäres Speicherbild an exakter Adresse eingebunden
+%        \item Stellt nur initialen Stack zur Verfügung % es wird nicht der x86-64 Stack verwendet
         \item RISC-V System-V ABI (Startup, Syscall) zur Laufzeit emuliert
-              \pause{}
-        \item Original ELF Programm als binäres Speicherbild an exakter Adresse eingebunden
-              \pause{}
-        \item Erste Optimierung: Eliminerung von Redundanzen bei den Statics
+        \item Indirekte Sprünge werden per Lookup zur Laufzeit aufgelöst
+        \item Erste Optimierung: Eliminierung von Redundanzen bei den Statics
     \end{itemize}
 \end{frame}
 \clearpage
@@ -506,6 +508,53 @@ ELF Header:
 \begin{frame}
     \frametitle{Noch Fragen?}{}
 \end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Generator-Translate %%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile]
+    \frametitle{Generator}
+    \begin{columns}[c]
+        \column{0.45 \textwidth}
+        \begin{lstlisting}[language=SbtIr, escapechar=!]
+        block b1(/* inputs */) <= [/* predecessors */] {
+            !\only<1|handout:0>{\colorbox{yellow}{i64 v0 <- @1}}!!\alt<1>{}{\colorbox{white}{i64 v0 <- @1}}!
+            !\only<2|handout:0>{\colorbox{yellow}{imm v1 <- immediate 0}}!!\alt<2>{}{\colorbox{white}{imm v1 <- immediate 0}}!
+            !\only<3|handout:0>{\colorbox{yellow}{imm v2 <- immediate 100}}!!\alt<3>{}{\colorbox{white}{imm v2 <- immediate 100}}!
+            !\only<4|handout:0>{\colorbox{yellow}{i64 v3 <- add i64 v1, i64 v2}}!!\alt<4>{}{\colorbox{white}{i64 v3 <- add i64 v1, i64 v2}}!
+        } => [!\only<5|handout:0>{\colorbox{yellow}{(jump, [b2, i64 v34])}}!!\alt<5>{}{\colorbox{white}{(jump, [b2, i64 v34])}}!]
+    \end{lstlisting}
+
+    \column{0.125 \textwidth}
+    \begin{tikzpicture}[scale=0.72]
+        \TikZArrowX{TUMOrange}{0}{0}{4}{1}
+    \end{tikzpicture}
+
+        \column{0.35 \textwidth}
+        \begin{lstlisting}[language=rv64, escapechar=!]
+b1:
+!\colorbox{white}{push rbp}!
+!\colorbox{white}{mov rbp, rsp}!
+!\colorbox{white}{sub rsp, 32}!
+!\only<1|handout:0>{\colorbox{yellow}{mov rax, [s0]}}!!\alt<1>{}{\colorbox{white}{mov rax, [s0]}}!
+!\only<1|handout:0>{\colorbox{yellow}{mov [rbp - 8 * 1], rax}}!!\alt<1>{}{\colorbox{white}{mov [rbp - 8 * 1], rax}}!
+!\only<2|handout:0>{\colorbox{yellow}{mov [rbp - 8 * 2], 0}}!!\alt<2>{}{\colorbox{white}{mov [rbp - 8 * 2], 0}}!
+!\only<3|handout:0>{\colorbox{yellow}{mov [rbp - 8 * 3], 100}}!!\alt<3>{}{\colorbox{white}{mov [rbp - 8 * 3], 100}}!
+!\only<4|handout:0>{\colorbox{yellow}{mov rax, [rbp - 8 * 2]}}!!\alt<4>{}{\colorbox{white}{mov rax, [rbp - 8 * 2]}}!
+!\only<4|handout:0>{\colorbox{yellow}{mov rbx, [rbp - 8 * 3]}}!!\alt<4>{}{\colorbox{white}{mov rbx, [rbp - 8 * 3]}}!
+!\only<4|handout:0>{\colorbox{yellow}{add rax, rbx}}!!\alt<4>{}{\colorbox{white}{add rax, rbx}}!
+!\only<4|handout:0>{\colorbox{yellow}{mov [rbp - 8 * 4], rax}}!!\alt<4>{}{\colorbox{white}{mov [rbp - 8 * 4], rax}}!
+!\only<5|handout:0>{\colorbox{yellow}{mov rax, [rbp - 8 * 4]}}!!\alt<5>{}{\colorbox{white}{mov rax, [rbp - 8 * 4]}}!
+!\only<5|handout:0>{\colorbox{yellow}{mov [s0], rax}}!!\alt<5>{}{\colorbox{white}{mov [s0], rax}}!
+!\only<5|handout:0>{\colorbox{yellow}{jmp b2}}!!\alt<5>{}{\colorbox{white}{jmp b2}}!
+        [...]
+        \end{lstlisting}
+
+    \end{columns}
+
+\end{frame}
+\clearpage
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \end{document} % !!! NICHT ENTFERNEN !!!
