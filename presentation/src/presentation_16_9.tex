@@ -165,6 +165,15 @@
 
 \begin{frame}
     \frametitle{Intermediate Representation}{Aufbau}
+    \note[item]{Selbst definierte Zwischenrepräsentation}
+    \note[item]{Hauptbestandteil: Basic Blocks}
+    \note[item]{-> Sequentielle Folge von Instruktionen, die durch Kontrollflussoperation beendet werden}
+    \note[item]{Basic Block enthält Variablen in sogenannter SSA-Form und die dazu gehörenden Operationen}
+    \note[item]{Static single assignment -> Jeder var wird nur einmal Wert zugewiesen}
+    \note[item]{-> Vereinfacht Optimierungen}
+    \note[item]{Eingaben kommen als "Statics" -> Abstrakte Darstellung von RISCV-Registern}
+    \note[item]{Kontrollflussoperationen verbinden die Basic Blocks}
+    \note[item]{SSA bedeutet: Variablen frei verschiebbar, deshalb Memory Tokens für Einhaltung der Reihenfolge}
     \pause{}
     \begin{itemize}
         \item Die IR besteht aus mehreren "`\textbf{Basic Blocks}"'
