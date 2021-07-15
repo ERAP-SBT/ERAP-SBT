@@ -225,10 +225,8 @@
         \column{0.275 \textwidth}
         \begin{lstlisting}[language=rv64]
         [...]
-        addi a1, x0, 100
-    loop:
-        addi a1, a1, -1
-        bne a1, x0, loop
+        addi a0, x0, 100
+        j somewhere_else
         [...]
         \end{lstlisting}
 
@@ -242,19 +240,13 @@
 
         \column{0.6 \textwidth}
         \begin{lstlisting}[language=SbtIr]
-block b1(inputs) <= [predecessors] {
+block b1(/* inputs */) <= [/* predecessors */] {
     i64 v0 <- @1
     [...] // more statics
-    imm v33 <- immediate 0
-    imm v34 <- immediate 100
-    i64 <- add i64 v33, i64 v33
-} => [(jump, [b2, ...])]
-
-block b2(inputs) <= [predecessors] { // loop
-    [...] // statics
-    imm v33 <- immediate -1
-    i64 v34 <- add i64 v11, i64 v33
-} => [(cjump, [b2, ...]), (jump, [...])]
+    imm v32 <- immediate 0
+    imm v33 <- immediate 100
+    i64 v34 <- add imm v32, imm v33
+} => [(jump, [b2, i64 v34])]
     \end{lstlisting}
     \end{columns}
 
