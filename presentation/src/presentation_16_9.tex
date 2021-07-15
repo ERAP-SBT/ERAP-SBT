@@ -148,18 +148,16 @@
 
 \begin{frame}
     \frametitle{Programmübersicht}
+    \note[item]{RISC, feste 32-Bit Befehlslänge}
+    \note[item]{wenige, einfache Befehle -> geringe Codedichte, aber leicht zu übersetzten}
+    \note[item]{Register-Register-Maschine}
+    \note[item]{Compiler compiliert zu Assemlby Code und dieser wird zu einer ausführbaren Datei}
+
     %alignment to have some space between headline an the schematic
     ~\\
     ~\\
     \ProgramSchemeVersionOne{0.6}{18}
 \end{frame}
-
-\note[itemize]{
-    \item RISC, feste 32-Bit Befehlslänge
-    \item wenige, einfache Befehle -> geringe Codedichte, aber leicht zu übersetzten
-    \item Register-Register-Maschine
-    \item Compiler compiliert zu Assemlby Code und dieser wird zu einer ausführbaren Datei
-}
 
 %%%%%%%%%%%%%%%%%%%%%
 %% IR Aufbau Folie %%
@@ -269,6 +267,11 @@ block b2(inputs) <= [predecessors] { // loop
 
 \begin{frame}[fragile]
     \frametitle{Lifter}{ELF Binärdatei laden und Instruktionsbytes decodieren}
+
+    \note[item]{ELF Prüfung: Prüfbits, System-V ABI, 64-Bit, Little Endian, RISC-V Machine}
+    \note[item]{Symbole weren bei gestrippten ELF-Binaries nicht eingelesen}
+    \note[item]{32-Byte bzw. 16-Byte Compressed mit frvdec decodieren}
+
     \begin{columns}[c]
         \column{0.5 \textwidth}
         \begin{enumerate}
@@ -309,18 +312,21 @@ ELF Header:
 \end{frame}
 \clearpage
 
-\note[itemize]{
-    \item ELF Prüfung: Prüfbits, System-V ABI, 64-Bit, Little Endian, RISC-V Machine
-    \item Symbole weren bei gestrippten ELF-Binaries nicht eingelesen
-    \item 32-Byte bzw. 16-Byte Compressed mit frvdec decodieren
-}
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Lifter General Folie %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{frame}
     \frametitle{Lifter}{RISC-V Instruktionen in IR Code umwandeln}
+
+    \note[item]{Rekursives parsen}
+    \note[item]{Start bei ELF Einstiegspunkt}
+    \note[item]{RISC-V Instruktionen sequentiell in IR Instruktionen übertragen}
+    \note[item]{Kontrollfluss-ändernde Instruktionen beenden Basic Blöcke}
+    \note[item]{Alle möglichen Sprungziele starten neue Basic Blöcke}
+    \note[item]{Diese werden rekursiv weiter geliftet}
+    \note[item]{Am Ende gehen wir über alle nicht-geliftete Adressen und starten neue Basic Blöcke}
+
     \begin{enumerate}
         \setlength\itemsep{0.6em}
         \item Instruktionen sequenziell lesen:
@@ -341,16 +347,6 @@ ELF Header:
     \end{enumerate}
 \end{frame}
 \clearpage
-
-\note[itemize]{
-    \item Rekursives parsen
-    \item Start bei ELF Einstiegspunkt
-    \item RISC-V Instruktionen sequentiell in IR Instruktionen übertragen
-    \item Kontrollfluss-ändernde Instruktionen beenden Basic Blöcke
-    \item Alle möglichen Sprungziele starten neue Basic Blöcke
-    \item Diese werden rekursiv weiter geliftet
-    \item Am Ende gehen wir über alle nicht-geliftete Adressen und starten neue Basic Blöcke
-}
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 %% Lifter CfOps Folie %%
@@ -389,16 +385,21 @@ ELF Header:
 \end{frame}
 \clearpage
 
-\note[itemize]{
-
-}
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Lifter Backtracking und Splitting %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{frame}
     \frametitle{Lifter}{Lifter Backtracking und Splitting}
+
+    \note[item]{Ein Basic Block muss aufgeteilt werden, wenn eine Kontrollflussoperation an eine Adresse springt, welche bereits geliftet ist und sich in diesem Basic Block befindet}
+    \note[item]{Warum muss ein Basic Block geteilt werden? -> damit nach Definition der IR immer an den Beginn eines Basic Blocks gesprungen werden kann}
+    \note[item]{bei Schleifen nötig -> siehe IR Beispiel vorher}
+    \note[item]{Unbedingter Sprung als Verbindung (nach )}
+    \note[item]{Variablen anhand Zuweisungsadresse (Adresse der Instruktion, welche sie erzeugt hat) auf die beiden Basic Blöcke aufgeteilt}
+    \note[item]{Sorgt für Probleme, weil Datenstruktur verändert wird, v.a. richtige Aufteilen der Variablen, korrekter Sprung, korrekter Transfer der Cfops}
+    \note[item]{Die Kontrollflussoperationen werden in den zweiten Basic Block (mit der höheren Adresse) geschoben, weil diese das Ende des Basic Blocks sind und sich damit garantiert im zweiten Befinden}
+
     \vspace{2em}
     \pause{}
     \begin{columns}[c]
@@ -419,16 +420,6 @@ ELF Header:
     \end{columns}
 \end{frame}
 \clearpage
-
-\note[itemize]{
-    \item Ein Basic Block muss aufgeteilt werden, wenn eine Kontrollflussoperation an eine Adresse springt, welche bereits geliftet ist und sich in diesem Basic Block befindet
-    \item Warum muss ein Basic Block geteilt werden? -> damit nach Definition der IR immer an den Beginn eines Basic Blocks gesprungen werden kann
-    \item bei Schleifen nötig -> siehe IR Beispiel vorher
-    \item Unbedingter Sprung als Verbindung (nach )
-    \item Variablen anhand Zuweisungsadresse (Adresse der Instruktion, welche sie erzeugt hat) auf die beiden Basic Blöcke aufgeteilt
-    \item Sorgt für Probleme, weil Datenstruktur verändert wird, v.a. richtige Aufteilen der Variablen, korrekter Sprung, korrekter Transfer der Cfops
-    \item Die Kontrollflussoperationen werden in den zweiten Basic Block (mit der höheren Adresse) geschoben, weil diese das Ende des Basic Blocks sind und sich damit garantiert im zweiten Befinden
-}
 
 %%%%%%%%%%%%%%%%%%%%%
 %% Generator Folie %%
