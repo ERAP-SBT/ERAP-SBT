@@ -167,9 +167,9 @@
     \begin{itemize}
         \item Die IR besteht aus mehreren "`\textbf{Basic Blocks}"'
               \pause
-        \item Basic Block: Eine Folge von sequentiellen Instruktionen, beendet durch eine Kontrollflussopertion
+        \item Basic Block: Eine Folge von sequentiellen Instruktionen, beendet durch eine Kontrollflussoperation
               \pause
-        \item Ein Basic Block enthält Variablen in SSA-Form und Operationen
+        \item Ein Basic Block enthält Variablen in SSA-Form und dazugehörige Operationen
               \pause
         \item \textbf{Static single assignment (SSA):} Jeder Variable wird genau einmal ein Wert zugewiesen
               \pause
@@ -203,7 +203,6 @@
         Kontrollflussoperationen:
         \begin{itemize}
             \item Sprünge: \texttt{jump}, \texttt{ijump}, \texttt{cjump}
-            \item Sprünge (erweitert): \texttt{call}, \texttt{icall}, \texttt{return}
             \item \texttt{unreachable}
             \item \texttt{syscall}
         \end{itemize}
