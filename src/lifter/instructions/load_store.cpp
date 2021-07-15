@@ -1,4 +1,4 @@
-#include <lifter/lifter.h>
+#include "lifter/lifter.h"
 
 using namespace lifter::RV64;
 
@@ -17,7 +17,7 @@ void Lifter::lift_load(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64
     }
 
     // create SSAVariable for the destination operand
-    SSAVar *load_dest = bb->add_var(op_size, ip);
+    SSAVar *load_dest = bb->add_var(op_size, ip, instr.instr.rd);
 
     // create the load operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(Instruction::load);

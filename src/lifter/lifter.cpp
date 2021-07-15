@@ -206,6 +206,10 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
     std::vector<std::pair<uint64_t, BasicBlock *>> to_split;
 
     for (CfOp &cfOp : curr_bb->control_flow_ops) {
+        if (cfOp.type == CFCInstruction::unreachable) {
+            continue;
+        }
+
         uint64_t jmp_addr = std::get<CfOp::LifterInfo>(cfOp.lifter_info).jump_addr;
         BasicBlock *next_bb;
 
