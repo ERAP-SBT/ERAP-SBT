@@ -275,20 +275,15 @@ block b1(/* inputs */) <= [/* predecessors */] {
 \begin{frame}[fragile]
     \frametitle{Lifter}{ELF Binärdatei laden und Instruktionsbytes decodieren}
     \begin{columns}[c]
+        \pause{}
         \column{0.5 \textwidth}
         \begin{enumerate}
-            \visible<2-> {
             \note[item]{ELF Prüfung: Prüfbits, System-V ABI, 64-Bit, Little Endian, RISC-V Machine}
             \item ELF File prüfen.
-                  }
-                  \visible<3-> {
-                  \note[item]{Symbole weren bei gestrippten ELF-Binaries nicht eingelesen}
+            \note[item]{Symbole weren bei gestrippten ELF-Binaries nicht eingelesen}
             \item Program Header, Sections und Symbole auslesen.
-                  }
-                  \visible<4-> {
-                  \note[item]{32-Byte bzw. 16-Byte Compressed mit frvdec decodieren}
+            \note[item]{32-Byte bzw. 16-Byte Compressed mit frvdec decodieren}
             \item Section Bytes $\rightarrow$ Instruktionen durch \textbf{frvdec} decodieren.
-                  }
         \end{enumerate}
         \column{0.50 \textwidth}
         \begin{lstlisting}[basicstyle=\footnotesize, breaklines=true, escapeinside={@@}]
@@ -324,21 +319,17 @@ ELF Header:
 \begin{frame}
     \frametitle{Lifter}{RISC-V Instruktionen in IR Code umwandeln}
     \begin{enumerate}
+        \pause{}
         \setlength\itemsep{0.6em}
         \item Instruktionen sequenziell lesen:
-              \pause{}
               \vspace{0.5em}
               \begin{enumerate}
                   \setlength\itemsep{0.6em}
                   \item Instruktionen in IR parsen
-                        \pause{}
                   \item Wiederhole bis eine \textbf{Kontrollfluss ändernde Instruktion} auftritt
-                        \pause{}
                   \item Beende Basic Block $\rightarrow$ starte neuen Basic Blöck für jede Kontrollflussänderung
-                        \pause{}
                   \item Starte für jeden \textbf{neuen} Basic Block wieder bei 1
               \end{enumerate}
-              \pause{}
         \item Sollte Schritt 1 nicht alle vorhandenen Instruktionen in Basic Blöcke gepackt haben:\\ Beginne ab erster \textbf{unbetrachteter} Adresse / Instruktion erneut mit Schritt 1
     \end{enumerate}
 \end{frame}
