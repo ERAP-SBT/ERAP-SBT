@@ -200,7 +200,6 @@
 
 \begin{frame}
     \frametitle{Intermediate Representation}{Operationen}
-    \pause{}
 
     ~\\
     ~\\
@@ -215,7 +214,6 @@
             \item Sonstige: Typkonvertierung, ...
         \end{itemize}
 
-        \pause{}
         \column{0.4\textwidth}
         Kontrollflussoperationen:
         \begin{itemize}
@@ -245,13 +243,11 @@
         [...]
         \end{lstlisting}
 
-        \pause{}
         \column{0.125 \textwidth}
         \begin{tikzpicture}[scale=0.72]
             \TikZArrowX{TUMOrange}{0}{0}{4}{1}
         \end{tikzpicture}
 
-        \pause{}
 
         \column{0.6 \textwidth}
         \begin{lstlisting}[language=SbtIr]
@@ -273,7 +269,6 @@ block b1(/* inputs */) <= [/* predecessors */] {
 \begin{frame}[fragile]
     \frametitle{Lifter}{ELF Binärdatei laden und Instruktionsbytes decodieren}
     \begin{columns}[c]
-        \pause{}
         \column{0.5 \textwidth}
         \begin{enumerate}
             \note[item]{ELF Prüfung: Prüfbits, System-V ABI, 64-Bit, Little Endian, RISC-V Machine}
@@ -317,7 +312,6 @@ ELF Header:
 \begin{frame}
     \frametitle{Lifter}{RISC-V Instruktionen in IR Code umwandeln}
     \begin{enumerate}
-        \pause{}
         \setlength\itemsep{0.6em}
         \item Instruktionen sequenziell lesen:
               \vspace{0.5em}
@@ -340,7 +334,6 @@ ELF Header:
 \begin{frame}
     \frametitle{Lifter}{Lifter Splitting und Backtracking}
     \vspace{2em}
-    \pause{}
     \begin{columns}[c]
         \column{0.4 \textwidth}
         \textbf{Aufteilen eines Basic Blocks}
@@ -351,7 +344,6 @@ ELF Header:
             \item Aufteilung an Sprungadresse in zwei Basic Blöcke
             \item Verbindung mit einem direkten Sprung
         \end{itemize}
-        \pause{}
         \column{0.4 \textwidth}
         \textbf{Backtracking einer indirekten Sprungadresse}
         \note[item]{Indirekte Sprünge, also Sprünge mit Register als Eingabeparameter}
@@ -389,7 +381,6 @@ ELF Header:
     \note[item]{Erste Optimierung: Eliminierung von Redundanzen bei den Statics}
 
     \frametitle{Generator}{Übersetztung der IR zu x86\_64}
-    \pause
     \begin{itemize}
         \item Sehr einfache, aber korrekte Übersetztung
         \item Originales ELF-Programm als binäres Speicherbild an exakter Adresse eingebunden
