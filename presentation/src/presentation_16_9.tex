@@ -92,50 +92,50 @@
 
             % riscv elf file rectangle
             % background
-            \filldraw[purple, visible on=<2->] (-2,-2) rectangle (2,2);
+            \filldraw[purple] (-2,-2) rectangle (2,2);
             % black border
-            \draw[black, visible on=<2->] (-2,-2) rectangle (2,2);
+            \draw[black] (-2,-2) rectangle (2,2);
             % label
-            \node[align=center, visible on=<2->] at (0,0) (riscv_text) {\fontsize{#2}{#2} \selectfont RISC-V};
+            \node[align=center, color=white] at (0,0) (riscv_text) {\fontsize{#2}{#2} \selectfont RISC-V};
 
             % lifter arrow
-            \TikZArrowX{TUMOrange, visible on=<3->}{2}{0}{6}{1.5}
+            \TikZArrowX{TUMOrange}{2}{0}{6}{1.5}
             % arrow label
-            \node[align=center, visible on=<3->] at (4.5,0) (lifter_text) {\fontsize{#2}{#2} \selectfont Lifter};
+            \node[align=center, color=white] at (4.5,0) (lifter_text) {\fontsize{#2}{#2} \selectfont Lifter};
 
             % ir (unoptimized) rectangle
             % background
-            \filldraw[TUMBlauDunkel, visible on=<3->] (8,-2) rectangle (12,2);
+            \filldraw[TUMBlauDunkel] (8,-2) rectangle (12,2);
             % black border
-            \draw[black, visible on=<3->] (8,-2) rectangle (12,2);
+            \draw[black] (8,-2) rectangle (12,2);
             % label
-            \node[align=center, visible on=<3->] at (10,0) (ir_text_1) {\fontsize{#2}{#2} \selectfont IR};
+            \node[align=center, color=white] at (10,0) (ir_text_1) {\fontsize{#2}{#2} \selectfont IR};
 
             % optimizer arrow
-            \TikZArrowX{TUMOrange, visible on=<4->}{12}{0}{6}{1.5}
+            \TikZArrowX{TUMOrange}{12}{0}{6}{1.5}
             % arrow label
-            \node[align=center, visible on=<4->] at (14.5,0) (optimizer_text) {\fontsize{#2}{#2} \selectfont Optimizer};
+            \node[align=center, color=white] at (14.5,0) (optimizer_text) {\fontsize{#2}{#2} \selectfont Optimizer};
 
             % ir (optimized) rectangle
             % background
-            \filldraw[TUMBlauDunkel, visible on=<4->] (18,-2) rectangle (22,2);
+            \filldraw[TUMBlauDunkel] (18,-2) rectangle (22,2);
             % black border
-            \draw[black, visible on=<4->] (18,-2) rectangle (22, 2);
+            \draw[black] (18,-2) rectangle (22, 2);
             % label
-            \node[align=center, visible on=<4->] at (20,0) (ir_text_2) {\fontsize{#2}{#2} \selectfont IR};
+            \node[align=center, color=white] at (20,0) (ir_text_2) {\fontsize{#2}{#2} \selectfont IR};
 
             % compiler arrow
-            \TikZArrowX{TUMOrange, visible on=<5->}{22}{0}{6}{1.5}
+            \TikZArrowX{TUMOrange}{22}{0}{6}{1.5}
             % arrow label
-            \node[align=center, visible on=<5->] at (24.5,0) (compiler_text) {\fontsize{#2}{#2} \selectfont Compiler};
+            \node[align=center, color=white] at (24.5,0) (generator_text) {\fontsize{#2}{#2} \selectfont Generator};
 
             % x86_64 rectangle
             %background
-            \filldraw[purple, visible on=<5->] (28,-2) rectangle (32,2);
+            \filldraw[purple] (28,-2) rectangle (32,2);
             % black border
-            \draw[black, visible on=<5->] (28,-2) rectangle (32,2);
+            \draw[black] (28,-2) rectangle (32,2);
             % label
-            \node[align=center, visible on=<5->] at (30,0) (x86_64_text) {\fontsize{#2}{#2} \selectfont x86\_64};
+            \node[align=center, color=white] at (30,0) (x86_64_text) {\fontsize{#2}{#2} \selectfont x86\_64};
         \end{tikzpicture}
     \end{center}
 }
