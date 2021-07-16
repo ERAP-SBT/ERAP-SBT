@@ -278,9 +278,9 @@ block b1(/* inputs */) <= [/* predecessors */] {
         \begin{enumerate}
             \note[item]{ELF Prüfung: Prüfbits, System-V ABI, 64-Bit, Little Endian, RISC-V Machine}
             \item ELF File prüfen.
-            \note[item]{Symbole weren bei gestrippten ELF-Binaries nicht eingelesen}
+                  \note[item]{Symbole weren bei gestrippten ELF-Binaries nicht eingelesen}
             \item Program Header, Sections und Symbole auslesen.
-            \note[item]{32-Byte bzw. 16-Byte Compressed mit frvdec decodieren}
+                  \note[item]{32-Byte bzw. 16-Byte Compressed mit frvdec decodieren}
             \item Section Bytes $\rightarrow$ Instruktionen durch \textbf{frvdec} decodieren.
         \end{enumerate}
         \column{0.50 \textwidth}
@@ -439,31 +439,36 @@ ELF Header:
     % time ./examples/helloworld3_native
     % time ./examples/helloworld3
     % time ./examples/helloworld3_translated
+    \begin{columns}[c]
+        \column{0.50 \textwidth}
+        \begin{lstlisting}[language=bash, basicstyle=\small\ttfamily, extendedchars=true,escapeinside={@@}]
+./big_tests/sysroot/bin/riscv64-linux-gnu-gcc \
+    -static \
+    examples/helloworld3.c \
+    -o examples/helloworld3
 
-    \begin{lstlisting}[language=bash, basicstyle=\footnotesize\ttfamily, extendedchars=true,escapeinside={@@}]
-        ./big_tests/sysroot/bin/riscv64-linux-gnu-gcc \
-            -static \
-            examples/helloworld3.c \
-            -o examples/helloworld3
-
-        ./build/src/translate \
-            @-@-debug=true \
-            @-@-output-binary=examples/helloworld3.bin \
-            @-@-output=examples/helloworld3_translated.s \
-            examples/helloworld3
-
-        gcc \
-            -c examples/helloworld3_translated.s \
-            -o examples/helloworld3_translated.o
-
-        ld \
-            -T src/generator/x86_64/helper/link.ld \
-            examples/helloworld3_translated.o \
-            build/src/generator/x86_64/helper/libhelper.a \
-            -o examples/helloworld3_translated
-
-        ./examples/helloworld3_translated
+./build/src/translate \
+    @-@-debug=true \
+    @-@-output-binary=examples/helloworld3.bin \
+    @-@-output=examples/helloworld3_translated.s \
+    examples/helloworld3
     \end{lstlisting}
+
+        \column{0.5 \textwidth}
+        \begin{lstlisting}[language=bash, basicstyle=\small\ttfamily, extendedchars=true,escapeinside={@@}]
+gcc \
+    -c examples/helloworld3_translated.s \
+    -o examples/helloworld3_translated.o
+
+ld \
+    -T src/generator/x86_64/helper/link.ld \
+    examples/helloworld3_translated.o \
+    build/src/generator/x86_64/helper/libhelper.a \
+    -o examples/helloworld3_translated
+
+./examples/helloworld3_translated
+    \end{lstlisting}
+    \end{columns}
 \end{frame}
 \clearpage
 
