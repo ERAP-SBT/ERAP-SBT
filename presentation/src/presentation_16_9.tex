@@ -256,8 +256,6 @@
         \column{0.6 \textwidth}
         \begin{lstlisting}[language=SbtIr]
 block b1(/* inputs */) <= [/* predecessors */] {
-    i64 v0 <- @1
-    [...] // more statics
     imm v32 <- immediate 0
     imm v33 <- immediate 100
     i64 v34 <- add imm v32, imm v33
