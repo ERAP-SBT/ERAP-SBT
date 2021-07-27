@@ -39,7 +39,7 @@ class Lifter {
     // currently used for unresolved jumps
     BasicBlock *dummy;
 
-    static void parse_instruction(const RV64Inst &instr, BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t next_addr);
+    static void parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr);
 
     [[nodiscard]] BasicBlock *get_bb(uint64_t addr) const;
 

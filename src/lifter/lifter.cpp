@@ -210,7 +210,7 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
         } else {
             next_addr = prog->addrs[i] + 2;
         }
-        parse_instruction(instr, curr_bb, mapping, prog->addrs[i], next_addr);
+        parse_instruction(curr_bb, instr, mapping, prog->addrs[i], next_addr);
         if (!curr_bb->control_flow_ops.empty()) {
             curr_bb->set_virt_end_addr(prog->addrs[i]);
             break;

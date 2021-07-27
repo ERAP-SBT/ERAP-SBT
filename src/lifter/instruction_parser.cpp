@@ -2,7 +2,7 @@
 
 using namespace lifter::RV64;
 
-void Lifter::parse_instruction(const RV64Inst &instr, BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
+void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     switch (instr.instr.mnem) {
     case FRV_INVALID:
         lift_invalid(bb, ip);

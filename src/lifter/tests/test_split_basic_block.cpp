@@ -61,7 +61,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_small) {
         int curr_ip = bb_start_addr;
         size_t previous_size = COUNT_STATIC_VARS - 1;
         for (RV64Inst &instr : instructions) {
-            lifter.parse_instruction(instr, block, mapping, curr_ip, curr_ip + 4);
+            lifter.parse_instruction(block, instr, mapping, curr_ip, curr_ip + 4);
             count_var_per_instr.push_back((int)(block->variables.size() - previous_size));
             previous_size = block->variables.size();
             curr_ip += 4;
@@ -195,7 +195,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
     unsigned long previous_count_var = COUNT_STATIC_VARS - 1;
     for (RV64Inst &instr : instructions) {
         // lift the instruction
-        lifter.parse_instruction(instr, block, mapping, curr_ip, curr_ip + 4);
+        lifter.parse_instruction(block, instr, mapping, curr_ip, curr_ip + 4);
 
         // store which variable should belong to which part of the basic block (before or after the split address)
         if (curr_ip >= bb_split_addr) {
@@ -217,7 +217,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
     {
         // beq x7, x0, off (the offset is so that the jump goes to the basic block at address dummy_bb_addr1)
         RV64Inst instr = {{FRV_BEQ, 0, 7, 0, 0, 0, (int32_t)(dummy_block_addrs[0] - curr_ip)}, 0};
-        lifter.parse_instruction(instr, block, mapping, curr_ip, curr_ip + 4);
+        lifter.parse_instruction(block, instr, mapping, curr_ip, curr_ip + 4);
         for (unsigned long i = previous_count_var; i < block->variables.size(); i++) {
             vars_after.push_back(block->variables[i].get());
         }
