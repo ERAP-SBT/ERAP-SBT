@@ -8,13 +8,13 @@ void Lifter::lift_ecall(BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t 
     CfOp &ecall_op = bb->add_cf_op(CFCInstruction::syscall, nullptr, ip, next_addr);
 
     // the syscall number is required from register a7 (=x17) + args in a0 - a5
-    ecall_op.set_inputs(mapping.at(17), // a7
-                        mapping.at(10), // a0
-                        mapping.at(11), // a1
-                        mapping.at(12), // a2
-                        mapping.at(13), // a3
-                        mapping.at(14), // a4
-                        mapping.at(15)  // a5
+    ecall_op.set_inputs(mapping[17], // a7
+                        mapping[10], // a0
+                        mapping[11], // a1
+                        mapping[12], // a2
+                        mapping[13], // a3
+                        mapping[14], // a4
+                        mapping[15]  // a5
     );
 
     // the result should be placed in the statics for register a0 (x10) and a1 (x11)

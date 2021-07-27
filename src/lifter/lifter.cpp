@@ -28,7 +28,7 @@ void Lifter::lift(Program *prog) {
         }
     }
 
-    ir->setup_bb_addr_vec(prog->addrs.at(0), prog->addrs.back());
+    ir->setup_bb_addr_vec(prog->addrs[0], prog->addrs.back());
 
     uint64_t start_addr = prog->elf_base->header.e_entry;
     Function *curr_fun = ir->add_func();
@@ -58,7 +58,7 @@ void Lifter::lift(Program *prog) {
 
             if (virt_start_addr && virt_end_addr) {
                 const auto start_i = (size_t)std::distance(unparsed_addrs.begin(), std::find(unparsed_addrs.begin(), unparsed_addrs.end(), virt_start_addr));
-                while (unparsed_addrs.at(start_i) != virt_end_addr) {
+                while (unparsed_addrs[start_i] != virt_end_addr) {
                     unparsed_addrs.erase(std::next(unparsed_addrs.begin(), (long)start_i));
                 }
                 // don't forget to also erase the end address
@@ -71,18 +71,18 @@ void Lifter::lift(Program *prog) {
         size_t last_bb_id = ir->basic_blocks.back()->id;
 
         while (!unparsed_addrs.empty()) {
-            BasicBlock *new_bb = ir->add_basic_block(unparsed_addrs.at(0), prog->elf_base->symbol_str_at_addr(unparsed_addrs.at(0)).value_or(""));
+            BasicBlock *new_bb = ir->add_basic_block(unparsed_addrs[0], prog->elf_base->symbol_str_at_addr(unparsed_addrs[0]).value_or(""));
             {
                 std::stringstream str;
                 str << "Starting new basicblock #0x" << std::hex << new_bb->id;
                 DEBUG_LOG(str.str());
             }
-            lift_rec(prog, curr_fun, unparsed_addrs.at(0), std::nullopt, new_bb);
+            lift_rec(prog, curr_fun, unparsed_addrs[0], std::nullopt, new_bb);
 
             for (auto &bb : ir->basic_blocks) {
                 if (bb->id > last_bb_id && bb->virt_start_addr && bb->virt_end_addr) {
                     auto start_i = (size_t)std::distance(unparsed_addrs.begin(), std::find(unparsed_addrs.begin(), unparsed_addrs.end(), bb->virt_start_addr));
-                    while (unparsed_addrs.size() > start_i && unparsed_addrs.at(start_i) != bb->virt_end_addr) {
+                    while (unparsed_addrs.size() > start_i && unparsed_addrs[start_i] != bb->virt_end_addr) {
                         unparsed_addrs.erase(std::next(unparsed_addrs.begin(), (long)start_i));
                     }
                     // don't forget to also erase the end address
@@ -172,14 +172,14 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
     // load ssa variables from static vars and fill mapping
     for (size_t i = 0; i < 33; i++) {
         if (i != ZERO_IDX) {
-            mapping.at(i) = curr_bb->add_var_from_static(i, start_addr);
+            mapping[i] = curr_bb->add_var_from_static(i, start_addr);
         } else {
-            mapping.at(i) = nullptr;
+            mapping[i] = nullptr;
         }
     }
 
     for (size_t i = start_i; true; i++) {
-        if (prog->data.at(i).index() != 1) {
+        if (prog->data[i].index() != 1) {
             /* ignore non RV64 Instructions */
             continue;
         }
@@ -187,10 +187,10 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
         // ignore the first address, otherwise we always find the existing curr_bb basic block
         if (i > start_i) {
             // test if another parsed or unparsed basic block starts at this instruction to avoid duplicated instructions
-            const auto jmp_addr = prog->addrs.at(i);
+            const auto jmp_addr = prog->addrs[i];
             auto bb = ir->bb_at_addr(jmp_addr);
             if (bb) {
-                const auto instr_addr = prog->addrs.at(i - 1);
+                const auto instr_addr = prog->addrs[i - 1];
                 SSAVar *addr_imm = curr_bb->add_var_imm((int64_t)jmp_addr, instr_addr, true);
                 CfOp &jmp = curr_bb->add_cf_op(CFCInstruction::jump, bb, instr_addr, bb->virt_start_addr);
                 jmp.set_inputs(addr_imm);
@@ -199,26 +199,26 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
             }
         }
 
-        const RV64Inst instr = std::get<RV64Inst>(prog->data.at(i));
+        const RV64Inst instr = std::get<RV64Inst>(prog->data[i]);
 
         // the next_addr is used for CfOps which require a return address / address of the next instruction
         uint64_t next_addr;
 
         // test if the next address is outside of the already parsed addresses
         if (i < prog->addrs.size() - 1) {
-            next_addr = prog->addrs.at(i + 1);
+            next_addr = prog->addrs[i + 1];
         } else {
-            next_addr = prog->addrs.at(i) + 2;
+            next_addr = prog->addrs[i] + 2;
         }
-        parse_instruction(instr, curr_bb, mapping, prog->addrs.at(i), next_addr);
+        parse_instruction(instr, curr_bb, mapping, prog->addrs[i], next_addr);
         if (!curr_bb->control_flow_ops.empty()) {
-            curr_bb->set_virt_end_addr(prog->addrs.at(i));
+            curr_bb->set_virt_end_addr(prog->addrs[i]);
             break;
         }
 
         // for now, we stop after 10000 instructions / data elements in one basic block
         if (i + 1 >= start_i + BASIC_BLOCK_MAX_INSTRUCTIONS || i + 1 >= prog->addrs.size()) {
-            curr_bb->set_virt_end_addr(prog->addrs.at(i));
+            curr_bb->set_virt_end_addr(prog->addrs[i]);
             break;
         }
     }
@@ -275,7 +275,7 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
         }
 
         for (size_t i = 0; i < mapping.size(); i++) {
-            auto var = mapping.at(i);
+            auto var = mapping[i];
             if (var != nullptr) {
                 cfOp.add_target_input(var, i);
                 std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = i;

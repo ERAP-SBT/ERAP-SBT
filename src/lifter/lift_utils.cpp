@@ -84,7 +84,7 @@ SSAVar *Lifter::get_from_mapping(BasicBlock *bb, reg_map &mapping, uint64_t reg_
         // return constant zero
         return bb->add_var_imm(0, ip);
     }
-    return mapping.at(reg_id);
+    return mapping[reg_id];
 }
 
 void Lifter::write_to_mapping(reg_map &mapping, SSAVar *var, uint64_t reg_id) {
@@ -92,5 +92,5 @@ void Lifter::write_to_mapping(reg_map &mapping, SSAVar *var, uint64_t reg_id) {
         return;
     }
 
-    mapping.at(reg_id) = var;
+    mapping[reg_id] = var;
 }

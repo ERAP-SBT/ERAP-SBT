@@ -47,7 +47,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_small) {
 
     // add statics
     for (unsigned long i = 1; i < mapping.size(); i++) {
-        mapping.at(i) = block->add_var_from_static(i, bb_start_addr);
+        mapping[i] = block->add_var_from_static(i, bb_start_addr);
     }
 
     ASSERT_EQ(block->variables.size(), COUNT_STATIC_VARS - 1) << "The amount of statics variables is not as expected!";
@@ -152,7 +152,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
 
     // add statics
     for (unsigned long i = 1; i < mapping.size(); i++) {
-        mapping.at(i) = block->add_var_from_static(i, bb_start_addr);
+        mapping[i] = block->add_var_from_static(i, bb_start_addr);
     }
 
     ASSERT_EQ(block->variables.size(), COUNT_STATIC_VARS - 1) << "The amount of statics variables is not as expected!";

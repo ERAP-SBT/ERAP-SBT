@@ -22,7 +22,7 @@ void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
     // create the load operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(Instruction::load);
 
-    operation->set_inputs(load_addr, mapping.at(MEM_IDX));
+    operation->set_inputs(load_addr, mapping[MEM_IDX]);
     operation->set_outputs(load_dest);
 
     // assign the operation as variable of the destination
@@ -69,12 +69,12 @@ void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(Instruction::store);
 
     // set in- and outputs
-    operation->set_inputs(store_addr, store_var, mapping.at(MEM_IDX));
+    operation->set_inputs(store_addr, store_var, mapping[MEM_IDX]);
     operation->set_outputs(result_memory_token);
 
     // set operation
     result_memory_token->set_op(std::move(operation));
 
     // write memory_token back
-    mapping.at(MEM_IDX) = result_memory_token;
+    mapping[MEM_IDX] = result_memory_token;
 }
