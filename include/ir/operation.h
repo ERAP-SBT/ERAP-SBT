@@ -70,10 +70,13 @@ struct CfOp {
 
     struct IJumpInfo {
         // jump addr is in in_vars[0]
-        std::vector<std::pair<RefPtr<SSAVar>, size_t>> mapping = {};
 
-        // we are sometimes able to infer the target (normally this means the ijump is a `ret`)
-        BasicBlock *target = nullptr;
+        /* new multi-target ijumps */
+        std::vector<BasicBlock *> targets{};
+        std::vector<uint64_t> jmp_addrs{};
+
+        // one (same) mapping for all jump targets
+        std::vector<std::pair<RefPtr<SSAVar>, size_t>> mapping{};
     };
 
     struct CJumpInfo {

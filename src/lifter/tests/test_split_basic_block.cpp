@@ -64,6 +64,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_small) {
             curr_ip += 4;
         }
     }
+
     // split the block
     lifter.split_basic_block(block, bb_split_addr, nullptr);
 
@@ -238,7 +239,6 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
 
         control_flow_ops.push_back(&cfop);
     }
-
     lifter.split_basic_block(block, bb_split_addr, nullptr);
 
     // test that the ir is vaild after splitting

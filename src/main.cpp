@@ -46,6 +46,10 @@ int main(int argc, const char **argv) {
         ENABLE_CALL_RET_TRANSFORM = args.get_value_as_bool("transform-call-ret");
     }
 
+    if (args.has_argument("full-backtracking")) {
+        FULL_BACKTRACKING = args.get_value_as_bool("full-backtracking");
+    }
+
     if (args.positional.empty()) {
         std::cerr << "Missing input file argument!\n";
         print_help(true);
@@ -231,6 +235,7 @@ void print_help(bool usage_only) {
         std::cerr << "                   (The above two are only required if the translator can't find these by itself)\n";
         std::cerr << "    --disable-fp:   Disables the support of floating point instructions.\n";
         std::cerr << "    --transform-call-ret:   Detect and replace RISC-V `call` and `return` instructions\n\n";
+        std::cerr << "    --full-backtracking:   Evaluates every possible input combination for indirect jump address backtracking.\n";
         std::cerr << '\n';
         std::cerr << "Environment variables:\n";
         std::cerr << "    AS: Override the assembler binary (by default, the system `as` is used)\n";

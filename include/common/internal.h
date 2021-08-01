@@ -14,4 +14,6 @@ inline bool ENABLE_DEBUG
         } \
     } while (0)
 
+inline bool FULL_BACKTRACKING = true;
+
 inline bool ENABLE_CALL_RET_TRANSFORM = false;
