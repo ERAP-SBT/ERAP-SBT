@@ -163,15 +163,15 @@ std::unique_ptr<Operation> Operation::new_sltu(SSAVar *out_result, SSAVar *in_a,
 }
 std::unique_ptr<Operation> Operation::new_sign_extend(SSAVar *out_result, SSAVar *in_value) {
     assert(out_result && in_value);
-    return create_op(Instruction::sign_extend, {out_result}, {in_value});
+    return create_op(Instruction::sign_extend, {in_value}, {out_result});
 }
 std::unique_ptr<Operation> Operation::new_zero_extend(SSAVar *out_result, SSAVar *in_value) {
     assert(out_result && in_value);
-    return create_op(Instruction::zero_extend, {out_result}, {in_value});
+    return create_op(Instruction::zero_extend, {in_value}, {out_result});
 }
 std::unique_ptr<Operation> Operation::new_setup_stack(SSAVar *out_sp) {
     assert(out_sp);
-    return create_op(Instruction::setup_stack, {out_sp}, {});
+    return create_op(Instruction::setup_stack, {}, {out_sp});
 }
 
 CfOp::CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target) : type(type), source(source), in_vars() {
