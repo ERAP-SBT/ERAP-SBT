@@ -78,7 +78,7 @@
 % posX, posY (left, top coordinate)
 \newcommand{\colorLegend}[2] {
     \colorLegendEntry{TUMOrange}{Static Translator Parts}{#1}{#2}
-    \colorLegendEntry{TUMBlauDunkel}{Immediate Representation (IR)}{#1}{#2-1.5}
+    \colorLegendEntry{TUMBlauDunkel}{Intermediate Representation (IR)}{#1}{#2-1.5}
     \colorLegendEntry{purple}{Maschine Code / ELF File}{#1}{#2-3}
 }
 
@@ -92,50 +92,50 @@
 
             % riscv elf file rectangle
             % background
-            \filldraw[purple, visible on=<2->] (-2,-2) rectangle (2,2);
+            \filldraw[purple] (-2,-2) rectangle (2,2);
             % black border
-            \draw[black, visible on=<2->] (-2,-2) rectangle (2,2);
+            \draw[black] (-2,-2) rectangle (2,2);
             % label
-            \node[align=center, visible on=<2->] at (0,0) (riscv_text) {\fontsize{#2}{#2} \selectfont RISC-V};
+            \node[align=center, color=white] at (0,0) (riscv_text) {\fontsize{#2}{#2} \selectfont RISC-V};
 
             % lifter arrow
-            \TikZArrowX{TUMOrange, visible on=<3->}{2}{0}{6}{1.5}
+            \TikZArrowX{TUMOrange}{2}{0}{6}{1.5}
             % arrow label
-            \node[align=center, visible on=<3->] at (4.5,0) (lifter_text) {\fontsize{#2}{#2} \selectfont Lifter};
+            \node[align=center, color=white] at (4.5,0) (lifter_text) {\fontsize{#2}{#2} \selectfont Lifter};
 
             % ir (unoptimized) rectangle
             % background
-            \filldraw[TUMBlauDunkel, visible on=<3->] (8,-2) rectangle (12,2);
+            \filldraw[TUMBlauDunkel] (8,-2) rectangle (12,2);
             % black border
-            \draw[black, visible on=<3->] (8,-2) rectangle (12,2);
+            \draw[black] (8,-2) rectangle (12,2);
             % label
-            \node[align=center, visible on=<3->] at (10,0) (ir_text_1) {\fontsize{#2}{#2} \selectfont IR};
+            \node[align=center, color=white] at (10,0) (ir_text_1) {\fontsize{#2}{#2} \selectfont IR};
 
             % optimizer arrow
-            \TikZArrowX{TUMOrange, visible on=<4->}{12}{0}{6}{1.5}
+            \TikZArrowX{TUMOrange}{12}{0}{6}{1.5}
             % arrow label
-            \node[align=center, visible on=<4->] at (14.5,0) (optimizer_text) {\fontsize{#2}{#2} \selectfont Optimizer};
+            \node[align=center, color=white] at (14.5,0) (optimizer_text) {\fontsize{#2}{#2} \selectfont Optimizer};
 
             % ir (optimized) rectangle
             % background
-            \filldraw[TUMBlauDunkel, visible on=<4->] (18,-2) rectangle (22,2);
+            \filldraw[TUMBlauDunkel] (18,-2) rectangle (22,2);
             % black border
-            \draw[black, visible on=<4->] (18,-2) rectangle (22, 2);
+            \draw[black] (18,-2) rectangle (22, 2);
             % label
-            \node[align=center, visible on=<4->] at (20,0) (ir_text_2) {\fontsize{#2}{#2} \selectfont IR};
+            \node[align=center, color=white] at (20,0) (ir_text_2) {\fontsize{#2}{#2} \selectfont IR};
 
             % compiler arrow
-            \TikZArrowX{TUMOrange, visible on=<5->}{22}{0}{6}{1.5}
+            \TikZArrowX{TUMOrange}{22}{0}{6}{1.5}
             % arrow label
-            \node[align=center, visible on=<5->] at (24.5,0) (compiler_text) {\fontsize{#2}{#2} \selectfont Compiler};
+            \node[align=center, color=white] at (24.5,0) (generator_text) {\fontsize{#2}{#2} \selectfont Generator};
 
             % x86_64 rectangle
             %background
-            \filldraw[purple, visible on=<5->] (28,-2) rectangle (32,2);
+            \filldraw[purple] (28,-2) rectangle (32,2);
             % black border
-            \draw[black, visible on=<5->] (28,-2) rectangle (32,2);
+            \draw[black] (28,-2) rectangle (32,2);
             % label
-            \node[align=center, visible on=<5->] at (30,0) (x86_64_text) {\fontsize{#2}{#2} \selectfont x86\_64};
+            \node[align=center, color=white] at (30,0) (x86_64_text) {\fontsize{#2}{#2} \selectfont x86\_64};
         \end{tikzpicture}
     \end{center}
 }
@@ -183,24 +183,17 @@
     \pause{}
     \begin{itemize}
         \item Die IR besteht aus mehreren "`\textbf{Basic Blocks}"'
-              \pause{}
         \item Basic Block: Eine Folge von sequentiellen Instruktionen, beendet durch eine Kontrollflussoperation
-              \pause{}
         \item Ein Basic Block enthält Variablen in SSA-Form und dazugehörige Operationen
-              \pause{}
         \item \textbf{Static single assignment (SSA):} Jeder Variable wird genau einmal ein Wert zugewiesen
-              \pause{}
         \item Ein Basic Block erhält Eingaben in Form von Statics
-              \pause{}
         \item Die Basic Blocks sind durch die Kontrollflussoperationen miteinander verbunden
-              \pause{}
         \item Zur Nachvervolgung von Lese- und Schreiboperationen gibt es Memory Tokens $\rightarrow$ Optimierungen
     \end{itemize}
 \end{frame}
 
 \begin{frame}
     \frametitle{Intermediate Representation}{Operationen}
-    \pause{}
 
     ~\\
     ~\\
@@ -215,7 +208,6 @@
             \item Sonstige: Typkonvertierung, ...
         \end{itemize}
 
-        \pause{}
         \column{0.4\textwidth}
         Kontrollflussoperationen:
         \begin{itemize}
@@ -245,19 +237,15 @@
         [...]
         \end{lstlisting}
 
-        \pause{}
         \column{0.125 \textwidth}
         \begin{tikzpicture}[scale=0.72]
             \TikZArrowX{TUMOrange}{0}{0}{4}{1}
         \end{tikzpicture}
 
-        \pause{}
 
         \column{0.6 \textwidth}
         \begin{lstlisting}[language=SbtIr]
 block b1(/* inputs */) <= [/* predecessors */] {
-    i64 v0 <- @1
-    [...] // more statics
     imm v32 <- immediate 0
     imm v33 <- immediate 100
     i64 v34 <- add imm v32, imm v33
@@ -275,14 +263,13 @@ block b1(/* inputs */) <= [/* predecessors */] {
 \begin{frame}[fragile]
     \frametitle{Lifter}{ELF Binärdatei laden und Instruktionsbytes decodieren}
     \begin{columns}[c]
-        \pause{}
         \column{0.5 \textwidth}
         \begin{enumerate}
             \note[item]{ELF Prüfung: Prüfbits, System-V ABI, 64-Bit, Little Endian, RISC-V Machine}
             \item ELF File prüfen.
-            \note[item]{Symbole weren bei gestrippten ELF-Binaries nicht eingelesen}
+                  \note[item]{Symbole weren bei gestrippten ELF-Binaries nicht eingelesen}
             \item Program Header, Sections und Symbole auslesen.
-            \note[item]{32-Byte bzw. 16-Byte Compressed mit frvdec decodieren}
+                  \note[item]{32-Byte bzw. 16-Byte Compressed mit frvdec decodieren}
             \item Section Bytes $\rightarrow$ Instruktionen durch \textbf{frvdec} decodieren.
         \end{enumerate}
         \column{0.50 \textwidth}
@@ -319,7 +306,6 @@ ELF Header:
 \begin{frame}
     \frametitle{Lifter}{RISC-V Instruktionen in IR Code umwandeln}
     \begin{enumerate}
-        \pause{}
         \setlength\itemsep{0.6em}
         \item Instruktionen sequenziell lesen:
               \vspace{0.5em}
@@ -342,7 +328,6 @@ ELF Header:
 \begin{frame}
     \frametitle{Lifter}{Lifter Splitting und Backtracking}
     \vspace{2em}
-    \pause{}
     \begin{columns}[c]
         \column{0.4 \textwidth}
         \textbf{Aufteilen eines Basic Blocks}
@@ -353,7 +338,6 @@ ELF Header:
             \item Aufteilung an Sprungadresse in zwei Basic Blöcke
             \item Verbindung mit einem direkten Sprung
         \end{itemize}
-        \pause{}
         \column{0.4 \textwidth}
         \textbf{Backtracking einer indirekten Sprungadresse}
         \note[item]{Indirekte Sprünge, also Sprünge mit Register als Eingabeparameter}
@@ -388,10 +372,9 @@ ELF Header:
     \note[item]{RISC-V System-V ABI (Startup, Syscall) zur Laufzeit emuliert}
     \note[item]{Stack wird nur initialisiert, danach nicht mehr im Generator speziell behandelt}
     \note[item]{Indirekte Sprünge werden per Lookup zur Laufzeit aufgelöst}
-    \note[item]{Erste Optimierung: Eliminierung von Redundanzen bei den Statics}
+%    \note[item]{Erste Optimierung: Eliminierung von Redundanzen bei den Statics}
 
     \frametitle{Generator}{Übersetztung der IR zu x86\_64}
-    \pause
     \begin{itemize}
         \item Sehr einfache, aber korrekte Übersetztung
         \item Originales ELF-Programm als binäres Speicherbild an exakter Adresse eingebunden
@@ -441,31 +424,36 @@ ELF Header:
     % time ./examples/helloworld3_native
     % time ./examples/helloworld3
     % time ./examples/helloworld3_translated
+    \begin{columns}[c]
+        \column{0.50 \textwidth}
+        \begin{lstlisting}[language=bash, basicstyle=\small\ttfamily, extendedchars=true,escapeinside={@@}]
+./big_tests/sysroot/bin/riscv64-linux-gnu-gcc \
+    -static \
+    examples/helloworld3.c \
+    -o examples/helloworld3
 
-    \begin{lstlisting}[language=bash, basicstyle=\footnotesize\ttfamily, extendedchars=true,escapeinside={@@}]
-        ./big_tests/sysroot/bin/riscv64-linux-gnu-gcc \
-            -static \
-            examples/helloworld3.c \
-            -o examples/helloworld3
-
-        ./build/src/translate \
-            @-@-debug=true \
-            @-@-output-binary=examples/helloworld3.bin \
-            @-@-output=examples/helloworld3_translated.s \
-            examples/helloworld3
-
-        gcc \
-            -c examples/helloworld3_translated.s \
-            -o examples/helloworld3_translated.o
-
-        ld \
-            -T src/generator/x86_64/helper/link.ld \
-            examples/helloworld3_translated.o \
-            build/src/generator/x86_64/helper/libhelper.a \
-            -o examples/helloworld3_translated
-
-        ./examples/helloworld3_translated
+./build/src/translate \
+    @-@-debug=true \
+    @-@-output-binary=examples/helloworld3.bin \
+    @-@-output=examples/helloworld3_translated.s \
+    examples/helloworld3
     \end{lstlisting}
+
+        \column{0.5 \textwidth}
+        \begin{lstlisting}[language=bash, basicstyle=\small\ttfamily, extendedchars=true,escapeinside={@@}]
+gcc \
+    -c examples/helloworld3_translated.s \
+    -o examples/helloworld3_translated.o
+
+ld \
+    -T src/generator/x86_64/helper/link.ld \
+    examples/helloworld3_translated.o \
+    build/src/generator/x86_64/helper/libhelper.a \
+    -o examples/helloworld3_translated
+
+./examples/helloworld3_translated
+    \end{lstlisting}
+    \end{columns}
 \end{frame}
 \clearpage
 
