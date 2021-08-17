@@ -125,14 +125,14 @@ void Lifter::lift_amo_and(BasicBlock *bb, const RV64Inst &instr, reg_map &mappin
     store_val_to_rs1(bb, instr, mapping, ip, op_size, op_result);
 }
 
-void Lifter::lift_amo_min([[maybe_unused]] BasicBlock *bb, [[maybe_unused]] const RV64Inst &instr, [[maybe_unused]] reg_map &mapping, [[maybe_unused]] uint64_t ip,
-                          [[maybe_unused]] const Type op_size, [[maybe_unused]] bool _signed) {
+void Lifter::lift_amo_min([[maybe_unused]] BasicBlock *bb, [[maybe_unused]] const RV64Inst &instr, [[maybe_unused]] reg_map &mapping, [[maybe_unused]] uint64_t ip, [[maybe_unused]] const Type op_size,
+                          [[maybe_unused]] bool _signed) {
     // TODO: not implemented
     bb->add_cf_op(CFCInstruction::unreachable, nullptr, ip);
 }
 
-void Lifter::lift_amo_max([[maybe_unused]] BasicBlock *bb, [[maybe_unused]] const RV64Inst &instr, [[maybe_unused]] reg_map &mapping, [[maybe_unused]] uint64_t ip,
-                          [[maybe_unused]] const Type op_size, [[maybe_unused]] bool _signed) {
+void Lifter::lift_amo_max([[maybe_unused]] BasicBlock *bb, [[maybe_unused]] const RV64Inst &instr, [[maybe_unused]] reg_map &mapping, [[maybe_unused]] uint64_t ip, [[maybe_unused]] const Type op_size,
+                          [[maybe_unused]] bool _signed) {
     // TODO: not implemented
     bb->add_cf_op(CFCInstruction::unreachable, nullptr, ip);
 }
