@@ -8,8 +8,8 @@ namespace lifter::RV64 {
 /* maximum number of riscv64 instructions a basicblock can have while lifting */
 constexpr size_t BASIC_BLOCK_MAX_INSTRUCTIONS = 10000;
 
-/* amount of static variables: 31 registers (x0-x32) + memory token*/
-constexpr size_t COUNT_STATIC_VARS = 33;
+/* amount of static variables: zero register (x0) + 31 general purpose registers (x1-x32) + 32 floating point registers (f0-f31) + memory token*/
+constexpr size_t COUNT_STATIC_VARS = 65;
 
 class Lifter {
   public:
@@ -23,7 +23,7 @@ class Lifter {
     static constexpr size_t ZERO_IDX = 0;
 
     // Index of memory token in <reg_map> register mapping
-    static constexpr size_t MEM_IDX = 32;
+    static constexpr size_t MEM_IDX = 64;
 
     // Depth of jump address backtracking
     static constexpr int MAX_ADDRESS_SEARCH_DEPTH = 10;

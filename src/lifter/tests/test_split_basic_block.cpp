@@ -32,7 +32,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_small) {
     ir.setup_bb_addr_vec(prog_start, prog_end);
 
     // add static mapper
-    for (int i = 0; i < 33; i++) {
+    for (size_t i = 0; i < COUNT_STATIC_VARS; i++) {
         ir.add_static(Type::i64);
     }
 
@@ -129,7 +129,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
     ir.setup_bb_addr_vec(prog_start, prog_end);
 
     // add static mapper
-    for (unsigned long i = 0; i < 33; i++) {
+    for (unsigned long i = 0; i < COUNT_STATIC_VARS; i++) {
         ir.add_static(Type::i64);
     }
 
