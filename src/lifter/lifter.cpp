@@ -37,6 +37,10 @@ void Lifter::lift(Program *prog) {
     for (size_t i = 0; i < 32; i++) {
         ir->add_static(Type::i64);
     }
+
+    for (size_t i = 0; i < 32; i++) {
+        ir->add_static(Type::f64);
+    }
     // add the memory token as the last static slot
     ir->add_static(Type::mt);
 
