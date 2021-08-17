@@ -36,6 +36,10 @@ void Lifter::lift(Program *prog) {
     for (size_t i = 0; i < 32; i++) {
         ir->add_static(Type::i64);
     }
+
+    for (size_t i = 0; i < 32; i++) {
+        ir->add_static(Type::f64);
+    }
     // add the memory token as the last static slot
     ir->add_static(Type::mt);
 
@@ -169,7 +173,7 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
     reg_map mapping;
 
     // load ssa variables from static vars and fill mapping
-    for (size_t i = 0; i < 33; i++) {
+    for (size_t i = 0; i < COUNT_STATIC_VARS; i++) {
         if (i != ZERO_IDX) {
             mapping[i] = curr_bb->add_var_from_static(i, start_addr);
         } else {
