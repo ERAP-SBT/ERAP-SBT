@@ -18,7 +18,7 @@ std::string Lifter::str_decode_instr(const FrvInst *instr) {
     return std::string(str);
 }
 
-void Lifter::print_invalid_op_size(const Instruction &instructionType, const RV64Inst &instr) {
+void Lifter::print_invalid_op_size(const Instruction instructionType, const RV64Inst &instr) {
     std::stringstream str;
     str << "Encountered " << instructionType << " instruction with invalid operand size: " << str_decode_instr(&instr.instr);
     DEBUG_LOG(str.str());
@@ -41,7 +41,7 @@ BasicBlock *Lifter::get_bb(uint64_t addr) const {
     return nullptr;
 }
 
-SSAVar *Lifter::shrink_var(BasicBlock *bb, SSAVar *var, uint64_t ip, const Type &target_size) {
+SSAVar *Lifter::shrink_var(BasicBlock *bb, SSAVar *var, uint64_t ip, const Type target_size) {
     // create cast operation
     std::unique_ptr<Operation> cast = std::make_unique<Operation>(Instruction::cast);
 
@@ -56,7 +56,7 @@ SSAVar *Lifter::shrink_var(BasicBlock *bb, SSAVar *var, uint64_t ip, const Type 
     return destination;
 }
 
-std::optional<SSAVar *> Lifter::convert_type(BasicBlock *bb, uint64_t ip, SSAVar *var, const Type &desired_type) {
+std::optional<SSAVar *> Lifter::convert_type(BasicBlock *bb, uint64_t ip, SSAVar *var, const Type desired_type) {
     if (var->type == desired_type || var->type == Type::imm) {
         return var;
     }

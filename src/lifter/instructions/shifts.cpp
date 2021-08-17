@@ -2,7 +2,7 @@
 
 using namespace lifter::RV64;
 
-void Lifter::lift_shift(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction &instruction_type, const Type &op_size) {
+void Lifter::lift_shift(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
     // prepare for shift, only use lower 5bits
 
     SSAVar *mask;
@@ -27,7 +27,7 @@ void Lifter::lift_shift(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
     lift_arithmetical_logical(bb, instr, mapping, ip, instruction_type, op_size);
 }
 
-void Lifter::lift_shift_immediate(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction &instruction_type, const Type &op_size) {
+void Lifter::lift_shift_immediate(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
     // masking the operand (by modifying the immediate)
     const RV64Inst instr_cp = RV64Inst{FrvInst{instr.instr.mnem, instr.instr.rd, instr.instr.rs1, instr.instr.rs2, instr.instr.rs3, instr.instr.misc, instr.instr.imm & 0x3F}, instr.size};
     lift_arithmetical_logical_immediate(bb, instr_cp, mapping, ip, instruction_type, op_size);

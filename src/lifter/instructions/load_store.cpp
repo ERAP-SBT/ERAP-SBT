@@ -2,7 +2,7 @@
 
 using namespace lifter::RV64;
 
-void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size, bool sign_extend) {
+void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size, bool sign_extend) {
     // 1. load offset
     SSAVar *offset = load_immediate(bb, instr.instr.imm, ip, false);
 
@@ -44,7 +44,7 @@ void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
     write_to_mapping(mapping, load_dest, instr.instr.rd);
 }
 
-void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type &op_size) {
+void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
     // 1. load offset
     SSAVar *offset = load_immediate(bb, instr.instr.imm, ip, false);
 

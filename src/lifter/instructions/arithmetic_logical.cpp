@@ -2,7 +2,7 @@
 
 using namespace lifter::RV64;
 
-void Lifter::lift_arithmetical_logical(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction &instruction_type, const Type &op_size) {
+void Lifter::lift_arithmetical_logical(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
     SSAVar *source_one = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
     SSAVar *source_two = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
 
@@ -52,7 +52,7 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, const RV64Inst &instr, re
     write_to_mapping(mapping, destination, instr.instr.rd);
 }
 
-void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction &instruction_type, const Type &op_size) {
+void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
     // create immediate var
     SSAVar *immediate;
     if (op_size == Type::i32) {
