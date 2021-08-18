@@ -51,6 +51,7 @@ void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
 }
 
 void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
+    bool is_floating_point = op_size == Type::f32 || op_size == Type::f64;
     SSAVar *store_addr;
     if (instr.instr.imm != 0) {
         // 1. load offset

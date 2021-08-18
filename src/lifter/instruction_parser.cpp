@@ -307,7 +307,148 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_CSRRCI:
         lift_csr_read_clear(bb, instr, mapping, ip, true);
         break;
+<<<<<<< HEAD
 #endif
+=======
+    /* F Extension */
+    case FRV_FLW:
+        lift_load(bb, instr, mapping, ip, Type::f32, false);
+        break;
+    case FRV_FSW:
+        lift_store(bb, instr, mapping, ip, Type::f32);
+        break;
+        /*case FRV_FMVXW:
+            break;
+        case FRV_FMVWX:
+            break;
+        case FRV_FCLASSS:
+            break;
+        case FRV_FMADDS:
+            break;
+        case FRV_FMSUBS:
+            break;
+        case FRV_FNMSUBS:
+            break;
+        case FRV_FNMADDS:
+            break;
+        case FRV_FADDS:
+            lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::add, Type::f64);
+            break;
+        case FRV_FSUBS:
+            lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::sub, Type::f64);
+            break;
+        case FRV_FMULS:
+            break;
+        case FRV_FDIVS:
+            break;
+        case FRV_FSQRTS:
+            break;
+        case FRV_FSGNJS:
+            break;
+        case FRV_FSGNJNS:
+            break;
+        case FRV_FSGNJXS:
+            break;
+        case FRV_FMINS:
+            break;
+        case FRV_FMAXS:
+            break;
+        case FRV_FLES:
+            break;
+        case FRV_FLTS:
+            break;
+        case FRV_FEQS:
+            break;
+        case FRV_FCVTWS:
+            break;
+        case FRV_FCVTWUS:
+            break;
+        case FRV_FCVTLS:
+            break;
+        case FRV_FCVTLUS:
+            break;
+        case FRV_FCVTSW:
+            break;
+        case FRV_FCVTSWU:
+            break;
+        case FRV_FCVTSL:
+            break;
+        case FRV_FCVTSLU:
+            break;
+            */
+
+        /* D Extension */
+
+    case FRV_FLD:
+        lift_load(bb, instr, mapping, ip, Type::f64, false);
+        break;
+    case FRV_FSD:
+        lift_store(bb, instr, mapping, ip, Type::f64);
+        break;
+        /*case FRV_FMVXD:
+        break;
+    case FRV_FMVDX:
+        break;
+    case FRV_FCLASSD:
+        break;
+    case FRV_FMADDD:
+        break;
+    case FRV_FMSUBD:
+        break;
+    case FRV_FNMSUBD:
+        break;
+    case FRV_FNMADDD:
+        break;
+    case FRV_FADDD:
+        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::add, Type::f64);
+        break;
+    case FRV_FSUBD:
+        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::sub, Type::f64);
+        break;
+    case FRV_FMULD:
+        break;
+    case FRV_FDIVD:
+        break;
+    case FRV_FSQRTD:
+        break;
+    case FRV_FSGNJD:
+        break;
+    case FRV_FSGNJND:
+        break;
+    case FRV_FSGNJXD:
+        break;
+    case FRV_FMIND:
+        break;
+    case FRV_FMAXD:
+        break;
+    case FRV_FLED:
+        break;
+    case FRV_FLTD:
+        break;
+    case FRV_FEQD:
+        break;
+    case FRV_FCVTSD:
+        break;
+    case FRV_FCVTDS:
+        break;
+    case FRV_FCVTWD:
+        break;
+    case FRV_FCVTWUD:
+        break;
+    case FRV_FCVTLD:
+        break;
+    case FRV_FCVTLUD:
+        break;
+    case FRV_FCVTDW:
+        break;
+    case FRV_FCVTDWU:
+        break;
+    case FRV_FCVTDL:
+        break;
+    case FRV_FCVTDLU:
+        break;
+        */
+>>>>>>> b781d34... Added lifting for floating point load and stores.
 
     default:
         char instr_str[16];
