@@ -32,16 +32,22 @@ std::ostream &operator<<(std::ostream &stream, Type type) {
 }
 
 int cast_dir(const Type &t1, const Type &t2) {
-    size_t t1_idx = std::distance(i_cast_order.begin(), std::find(i_cast_order.begin(), i_cast_order.end(), t1));
-    size_t t2_idx = std::distance(i_cast_order.begin(), std::find(i_cast_order.begin(), i_cast_order.end(), t2));
-    if (t1_idx < i_cast_order.size() && t2_idx < i_cast_order.size()) {
-        return t1_idx < t2_idx;
+    size_t t1_i_idx = std::distance(i_cast_order.begin(), std::find(i_cast_order.begin(), i_cast_order.end(), t1));
+    size_t t2_i_idx = std::distance(i_cast_order.begin(), std::find(i_cast_order.begin(), i_cast_order.end(), t2));
+    if (t1_i_idx < i_cast_order.size() && t2_i_idx < i_cast_order.size()) {
+        return t1_i_idx < t2_i_idx;
     }
 
-    t1_idx = std::distance(f_cast_order.begin(), std::find(f_cast_order.begin(), f_cast_order.end(), t1));
-    t2_idx = std::distance(f_cast_order.begin(), std::find(f_cast_order.begin(), f_cast_order.end(), t2));
-    if (t1_idx < f_cast_order.size() && t2_idx < f_cast_order.size()) {
-        return t1_idx < t2_idx;
+    size_t t1_f_idx = std::distance(f_cast_order.begin(), std::find(f_cast_order.begin(), f_cast_order.end(), t1));
+    size_t t2_f_idx = std::distance(f_cast_order.begin(), std::find(f_cast_order.begin(), f_cast_order.end(), t2));
+    if (t1_f_idx < f_cast_order.size() && t2_f_idx < f_cast_order.size()) {
+        return t1_f_idx < t2_f_idx;
     }
+
+    // no cast from integer to float or vice versa
+    if ((t1_i_idx < i_cast_order.size() && t2_f_idx < f_cast_order.size()) || (t1_f_idx < f_cast_order.size() && t2_i_idx < i_cast_order.size())) {
+        return 0;
+    }
+
     return -1;
 }

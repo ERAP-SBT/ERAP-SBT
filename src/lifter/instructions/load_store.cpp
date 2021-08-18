@@ -51,6 +51,7 @@ void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
 }
 
 void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
+    bool is_floating_point = op_size == Type::f32 || op_size == Type::f64;
     SSAVar *store_addr;
     if (instr.instr.imm != 0) {
         // 1. load offset
@@ -70,8 +71,10 @@ void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
     }
 
     // cast variable to store to operand size
-    SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
-    SSAVar *store_var = shrink_var(bb, rs2, ip, op_size);
+    SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2 + (is_floating_point ? START_IDX_FLOATING_POINT_STATICS : 0), ip);
+
+    // floating points don't need to be shrinked
+    SSAVar *store_var = is_floating_point ? rs2 : shrink_var(bb, rs2, ip, op_size);
 
     // create memory_token
     SSAVar *result_memory_token = bb->add_var(Type::mt, ip, MEM_IDX);

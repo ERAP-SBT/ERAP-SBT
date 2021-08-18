@@ -8,7 +8,7 @@ namespace lifter::RV64 {
 /* maximum number of riscv64 instructions a basicblock can have while lifting */
 constexpr size_t BASIC_BLOCK_MAX_INSTRUCTIONS = 10000;
 
-/* amount of static variables: zero register (x0) + 31 general purpose registers (x1-x32) + 32 floating point registers (f0-f31) + memory token*/
+/* amount of static variables: zero register (x0) + 31 general purpose registers (x1-x31) + 32 floating point registers (f0-f31) + memory token*/
 constexpr size_t COUNT_STATIC_VARS = 65;
 
 class Lifter {
@@ -21,6 +21,8 @@ class Lifter {
 
     // Register index for constant zero "register" (RISC-V default: 0)
     static constexpr size_t ZERO_IDX = 0;
+
+    static constexpr size_t START_IDX_FLOATING_POINT_STATICS = 32;
 
     // Index of memory token in <reg_map> register mapping
     static constexpr size_t MEM_IDX = 64;
@@ -103,6 +105,10 @@ class Lifter {
     static SSAVar *get_csr(reg_map &mapping, uint32_t csr_identifier);
 
     static void write_csr(reg_map &mapping, SSAVar *new_csr, uint32_t csr_identifier);
+    
+    // floating points
+
+    
 
     // helpers for lifting and code reduction
     static SSAVar *load_immediate(BasicBlock *bb, int64_t imm, uint64_t ip, bool binary_relative);
