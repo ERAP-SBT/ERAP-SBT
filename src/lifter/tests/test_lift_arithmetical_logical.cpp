@@ -25,7 +25,7 @@ class TestArithmeticalLogicalLifting : public ::testing::Test {
         bb = ir->add_basic_block(virt_start_addr);
         mapping = Lifter::reg_map{};
         for (size_t i = 0; i < mapping.size(); i++) {
-            mapping.at(i) = bb->add_var(Type::i64, 1, i);
+            mapping[i] = bb->add_var(Type::i64, 1, i);
         }
     }
 
@@ -82,28 +82,28 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_logical2) 
     // count the non-null input vars
     int count_input_vars = 0;
     for (size_t i = 0; i < operation->in_vars.size(); i++) {
-        if (operation->in_vars.at(i) != nullptr) {
+        if (operation->in_vars[i] != nullptr) {
             count_input_vars++;
         }
     }
     ASSERT_FALSE(count_input_vars < 2) << "There are too few input vars.";
     ASSERT_FALSE(count_input_vars > 2) << "There are too much input vars.";
 
-    ASSERT_EQ(mapping.at(3), operation->in_vars.at(0)) << "The first input var is wrong.";
-    ASSERT_EQ(mapping.at(4), operation->in_vars.at(1)) << "The second input var is wrong.";
+    ASSERT_EQ(mapping[3], operation->in_vars[0]) << "The first input var is wrong.";
+    ASSERT_EQ(mapping[4], operation->in_vars[1]) << "The second input var is wrong.";
 
     // count the non-null output vars
     int count_output_vars = 0;
     for (size_t i = 0; i < operation->out_vars.size(); i++) {
-        if (operation->out_vars.at(i) != nullptr) {
+        if (operation->out_vars[i] != nullptr) {
             count_output_vars++;
         }
     }
     ASSERT_FALSE(count_output_vars < 1) << "There are too few output vars.";
     ASSERT_FALSE(count_output_vars > 1) << "There are too much output vars.";
 
-    ASSERT_EQ(last_var, operation->out_vars.at(0)) << "The output var of the operation is not the result ssavar.";
-    ASSERT_EQ(mapping.at(2), last_var) << "The result ssavar is not written back to the mapping correctly.";
+    ASSERT_EQ(last_var, operation->out_vars[0]) << "The output var of the operation is not the result ssavar.";
+    ASSERT_EQ(mapping[2], last_var) << "The result ssavar is not written back to the mapping correctly.";
 }
 
 TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_logical3) {
@@ -135,28 +135,28 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_logical3) 
     // count the non-null input vars
     int count_input_vars = 0;
     for (size_t i = 0; i < operation->in_vars.size(); i++) {
-        if (operation->in_vars.at(i) != nullptr) {
+        if (operation->in_vars[i] != nullptr) {
             count_input_vars++;
         }
     }
     ASSERT_FALSE(count_input_vars < 2) << "There are too few input vars.";
     ASSERT_FALSE(count_input_vars > 2) << "There are too much input vars.";
 
-    ASSERT_EQ(mapping.at(8), operation->in_vars.at(0)) << "The first input var is wrong.";
-    ASSERT_EQ(mapping.at(10), operation->in_vars.at(1)) << "The second input var is wrong.";
+    ASSERT_EQ(mapping[8], operation->in_vars[0]) << "The first input var is wrong.";
+    ASSERT_EQ(mapping[10], operation->in_vars[1]) << "The second input var is wrong.";
 
     // count the non-null output vars
     int count_output_vars = 0;
     for (size_t i = 0; i < operation->out_vars.size(); i++) {
-        if (operation->out_vars.at(i) != nullptr) {
+        if (operation->out_vars[i] != nullptr) {
             count_output_vars++;
         }
     }
     ASSERT_FALSE(count_output_vars < 1) << "There are too few output vars.";
     ASSERT_FALSE(count_output_vars > 1) << "There are too much output vars.";
 
-    ASSERT_EQ(last_var, operation->out_vars.at(0)) << "The output var of the operation is not the result ssavar.";
-    ASSERT_EQ(mapping.at(6), last_var) << "The result ssavar is not written back to the mapping correctly.";
+    ASSERT_EQ(last_var, operation->out_vars[0]) << "The output var of the operation is not the result ssavar.";
+    ASSERT_EQ(mapping[6], last_var) << "The result ssavar is not written back to the mapping correctly.";
 }
 
 TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_immediate_1) {
@@ -188,20 +188,20 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_immediate_
     // count the non-null input vars
     int count_input_vars = 0;
     for (size_t i = 0; i < operation->in_vars.size(); i++) {
-        if (operation->in_vars.at(i) != nullptr) {
+        if (operation->in_vars[i] != nullptr) {
             count_input_vars++;
         }
     }
     ASSERT_FALSE(count_input_vars < 2) << "There are too few input vars.";
     ASSERT_FALSE(count_input_vars > 2) << "There are too much input vars.";
 
-    ASSERT_EQ(mapping.at(1), operation->in_vars.at(0)) << "The first input var is wrong.";
+    ASSERT_EQ(mapping[1], operation->in_vars[0]) << "The first input var is wrong.";
 
-    SSAVar *immediate_input_var = operation->in_vars.at(1);
+    SSAVar *immediate_input_var = operation->in_vars[1];
 
-    ASSERT_EQ(operation->in_vars.at(1)->type, Type::imm) << "The second operand should habe the type immediate.";
+    ASSERT_EQ(operation->in_vars[1]->type, Type::imm) << "The second operand should habe the type immediate.";
     ASSERT_EQ(last_ssa_id + 1, immediate_input_var->id) << "The id of the immediate ssavar is not set correctly.";
-    ASSERT_TRUE(operation->in_vars.at(1)->const_evaluable) << "The second operand (the immediate) should be const evaluable.";
+    ASSERT_TRUE(operation->in_vars[1]->const_evaluable) << "The second operand (the immediate) should be const evaluable.";
     ASSERT_FALSE(std::holds_alternative<size_t>(immediate_input_var->info)) << "The immediate ssavar should not be marked as from static.";
 
     ASSERT_EQ(immediate_input_var->info.index(), 1) << "The info of the immediate ssavar should contain an immediate value.";
@@ -210,15 +210,15 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_immediate_
     // count the non-null output vars
     int count_output_vars = 0;
     for (size_t i = 0; i < operation->out_vars.size(); i++) {
-        if (operation->out_vars.at(i) != nullptr) {
+        if (operation->out_vars[i] != nullptr) {
             count_output_vars++;
         }
     }
     ASSERT_FALSE(count_output_vars < 1) << "There are too few output vars.";
     ASSERT_FALSE(count_output_vars > 1) << "There are too much output vars.";
 
-    ASSERT_EQ(last_var, operation->out_vars.at(0)) << "The output var of the operation is not the result ssavar.";
-    ASSERT_EQ(mapping.at(9), last_var) << "The result ssavar is not written back to the mapping correctly.";
+    ASSERT_EQ(last_var, operation->out_vars[0]) << "The output var of the operation is not the result ssavar.";
+    ASSERT_EQ(mapping[9], last_var) << "The result ssavar is not written back to the mapping correctly.";
 }
 
 } // namespace lifter_test

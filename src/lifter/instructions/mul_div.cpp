@@ -2,7 +2,7 @@
 
 using namespace lifter::RV64;
 
-void Lifter::lift_mul(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction &instr_type, const Type &in_type) {
+void Lifter::lift_mul(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instr_type, const Type in_type) {
     // assign the first input and cast it to the correct size if necessary
     SSAVar *rs_1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
     if (rs_1->type != in_type) {
@@ -50,7 +50,7 @@ void Lifter::lift_mul(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_
     write_to_mapping(mapping, dest, instr.instr.rd);
 }
 
-void Lifter::lift_div(BasicBlock *bb, RV64Inst &instr, reg_map &mapping, uint64_t ip, bool _signed, bool remainder, const Type &in_type) {
+void Lifter::lift_div(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, bool _signed, bool remainder, const Type in_type) {
     // assign the first input and cast it to the correct size if necessary
     SSAVar *rs_1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
     if (rs_1->type != in_type) {

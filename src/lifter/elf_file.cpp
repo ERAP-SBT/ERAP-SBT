@@ -61,7 +61,7 @@ error_t ELF64File::is_valid_elf_file() const {
     }
 
     // Little-endian test
-    if (file_content.at(EI_DATA) != ELFDATA2LSB) {
+    if (file_content[EI_DATA] != ELFDATA2LSB) {
         std::cout << "Invalid ELF file (only little-endian ELF files are currently supported).\n";
         return ENOEXEC;
     }
@@ -73,7 +73,7 @@ error_t ELF64File::is_valid_elf_file() const {
     }
 
     // System V ABI test
-    if (file_content.at(EI_OSABI) != ELFOSABI_SYSV && file_content.at(EI_OSABI) != ELFOSABI_LINUX) {
+    if (file_content[EI_OSABI] != ELFOSABI_SYSV && file_content[EI_OSABI] != ELFOSABI_LINUX) {
         std::cout << "Invalid ELF file (only ELF files which were compiled for the Unix / System V ABI are currently supported).\n";
         return ENOEXEC;
     }
@@ -131,14 +131,14 @@ error_t ELF64File::parse_sections() {
 
         // set if the index was too big for the header (e_shstrndx > SHN_LORESERVE)
         if (str_tbl_ind == SHN_XINDEX) {
-            str_tbl_ind = section_headers.at(0).sh_link;
+            str_tbl_ind = section_headers[0].sh_link;
         }
 
-        if (section_headers.at(str_tbl_ind).sh_type != SHT_STRTAB) {
+        if (section_headers[str_tbl_ind].sh_type != SHT_STRTAB) {
             std::cerr << "Invalid section type: referenced string table section is not of type <STRTAB>.\n";
             return ENOEXEC;
         }
-        const char *str_tbl = reinterpret_cast<const char *>(file_content.data() + section_headers.at(str_tbl_ind).sh_offset);
+        const char *str_tbl = reinterpret_cast<const char *>(file_content.data() + section_headers[str_tbl_ind].sh_offset);
         for (auto curr_hdr : section_headers) {
             section_names.emplace_back(str_tbl + curr_hdr.sh_name);
         }
@@ -199,7 +199,7 @@ error_t ELF64File::parse_symbols() {
     size_t sym_tbl_i = SIZE_MAX;
     size_t sym_str_tbl_i = SIZE_MAX;
     for (size_t i = 0; i < section_headers.size(); i++) {
-        if (section_headers.at(i).sh_type == SHT_SYMTAB) {
+        if (section_headers[i].sh_type == SHT_SYMTAB) {
             sym_tbl_i = i;
             break;
         }
@@ -209,7 +209,7 @@ error_t ELF64File::parse_symbols() {
         std::cerr << "No symbol section was found in the ELF file. Skipping symbol parsing.\n";
         return EXIT_SUCCESS;
     }
-    Elf64_Shdr sym_tbl = section_headers.at(sym_tbl_i);
+    Elf64_Shdr sym_tbl = section_headers[sym_tbl_i];
 
     for (size_t i = 0; i < sym_tbl.sh_size / sym_tbl.sh_entsize; ++i) {
         Elf64_Sym sym;
@@ -219,7 +219,7 @@ error_t ELF64File::parse_symbols() {
 
     sym_str_tbl_i = sym_tbl.sh_link;
     if (sym_str_tbl_i) {
-        Elf64_Shdr sym_str_tbl = section_headers.at(sym_str_tbl_i);
+        Elf64_Shdr sym_str_tbl = section_headers[sym_str_tbl_i];
         auto str_tbl_start = reinterpret_cast<const char *>(file_content.data() + sym_str_tbl.sh_offset);
         for (Elf64_Sym &sym : symbols) {
             symbol_names.emplace_back(str_tbl_start + sym.st_name);
@@ -243,7 +243,7 @@ error_t ELF64File::init_header() {
 std::optional<size_t> ELF64File::start_symbol() const {
     // find the symbol with a virtual address corresponding to the entry point defined in the elf header
     for (size_t i = 0; i < symbols.size(); ++i) {
-        if (symbols.at(i).st_value == header.e_entry) {
+        if (symbols[i].st_value == header.e_entry) {
             return i;
         }
     }
@@ -253,7 +253,7 @@ std::optional<size_t> ELF64File::start_symbol() const {
 std::optional<std::string> ELF64File::symbol_str_at_addr(uint64_t virt_addr) const {
     auto it = std::find_if(symbols.begin(), symbols.end(), [virt_addr](auto &sym) { return sym.st_value == virt_addr; });
     if (it != symbols.end()) {
-        return symbol_names.at(std::distance(symbols.begin(), it));
+        return symbol_names[std::distance(symbols.begin(), it)];
     }
     return std::nullopt;
 }

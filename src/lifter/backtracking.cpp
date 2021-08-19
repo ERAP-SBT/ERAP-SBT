@@ -2,13 +2,13 @@
 
 using namespace lifter::RV64;
 
-std::optional<uint64_t> Lifter::backtrace_jmp_addr(CfOp *op, BasicBlock *bb) {
-    if (op->type != CFCInstruction::ijump) {
+std::optional<uint64_t> Lifter::backtrace_jmp_addr(CfOp *cfop, BasicBlock *bb) {
+    if (cfop->type != CFCInstruction::ijump) {
         std::cerr << "Jump address backtracking is currently only supported for indirect, JALR jumps." << std::endl;
         return std::nullopt;
     }
     std::vector<SSAVar *> parsed;
-    return get_var_value(op->in_vars[0], bb, parsed);
+    return get_var_value(cfop->in_vars[0], bb, parsed);
 }
 
 std::optional<SSAVar *> Lifter::get_last_static_assignment(size_t idx, BasicBlock *bb) {
@@ -57,7 +57,7 @@ std::optional<SSAVar *> Lifter::get_last_static_assignment(size_t idx, BasicBloc
     } else if (possible_preds.size() > 1) {
         DEBUG_LOG("Warning: found multiple possible statically mapped variables. Selecting latest.");
     }
-    return possible_preds.at(0);
+    return possible_preds[0];
 }
 
 void Lifter::load_input_vars(BasicBlock *bb, Operation *op, std::vector<int64_t> &resolved_vars, std::vector<SSAVar *> &parsed_vars) {
