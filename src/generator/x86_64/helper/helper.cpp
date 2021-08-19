@@ -9,13 +9,9 @@ extern uint8_t *orig_binary_vaddr;
 extern uint64_t phdr_off;
 extern uint64_t phdr_num;
 extern uint64_t phdr_size;
-
-// TODO: give alternate name in assembly
-extern uint64_t s0[32];
 }
 
 namespace {
-uint64_t static_bak[32];
 
 // from https://github.com/aengelke/ria-jit/blob/master/src/runtime/emulateEcall.c
 [[maybe_unused]] size_t syscall0(int syscall_number);
