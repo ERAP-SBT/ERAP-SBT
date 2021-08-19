@@ -2,11 +2,16 @@
 
 #include "ir/basic_block.h"
 #include "ir/ir.h"
+#include "ir/variable.h"
 
 #include <cassert>
 
+template <typename T> static size_t count_non_null(const T &container) {
+    return std::count_if(std::begin(container), std::end(container), [](const auto &it) { return it; });
+}
+
 void Operation::set_inputs(SSAVar *in1, SSAVar *in2, SSAVar *in3, SSAVar *in4) {
-    assert(in_vars[0] == nullptr && in_vars[1] == nullptr && in_vars[2] == nullptr && in_vars[3] == nullptr);
+    assert(count_non_null(in_vars) == 0);
     in_vars[0] = in1;
     in_vars[1] = in2;
     in_vars[2] = in3;
@@ -22,10 +27,24 @@ void Operation::set_inputs(SSAVar *in1, SSAVar *in2, SSAVar *in3, SSAVar *in4) {
 }
 
 void Operation::set_outputs(SSAVar *out1, SSAVar *out2, SSAVar *out3) {
-    assert(out_vars[0] == nullptr && out_vars[1] == nullptr && out_vars[2] == nullptr);
+    assert(count_non_null(out_vars) == 0);
     out_vars[0] = out1;
     out_vars[1] = out2;
     out_vars[2] = out3;
+}
+
+void Operation::set_inputs(std::initializer_list<SSAVar *> inputs) {
+    assert(count_non_null(in_vars) == 0);
+    assert(inputs.size() <= in_vars.size());
+
+    std::copy(inputs.begin(), inputs.end(), in_vars.begin());
+}
+
+void Operation::set_outputs(std::initializer_list<SSAVar *> outputs) {
+    assert(count_non_null(out_vars) == 0);
+    assert(outputs.size() <= out_vars.size());
+
+    std::copy(outputs.begin(), outputs.end(), out_vars.begin());
 }
 
 void Operation::print(std::ostream &stream, const IR *ir) const {
@@ -41,6 +60,118 @@ void Operation::print(std::ostream &stream, const IR *ir) const {
             in->print_type_name(stream, ir);
         }
     }
+}
+
+namespace {
+std::unique_ptr<Operation> create_op(Instruction type, std::initializer_list<SSAVar *> inputs, std::initializer_list<SSAVar *> outputs) {
+    auto op = std::make_unique<Operation>(type);
+    op->set_inputs(std::move(inputs));
+    op->set_outputs(std::move(outputs));
+    return op;
+}
+
+constexpr bool is_address_type(Type type) { return type == Type::i32 || type == Type::i64; }
+} // namespace
+
+std::unique_ptr<Operation> Operation::new_store(SSAVar *out_memory_token, SSAVar *in_address, SSAVar *in_value, SSAVar *in_memory_token) {
+    assert(out_memory_token && in_address && in_value && in_memory_token);
+
+    assert(is_address_type(in_address->type));
+    assert(in_memory_token->type == Type::mt);
+    assert(out_memory_token->type == Type::mt);
+
+    return create_op(Instruction::store, {in_address, in_value, in_memory_token}, {out_memory_token});
+}
+std::unique_ptr<Operation> Operation::new_load(SSAVar *out_result, SSAVar *in_address, SSAVar *in_memory_token) {
+    assert(out_result && in_address && in_memory_token);
+
+    assert(is_address_type(in_address->type));
+    assert(in_memory_token->type == Type::mt);
+
+    return create_op(Instruction::load, {in_address, in_memory_token}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_add(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b) {
+    assert(out_result && in_a && in_b);
+
+    return create_op(Instruction::add, {in_a, in_b}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_sub(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b) {
+    assert(out_result && in_a && in_b);
+
+    return create_op(Instruction::sub, {in_a, in_b}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_mul_l(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b) {
+    assert(out_result && in_a && in_b);
+    return create_op(Instruction::mul_l, {in_a, in_b}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_ssmul_h(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b) {
+    assert(out_result && in_a && in_b);
+    return create_op(Instruction::ssmul_h, {in_a, in_b}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_uumul_h(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b) {
+    assert(out_result && in_a && in_b);
+    return create_op(Instruction::uumul_h, {in_a, in_b}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_sumul_h(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b) {
+    assert(out_result && in_a && in_b);
+    return create_op(Instruction::sumul_h, {in_a, in_b}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_div(SSAVar *out_result, SSAVar *out_remainder, SSAVar *in_a, SSAVar *in_b) {
+    // One of result or remainder can be set to null
+    assert((out_result || out_remainder) && in_a && in_b);
+    return create_op(Instruction::div, {in_a, in_b}, {out_result, out_remainder});
+}
+std::unique_ptr<Operation> Operation::new_udiv(SSAVar *out_result, SSAVar *out_remainder, SSAVar *in_a, SSAVar *in_b) {
+    assert((out_result || out_remainder) && in_a && in_b);
+    return create_op(Instruction::udiv, {in_a, in_b}, {out_result, out_remainder});
+}
+std::unique_ptr<Operation> Operation::new_shl(SSAVar *out_result, SSAVar *in_value, SSAVar *in_amount) {
+    assert(out_result && in_value && in_amount);
+    return create_op(Instruction::shl, {in_value, in_amount}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_shr(SSAVar *out_result, SSAVar *in_value, SSAVar *in_amount) {
+    assert(out_result && in_value && in_amount);
+    return create_op(Instruction::shr, {in_value, in_amount}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_sar(SSAVar *out_result, SSAVar *in_value, SSAVar *in_amount) {
+    assert(out_result && in_value && in_amount);
+    return create_op(Instruction::sar, {in_value, in_amount}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_or(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b) {
+    assert(out_result && in_a && in_b);
+    return create_op(Instruction::_or, {in_a, in_b}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_and(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b) {
+    assert(out_result && in_a && in_b);
+    return create_op(Instruction::_and, {in_a, in_b}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_not(SSAVar *out_result, SSAVar *in_value) {
+    assert(out_result && in_value);
+    return create_op(Instruction::_not, {in_value}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_xor(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b) {
+    assert(out_result && in_a && in_b);
+    return create_op(Instruction::_xor, {in_a, in_b}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_cast(SSAVar *out_result, SSAVar *in_value) {
+    assert(out_result && in_value);
+    return create_op(Instruction::cast, {in_value}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_sltu(SSAVar *out_result, SSAVar *in_a, SSAVar *in_b, SSAVar *in_value_if_less, SSAVar *in_value_otherwise) {
+    assert(out_result && in_a && in_b && in_value_if_less && in_value_otherwise);
+    return create_op(Instruction::sltu, {in_a, in_b, in_value_if_less, in_value_otherwise}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_sign_extend(SSAVar *out_result, SSAVar *in_value) {
+    assert(out_result && in_value);
+    return create_op(Instruction::sign_extend, {in_value}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_zero_extend(SSAVar *out_result, SSAVar *in_value) {
+    assert(out_result && in_value);
+    return create_op(Instruction::zero_extend, {in_value}, {out_result});
+}
+std::unique_ptr<Operation> Operation::new_setup_stack(SSAVar *out_sp) {
+    assert(out_sp);
+    return create_op(Instruction::setup_stack, {}, {out_sp});
 }
 
 CfOp::CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target) : type(type), source(source), in_vars() {

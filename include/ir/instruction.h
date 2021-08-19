@@ -24,7 +24,6 @@ enum class Instruction {
     sltu,
     sign_extend,
     zero_extend,
-    immediate,
     setup_stack,
 };
 

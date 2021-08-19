@@ -456,9 +456,6 @@ void Generator::compile_vars(const BasicBlock *block) {
         case Instruction::cast:
             assert(arg_count == 1);
             break;
-        case Instruction::immediate:
-            assert(false && "Immediate instruction not allowed");
-            break;
         case Instruction::setup_stack:
             assert(arg_count == 0);
             fprintf(out_fd, "mov rax, [init_stack_ptr]\n");
