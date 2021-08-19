@@ -12,6 +12,10 @@ enum class Instruction {
     sumul_h, // signed * unsigned       => upper half of result
     div,     // two possible return values: 1. result, 2. remainder
     udiv,
+    fmul,    // floating point multiplication
+    fsqrt,   // floating point square root
+    fmin,    // floating point minimum
+    fmax,    // floating point maximum
     shl,
     shr,
     sar,

@@ -32,6 +32,12 @@ std::ostream &operator<<(std::ostream &stream, Instruction instr) {
     case Instruction::udiv:
         stream << "udiv";
         break;
+    case Instruction::fmul:
+        stream << "fmul";
+        break;
+    case Instruction::fsqrt:
+        stream << "fsqrt";
+        break;
     case Instruction::shl:
         stream << "shl";
         break;

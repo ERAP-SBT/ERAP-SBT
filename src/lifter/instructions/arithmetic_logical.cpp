@@ -3,8 +3,9 @@
 using namespace lifter::RV64;
 
 void Lifter::lift_arithmetical_logical(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
-    SSAVar *source_one = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
-    SSAVar *source_two = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
+    bool is_floating_point = op_size == Type::f32 || op_size == Type::f64;
+    SSAVar *source_one = get_from_mapping(bb, mapping, instr.instr.rs1, ip, is_floating_point);
+    SSAVar *source_two = get_from_mapping(bb, mapping, instr.instr.rs2, ip, is_floating_point);
 
     // test for invalid operand sizes
     if (source_one->type != op_size) {
@@ -49,7 +50,7 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, const RV64Inst &instr, re
     }
 
     // write SSAVar of the result of the operation back to mapping
-    write_to_mapping(mapping, destination, instr.instr.rd);
+    write_to_mapping(mapping, destination, instr.instr.rd, is_floating_point);
 }
 
 void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
@@ -104,5 +105,5 @@ void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, const RV64Inst 
     }
 
     // write SSAVar of the result of the operation back to mapping
-    write_to_mapping(mapping, destination, instr.instr.rd);
+    write_to_mapping(mapping, destination, instr.instr.rd, false);
 }
