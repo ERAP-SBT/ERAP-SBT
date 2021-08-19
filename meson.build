@@ -4,8 +4,10 @@ gtest = subproject('gtest')
 gtest_dep = gtest.get_variable('gtest_dep')
 gmock_dep = gtest.get_variable('gmock_dep')
 
-libfrvdec = subproject('frvdec')
-frvdec_dep = libfrvdec.get_variable('frvdec')
+frvdec_dep = declare_dependency(
+    sources: ['frvdec' / 'frvdec.c'],
+    include_directories: ['frvdec'],
+)
 
 if get_option('buildtype').startswith('debug')
   add_project_arguments('-DDEBUG', language : 'cpp')
