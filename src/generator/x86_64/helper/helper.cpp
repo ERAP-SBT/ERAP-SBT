@@ -9,9 +9,14 @@ extern uint8_t *orig_binary_vaddr;
 extern uint64_t phdr_off;
 extern uint64_t phdr_num;
 extern uint64_t phdr_size;
+
+// TODO: give alternate name in assembly
+extern uint64_t s0[32];
 }
 
 namespace {
+uint64_t static_bak[32];
+
 // from https://github.com/aengelke/ria-jit/blob/master/src/runtime/emulateEcall.c
 [[maybe_unused]] size_t syscall0(int syscall_number);
 [[maybe_unused]] size_t syscall1(int syscall_number, size_t a1);
@@ -38,6 +43,7 @@ enum RV_SYSCALL_ID : uint32_t {
     RISCV_WRITE = 64,
     RISCV_READV = 65,
     RISCV_WRITEV = 66,
+    RISCV_FSTATAT = 79,
     RISCV_FSTAT = 80,
     RISCV_EXIT = 93,
     RISCV_EXIT_GROUP = 94,
@@ -66,6 +72,7 @@ enum AMD64_SYSCALL_ID : uint32_t {
     AMD64_CLOCK_GET_TIME = 228,
     AMD64_EXIT_GROUP = 231,
     AMD64_OPENAT = 257,
+    AMD64_NEWFSTATAT = 262,
     AMD64_FCHMODAT = 268,
 };
 
@@ -146,6 +153,28 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
         return syscall3(AMD64_READV, arg0, arg1, arg2);
     case RISCV_WRITEV:
         return syscall3(AMD64_WRITEV, arg0, arg1, arg2);
+    case RISCV_FSTATAT: {
+        struct stat buf = {};
+        const auto result = syscall4(AMD64_NEWFSTATAT, arg0, arg1, reinterpret_cast<uint64_t>(&buf), arg3);
+        auto *r_stat = reinterpret_cast<rv64_fstat_t*>(arg2);
+        r_stat->st_blksize = buf.st_blksize;
+        r_stat->st_size = buf.st_size;
+        r_stat->st_atim = buf.st_atim.tv_sec;
+        r_stat->st_atime_nsec = buf.st_atim.tv_nsec;
+        r_stat->st_blocks = buf.st_blocks;
+        r_stat->st_ctim = buf.st_ctim.tv_sec;
+        r_stat->st_ctime_nsec = buf.st_ctim.tv_nsec;
+        r_stat->st_dev = buf.st_dev;
+        r_stat->st_gid = buf.st_gid;
+        r_stat->st_ino = buf.st_ino;
+        r_stat->st_mode = buf.st_mode;
+        r_stat->st_mtim = buf.st_mtim.tv_sec;
+        r_stat->st_mtime_nsec = buf.st_mtim.tv_nsec;
+        r_stat->st_nlink = buf.st_nlink;
+        r_stat->st_rdev = buf.st_rdev;
+        r_stat->st_uid = buf.st_uid;
+        return result;
+    }
     case RISCV_FSTAT: {
         struct stat buf = {};
         const auto result = syscall2(AMD64_FSTAT, arg0, reinterpret_cast<uint64_t>(&buf));

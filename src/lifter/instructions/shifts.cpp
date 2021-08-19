@@ -6,8 +6,6 @@ void Lifter::lift_shift_shared(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     auto *source = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
 
     if (source->type != op_size) {
-        // TODO: is this the correct way to specify if a variable doesn't correspond to a register?
-        // otherwise this will blow up on a bblock split
         auto *casted_source = bb->add_var(op_size, ip, 0);
         auto op = std::make_unique<Operation>(Instruction::cast);
         op->set_inputs(source);
