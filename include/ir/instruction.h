@@ -12,14 +12,6 @@ enum class Instruction {
     sumul_h, // signed * unsigned       => upper half of result
     div,     // two possible return values: 1. result, 2. remainder
     udiv,
-    fmul,    // floating point multiplication
-    fsqrt,   // floating point square root
-    fmin,    // floating point minimum
-    fmax,    // floating point maximum
-    ffmadd,  // floating point fused multiply add, d = a * b + c
-    ffmsub,  // floating point fused multiply sub, d = a * b - c 
-    ffnmadd, // floating point fused negative multiply add, d = - (a * b) + c
-    ffnmsub, // floating point fused negative multiply sub, d = - (a * b) - c
     shl,
     shr,
     sar,
@@ -37,6 +29,15 @@ enum class Instruction {
     umin, // dst, cmp1, cmp2
     max,  // signed max
     min,  // signed min
+    fmul,    // floating point multiplication
+    fsqrt,   // floating point square root
+    fmin,    // floating point minimum
+    fmax,    // floating point maximum
+    ffmadd,  // floating point fused multiply add, d = a * b + c
+    ffmsub,  // floating point fused multiply sub, d = a * b - c 
+    ffnmadd, // floating point fused negative multiply add, d = - (a * b) + c
+    ffnmsub, // floating point fused negative multiply sub, d = - (a * b) - c
+    convert, // conversion between integer and floating point
 };
 
 std::ostream &operator<<(std::ostream &stream, Instruction instr);
