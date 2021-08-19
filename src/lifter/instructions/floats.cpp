@@ -9,7 +9,7 @@ void Lifter::lift_sqrt(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
 
     assert(src->type == op_size && "Calculation with different sizes of floating points aren't possible!");
 
-    SSAVar *dest = bb->add_var(op_size, ip);
+    SSAVar *dest = bb->add_var(op_size, ip, instr.instr.rd + START_IDX_FLOATING_POINT_STATICS);
     auto op = std::make_unique<Operation>(Instruction::fsqrt);
     op->set_inputs(src);
     op->set_outputs(dest);
@@ -28,7 +28,7 @@ void Lifter::lift_float_min_max(BasicBlock *bb, const RV64Inst &instr, reg_map &
     assert(rs1->type == op_size && "Calculation with different sizes of floating points aren't possible!");
     assert(rs2->type == op_size && "Calculation with different sizes of floating points aren't possible!");
 
-    SSAVar *dest = bb->add_var(op_size, ip);
+    SSAVar *dest = bb->add_var(op_size, ip, instr.instr.rd + START_IDX_FLOATING_POINT_STATICS);
     auto op = std::make_unique<Operation>(instruction_type);
     op->set_inputs(rs1, rs2);
     op->set_outputs(dest);
@@ -50,11 +50,28 @@ void Lifter::lift_float_fma(BasicBlock *bb, const RV64Inst &instr, reg_map &mapp
     assert(rs2->type == op_size && "Calculation with different sizes of floating points aren't possible!");
     assert(rs3->type == op_size && "Calculation with different sizes of floating points aren't possible!");
 
-    SSAVar *dest = bb->add_var(op_size, ip);
+    SSAVar *dest = bb->add_var(op_size, ip, instr.instr.rd + START_IDX_FLOATING_POINT_STATICS);
     auto op = std::make_unique<Operation>(instruction_type);
     op->set_inputs(rs1, rs2, rs3);
     op->set_outputs(dest);
     dest->set_op(op);
 
     write_to_mapping(mapping, dest, instr.instr.rd, true);
+}
+
+void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type from, const Type to, bool _signed) {
+    assert(from != to && "A conversion from and to the same type is useless!");
+
+    bool is_from_floating_point = from == Type::f32 || from == Type::f64;
+    bool is_to_floating_point = to == Type::f32 || to == Type::f64;
+
+    SSAVar *src = get_from_mapping(bb, mapping, instr.instr.rs1, ip, is_from_floating_point);
+
+    SSAVar *dest = bb->add_var(to, ip, instr.instr.rd + START_IDX_FLOATING_POINT_STATICS);
+    auto op = std::make_unique<Operation>(Instruction::convert);
+    op->set_inputs(src);
+    op->set_outputs(dest);
+    dest->set_op(op);
+
+    write_to_mapping(mapping, dest, instr.instr.rd, is_to_floating_point);
 }
