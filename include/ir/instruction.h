@@ -16,6 +16,10 @@ enum class Instruction {
     fsqrt,   // floating point square root
     fmin,    // floating point minimum
     fmax,    // floating point maximum
+    ffmadd,  // floating point fused multiply add, d = a * b + c
+    ffmsub,  // floating point fused multiply sub, d = a * b - c 
+    ffnmadd, // floating point fused negative multiply add, d = - (a * b) + c
+    ffnmsub, // floating point fused negative multiply sub, d = - (a * b) - c
     shl,
     shr,
     sar,

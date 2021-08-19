@@ -323,14 +323,19 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         break;
     case FRV_FCLASSS:
         break;
+        */
     case FRV_FMADDS:
+        lift_float_fma(bb, instr, mapping, ip, Instruction::ffmadd, Type::f32);
         break;
     case FRV_FMSUBS:
+        lift_float_fma(bb, instr, mapping, ip, Instruction::ffmsub, Type::f32);
         break;
     case FRV_FNMSUBS:
+        lift_float_fma(bb, instr, mapping, ip, Instruction::ffnmadd, Type::f32);
         break;
     case FRV_FNMADDS:
-        break;*/
+        lift_float_fma(bb, instr, mapping, ip, Instruction::ffnmsub, Type::f32);
+        break;
     case FRV_FADDS:
         lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::add, Type::f64);
         break;
@@ -393,21 +398,26 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_FSD:
         lift_store(bb, instr, mapping, ip, Type::f64);
         break;
-        /*case FRV_FMVXD:
+    /*
+        case FRV_FMVXD:
         break;
     case FRV_FMVDX:
         break;
     case FRV_FCLASSD:
         break;
+        */
     case FRV_FMADDD:
+        lift_float_fma(bb, instr, mapping, ip, Instruction::ffmadd, Type::f64);
         break;
     case FRV_FMSUBD:
+        lift_float_fma(bb, instr, mapping, ip, Instruction::ffmsub, Type::f64);
         break;
     case FRV_FNMSUBD:
+        lift_float_fma(bb, instr, mapping, ip, Instruction::ffnmadd, Type::f64);
         break;
     case FRV_FNMADDD:
+        lift_float_fma(bb, instr, mapping, ip, Instruction::ffnmsub, Type::f64);
         break;
-        */
     case FRV_FADDD:
         lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::add, Type::f64);
         break;
