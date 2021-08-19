@@ -1,8 +1,0 @@
-*.bin
-*.o
-*_translated.s
-*_translated
-helloworld
-helloworld2
-helloworld3
-helloworld3_native
