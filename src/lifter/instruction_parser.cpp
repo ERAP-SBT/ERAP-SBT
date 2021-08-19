@@ -317,65 +317,73 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_FSW:
         lift_store(bb, instr, mapping, ip, Type::f32);
         break;
-        /*case FRV_FMVXW:
-            break;
-        case FRV_FMVWX:
-            break;
-        case FRV_FCLASSS:
-            break;
-        case FRV_FMADDS:
-            break;
-        case FRV_FMSUBS:
-            break;
-        case FRV_FNMSUBS:
-            break;
-        case FRV_FNMADDS:
-            break;
-        case FRV_FADDS:
-            lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::add, Type::f64);
-            break;
-        case FRV_FSUBS:
-            lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::sub, Type::f64);
-            break;
-        case FRV_FMULS:
-            break;
-        case FRV_FDIVS:
-            break;
-        case FRV_FSQRTS:
-            break;
-        case FRV_FSGNJS:
-            break;
-        case FRV_FSGNJNS:
-            break;
-        case FRV_FSGNJXS:
-            break;
-        case FRV_FMINS:
-            break;
-        case FRV_FMAXS:
-            break;
-        case FRV_FLES:
-            break;
-        case FRV_FLTS:
-            break;
-        case FRV_FEQS:
-            break;
-        case FRV_FCVTWS:
-            break;
-        case FRV_FCVTWUS:
-            break;
-        case FRV_FCVTLS:
-            break;
-        case FRV_FCVTLUS:
-            break;
-        case FRV_FCVTSW:
-            break;
-        case FRV_FCVTSWU:
-            break;
-        case FRV_FCVTSL:
-            break;
-        case FRV_FCVTSLU:
-            break;
-            */
+    /*case FRV_FMVXW:
+        break;
+    case FRV_FMVWX:
+        break;
+    case FRV_FCLASSS:
+        break;
+    case FRV_FMADDS:
+        break;
+    case FRV_FMSUBS:
+        break;
+    case FRV_FNMSUBS:
+        break;
+    case FRV_FNMADDS:
+        break;*/
+    case FRV_FADDS:
+        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::add, Type::f64);
+        break;
+    case FRV_FSUBS:
+        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::sub, Type::f64);
+        break;
+    case FRV_FMULS:
+        lift_mul(bb, instr, mapping, ip, Instruction::fmul, Type::f32);
+        break;
+    case FRV_FDIVS:
+        lift_div(bb, instr, mapping, ip, true, false, Type::f32);
+        break;
+    case FRV_FSQRTS:
+        lift_sqrt(bb, instr, mapping, ip, Type::f32);
+        break;
+        /*
+    case FRV_FSGNJS:
+        break;
+    case FRV_FSGNJNS:
+        break;
+    case FRV_FSGNJXS:
+        break;
+        */
+    case FRV_FMINS:
+        lift_float_min_max(bb, instr, mapping, ip, Instruction::fmin, Type::f32);
+        break;
+    case FRV_FMAXS:
+        lift_float_min_max(bb, instr, mapping, ip, Instruction::fmax, Type::f32);
+        break;
+        /*
+    case FRV_FLES:
+        break;
+    case FRV_FLTS:
+        break;
+    case FRV_FEQS:
+        break;
+    case FRV_FCVTWS:
+        break;
+    case FRV_FCVTWUS:
+        break;
+    case FRV_FCVTLS:
+        break;
+    case FRV_FCVTLUS:
+        break;
+    case FRV_FCVTSW:
+        break;
+    case FRV_FCVTSWU:
+        break;
+    case FRV_FCVTSL:
+        break;
+    case FRV_FCVTSLU:
+        break;
+        */
 
         /* D Extension */
 
@@ -399,6 +407,7 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         break;
     case FRV_FNMADDD:
         break;
+        */
     case FRV_FADDD:
         lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::add, Type::f64);
         break;
@@ -406,21 +415,29 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::sub, Type::f64);
         break;
     case FRV_FMULD:
+        lift_mul(bb, instr, mapping, ip, Instruction::fmul, Type::f64);
         break;
     case FRV_FDIVD:
+        lift_div(bb, instr, mapping, ip, true, false, Type::f64);
         break;
     case FRV_FSQRTD:
+        lift_sqrt(bb, instr, mapping, ip, Type::f64);
         break;
+        /*
     case FRV_FSGNJD:
         break;
     case FRV_FSGNJND:
         break;
     case FRV_FSGNJXD:
         break;
+        */
     case FRV_FMIND:
+        lift_float_min_max(bb, instr, mapping, ip, Instruction::fmin, Type::f64);
         break;
     case FRV_FMAXD:
+        lift_float_min_max(bb, instr, mapping, ip, Instruction::fmax, Type::f64);
         break;
+        /*
     case FRV_FLED:
         break;
     case FRV_FLTD:

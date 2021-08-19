@@ -17,7 +17,6 @@ void print_integer(unsigned int integer) {
     itoa(out_str, integer, num_digits);
     out_str[num_digits] = '\n';
 
-    // this should print 6765
     print_str(out_str, num_digits + 1);
 }
 

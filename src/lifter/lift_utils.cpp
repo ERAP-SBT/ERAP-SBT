@@ -64,18 +64,21 @@ std::optional<SSAVar *> Lifter::convert_type(BasicBlock *bb, uint64_t ip, SSAVar
     return new_var;
 }
 
-SSAVar *Lifter::get_from_mapping(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip) {
-    if (reg_id == ZERO_IDX) {
+SSAVar *Lifter::get_from_mapping(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, bool is_floating_point_register) {
+    if (!is_floating_point_register && reg_id == ZERO_IDX) {
         // return constant zero
         return bb->add_var_imm(0, ip);
     }
-    return mapping[reg_id];
+
+    return mapping[reg_id + (is_floating_point_register ? START_IDX_FLOATING_POINT_STATICS : 0)];
 }
 
-void Lifter::write_to_mapping(reg_map &mapping, SSAVar *var, uint64_t reg_id) {
-    if (reg_id == ZERO_IDX) {
+void Lifter::write_to_mapping(reg_map &mapping, SSAVar *var, uint64_t reg_id, bool is_floating_point_register) {
+    if (!is_floating_point_register && reg_id == ZERO_IDX) {
         return;
     }
-    std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = reg_id;
-    mapping[reg_id] = var;
+    uint64_t actual_reg_id = reg_id + (is_floating_point_register ? START_IDX_FLOATING_POINT_STATICS : 0);
+
+    std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = actual_reg_id;
+    mapping[actual_reg_id] = var;
 }
