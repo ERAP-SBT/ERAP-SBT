@@ -1,10 +1,12 @@
 #!/bin/bash
 
-# You may need any of the following dependencies (taken from myunix3):
-# sudo apt-get -y install make curl gpg xz-utils patch gcc g++ libmpfr-dev libmpc-dev grub-common grub-pc-bin xorriso zlib1g zlib1g-dev mtools
+# You need the following dependencies:
+# sudo apt-get install -y libmpfr-dev libmpc-dev zlib1g zlib1g-dev
 
 set -e
 set -x
+set -u
+set -o pipefail
 
 mkdir big_tests
 pushd big_tests
