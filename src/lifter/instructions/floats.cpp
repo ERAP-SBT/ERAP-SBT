@@ -13,7 +13,7 @@ void Lifter::lift_sqrt(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
     auto op = std::make_unique<Operation>(Instruction::fsqrt);
     op->set_inputs(src);
     op->set_outputs(dest);
-    dest->set_op(op);
+    dest->set_op(std::move(op));
 
     write_to_mapping(mapping, dest, instr.instr.rd, true);
 }
@@ -32,7 +32,7 @@ void Lifter::lift_float_min_max(BasicBlock *bb, const RV64Inst &instr, reg_map &
     auto op = std::make_unique<Operation>(instruction_type);
     op->set_inputs(rs1, rs2);
     op->set_outputs(dest);
-    dest->set_op(op);
+    dest->set_op(std::move(op));
 
     write_to_mapping(mapping, dest, instr.instr.rd, true);
 }
@@ -42,9 +42,9 @@ void Lifter::lift_float_fma(BasicBlock *bb, const RV64Inst &instr, reg_map &mapp
     assert((instruction_type == Instruction::ffmadd || instruction_type == Instruction::ffmsub || instruction_type == Instruction::ffnmadd || instruction_type == Instruction::ffnmsub) &&
            "This function is for lifting fma instructions!");
 
-    SSAVar *rs1 = get_from_mapping(bb, mppaing, instr.instr.rs1, ip, true);
-    SSAVar *rs2 = get_from_mapping(bb, mppaing, instr.instr.rs2, ip, true);
-    SSAVar *rs3 = get_from_mapping(bb, mppaing, instr.instr.rs3, ip, true);
+    SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
+    SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, true);
+    SSAVar *rs3 = get_from_mapping(bb, mapping, instr.instr.rs3, ip, true);
 
     assert(rs1->type == op_size && "Calculation with different sizes of floating points aren't possible!");
     assert(rs2->type == op_size && "Calculation with different sizes of floating points aren't possible!");
@@ -54,7 +54,7 @@ void Lifter::lift_float_fma(BasicBlock *bb, const RV64Inst &instr, reg_map &mapp
     auto op = std::make_unique<Operation>(instruction_type);
     op->set_inputs(rs1, rs2, rs3);
     op->set_outputs(dest);
-    dest->set_op(op);
+    dest->set_op(std::move(op));
 
     write_to_mapping(mapping, dest, instr.instr.rd, true);
 }
@@ -71,7 +71,7 @@ void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr
     auto op = std::make_unique<Operation>(Instruction::convert);
     op->set_inputs(src);
     op->set_outputs(dest);
-    dest->set_op(op);
+    dest->set_op(std::move(op));
 
     write_to_mapping(mapping, dest, instr.instr.rd, is_to_floating_point);
 }
