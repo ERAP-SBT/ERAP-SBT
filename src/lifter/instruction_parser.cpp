@@ -349,14 +349,11 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_FSQRTS:
         lift_sqrt(bb, instr, mapping, ip, Type::f32);
         break;
-        /*
     case FRV_FSGNJS:
-        break;
     case FRV_FSGNJNS:
-        break;
     case FRV_FSGNJXS:
+        lift_float_sign_injection(bb, instr, mapping, ip, Type::f32);
         break;
-        */
     case FRV_FMINS:
         lift_float_min_max(bb, instr, mapping, ip, Instruction::fmin, Type::f32);
         break;
@@ -439,14 +436,11 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_FSQRTD:
         lift_sqrt(bb, instr, mapping, ip, Type::f64);
         break;
-        /*
     case FRV_FSGNJD:
-        break;
     case FRV_FSGNJND:
-        break;
     case FRV_FSGNJXD:
+        lift_float_sign_injection(bb, instr, mapping, ip, Type::f64);
         break;
-        */
     case FRV_FMIND:
         lift_float_min_max(bb, instr, mapping, ip, Instruction::fmin, Type::f64);
         break;
