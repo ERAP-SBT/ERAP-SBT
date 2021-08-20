@@ -110,6 +110,9 @@ std::ostream &operator<<(std::ostream &stream, Instruction instr) {
     case Instruction::convert:
         stream << "convert";
         break;
+    case Instruction::uconvert:
+        stream << "uconvert";
+        break;
     }
     return stream;
 }
