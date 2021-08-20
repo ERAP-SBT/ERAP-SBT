@@ -65,10 +65,13 @@ void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr
     bool is_from_floating_point = from == Type::f32 || from == Type::f64;
     bool is_to_floating_point = to == Type::f32 || to == Type::f64;
 
+    assert ((is_from_floating_point || is_to_floating_point) && "For conversion, at least one variable has to be an floating point!");
+    assert (is_from_floating_point && is_to_floating_point && _signed && "Conversion between floating points is always signed!");
+    
     SSAVar *src = get_from_mapping(bb, mapping, instr.instr.rs1, ip, is_from_floating_point);
 
     SSAVar *dest = bb->add_var(to, ip, instr.instr.rd + START_IDX_FLOATING_POINT_STATICS);
-    auto op = std::make_unique<Operation>(Instruction::convert);
+    auto op = std::make_unique<Operation>(_signed ? Instruction::convert : Instruction::uconvert);
     op->set_inputs(src);
     op->set_outputs(dest);
     dest->set_op(std::move(op));

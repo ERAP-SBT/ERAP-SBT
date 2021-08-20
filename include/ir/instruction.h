@@ -37,7 +37,8 @@ enum class Instruction {
     ffmsub,  // floating point fused multiply sub, d = a * b - c 
     ffnmadd, // floating point fused negative multiply add, d = - (a * b) + c
     ffnmsub, // floating point fused negative multiply sub, d = - (a * b) - c
-    convert, // conversion between integer and floating point
+    convert, // conversion between integer and floating point or between single and double precision
+    uconvert // conversion between unsigned integer and floating point
 };
 
 std::ostream &operator<<(std::ostream &stream, Instruction instr);
