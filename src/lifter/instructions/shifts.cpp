@@ -3,7 +3,7 @@
 using namespace lifter::RV64;
 
 void Lifter::lift_shift_shared(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size, SSAVar *shift_val) {
-    auto *source = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
+    auto *source = get_from_mapping(bb, mapping, instr.instr.rs1, ip, false);
 
     if (source->type != op_size) {
         auto *casted_source = bb->add_var(op_size, ip);
@@ -30,7 +30,7 @@ void Lifter::lift_shift_shared(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         result = sext_res;
     }
 
-    write_to_mapping(mapping, result, instr.instr.rd);
+    write_to_mapping(mapping, result, instr.instr.rd, false);
 }
 
 void Lifter::lift_shift(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
@@ -45,8 +45,7 @@ void Lifter::lift_shift(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
         mask = load_immediate(bb, (int64_t)0x3F, ip, false);
     }
 
-    // shift-amount, unmasked
-    SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
+    SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, false);
 
     // create new variable with the result of the masking
     SSAVar *masked_count_shifts = bb->add_var(op_size, ip);

@@ -16,32 +16,32 @@ void store_val_to_rs1(BasicBlock *bb, const RV64Inst &instr, Lifter::reg_map &ma
     RV64Inst mod_instr = instr;
     mod_instr.instr.imm = 0;
 
-    SSAVar *real_rs2_val = Lifter::get_from_mapping(bb, mapping, mod_instr.instr.rs2, ip);
-    Lifter::write_to_mapping(mapping, value, mod_instr.instr.rs2);
+    SSAVar *real_rs2_val = Lifter::get_from_mapping(bb, mapping, mod_instr.instr.rs2, ip, false);
+    Lifter::write_to_mapping(mapping, value, mod_instr.instr.rs2, false);
 
     // delegate lifting to standard store
     Lifter::lift_store(bb, mod_instr, mapping, ip, op_size);
 
     // restore register map
-    Lifter::write_to_mapping(mapping, real_rs2_val, mod_instr.instr.rs2);
+    Lifter::write_to_mapping(mapping, real_rs2_val, mod_instr.instr.rs2, false);
 }
 
 void Lifter::lift_amo_load_reserve(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) { load_rs1_to_rd(bb, instr, mapping, ip, op_size); }
 
 void Lifter::lift_amo_store_conditional(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
-    store_val_to_rs1(bb, instr, mapping, ip, op_size, get_from_mapping(bb, mapping, instr.instr.rs2, ip));
+    store_val_to_rs1(bb, instr, mapping, ip, op_size, get_from_mapping(bb, mapping, instr.instr.rs2, ip, false));
 
     // if the operation succeeds (which it always does without actual atomic operations), 0 is placed into the destination register
-    write_to_mapping(mapping, bb->add_var_imm(0, ip, false, instr.instr.rd), instr.instr.rd);
+    write_to_mapping(mapping, bb->add_var_imm(0, ip, false, instr.instr.rd), instr.instr.rd, false);
 }
 
 void Lifter::lift_amo_add(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
-    SSAVar *in_2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
+    SSAVar *in_2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, false);
 
     load_rs1_to_rd(bb, instr, mapping, ip, op_size);
 
     // input1: rd, input2: rs2
-    SSAVar *in_1 = get_from_mapping(bb, mapping, instr.instr.rd, ip);
+    SSAVar *in_1 = get_from_mapping(bb, mapping, instr.instr.rd, ip, false);
 
     // apply the binary operation
     SSAVar *op_result = bb->add_var(Type::i64, ip);
@@ -59,7 +59,7 @@ void Lifter::lift_amo_add(BasicBlock *bb, const RV64Inst &instr, reg_map &mappin
 void Lifter::lift_amo_swap(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
     // input1: rd, input2: rs2
     // this is up here so that when rs2 == rd, the call to load_rs1_to_rd doesn't override the value in rs2 as well
-    SSAVar *in_2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
+    SSAVar *in_2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, false);
 
     load_rs1_to_rd(bb, instr, mapping, ip, op_size);
 
@@ -68,12 +68,12 @@ void Lifter::lift_amo_swap(BasicBlock *bb, const RV64Inst &instr, reg_map &mappi
 }
 
 void Lifter::lift_amo_xor(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
-    SSAVar *in_2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
+    SSAVar *in_2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, false);
 
     load_rs1_to_rd(bb, instr, mapping, ip, op_size);
 
     // input1: rd, input2: rs2
-    SSAVar *in_1 = get_from_mapping(bb, mapping, instr.instr.rd, ip);
+    SSAVar *in_1 = get_from_mapping(bb, mapping, instr.instr.rd, ip, false);
 
     // apply the binary operation
     SSAVar *op_result = bb->add_var(Type::i64, ip);
@@ -89,12 +89,12 @@ void Lifter::lift_amo_xor(BasicBlock *bb, const RV64Inst &instr, reg_map &mappin
 }
 
 void Lifter::lift_amo_or(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
-    SSAVar *in_2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
+    SSAVar *in_2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, false);
 
     load_rs1_to_rd(bb, instr, mapping, ip, op_size);
 
     // input1: rd, input2: rs2
-    SSAVar *in_1 = get_from_mapping(bb, mapping, instr.instr.rd, ip);
+    SSAVar *in_1 = get_from_mapping(bb, mapping, instr.instr.rd, ip, false);
 
     // apply the binary operation
     SSAVar *op_result = bb->add_var(Type::i64, ip);
@@ -110,12 +110,12 @@ void Lifter::lift_amo_or(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
 }
 
 void Lifter::lift_amo_and(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
-    SSAVar *in_2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
+    SSAVar *in_2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, false);
 
     load_rs1_to_rd(bb, instr, mapping, ip, op_size);
 
     // input1: rd, input2: rs2
-    SSAVar *in_1 = get_from_mapping(bb, mapping, instr.instr.rd, ip);
+    SSAVar *in_1 = get_from_mapping(bb, mapping, instr.instr.rd, ip, false);
 
     // apply the binary operation
     SSAVar *op_result = bb->add_var(Type::i64, ip);
@@ -131,11 +131,11 @@ void Lifter::lift_amo_and(BasicBlock *bb, const RV64Inst &instr, reg_map &mappin
 }
 
 void Lifter::lift_amo_min_max(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, const uint64_t ip, const Type op_size, const Instruction instr_type) {
-    SSAVar *cmp2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
+    SSAVar *cmp2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, false);
 
     load_rs1_to_rd(bb, instr, mapping, ip, op_size);
 
-    SSAVar *cmp1 = get_from_mapping(bb, mapping, instr.instr.rd, ip);
+    SSAVar *cmp1 = get_from_mapping(bb, mapping, instr.instr.rd, ip, false);
 
     SSAVar *op_result = bb->add_var(op_size, ip);
     {

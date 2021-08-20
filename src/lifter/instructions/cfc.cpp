@@ -87,8 +87,8 @@ void Lifter::lift_branch(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     uint64_t br_jmp_addr = reverse_jumps ? next_addr : encoded_addr;
     SSAVar *br_jmp_addr_var = reverse_jumps ? next_addr_var : jmp_addr;
 
-    SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
-    SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
+    SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip, false);
+    SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, false);
 
     c_jmp.set_inputs(rs1, rs2, br_jmp_addr_var);
     std::get<CfOp::LifterInfo>(c_jmp.lifter_info).jump_addr = br_jmp_addr;
@@ -121,7 +121,7 @@ void Lifter::lift_jal(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
         SSAVar *return_addr = load_immediate(bb, (int64_t)(next_addr), ip, true);
 
         // write SSAVar of the result of the operation back to mapping
-        write_to_mapping(mapping, return_addr, instr.instr.rd);
+        write_to_mapping(mapping, return_addr, instr.instr.rd, false);
     }
 
     // 6. jump!
@@ -138,7 +138,7 @@ void Lifter::lift_jalr(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
     SSAVar *immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip, false);
 
     // 2. add the offset register (the jalR-specific part)
-    SSAVar *offset_register = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
+    SSAVar *offset_register = get_from_mapping(bb, mapping, instr.instr.rs1, ip, false);
 
     SSAVar *sum = bb->add_var(Type::i64, ip);
     {
@@ -171,6 +171,6 @@ void Lifter::lift_jalr(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
         SSAVar *return_immediate = load_immediate(bb, (int64_t)next_addr, ip, false);
 
         // write SSAVar of the result of the operation back to mapping
-        write_to_mapping(mapping, return_immediate, instr.instr.rd);
+        write_to_mapping(mapping, return_immediate, instr.instr.rd, false);
     }
 }
