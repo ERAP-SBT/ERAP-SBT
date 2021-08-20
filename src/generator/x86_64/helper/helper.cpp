@@ -152,7 +152,7 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
     case RISCV_FSTATAT: {
         struct stat buf = {};
         const auto result = syscall4(AMD64_NEWFSTATAT, arg0, arg1, reinterpret_cast<uint64_t>(&buf), arg3);
-        auto *r_stat = reinterpret_cast<rv64_fstat_t*>(arg2);
+        auto *r_stat = reinterpret_cast<rv64_fstat_t *>(arg2);
         r_stat->st_blksize = buf.st_blksize;
         r_stat->st_size = buf.st_size;
         r_stat->st_atim = buf.st_atim.tv_sec;
