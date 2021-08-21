@@ -33,7 +33,6 @@ void Lifter::lift_shift_shared(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     write_to_mapping(mapping, result, instr.instr.rd);
 }
 
-// TODO: remove reference on Type and Instruction... everywhere
 void Lifter::lift_shift(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
     // prepare for shift, only use lower 5bits
 
