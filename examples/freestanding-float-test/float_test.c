@@ -25,7 +25,7 @@ int main() {
     float b = 2.0;
     float sum = a + b;
 
-    int iSum = (int) sum;
+    int iSum = (int)sum;
     print_integer(iSum);
     return 0;
 }
