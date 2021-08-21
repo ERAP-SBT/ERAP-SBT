@@ -167,3 +167,27 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
     }
     write_to_mapping(mapping, rs1_res, instr.instr.rd, true);
 }
+
+void Lifter::lift_float_move(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type from, const Type to) {
+    bool is_from_floating_point = from == Type::f32 || from == Type::f64;
+    bool is_to_floating_point = to == Type::f32 || to == Type::f64;
+
+    assert((is_from_floating_point != is_to_floating_point) && "This method does only handle moves between floating point and integer registers!");
+
+    SSAVar *src = get_from_mapping(bb, mapping, instr.instr.rs1, ip, is_from_floating_point);
+
+    SSAVar *dest = bb->add_var(to, ip);
+    auto op = std::make_unique<Operation>(Instruction::cast);
+    op->set_inputs(src);
+    op->set_outputs(dest);
+    dest->set_op(std::move(op));
+
+    // sign extent if necessary
+    if (to == Type::i32) {
+        std::optional<SSAVar *> result_optional = convert_type(bb, ip, dest, Type::i64);
+        assert(result_optional.has_value());
+        dest = result_optional.value();
+    }
+
+    write_to_mapping(mapping, dest, instr.instr.rd, is_to_floating_point);
+}
