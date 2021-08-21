@@ -363,14 +363,15 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_FMAXS:
         lift_float_min_max(bb, instr, mapping, ip, Instruction::fmax, Type::f32);
         break;
-        /*
     case FRV_FLES:
+        lift_float_comparison(bb, instr, mapping, ip, Instruction::fle, Type::f32);
         break;
     case FRV_FLTS:
+        lift_float_comparison(bb, instr, mapping, ip, Instruction::flt, Type::f32);
         break;
     case FRV_FEQS:
+        lift_float_comparison(bb, instr, mapping, ip, Instruction::feq, Type::f32);
         break;
-        */
     case FRV_FCVTWS:
         lift_float_integer_conversion(bb, instr, mapping, ip, Type::f32, Type::i32, true);
         break;
@@ -453,14 +454,15 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_FMAXD:
         lift_float_min_max(bb, instr, mapping, ip, Instruction::fmax, Type::f64);
         break;
-        /*
     case FRV_FLED:
+        lift_float_comparison(bb, instr, mapping, ip, Instruction::fle, Type::f64);
         break;
     case FRV_FLTD:
+        lift_float_comparison(bb, instr, mapping, ip, Instruction::flt, Type::f64);
         break;
     case FRV_FEQD:
+        lift_float_comparison(bb, instr, mapping, ip, Instruction::feq, Type::f64);
         break;
-        */
     case FRV_FCVTSD:
         lift_float_integer_conversion(bb, instr, mapping, ip, Type::f64, Type::f32, true);
         break;

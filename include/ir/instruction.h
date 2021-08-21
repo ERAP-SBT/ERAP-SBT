@@ -19,26 +19,29 @@ enum class Instruction {
     _and,
     _not,
     _xor,
-    cast,       // used for shrinking size of an integer variable or to cast the bits from floating point to integer or vice versa
+    cast, // used for shrinking size of an integer variable or to cast the bits from floating point to integer or vice versa
     slt,
     sltu,
     sign_extend,
     zero_extend,
     setup_stack,
-    umax, // dst, cmp1, cmp2
-    umin, // dst, cmp1, cmp2
-    max,  // signed max
-    min,  // signed min
-    fmul,       // floating point multiplication
-    fsqrt,      // floating point square root
-    fmin,       // floating point minimum
-    fmax,       // floating point maximum
-    ffmadd,     // floating point fused multiply add, d = a * b + c
-    ffmsub,     // floating point fused multiply sub, d = a * b - c 
-    ffnmadd,    // floating point fused negative multiply add, d = - (a * b) + c
-    ffnmsub,    // floating point fused negative multiply sub, d = - (a * b) - c
-    convert,    // conversion between integer and floating point or between single and double precision
-    uconvert,   // conversion between unsigned integer and floating point
+    umax,     // dst, cmp1, cmp2
+    umin,     // dst, cmp1, cmp2
+    max,      // signed max
+    min,      // signed min
+    fmul,     // floating point multiplication
+    fsqrt,    // floating point square root
+    fmin,     // floating point minimum
+    fmax,     // floating point maximum
+    ffmadd,   // floating point fused multiply add, d = a * b + c
+    ffmsub,   // floating point fused multiply sub, d = a * b - c
+    ffnmadd,  // floating point fused negative multiply add, d = - (a * b) + c
+    ffnmsub,  // floating point fused negative multiply sub, d = - (a * b) - c
+    fle,      // floating point comparison: (v1 <= v2) ? v3 : v4
+    flt,      // floating point comparison: (v1 < v2) ? v3 : v4
+    feq,      // floating point comparison: (v1 == v2) ? v3 : v4
+    convert,  // conversion between integer and floating point or between single and double precision
+    uconvert, // conversion between unsigned integer and floating point
 };
 
 std::ostream &operator<<(std::ostream &stream, Instruction instr);
