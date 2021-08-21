@@ -2,13 +2,13 @@
 
 using namespace lifter::RV64;
 
-SSAVar *Lifter::load_immediate(BasicBlock *bb, int32_t imm, uint64_t ip, bool binary_relative, size_t reg) {
-    SSAVar *input_imm = bb->add_var_imm(imm, ip, binary_relative, reg);
+SSAVar *Lifter::load_immediate(BasicBlock *bb, int32_t imm, uint64_t ip, bool binary_relative) {
+    SSAVar *input_imm = bb->add_var_imm(imm, ip, binary_relative);
     return input_imm;
 }
 
-SSAVar *Lifter::load_immediate(BasicBlock *bb, int64_t imm, uint64_t ip, bool binary_relative, size_t reg) {
-    SSAVar *input_imm = bb->add_var_imm(imm, ip, binary_relative, reg);
+SSAVar *Lifter::load_immediate(BasicBlock *bb, int64_t imm, uint64_t ip, bool binary_relative) {
+    SSAVar *input_imm = bb->add_var_imm(imm, ip, binary_relative);
     return input_imm;
 }
 
@@ -91,6 +91,6 @@ void Lifter::write_to_mapping(reg_map &mapping, SSAVar *var, uint64_t reg_id) {
     if (reg_id == ZERO_IDX) {
         return;
     }
-
+    std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = reg_id;
     mapping[reg_id] = var;
 }

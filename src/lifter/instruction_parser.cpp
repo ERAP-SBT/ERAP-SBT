@@ -360,7 +360,7 @@ void Lifter::lift_auipc(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
 
 void Lifter::lift_lui(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip) {
     // create the immediate loading operation (with built-in sign extension)
-    SSAVar *immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip, false, instr.instr.rd);
+    SSAVar *immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip, false);
 
     // write SSAVar back to mapping
     write_to_mapping(mapping, immediate, instr.instr.rd);

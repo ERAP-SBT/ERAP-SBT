@@ -17,7 +17,7 @@ void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
     }
 
     // create SSAVariable for the destination operand
-    SSAVar *load_dest = bb->add_var(op_size, ip, instr.instr.rd);
+    SSAVar *load_dest = bb->add_var(op_size, ip);
 
     // create the load operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(Instruction::load);
@@ -30,7 +30,7 @@ void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
 
     // last step: extend load_dest variable to 64 bit
     if (cast_dir(op_size, Type::i64)) {
-        SSAVar *extended_result = bb->add_var(Type::i64, ip, instr.instr.rd);
+        SSAVar *extended_result = bb->add_var(Type::i64, ip);
         {
             auto extend_operation = std::make_unique<Operation>((sign_extend ? Instruction::sign_extend : Instruction::zero_extend));
             extend_operation->set_inputs(load_dest);
@@ -76,5 +76,5 @@ void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
     result_memory_token->set_op(std::move(operation));
 
     // write memory_token back
-    mapping[MEM_IDX] = result_memory_token;
+    write_to_mapping(mapping, result_memory_token, MEM_IDX);
 }
