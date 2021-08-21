@@ -1,6 +1,8 @@
 #include "stddef.h"
 
 #include <cstdint>
+// TODO: define these structs ourselves?
+#include <sys/stat.h>
 
 extern "C" {
 extern uint8_t *orig_binary_vaddr;
@@ -10,6 +12,7 @@ extern uint64_t phdr_size;
 }
 
 namespace {
+
 // from https://github.com/aengelke/ria-jit/blob/master/src/runtime/emulateEcall.c
 [[maybe_unused]] size_t syscall0(int syscall_number);
 [[maybe_unused]] size_t syscall1(int syscall_number, size_t a1);
@@ -27,30 +30,46 @@ const char panic_str[] = "PANIC: ";
 
 enum RV_SYSCALL_ID : uint32_t {
     RISCV_IOCTL = 29,
+    RISCV_FTRUNCATE = 46,
+    RISCV_FCHMODAT = 53,
+    RISCV_OPENAT = 56,
+    RISCV_CLOSE = 57,
     RISCV_LSEEK = 62,
     RISCV_READ = 63,
     RISCV_WRITE = 64,
     RISCV_READV = 65,
     RISCV_WRITEV = 66,
+    RISCV_FSTATAT = 79,
+    RISCV_FSTAT = 80,
     RISCV_EXIT = 93,
     RISCV_EXIT_GROUP = 94,
     RISCV_SET_TID_ADDR = 96,
+    RISCV_CLOCK_GET_TIME = 113,
     RISCV_BRK = 214,
+    RISCV_MUNMAP = 215,
     RISCV_MMAP = 222
 };
 
 enum AMD64_SYSCALL_ID : uint32_t {
     AMD64_READ = 0,
     AMD64_WRITE = 1,
+    AMD64_CLOSE = 3,
+    AMD64_FSTAT = 5,
     AMD64_LSEEK = 8,
     AMD64_MMAP = 9,
+    AMD64_MUNMAP = 11,
     AMD64_BRK = 12,
     AMD64_IOCTL = 16,
     AMD64_READV = 19,
     AMD64_WRITEV = 20,
     AMD64_EXIT = 60,
+    AMD64_FTRUNCATE = 77,
     AMD64_SET_TID_ADDR = 218,
-    AMD64_EXIT_GROUP = 231
+    AMD64_CLOCK_GET_TIME = 228,
+    AMD64_EXIT_GROUP = 231,
+    AMD64_OPENAT = 257,
+    AMD64_NEWFSTATAT = 262,
+    AMD64_FCHMODAT = 268,
 };
 
 struct auxv_t {
@@ -81,6 +100,29 @@ struct auxv_t {
         void (*a_fcn)(void); // this seems unused
     };
 };
+
+struct rv64_fstat_t {
+    unsigned long st_dev;  /* Device.  */
+    unsigned long st_ino;  /* File serial number.  */
+    unsigned int st_mode;  /* File mode.  */
+    unsigned int st_nlink; /* Link count.  */
+    unsigned int st_uid;   /* User ID of the file's owner.  */
+    unsigned int st_gid;   /* Group ID of the file's group. */
+    unsigned long st_rdev; /* Device number, if device.  */
+    unsigned long __pad1;
+    long st_size;   /* Size of file, in bytes.  */
+    int st_blksize; /* Optimal block size for I/O.  */
+    int __pad2;
+    long st_blocks; /* Number 512-byte blocks allocated. */
+    long st_atim;   /* Time of last access.  */
+    unsigned long st_atime_nsec;
+    long st_mtim; /* Time of last modification.  */
+    unsigned long st_mtime_nsec;
+    long st_ctim; /* Time of last status change.  */
+    unsigned long st_ctime_nsec;
+    unsigned int __unused4;
+    unsigned int __unused5;
+};
 } // namespace
 
 extern "C" [[noreturn]] void panic(const char *err_msg);
@@ -89,6 +131,14 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
     switch (id) {
     case RISCV_IOCTL:
         return syscall3(AMD64_IOCTL, arg0, arg1, arg2);
+    case RISCV_FTRUNCATE:
+        return syscall2(AMD64_FTRUNCATE, arg0, arg1);
+    case RISCV_FCHMODAT:
+        return syscall2(AMD64_FCHMODAT, arg0, arg1);
+    case RISCV_OPENAT:
+        return syscall3(AMD64_OPENAT, arg0, arg1, arg2);
+    case RISCV_CLOSE:
+        return syscall1(AMD64_CLOSE, arg0);
     case RISCV_LSEEK:
         return syscall3(AMD64_LSEEK, arg0, arg1, arg2);
     case RISCV_READ:
@@ -99,14 +149,62 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
         return syscall3(AMD64_READV, arg0, arg1, arg2);
     case RISCV_WRITEV:
         return syscall3(AMD64_WRITEV, arg0, arg1, arg2);
+    case RISCV_FSTATAT: {
+        struct stat buf = {};
+        const auto result = syscall4(AMD64_NEWFSTATAT, arg0, arg1, reinterpret_cast<uint64_t>(&buf), arg3);
+        auto *r_stat = reinterpret_cast<rv64_fstat_t *>(arg2);
+        r_stat->st_blksize = buf.st_blksize;
+        r_stat->st_size = buf.st_size;
+        r_stat->st_atim = buf.st_atim.tv_sec;
+        r_stat->st_atime_nsec = buf.st_atim.tv_nsec;
+        r_stat->st_blocks = buf.st_blocks;
+        r_stat->st_ctim = buf.st_ctim.tv_sec;
+        r_stat->st_ctime_nsec = buf.st_ctim.tv_nsec;
+        r_stat->st_dev = buf.st_dev;
+        r_stat->st_gid = buf.st_gid;
+        r_stat->st_ino = buf.st_ino;
+        r_stat->st_mode = buf.st_mode;
+        r_stat->st_mtim = buf.st_mtim.tv_sec;
+        r_stat->st_mtime_nsec = buf.st_mtim.tv_nsec;
+        r_stat->st_nlink = buf.st_nlink;
+        r_stat->st_rdev = buf.st_rdev;
+        r_stat->st_uid = buf.st_uid;
+        return result;
+    }
+    case RISCV_FSTAT: {
+        struct stat buf = {};
+        const auto result = syscall2(AMD64_FSTAT, arg0, reinterpret_cast<uint64_t>(&buf));
+        auto *r_stat = reinterpret_cast<rv64_fstat_t *>(arg1);
+        r_stat->st_blksize = buf.st_blksize;
+        r_stat->st_size = buf.st_size;
+        r_stat->st_atim = buf.st_atim.tv_sec;
+        r_stat->st_atime_nsec = buf.st_atim.tv_nsec;
+        r_stat->st_blocks = buf.st_blocks;
+        r_stat->st_ctim = buf.st_ctim.tv_sec;
+        r_stat->st_ctime_nsec = buf.st_ctim.tv_nsec;
+        r_stat->st_dev = buf.st_dev;
+        r_stat->st_gid = buf.st_gid;
+        r_stat->st_ino = buf.st_ino;
+        r_stat->st_mode = buf.st_mode;
+        r_stat->st_mtim = buf.st_mtim.tv_sec;
+        r_stat->st_mtime_nsec = buf.st_mtim.tv_nsec;
+        r_stat->st_nlink = buf.st_nlink;
+        r_stat->st_rdev = buf.st_rdev;
+        r_stat->st_uid = buf.st_uid;
+        return result;
+    }
     case RISCV_EXIT:
         return syscall1(AMD64_EXIT, arg0);
     case RISCV_EXIT_GROUP:
         return syscall1(AMD64_EXIT_GROUP, arg0);
     case RISCV_SET_TID_ADDR:
         return syscall1(AMD64_SET_TID_ADDR, arg0);
+    case RISCV_CLOCK_GET_TIME:
+        return syscall2(AMD64_CLOCK_GET_TIME, arg0, arg1);
     case RISCV_BRK:
         return syscall1(AMD64_BRK, arg0);
+    case RISCV_MUNMAP:
+        return syscall2(AMD64_MUNMAP, arg0, arg1);
     case RISCV_MMAP:
         return syscall6(AMD64_MMAP, arg0, arg1, arg2, arg3, arg4, arg5);
     default:
