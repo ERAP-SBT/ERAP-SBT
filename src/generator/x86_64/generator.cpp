@@ -551,6 +551,19 @@ void Generator::compile_vars(const BasicBlock *block) {
             fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "cmovl %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
+        case Instruction::sle: /* !!! TODO: implement !!!*/
+        case Instruction::seq:
+        case Instruction::fmul:
+        case Instruction::fsqrt:
+        case Instruction::fmin:
+        case Instruction::fmax:
+        case Instruction::ffmadd:
+        case Instruction::ffmsub:
+        case Instruction::ffnmadd:
+        case Instruction::ffnmsub:
+        case Instruction::convert:
+        case Instruction::uconvert:
+            assert(0);
             break;
         }
 
