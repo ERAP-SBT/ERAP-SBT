@@ -20,8 +20,10 @@ enum class Instruction {
     _not,
     _xor,
     cast, // used for shrinking size of an integer variable or to cast the bits from floating point to integer or vice versa
-    slt,
-    sltu,
+    slt,  // set if less than, (v1 < v2) ? v3 : v4
+    sltu, // set if less than unsigned, (v1 <u v2) ? v3 : v4
+    sle,  // set if less than or equal, (v1 <= v2) ? v3 : v4
+    seq,  // set if equals, (v1 == v2) ? v3 : v4
     sign_extend,
     zero_extend,
     setup_stack,
@@ -37,9 +39,6 @@ enum class Instruction {
     ffmsub,   // floating point fused multiply sub, d = a * b - c
     ffnmadd,  // floating point fused negative multiply add, d = - (a * b) + c
     ffnmsub,  // floating point fused negative multiply sub, d = - (a * b) - c
-    fle,      // floating point comparison: (v1 <= v2) ? v3 : v4
-    flt,      // floating point comparison: (v1 < v2) ? v3 : v4
-    feq,      // floating point comparison: (v1 == v2) ? v3 : v4
     convert,  // conversion between integer and floating point or between single and double precision
     uconvert, // conversion between unsigned integer and floating point
 };

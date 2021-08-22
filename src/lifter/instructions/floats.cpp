@@ -245,3 +245,171 @@ void Lifter::lift_float_comparison(BasicBlock *bb, const RV64Inst &instr, reg_ma
     // write the integer(!) variable to the mapping
     write_to_mapping(mapping, dest, instr.instr.rd, false);
 }
+
+void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
+    // check invariant
+    assert((op_size == Type::f32 || op_size == Type::f64) && "Only floating points are allowed here!");
+
+    bool is_single_precision = op_size == Type::f32;
+    const Type integer_op_size = is_single_precision ? Type::i32 : Type::i64;
+
+    // hint: all explanation with i. bit is zero indexed and counted from the LSB (LSB = 0. bit)
+    // bit masks:
+
+    SSAVar *zero = bb->add_var_imm(0, ip);     // zero...
+    SSAVar *mask1 = bb->add_var_imm(1, ip);    // LSB (0. bit) set if source is negative infinity.
+    SSAVar *mask4 = bb->add_var_imm(8, ip);    // 3. bit set if source is -0.
+    SSAVar *mask5 = bb->add_var_imm(16, ip);   // 4. bit set if source is +0.
+    SSAVar *mask8 = bb->add_var_imm(128, ip);  // 7. bit set if source is positive infinity.
+    SSAVar *mask9 = bb->add_var_imm(256, ip);  // 8. bit set if source is signaling NaN.
+    SSAVar *mask10 = bb->add_var_imm(512, ip); // 9. bit set if source is quiet NaN.
+
+    SSAVar *combined_mask_1_2 = bb->add_var_imm(0b110, ip);     // combined mask with 1. and 2. bit set
+    SSAVar *combined_mask_5_6 = bb->add_var_imm(0b1100000, ip); // combined mask with 5. and 6. bit set
+    SSAVar *combined_mask_1_6 = bb->add_var_imm(0b1000010, ip); // combined mask with 1. and 6. bit set
+    SSAVar *combined_mask_2_5 = bb->add_var_imm(0b100100, ip);  // combined mask with 2. and 5. bit set
+
+    SSAVar *exponent_mask = bb->add_var_imm(is_single_precision ? 0x7F800000 : 0x7FF0000000000000, ip); // mask to extract the exponent of the floating point number
+
+    SSAVar *shift_to_right_amount = bb->add_var_imm(is_single_precision ? 31 : 63, ip); // constant for shifting the sign bit to the LSB
+
+    SSAVar *negative_infinity = bb->add_var_imm(is_single_precision ? 0xff800000 : 0xfff0000000000000, ip); // bit pattern of -inf
+    SSAVar *positive_infinity = bb->add_var_imm(is_single_precision ? 0x7f800000 : 0x7FF0000000000000, ip); // bit pattern of +inf
+    SSAVar *negative_zero = bb->add_var_imm(is_single_precision ? 0x80000000 : 0x8000000000000000, ip);     // bit pattern of -0.0
+
+    // cast the floating point bit pattern to integer bit pattern to use bit manipulation
+    SSAVar *f_src = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
+    SSAVar *i_src = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::cast);
+        op->set_inputs(f_src);
+        op->set_outputs(i_src);
+        i_src->set_op(std::move(op));
+    }
+
+    // shift the sign bit to the LSB
+    SSAVar *sign_bit = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::shr);
+        op->set_inputs(i_src, shift_to_right_amount);
+        op->set_outputs(sign_bit);
+        sign_bit->set_op(std::move(op));
+    }
+
+    // set the value to the mask if the sign is negative (respectively non positive/zero, this saves the usage of an 'one' immediate variable)
+    SSAVar *negative_sign_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::seq);
+        op->set_inputs(i_src, zero, zero, combined_mask_1_2);
+        op->set_outputs(negative_sign_test);
+        negative_sign_test->set_op(std::move(op));
+    }
+
+    // set the value to the mask if the sign is positive
+    SSAVar *positive_sign_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::seq);
+        op->set_inputs(i_src, zero, combined_mask_5_6, zero);
+        op->set_outputs(negative_sign_test);
+        negative_sign_test->set_op(std::move(op));
+    }
+
+    // extract the exponent
+    SSAVar *exponent = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_and);
+        op->set_inputs(i_src, exponent_mask);
+        op->set_outputs(exponent);
+        exponent->set_op(std::move(op));
+    }
+
+    // set the value to the mask if the exponent is zero
+    SSAVar *zero_exponent_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::seq);
+        op->set_inputs(exponent, zero, combined_mask_2_5, zero);
+        op->set_outputs(zero_exponent_test);
+        zero_exponent_test->set_op(std::move(op));
+    }
+
+    // set the value to the mask if the exponent is non zero
+    SSAVar *non_zero_exponent_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::seq);
+        op->set_inputs(exponent, zero, zero, combined_mask_1_6);
+        op->set_outputs(non_zero_exponent_test);
+        non_zero_exponent_test->set_op(std::move(op));
+    }
+
+    // test wheter the value is -inf
+    SSAVar *negative_inifinty_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::seq);
+        op->set_inputs(i_src, negative_infinity, mask1, zero);
+        op->set_outputs(negative_inifinty_test);
+        negative_inifinty_test->set_op(std::move(op));
+    }
+
+    // test wheter the value is a negative normal number (test for both conditions (normal number and negative sign bit)
+    SSAVar *negative_normal_number_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_and);
+        op->set_inputs(non_zero_exponent_test, negative_sign_test);
+        op->set_outputs(negative_normal_number_test);
+        negative_normal_number_test->set_op(std::move(op));
+    }
+
+    // test whether source is a negative subnormal number (test for both conditions are true (subnormal number and negative sign bit)
+    SSAVar *negative_subnormal_number_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_and);
+        op->set_inputs(zero_exponent_test, negative_sign_test);
+        op->set_outputs(negative_subnormal_number_test);
+        negative_subnormal_number_test->set_op(std::move(op));
+    }
+
+    // test whether source is -0.0
+    SSAVar *negative_zero_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::seq);
+        op->set_inputs(i_src, negative_zero, mask4, zero);
+        op->set_outputs(negative_zero_test);
+        negative_zero_test->set_op(std::move(op));
+    }
+
+    // test whether source is +0.0
+    SSAVar *positive_zero_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::seq);
+        op->set_inputs(i_src, zero, mask5, zero);
+        op->set_outputs(positive_zero_test);
+        positive_zero_test->set_op(std::move(op));
+    }
+
+    // test whether source is a positive subnormal number (test for both conditions are true (subnormal number and positive sign bit)
+    SSAVar *positive_subnormal_number_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_and);
+        op->set_inputs(zero_exponent_test, negative_sign_test);
+        op->set_outputs(positive_subnormal_number_test);
+        positive_subnormal_number_test->set_op(std::move(op));
+    }
+
+    // test wheter the value is a negative normal number (test for both conditions (normal number and positive sign bit)
+    SSAVar *positive_normal_number_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_and);
+        op->set_inputs(non_zero_exponent_test, positive_sign_test);
+        op->set_outputs(positive_normal_number_test);
+        positive_normal_number_test->set_op(std::move(op));
+    }
+
+    // test wheter the value is +inf
+    SSAVar *positive_inifinty_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::seq);
+        op->set_inputs(i_src, positive_infinity, mask8, zero);
+        op->set_outputs(positive_inifinty_test);
+        positive_inifinty_test->set_op(std::move(op));
+    }
+}

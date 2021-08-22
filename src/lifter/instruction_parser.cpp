@@ -321,10 +321,9 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_FMVWX:
         lift_float_move(bb, instr, mapping, ip, Type::i32, Type::f32);
         break;
-        /*
     case FRV_FCLASSS:
+        lift_fclass(bb, instr, mapping, ip, Type::f32);
         break;
-        */
     case FRV_FMADDS:
         lift_float_fma(bb, instr, mapping, ip, Instruction::ffmadd, Type::f32);
         break;
@@ -405,17 +404,15 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_FSD:
         lift_store(bb, instr, mapping, ip, Type::f64);
         break;
-
     case FRV_FMVXD:
         lift_float_move(bb, instr, mapping, ip, Type::f64, Type::i64);
         break;
     case FRV_FMVDX:
         lift_float_move(bb, instr, mapping, ip, Type::i64, Type::f64);
         break;
-        /*
     case FRV_FCLASSD:
+        lift_fclass(bb, instr, mapping, ip, Type::f64);
         break;
-        */
     case FRV_FMADDD:
         lift_float_fma(bb, instr, mapping, ip, Instruction::ffmadd, Type::f64);
         break;

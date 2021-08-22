@@ -107,15 +107,6 @@ std::ostream &operator<<(std::ostream &stream, Instruction instr) {
     case Instruction::ffnmsub:
         stream << "ffnmsub";
         break;
-    case Instruction::fle:
-        stream << "fle";
-        break;
-    case Instruction::flt:
-        stream << "flt";
-        break;
-    case Instruction::feq:
-        stream << "feq";
-        break;
     case Instruction::convert:
         stream << "convert";
         break;
