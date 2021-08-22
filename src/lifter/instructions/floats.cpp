@@ -253,29 +253,34 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     bool is_single_precision = op_size == Type::f32;
     const Type integer_op_size = is_single_precision ? Type::i32 : Type::i64;
 
-    // hint: all explanation with i. bit is zero indexed and counted from the LSB (LSB = 0. bit)
+    // hint: all explanation with i. bit is zero indexed and counted from the lsb (least significant bit, lsb = 0. bit)
     // bit masks:
 
     SSAVar *zero = bb->add_var_imm(0, ip);
-    SSAVar *mask1 = bb->add_var_imm(1, ip);    // LSB (0. bit) set if source is negative infinity.
-    SSAVar *mask4 = bb->add_var_imm(8, ip);    // 3. bit set if source is -0.
-    SSAVar *mask5 = bb->add_var_imm(16, ip);   // 4. bit set if source is +0.
-    SSAVar *mask8 = bb->add_var_imm(128, ip);  // 7. bit set if source is positive infinity.
-    SSAVar *mask9 = bb->add_var_imm(256, ip);  // 8. bit set if source is signaling NaN.
-    SSAVar *mask10 = bb->add_var_imm(512, ip); // 9. bit set if source is quiet NaN.
+    SSAVar *mask1 = bb->add_var_imm(0x1, ip);    // lsb (0. bit) set if source is negative infinity.
+    SSAVar *mask4 = bb->add_var_imm(0x8, ip);    // 3. bit set if source is -0.
+    SSAVar *mask5 = bb->add_var_imm(0x10, ip);   // 4. bit set if source is +0.
+    SSAVar *mask8 = bb->add_var_imm(0x80, ip);   // 7. bit set if source is positive infinity.
+    SSAVar *mask9 = bb->add_var_imm(0x100, ip);  // 8. bit set if source is signaling NaN.
+    SSAVar *mask10 = bb->add_var_imm(0x200, ip); // 9. bit set if source is quiet NaN.
 
     SSAVar *combined_mask_1_2 = bb->add_var_imm(0b110, ip);     // combined mask with 1. and 2. bit set
     SSAVar *combined_mask_5_6 = bb->add_var_imm(0b1100000, ip); // combined mask with 5. and 6. bit set
     SSAVar *combined_mask_1_6 = bb->add_var_imm(0b1000010, ip); // combined mask with 1. and 6. bit set
     SSAVar *combined_mask_2_5 = bb->add_var_imm(0b100100, ip);  // combined mask with 2. and 5. bit set
+    SSAVar *combined_mask_8_9 = bb->add_var_imm(0x200, ip);     // combined mask with 8. and 9. bit set
 
     SSAVar *exponent_mask = bb->add_var_imm(is_single_precision ? 0x7F800000 : 0x7FF0000000000000, ip); // mask to extract the exponent of the floating point number
+    SSAVar *mantisse_mask = bb->add_var_imm(is_single_precision ? 0x7FFFFF : 0xFFFFFFFFFFFFF, ip);      // mask to extract the mantisse of the floating point number
 
-    SSAVar *shift_to_right_amount = bb->add_var_imm(is_single_precision ? 31 : 63, ip); // constant for shifting the sign bit to the LSB
+    SSAVar *shift_to_right_amount = bb->add_var_imm(is_single_precision ? 31 : 63, ip);     // constant for shifting the sign bit to the lsb
+    SSAVar *mantisse_msb_shift_amount = bb->add_var_imm(is_single_precision ? 22 : 51, ip); // constant for shifting the msb of the mantisse to the slb
 
     SSAVar *negative_infinity = bb->add_var_imm(is_single_precision ? 0xff800000 : 0xfff0000000000000, ip); // bit pattern of -inf
     SSAVar *positive_infinity = bb->add_var_imm(is_single_precision ? 0x7f800000 : 0x7FF0000000000000, ip); // bit pattern of +inf
     SSAVar *negative_zero = bb->add_var_imm(is_single_precision ? 0x80000000 : 0x8000000000000000, ip);     // bit pattern of -0.0
+
+    SSAVar *max_exponent_value = bb->add_var_imm(is_single_precision ? 0xFF : 0x7FF, ip); // bit pattern of exponent with all bits set
 
     // cast the floating point bit pattern to integer bit pattern to use bit manipulation
     SSAVar *f_src = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
@@ -287,7 +292,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         i_src->set_op(std::move(op));
     }
 
-    // shift the sign bit to the LSB
+    // shift the sign bit to the lsb
     SSAVar *sign_bit = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::shr);
@@ -339,6 +344,60 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         op->set_inputs(exponent, zero, zero, combined_mask_1_6);
         op->set_outputs(non_zero_exponent_test);
         non_zero_exponent_test->set_op(std::move(op));
+    }
+
+    // set the value to the mask if all bits in the exponent are set
+    SSAVar *max_exponent_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::seq);
+        op->set_inputs(exponent, max_exponent_value, combined_mask_8_9, zero);
+        op->set_outputs(max_exponent_test);
+        max_exponent_test->set_op(std::move(op));
+    }
+
+    // extract the mantisse
+    SSAVar *mantisse = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_and);
+        op->set_inputs(i_src, mantisse_mask);
+        op->set_outputs(mantisse);
+        mantisse->set_op(std::move(op));
+    }
+
+    // shift the mantisse msb to the lsb
+    SSAVar *mantisse_msb = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::shr);
+        op->set_inputs(mantisse, mantisse_msb_shift_amount);
+        op->set_outputs(mantisse_msb);
+        mantisse_msb->set_op(std::move(op));
+    }
+
+    // test whether the mantisse is not zero
+    SSAVar *mantisse_non_zero_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::seq);
+        op->set_inputs(mantisse, zero, zero, mask9);
+        op->set_outputs(mantisse_non_zero_test);
+        mantisse_non_zero_test->set_op(std::move(op));
+    }
+
+    // test whether the msb of the mantisse is zero
+    SSAVar *mantisse_msb_zero_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::seq);
+        op->set_inputs(mantisse_msb, zero, mask9, zero);
+        op->set_outputs(mantisse_msb_zero_test);
+        mantisse_msb_zero_test->set_op(std::move(op));
+    }
+
+    // test whether the msb of the mantisse is not zero
+    SSAVar *mantisse_msb_non_zero_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::seq);
+        op->set_inputs(mantisse_msb, zero, zero, mask10);
+        op->set_outputs(mantisse_msb_non_zero_test);
+        mantisse_msb_non_zero_test->set_op(std::move(op));
     }
 
     // test wheter the source is -inf
@@ -413,9 +472,35 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         positive_inifinty_test->set_op(std::move(op));
     }
 
-    // TODO: test whether source is a signaling NaN
+    // TODO: test whether source is a signaling NaN (all bits in the exponent are set && mantisse msb == 0 && mantisse != 0)
+    SSAVar *signaling_nan_test = bb->add_var(integer_op_size, ip);
+    {
+        // test whether the mantisse has the "correct" form
+        SSAVar *signaling_nan_mantisse_test = bb->add_var(integer_op_size, ip);
+        {
+            auto op = std::make_unique<Operation>(Instruction::_and);
+            op->set_inputs(mantisse_msb_zero_test, mantisse_non_zero_test);
+            op->set_outputs(signaling_nan_test);
+            signaling_nan_test->set_op(std::move(op));
+        }
 
-    // TODO: test whether source is a quiet NaN
+        // and the exponent is "correct"
+        {
+            auto op = std::make_unique<Operation>(Instruction::_and);
+            op->set_inputs(signaling_nan_mantisse_test, max_exponent_test);
+            op->set_outputs(signaling_nan_test);
+            signaling_nan_test->set_op(std::move(op));
+        }
+    }
+
+    // TODO: test whether source is a quiet NaN (all bits in the exponent are set && the msb of the mantisse is set)
+    SSAVar *quiet_nan_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_and);
+        op->set_inputs(max_exponent_test, mantisse_msb_non_zero_test);
+        op->set_outputs(quiet_nan_test);
+        quiet_nan_test->set_op(std::move(op));
+    }
 
     // merge all test results with logical or's
     SSAVar *test_result = bb->add_var(integer_op_size, ip);
