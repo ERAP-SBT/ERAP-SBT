@@ -221,7 +221,7 @@ void Lifter::lift_float_move(BasicBlock *bb, const RV64Inst &instr, reg_map &map
 
 void Lifter::lift_float_comparison(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
     // check some invariants
-    assert((instruction_type == Instruction::fle || instruction_type == Instruction::flt || instruction_type == Instruction::feq) &&
+    assert((instruction_type == Instruction::sle || instruction_type == Instruction::slt || instruction_type == Instruction::seq) &&
            "This methods only handles the floating point comparisons 'fle', 'flt' and 'feq'!");
     assert((op_size == Type::f32 || op_size == Type::f64) && "This method only handles floating points!");
 
