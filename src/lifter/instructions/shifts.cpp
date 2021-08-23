@@ -6,7 +6,7 @@ void Lifter::lift_shift_shared(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     auto *source = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
 
     if (source->type != op_size) {
-        auto *casted_source = bb->add_var(op_size, ip, 0);
+        auto *casted_source = bb->add_var(op_size, ip);
         auto op = std::make_unique<Operation>(Instruction::cast);
         op->set_inputs(source);
         op->set_outputs(casted_source);
@@ -14,7 +14,7 @@ void Lifter::lift_shift_shared(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         source = casted_source;
     }
 
-    auto *result = bb->add_var(op_size, ip, instr.instr.rd);
+    auto *result = bb->add_var(op_size, ip);
     auto op = std::make_unique<Operation>(instruction_type);
     op->set_inputs(source, shift_val);
     op->set_outputs(result);
@@ -22,7 +22,7 @@ void Lifter::lift_shift_shared(BasicBlock *bb, const RV64Inst &instr, reg_map &m
 
     if (op_size == Type::i32) {
         // produces a sign-extended result
-        auto *sext_res = bb->add_var(Type::i64, ip, instr.instr.rd);
+        auto *sext_res = bb->add_var(Type::i64, ip);
         auto op = std::make_unique<Operation>(Instruction::sign_extend);
         op->set_inputs(result);
         op->set_outputs(sext_res);
@@ -49,7 +49,7 @@ void Lifter::lift_shift(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
     SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
 
     // create new variable with the result of the masking
-    SSAVar *masked_count_shifts = bb->add_var(op_size, ip, instr.instr.rs2);
+    SSAVar *masked_count_shifts = bb->add_var(op_size, ip);
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(Instruction::_and);
     operation->set_inputs(rs2, mask);
     operation->set_outputs(masked_count_shifts);

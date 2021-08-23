@@ -25,7 +25,7 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, const RV64Inst &instr, re
     }
 
     // create SSAVariable for the destination operand
-    SSAVar *destination = bb->add_var(op_size, ip, instr.instr.rd);
+    SSAVar *destination = bb->add_var(op_size, ip);
 
     // create the operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(instruction_type);
@@ -39,7 +39,7 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, const RV64Inst &instr, re
 
     if (op_size == Type::i32) {
         // sign extend
-        auto *sign_extension = bb->add_var(Type::i64, ip, instr.instr.rd);
+        auto *sign_extension = bb->add_var(Type::i64, ip);
         auto op = std::make_unique<Operation>(Instruction::sign_extend);
         op->set_inputs(destination);
         op->set_outputs(sign_extension);
@@ -74,7 +74,7 @@ void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, const RV64Inst 
     }
 
     // create SSAVariable for the destination operand
-    SSAVar *destination = bb->add_var(op_size, ip, instr.instr.rd);
+    SSAVar *destination = bb->add_var(op_size, ip);
 
     // create the operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(instruction_type);
@@ -88,7 +88,7 @@ void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, const RV64Inst 
 
     if (op_size == Type::i32) {
         // sign extend
-        auto *sign_extension = bb->add_var(Type::i64, ip, instr.instr.rd);
+        auto *sign_extension = bb->add_var(Type::i64, ip);
         auto op = std::make_unique<Operation>(Instruction::sign_extend);
         op->set_inputs(destination);
         op->set_outputs(sign_extension);
