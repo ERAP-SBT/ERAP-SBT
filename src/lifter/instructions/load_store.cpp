@@ -90,5 +90,5 @@ void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
     result_memory_token->set_op(std::move(operation));
 
     // write memory_token back
-    write_to_mapping(mapping, result_memory_token, MEM_IDX);
+    write_to_mapping(mapping, result_memory_token, MEM_IDX, false);
 }
