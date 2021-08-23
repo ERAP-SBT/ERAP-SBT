@@ -222,7 +222,7 @@ void Lifter::lift_float_move(BasicBlock *bb, const RV64Inst &instr, reg_map &map
 void Lifter::lift_float_comparison(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
     // check some invariants
     assert((instruction_type == Instruction::sle || instruction_type == Instruction::slt || instruction_type == Instruction::seq) &&
-           "This methods only handles the floating point comparisons 'fle', 'flt' and 'feq'!");
+           "This methods only handles the floating point comparisons 'sle', 'slt' and 'seq'!");
     assert((op_size == Type::f32 || op_size == Type::f64) && "This method only handles floating points!");
 
     // get the source variables
@@ -472,7 +472,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         positive_inifinty_test->set_op(std::move(op));
     }
 
-    // TODO: test whether source is a signaling NaN (all bits in the exponent are set && mantisse msb == 0 && mantisse != 0)
+    // test whether source is a signaling NaN (all bits in the exponent are set && mantisse msb == 0 && mantisse != 0)
     SSAVar *signaling_nan_test = bb->add_var(integer_op_size, ip);
     {
         // test whether the mantisse has the "correct" form
@@ -493,7 +493,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         }
     }
 
-    // TODO: test whether source is a quiet NaN (all bits in the exponent are set && the msb of the mantisse is set)
+    // test whether source is a quiet NaN (all bits in the exponent are set && the msb of the mantisse is set)
     SSAVar *quiet_nan_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::_and);
