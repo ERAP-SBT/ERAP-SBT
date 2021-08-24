@@ -30,6 +30,7 @@ const char panic_str[] = "PANIC: ";
 
 enum RV_SYSCALL_ID : uint32_t {
     RISCV_IOCTL = 29,
+    RISCV_MKDIRAT = 34,
     RISCV_FTRUNCATE = 46,
     RISCV_FCHMODAT = 53,
     RISCV_OPENAT = 56,
@@ -41,13 +42,15 @@ enum RV_SYSCALL_ID : uint32_t {
     RISCV_WRITEV = 66,
     RISCV_FSTATAT = 79,
     RISCV_FSTAT = 80,
+    RISCV_UTIME_NS_AT = 88,
     RISCV_EXIT = 93,
     RISCV_EXIT_GROUP = 94,
     RISCV_SET_TID_ADDR = 96,
     RISCV_CLOCK_GET_TIME = 113,
     RISCV_BRK = 214,
     RISCV_MUNMAP = 215,
-    RISCV_MMAP = 222
+    RISCV_MMAP = 222,
+    RISCV_MADVISE = 233
 };
 
 enum AMD64_SYSCALL_ID : uint32_t {
@@ -62,14 +65,17 @@ enum AMD64_SYSCALL_ID : uint32_t {
     AMD64_IOCTL = 16,
     AMD64_READV = 19,
     AMD64_WRITEV = 20,
+    AMD64_MADVISE = 28,
     AMD64_EXIT = 60,
     AMD64_FTRUNCATE = 77,
     AMD64_SET_TID_ADDR = 218,
     AMD64_CLOCK_GET_TIME = 228,
     AMD64_EXIT_GROUP = 231,
     AMD64_OPENAT = 257,
+    AMD64_MKDIRAT = 258,
     AMD64_NEWFSTATAT = 262,
     AMD64_FCHMODAT = 268,
+    AMD64_UTIME_NS_AT = 280,
 };
 
 struct auxv_t {
@@ -131,6 +137,8 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
     switch (id) {
     case RISCV_IOCTL:
         return syscall3(AMD64_IOCTL, arg0, arg1, arg2);
+    case RISCV_MKDIRAT:
+        return syscall3(AMD64_MKDIRAT, arg0, arg1, arg2);
     case RISCV_FTRUNCATE:
         return syscall2(AMD64_FTRUNCATE, arg0, arg1);
     case RISCV_FCHMODAT:
@@ -193,6 +201,8 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
         r_stat->st_uid = buf.st_uid;
         return result;
     }
+    case RISCV_UTIME_NS_AT:
+        return syscall4(AMD64_UTIME_NS_AT, arg0, arg1, arg2, arg3);
     case RISCV_EXIT:
         return syscall1(AMD64_EXIT, arg0);
     case RISCV_EXIT_GROUP:
@@ -207,6 +217,8 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
         return syscall2(AMD64_MUNMAP, arg0, arg1);
     case RISCV_MMAP:
         return syscall6(AMD64_MMAP, arg0, arg1, arg2, arg3, arg4, arg5);
+    case RISCV_MADVISE:
+        return syscall3(AMD64_MADVISE, arg0, arg1, arg2);
     default:
         break;
     }
