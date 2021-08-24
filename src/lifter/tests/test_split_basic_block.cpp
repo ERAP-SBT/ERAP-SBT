@@ -264,7 +264,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
             SSAVar *var = ptr.get();
 
             // skip statics
-            if (std::holds_alternative<size_t>(var->info)) {
+            if (var->is_static()) {
                 continue;
             }
             ASSERT_NE(std::find(vars_before.begin(), vars_before.end(), var), vars_before.end()) << "The first basic block contains a wrong variable!";
@@ -282,7 +282,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
             SSAVar *var = ptr.get();
 
             // skip statics
-            if (std::holds_alternative<size_t>(var->info)) {
+            if (var->is_static()) {
                 continue;
             }
 
