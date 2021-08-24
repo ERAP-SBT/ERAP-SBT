@@ -16,14 +16,6 @@ void Operation::set_inputs(SSAVar *in1, SSAVar *in2, SSAVar *in3, SSAVar *in4) {
     in_vars[1] = in2;
     in_vars[2] = in3;
     in_vars[3] = in4;
-
-    const_evaluable = true;
-    for (auto &var : in_vars) {
-        if (var) {
-            if (!var->const_evaluable)
-                const_evaluable = false;
-        }
-    }
 }
 
 void Operation::set_outputs(SSAVar *out1, SSAVar *out2, SSAVar *out3) {

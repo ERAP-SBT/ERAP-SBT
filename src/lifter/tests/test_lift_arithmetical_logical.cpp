@@ -77,7 +77,6 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_logical2) 
     Operation *operation = &last_var->get_operation();
 
     ASSERT_EQ(operation->type, Instruction::add) << "The operation has the wrong instruction type.";
-    ASSERT_FALSE(operation->const_evaluable) << "The operation must not be const evaluable.";
 
     // count the non-null input vars
     int count_input_vars = 0;
@@ -130,7 +129,6 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_logical3) 
     Operation *operation = &last_var->get_operation();
 
     ASSERT_EQ(operation->type, Instruction::sub) << "The operation has the wrong instruction type.";
-    ASSERT_FALSE(operation->const_evaluable) << "The operation must not be const evaluable.";
 
     // count the non-null input vars
     int count_input_vars = 0;
@@ -183,7 +181,6 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_immediate_
     Operation *operation = &last_var->get_operation();
 
     ASSERT_EQ(operation->type, Instruction::_xor) << "The operation has the wrong instruction type.";
-    ASSERT_FALSE(operation->const_evaluable) << "The operation must not be const evaluable.";
 
     // count the non-null input vars
     int count_input_vars = 0;
@@ -201,7 +198,6 @@ TEST_F(TestArithmeticalLogicalLifting, test_lift_arithmetical_logical_immediate_
 
     ASSERT_EQ(operation->in_vars[1]->type, Type::imm) << "The second operand should habe the type immediate.";
     ASSERT_EQ(last_ssa_id + 1, immediate_input_var->id) << "The id of the immediate ssavar is not set correctly.";
-    ASSERT_TRUE(operation->in_vars[1]->const_evaluable) << "The second operand (the immediate) should be const evaluable.";
     ASSERT_FALSE(immediate_input_var->is_static()) << "The immediate ssavar should not be marked as from static.";
 
     ASSERT_TRUE(immediate_input_var->is_immediate()) << "The info of the immediate ssavar should contain an immediate value.";
