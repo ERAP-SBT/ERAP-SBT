@@ -54,6 +54,7 @@ struct SSAVar : Refable {
     size_t id;
     Type type;
     bool const_evaluable = false;
+
     // immediate, static idx, op
     std::variant<std::monostate, ImmInfo, size_t, std::unique_ptr<Operation>> info;
 
@@ -67,6 +68,21 @@ struct SSAVar : Refable {
     SSAVar(const size_t id, const int64_t imm, const bool binary_relative = false) : id(id), type(Type::imm), const_evaluable(true), info(ImmInfo{imm, binary_relative}) {}
 
     void set_op(std::unique_ptr<Operation> &&ptr);
+
+    constexpr bool is_immediate() const { return std::holds_alternative<ImmInfo>(info); }
+    ImmInfo &get_immediate() { return std::get<ImmInfo>(info); }
+    const ImmInfo &get_immediate() const { return std::get<ImmInfo>(info); }
+
+    constexpr bool is_operation() const { return std::holds_alternative<std::unique_ptr<Operation>>(info); }
+    Operation &get_operation() { return *std::get<std::unique_ptr<Operation>>(info); }
+    const Operation &get_operation() const { return *std::get<std::unique_ptr<Operation>>(info); }
+    Operation *maybe_get_operation() { return is_operation() ? &get_operation() : nullptr; }
+    const Operation *maybe_get_operation() const { return is_operation() ? &get_operation() : nullptr; }
+
+    constexpr bool is_static() const { return std::holds_alternative<size_t>(info); }
+    size_t get_static() const { return std::get<size_t>(info); }
+
+    constexpr bool is_uninitialized() const { return std::holds_alternative<std::monostate>(info); }
 
     void print(std::ostream &, const IR *) const;
     void print_type_name(std::ostream &, const IR *) const;
