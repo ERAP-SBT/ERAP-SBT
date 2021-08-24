@@ -287,6 +287,21 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         lift_amo_max(bb, instr, mapping, ip, Type::i64, false);
         break;
 
+    /* ziscr */
+    case FRV_CSRRW:
+        //break;
+    case FRV_CSRRS:
+        //break;
+    case FRV_CSRRC:
+        //break;
+    case FRV_CSRRWI:
+        //break;
+    case FRV_CSRRSI:
+        //break;
+    case FRV_CSRRCI:
+        assert(0 && "ziscr!");
+        break;
+
     default:
         char instr_str[16];
         frv_format(&instr.instr, 16, instr_str);
