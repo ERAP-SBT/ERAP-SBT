@@ -60,8 +60,8 @@ bool BasicBlock::verify(std::vector<std::string> &messages_out) const {
             ok = false;
         }
 
-        if (auto op = std::get_if<std::unique_ptr<Operation>>(&var->info)) {
-            for (const auto &param : (*op)->in_vars) {
+        if (auto *op = var->maybe_get_operation()) {
+            for (const auto &param : op->in_vars) {
                 // Operation parameters must be declared before the operation itself
                 if (param) {
                     if (variable_ids.find(param->id) == variable_ids.end()) {
