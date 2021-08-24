@@ -18,9 +18,6 @@ struct Operation {
     // nothing (not rounded), static rounding mode, dynamic rounding with this variable
     std::variant<std::monostate, RoundingMode, SSAVar *> rounding_info = {};
 
-    // TODO: do we need that here?
-    bool const_evaluable = false;
-
     struct LifterInfo {
         Type in_op_size;
     };

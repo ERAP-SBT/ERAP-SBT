@@ -53,7 +53,6 @@ struct SSAVar : Refable {
 
     size_t id;
     Type type;
-    bool const_evaluable = false;
 
     // immediate, static idx, op
     std::variant<std::monostate, ImmInfo, size_t, std::unique_ptr<Operation>> info;
@@ -65,7 +64,7 @@ struct SSAVar : Refable {
 
     SSAVar(const size_t id, const Type type) : id(id), type(type), info(std::monostate{}) {}
     SSAVar(const size_t id, const Type type, const size_t static_idx) : id(id), type(type), info(static_idx), lifter_info(LifterInfo{0, static_idx}) {}
-    SSAVar(const size_t id, const int64_t imm, const bool binary_relative = false) : id(id), type(Type::imm), const_evaluable(true), info(ImmInfo{imm, binary_relative}) {}
+    SSAVar(const size_t id, const int64_t imm, const bool binary_relative = false) : id(id), type(Type::imm), info(ImmInfo{imm, binary_relative}) {}
 
     void set_op(std::unique_ptr<Operation> &&ptr);
 
