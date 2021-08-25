@@ -14,13 +14,12 @@ pushd toolchain
 # Download dependencies
 
 wget "https://ftp.gnu.org/gnu/binutils/binutils-2.35.2.tar.xz"
-wget "https://ftp.gnu.org/gnu/binutils/binutils-2.35.2.tar.xz.sig"
 
 wget "https://ftp.gnu.org/gnu/gcc/gcc-10.2.0/gcc-10.2.0.tar.xz"
-wget "https://ftp.gnu.org/gnu/gcc/gcc-10.2.0/gcc-10.2.0.tar.xz.sig"
 
-wget "https://musl.libc.org/releases/musl-1.2.2.tar.gz"
-wget "https://musl.libc.org/releases/musl-1.2.2.tar.gz.asc"
+#wget "https://musl.libc.org/releases/musl-1.2.2.tar.gz"
+
+wget "https://ftp.gnu.org/gnu/libc/glibc-2.34.tar.xz"
 
 # Verify checksums
 
@@ -32,7 +31,9 @@ tar -xvf binutils-2.35.2.tar.xz
 
 tar -xvf gcc-10.2.0.tar.xz
 
-tar -xvf musl-1.2.2.tar.gz
+#tar -xvf musl-1.2.2.tar.gz
+
+tar -xvf glibc-2.34.tar.xz
 
 SYSROOT="$PWD/sysroot" # XXX: symlink to build musl libc before running this script
 PATH="${SYSROOT}/bin:$PATH"
@@ -114,21 +115,21 @@ make -C gcc-build --output-sync install-gcc
 
 # Build musl-libc
 
-pushd musl-1.2.2
-CFLAGS="-march=rv64iac" \
-./configure \
-    --target=riscv64-linux-gnu \
-    --disable-shared \
-    --prefix="${SYSROOT}"
-popd
-
-make -C musl-1.2.2 -j3 --output-sync all
-make -C musl-1.2.2 -j3 --output-sync install
+#pushd musl-1.2.2
+#CFLAGS="-march=rv64iac" \
+#./configure \
+#    --target=riscv64-linux-gnu \
+#    --disable-shared \
+#    --prefix="${SYSROOT}"
+#popd
+#
+#make -C musl-1.2.2 -j3 --output-sync all
+#make -C musl-1.2.2 -j3 --output-sync install
 
 # Build gcc step 2
 
 # build libgcc using installed headers
-make -C gcc-build -j3 --output-sync all-target-libgcc
-make -C gcc-build -j3 --output-sync install-target-libgcc
+#make -C gcc-build -j3 --output-sync all-target-libgcc
+#make -C gcc-build -j3 --output-sync install-target-libgcc
 
 popd
