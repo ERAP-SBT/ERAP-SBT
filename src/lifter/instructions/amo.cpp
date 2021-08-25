@@ -130,14 +130,28 @@ void Lifter::lift_amo_and(BasicBlock *bb, const RV64Inst &instr, reg_map &mappin
     store_val_to_rs1(bb, instr, mapping, ip, op_size, op_result);
 }
 
-void Lifter::lift_amo_min([[maybe_unused]] BasicBlock *bb, [[maybe_unused]] const RV64Inst &instr, [[maybe_unused]] reg_map &mapping, [[maybe_unused]] uint64_t ip, [[maybe_unused]] const Type op_size,
-                          [[maybe_unused]] bool _signed) {
-    // TODO: not implemented
-    bb->add_cf_op(CFCInstruction::unreachable, nullptr, ip);
+void Lifter::lift_amo_min_max(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, const uint64_t ip, const Type op_size, const Instruction instr_type) {
+    SSAVar *cmp2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
+
+    load_rs1_to_rd(bb, instr, mapping, ip, op_size);
+
+    SSAVar *cmp1 = get_from_mapping(bb, mapping, instr.instr.rd, ip);
+
+    SSAVar *op_result = bb->add_var(op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(instr_type);
+        op->set_inputs(cmp1, cmp2);
+        op->set_outputs(op_result);
+        op_result->set_op(std::move(op));
+    }
+
+    store_val_to_rs1(bb, instr, mapping, ip, op_size, op_result);
 }
 
-void Lifter::lift_amo_max([[maybe_unused]] BasicBlock *bb, [[maybe_unused]] const RV64Inst &instr, [[maybe_unused]] reg_map &mapping, [[maybe_unused]] uint64_t ip, [[maybe_unused]] const Type op_size,
-                          [[maybe_unused]] bool _signed) {
-    // TODO: not implemented
-    bb->add_cf_op(CFCInstruction::unreachable, nullptr, ip);
+void Lifter::lift_amo_min(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, const uint64_t ip, const Type op_size, const bool _signed) {
+    lift_amo_min_max(bb, instr, mapping, ip, op_size, _signed ? Instruction::smin : Instruction::min);
+}
+
+void Lifter::lift_amo_max(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, const uint64_t ip, const Type op_size, const bool _signed) {
+    lift_amo_min_max(bb, instr, mapping, ip, op_size, _signed ? Instruction::smax : Instruction::max);
 }

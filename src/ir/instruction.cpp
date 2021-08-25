@@ -71,6 +71,18 @@ std::ostream &operator<<(std::ostream &stream, Instruction instr) {
     case Instruction::sltu:
         stream << "sltu";
         break;
+    case Instruction::max:
+        stream << "max";
+        break;
+    case Instruction::min:
+        stream << "min";
+        break;
+    case Instruction::smax:
+        stream << "smax";
+        break;
+    case Instruction::smin:
+        stream << "smin";
+        break;
     }
 
     return stream;
