@@ -6,6 +6,8 @@
 #include <string.h>
 #include <sys/stat.h>
 
+// ZIP-Lib from https://github.com/kuba--/zip
+
 void print_help(const char *file_name);
 int compress_files(const char *file_target, const char **files_to_compress, int count);
 int decompress_files(const char **files_to_decompress, int count);
