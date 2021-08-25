@@ -8,8 +8,8 @@ set -x
 set -u
 set -o pipefail
 
-mkdir big_tests
-pushd big_tests
+mkdir toolchain
+pushd toolchain
 
 # Download dependencies
 
