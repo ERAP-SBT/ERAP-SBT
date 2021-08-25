@@ -40,16 +40,20 @@ enum RV_SYSCALL_ID : uint32_t {
     RISCV_WRITE = 64,
     RISCV_READV = 65,
     RISCV_WRITEV = 66,
+    RISCV_READ_LINK_AT = 78,
     RISCV_FSTATAT = 79,
     RISCV_FSTAT = 80,
     RISCV_UTIME_NS_AT = 88,
     RISCV_EXIT = 93,
     RISCV_EXIT_GROUP = 94,
     RISCV_SET_TID_ADDR = 96,
+    RISCV_FUTEX = 98,
     RISCV_CLOCK_GET_TIME = 113,
+    RISCV_UNAME = 160,
     RISCV_BRK = 214,
     RISCV_MUNMAP = 215,
     RISCV_MMAP = 222,
+    RISCV_MPROTECT = 226,
     RISCV_MADVISE = 233
 };
 
@@ -60,6 +64,7 @@ enum AMD64_SYSCALL_ID : uint32_t {
     AMD64_FSTAT = 5,
     AMD64_LSEEK = 8,
     AMD64_MMAP = 9,
+    AMD64_MPROTECT = 10,
     AMD64_MUNMAP = 11,
     AMD64_BRK = 12,
     AMD64_IOCTL = 16,
@@ -67,13 +72,16 @@ enum AMD64_SYSCALL_ID : uint32_t {
     AMD64_WRITEV = 20,
     AMD64_MADVISE = 28,
     AMD64_EXIT = 60,
+    AMD64_UNAME = 63,
     AMD64_FTRUNCATE = 77,
+    AMD64_FUTEX = 202,
     AMD64_SET_TID_ADDR = 218,
     AMD64_CLOCK_GET_TIME = 228,
     AMD64_EXIT_GROUP = 231,
     AMD64_OPENAT = 257,
     AMD64_MKDIRAT = 258,
     AMD64_NEWFSTATAT = 262,
+    AMD64_READ_LINK_AT = 267,
     AMD64_FCHMODAT = 268,
     AMD64_UTIME_NS_AT = 280,
 };
@@ -157,6 +165,8 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
         return syscall3(AMD64_READV, arg0, arg1, arg2);
     case RISCV_WRITEV:
         return syscall3(AMD64_WRITEV, arg0, arg1, arg2);
+    case RISCV_READ_LINK_AT:
+        return syscall4(AMD64_READ_LINK_AT, arg0, arg1, arg2, arg3);
     case RISCV_FSTATAT: {
         struct stat buf = {};
         const auto result = syscall4(AMD64_NEWFSTATAT, arg0, arg1, reinterpret_cast<uint64_t>(&buf), arg3);
@@ -209,14 +219,20 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
         return syscall1(AMD64_EXIT_GROUP, arg0);
     case RISCV_SET_TID_ADDR:
         return syscall1(AMD64_SET_TID_ADDR, arg0);
+    case RISCV_FUTEX:
+        return syscall6(AMD64_FUTEX, arg0, arg1, arg2, arg3, arg4, arg5);
     case RISCV_CLOCK_GET_TIME:
         return syscall2(AMD64_CLOCK_GET_TIME, arg0, arg1);
+    case RISCV_UNAME:
+        return syscall1(AMD64_UNAME, arg0);
     case RISCV_BRK:
         return syscall1(AMD64_BRK, arg0);
     case RISCV_MUNMAP:
         return syscall2(AMD64_MUNMAP, arg0, arg1);
     case RISCV_MMAP:
         return syscall6(AMD64_MMAP, arg0, arg1, arg2, arg3, arg4, arg5);
+    case RISCV_MPROTECT:
+        return syscall3(AMD64_MPROTECT, arg0, arg1, arg2);
     case RISCV_MADVISE:
         return syscall3(AMD64_MADVISE, arg0, arg1, arg2);
     default:
