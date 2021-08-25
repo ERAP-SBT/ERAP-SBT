@@ -79,3 +79,5 @@ zip-utility:
     - build
   script:
     - tests/simple_zip/test.sh riscv64-linux-gnu-gcc
+  tags:
+    - mem_intensive
