@@ -29,6 +29,7 @@ build:
     - ninja -C build
   artifacts:
     paths:
+      - "build/src/generator/x86_64/helper/libhelper.a"
       - "build/src/generator/libgenerator.a"
       - "build/src/ir/libir.a"
       - "build/src/lifter/liblifter.a"
