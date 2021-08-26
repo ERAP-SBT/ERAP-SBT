@@ -289,17 +289,19 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
 
     /* ziscr */
     case FRV_CSRRW:
-        //break;
-    case FRV_CSRRS:
-        //break;
+        lift_csr_read_write(bb, instr, mapping, ip, false);
+        break;
+    case FRV_CSRRS
+        lift_csr_read_set(bb, instr, mapping, ip, false);
+        break;
     case FRV_CSRRC:
-        //break;
+        lift_csr_read_clear(bb, instr, mapping, ip, false);
+        break;
     case FRV_CSRRWI:
-        //break;
+        break;
     case FRV_CSRRSI:
-        //break;
+        break;
     case FRV_CSRRCI:
-        assert(0 && "ziscr!");
         break;
 
     default:
