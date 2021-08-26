@@ -291,17 +291,20 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_CSRRW:
         lift_csr_read_write(bb, instr, mapping, ip, false);
         break;
-    case FRV_CSRRS
+    case FRV_CSRRS:
         lift_csr_read_set(bb, instr, mapping, ip, false);
         break;
     case FRV_CSRRC:
         lift_csr_read_clear(bb, instr, mapping, ip, false);
         break;
     case FRV_CSRRWI:
+        lift_csr_read_write(bb, instr, mapping, ip, true);
         break;
     case FRV_CSRRSI:
+        lift_csr_read_set(bb, instr, mapping, ip, true);
         break;
     case FRV_CSRRCI:
+        lift_csr_read_clear(bb, instr, mapping, ip, true);
         break;
 
     default:
