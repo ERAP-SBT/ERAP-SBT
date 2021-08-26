@@ -6,18 +6,18 @@ SSAVar *Lifter::get_csr(reg_map &mapping, uint32_t csr_identifier) {
     // TODO: implement correctly, e.g. for fcsr
 
     // prevent build warnings
-    (void) mapping;
-    (void) csr_identifier;
+    (void)mapping;
+    (void)csr_identifier;
     return nullptr;
 }
 
 void Lifter::write_csr(reg_map &mapping, SSAVar *new_csr, uint32_t csr_identifier) {
     // TODO: implement correctly, e.g. for fcsr
-    
+
     // prevent build warnings
-    (void) mapping;
-    (void) new_csr;
-    (void) csr_identifier;
+    (void)mapping;
+    (void)new_csr;
+    (void)csr_identifier;
 }
 
 void Lifter::lift_csr_read_write(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, bool with_immediate) {
