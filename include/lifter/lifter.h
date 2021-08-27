@@ -105,7 +105,7 @@ class Lifter {
     static SSAVar *get_csr(reg_map &mapping, uint32_t csr_identifier);
 
     static void write_csr(reg_map &mapping, SSAVar *new_csr, uint32_t csr_identifier);
-    
+
     // floating points
 
     static void lift_sqrt(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size);
