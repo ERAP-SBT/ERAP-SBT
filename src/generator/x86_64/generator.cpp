@@ -151,6 +151,7 @@ void Generator::compile_ijump_lookup() {
     /* Incredibly space inefficient but also O(1) fast */
     for (uint64_t i = ir->virt_bb_start_addr; i < ir->virt_bb_end_addr; i += 2) {
         const auto bb = ir->bb_at_addr(i);
+        fprintf(out_fd, "/* 0x%#.8lx: */", i);
         if (bb != nullptr && bb->virt_start_addr == i) {
             fprintf(out_fd, ".8byte b%zu\n", bb->id);
         } else {
@@ -260,8 +261,20 @@ void Generator::compile_ijump(const BasicBlock *block, const CfOp &op) {
         }
 
         fprintf(out_fd, "# s%zu from var v%zu\n", s_idx, var->id);
-        fprintf(out_fd, "xor rax, rax\n");
-        fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+
+        if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(var->info)) {
+            const auto orig_static_idx = std::get<size_t>(var->info);
+            if (orig_static_idx == s_idx) {
+                fprintf(out_fd, "# Skipped\n");
+                continue;
+            }
+            fprintf(out_fd, "xor rax, rax\n");
+            fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(var->type), orig_static_idx);
+        } else {
+            fprintf(out_fd, "xor rax, rax\n");
+            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+        }
+
         fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
     }
 
@@ -339,8 +352,35 @@ void Generator::compile_vars(const BasicBlock *block) {
                 continue;
             }
 
+            if (optimizations & OPT_UNUSED_STATIC) {
+                auto has_var_ref = false;
+                for (size_t j = idx + 1; j < block->variables.size(); ++j) {
+                    const auto *var2 = block->variables[j].get();
+                    if (!std::holds_alternative<std::unique_ptr<Operation>>(var2->info)) {
+                        continue;
+                    }
+
+                    const auto *op = std::get<std::unique_ptr<Operation>>(var2->info).get();
+                    for (const auto &in_var : op->in_vars) {
+                        if (in_var && in_var == var) {
+                            has_var_ref = true;
+                            break;
+                        }
+                    }
+                    if (has_var_ref) {
+                        break;
+                    }
+                }
+
+                if (!has_var_ref) {
+                    fprintf(out_fd, "# Skipped\n");
+                    continue;
+                }
+            }
+
+            const auto *reg_str = rax_from_type(var->type);
             fprintf(out_fd, "mov rax, [s%zu]\n", std::get<size_t>(var->info));
-            fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", idx, rax_from_type(var->type));
+            fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", idx, reg_str);
             continue;
         }
 
@@ -502,8 +542,6 @@ void Generator::compile_vars(const BasicBlock *block) {
 
 void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
     const auto *target = cf_op.target();
-    printf("Target: %zu, CFOP: %zu\n", target->inputs.size(), cf_op.target_inputs().size());
-    fflush(stdout);
     assert(target->inputs.size() == cf_op.target_inputs().size());
     for (size_t i = 0; i < cf_op.target_inputs().size(); ++i) {
         const auto *target_var = target->inputs[i];
@@ -517,17 +555,34 @@ void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
         }
 
         fprintf(out_fd, "# Setting input %zu\n", i);
-        if (std::holds_alternative<size_t>(target_var->info)) {
+
+        const auto target_is_static = std::holds_alternative<size_t>(target_var->info);
+        if (std::holds_alternative<size_t>(source_var->info)) {
+            if (optimizations & OPT_UNUSED_STATIC) {
+                if (target_is_static && std::get<size_t>(source_var->info) == std::get<size_t>(target_var->info)) {
+                    // TODO: see this as a different optimization?
+                    fprintf(out_fd, "# Skipped\n");
+                    continue;
+                } else {
+                    // when using the unused static optimization, the static load might have been optimized out
+                    // so we need to get the static directly
+                    fprintf(out_fd, "xor rax, rax\n");
+                    fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(source_var->type), std::get<size_t>(source_var->info));
+                }
+            } else {
+                fprintf(out_fd, "xor rax, rax\n");
+                fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(source_var->type), index_for_var(block, source_var));
+            }
+        } else {
             fprintf(out_fd, "xor rax, rax\n");
             fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(source_var->type), index_for_var(block, source_var));
-            fprintf(out_fd, "mov [s%zu], rax\n", std::get<size_t>(target_var->info));
-            continue;
         }
 
-        // from normal var
-        fprintf(out_fd, "xor rax, rax\n");
-        fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(source_var->type), index_for_var(block, source_var));
-        fprintf(out_fd, "mov qword ptr [rbx], rax\nadd rbx, 8\n");
+        if (target_is_static) {
+            fprintf(out_fd, "mov [s%zu], rax\n", std::get<size_t>(target_var->info));
+        } else {
+            fprintf(out_fd, "mov qword ptr [rbx], rax\nadd rbx, 8\n");
+        }
     }
 
     // destroy stack space
@@ -541,8 +596,18 @@ void Generator::compile_ret_args(const BasicBlock *block, const CfOp &op) {
     assert(op.info.index() == 2);
     const auto &ret_info = std::get<CfOp::RetInfo>(op.info);
     for (const auto &[var, s_idx] : ret_info.mapping) {
-        fprintf(out_fd, "xor rax, rax\n");
-        fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+        if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(var->info)) {
+            if (std::get<size_t>(var->info) == s_idx) {
+                fprintf(out_fd, "# Skipped\n");
+                continue;
+            }
+            fprintf(out_fd, "xor rax, rax\n");
+            fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(var->type), std::get<size_t>(var->info));
+        } else {
+            fprintf(out_fd, "xor rax, rax\n");
+            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+        }
+
         fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
     }
 
@@ -556,8 +621,18 @@ void Generator::compile_cjump(const BasicBlock *block, const CfOp &cf_op, const 
     assert(cf_op.info.index() == 1);
     // this breaks when the arg mapping is changed
     fprintf(out_fd, "# Get CJump Args\nxor rax, rax\nxor rbx, rbx\n");
-    fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(cf_op.in_vars[0]->type), index_for_var(block, cf_op.in_vars[0]));
-    fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", op_reg_map_for_type(cf_op.in_vars[1]->type)[1], index_for_var(block, cf_op.in_vars[1]));
+    if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(cf_op.in_vars[0]->info)) {
+        // load might be optimized out so get the value directly
+        fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(cf_op.in_vars[0]->type), std::get<size_t>(cf_op.in_vars[0]->info));
+    } else {
+        fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(cf_op.in_vars[0]->type), index_for_var(block, cf_op.in_vars[0]));
+    }
+    if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(cf_op.in_vars[1]->info)) {
+        // load might be optimized out so get the value directly
+        fprintf(out_fd, "mov %s, [s%zu]\n", op_reg_map_for_type(cf_op.in_vars[1]->type)[1], std::get<size_t>(cf_op.in_vars[1]->info));
+    } else {
+        fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", op_reg_map_for_type(cf_op.in_vars[1]->type)[1], index_for_var(block, cf_op.in_vars[1]));
+    }
     fprintf(out_fd, "cmp rax, rbx\n");
 
     fprintf(out_fd, "# Check CJump cond\n");
@@ -593,14 +668,19 @@ void Generator::compile_syscall(const BasicBlock *block, const CfOp &cf_op) {
     compile_continuation_args(block, info.continuation_mapping);
 
     for (size_t i = 0; i < call_reg.size(); ++i) {
-        if (cf_op.in_vars[i] == nullptr)
+        const auto &var = cf_op.in_vars[i];
+        if (!var)
             break;
 
-        if (cf_op.in_vars[i]->type == Type::mt)
+        if (var->type == Type::mt)
             continue;
 
         fprintf(out_fd, "# syscall argument %lu\n", i);
-        fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", call_reg[i], index_for_var(block, cf_op.in_vars[i]));
+        if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(var->info)) {
+            fprintf(out_fd, "mov %s, [s%zu]\n", call_reg[i], std::get<size_t>(var->info));
+        } else {
+            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", call_reg[i], index_for_var(block, var));
+        }
     }
     if (cf_op.in_vars[6] == nullptr) {
         fprintf(out_fd, "push 0\n");
@@ -630,8 +710,19 @@ void Generator::compile_continuation_args(const BasicBlock *block, const std::ve
             continue;
         }
 
-        fprintf(out_fd, "xor rax, rax\n");
-        fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+        if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(var->info)) {
+            const auto orig_static_idx = std::get<size_t>(var->info);
+            if (orig_static_idx == s_idx) {
+                fprintf(out_fd, "# Skipped\n");
+                continue;
+            }
+            fprintf(out_fd, "xor rax, rax\n");
+            fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(var->type), orig_static_idx);
+        } else {
+            fprintf(out_fd, "xor rax, rax\n");
+            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+        }
+
         fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
     }
 }

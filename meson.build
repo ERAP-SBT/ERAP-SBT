@@ -15,6 +15,8 @@ inc = include_directories('include')
 
 subdir('src')
 
+subdir('examples')
+
 # Docs target (this must be run manually)
 doxygen = find_program('doxygen', required : false)
 if doxygen.found()
