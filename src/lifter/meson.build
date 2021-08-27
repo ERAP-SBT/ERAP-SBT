@@ -12,6 +12,7 @@ lifter_sources = [
     'instructions/mul_div.cpp',
     'instructions/shifts.cpp',
     'instructions/amo.cpp',
+    'instructions/ziscr.cpp'
 ]
 
 lifter = static_library('lifter', lifter_sources,

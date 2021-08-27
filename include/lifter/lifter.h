@@ -92,6 +92,17 @@ class Lifter {
     static void lift_amo_min(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size, bool _signed);
     static void lift_amo_max(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size, bool _signed);
 
+    // ziscr and ziscr helpers
+    static void lift_csr_read_write(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, bool with_immediate);
+
+    static void lift_csr_read_set(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, bool with_immediate);
+
+    static void lift_csr_read_clear(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, bool with_immediate);
+
+    static SSAVar *get_csr(reg_map &mapping, uint32_t csr_identifier);
+
+    static void write_csr(reg_map &mapping, SSAVar *new_csr, uint32_t csr_identifier);
+
     // helpers for lifting and code reduction
     static SSAVar *load_immediate(BasicBlock *bb, int64_t imm, uint64_t ip, bool binary_relative);
 
