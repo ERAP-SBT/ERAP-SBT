@@ -212,7 +212,13 @@ void Generator::compile_blocks() {
     compile_section(Section::TEXT);
 
     for (const auto &block : ir->basic_blocks) {
-        compile_block(block.get());
+        /*if (block->id <= 7000) {
+            compile_block_reg_alloc(block.get());
+        } else {
+            compile_block(block.get());
+        }*/
+        //compile_block(block.get());
+        compile_block_reg_alloc(block.get());
     }
 }
 

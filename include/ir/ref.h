@@ -47,7 +47,7 @@ template <typename T> struct RefPtr {
 
     const T *operator->() const { return _ptr; }
 
-    T *get() { return _ptr; }
+    T *get() const { return _ptr; }
 
     operator T *() { return _ptr; }
 

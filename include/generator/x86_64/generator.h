@@ -31,6 +31,7 @@ struct Generator {
     void compile_phdr_info();
     void compile_blocks();
     void compile_block(const BasicBlock *block);
+    void compile_block_reg_alloc(const BasicBlock *block);
     void compile_entry();
     void compile_err_msgs();
     void compile_ijump_lookup();
