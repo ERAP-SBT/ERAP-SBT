@@ -26,11 +26,11 @@ void Lifter::lift_csr_read_write(BasicBlock *bb, const RV64Inst &instr, reg_map 
     if (instr.instr.rd != 0) {
         // the identifier for the csr is in the immediate field
         SSAVar *csr = get_csr(mapping, instr.instr.imm);
-        write_to_mapping(mapping, csr, instr.instr.rd);
+        write_to_mapping(mapping, csr, instr.instr.rd, false);
     }
 
     // if the instruction contains an immediate, the immediate is encoded in the rs1 field
-    SSAVar *new_csr = with_immediate ? bb->add_var_imm(instr.instr.rs1, ip) : get_from_mapping(bb, mapping, instr.instr.rs1, ip);
+    SSAVar *new_csr = with_immediate ? bb->add_var_imm(instr.instr.rs1, ip) : get_from_mapping(bb, mapping, instr.instr.rs1, ip, false);
     write_csr(mapping, new_csr, instr.instr.imm);
 }
 
@@ -38,7 +38,7 @@ void Lifter::lift_csr_read_set(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     // move the crs value to the dest "register"
     // the identifier for the csr is in the immediate field
     SSAVar *csr = get_csr(mapping, instr.instr.imm);
-    write_to_mapping(mapping, csr, instr.instr.rd);
+    write_to_mapping(mapping, csr, instr.instr.rd, false);
 
     // dont't write to the csr if the immediate is zero or the register is x0, in both cases rs1 is zero
     if (instr.instr.rs1 == 0) {
@@ -49,7 +49,7 @@ void Lifter::lift_csr_read_set(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         // the unmodified value back to the CSR and will cause any attendant side effects.
 
         // set all bits as specified by the mask
-        SSAVar *rs1 = with_immediate ? bb->add_var_imm(instr.instr.rs1, ip) : get_from_mapping(bb, mapping, instr.instr.rs1, ip);
+        SSAVar *rs1 = with_immediate ? bb->add_var_imm(instr.instr.rs1, ip) : get_from_mapping(bb, mapping, instr.instr.rs1, ip, false);
         SSAVar *new_csr = bb->add_var(Type::i64, ip);
 
         auto op = std::make_unique<Operation>(Instruction::_or);
@@ -64,7 +64,7 @@ void Lifter::lift_csr_read_clear(BasicBlock *bb, const RV64Inst &instr, reg_map 
     // move the crs value to the dest "register"
     // the identifier for the csr is in the immediate field
     SSAVar *csr = get_csr(mapping, instr.instr.imm);
-    write_to_mapping(mapping, csr, instr.instr.rd);
+    write_to_mapping(mapping, csr, instr.instr.rd, false);
 
     // dont't write to the csr if the immediate is zero or the register is x0, in both cases rs1 is zero
     if (instr.instr.rs1 == 0) {
@@ -81,7 +81,7 @@ void Lifter::lift_csr_read_clear(BasicBlock *bb, const RV64Inst &instr, reg_map 
             negated_rs1 = bb->add_var_imm(~((uint64_t)(instr.instr.rs1)), ip);
         } else {
             negated_rs1 = bb->add_var(Type::i64, ip);
-            SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
+            SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip, false);
             auto op = std::make_unique<Operation>(Instruction::_not);
             op->set_inputs(rs1);
             op->set_outputs(negated_rs1);
