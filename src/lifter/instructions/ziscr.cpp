@@ -1,23 +1,45 @@
+#include <frvdec.h>
 #include <lifter/lifter.h>
 
 using namespace lifter::RV64;
 
 SSAVar *Lifter::get_csr(reg_map &mapping, uint32_t csr_identifier) {
-    // TODO: implement correctly, e.g. for fcsr
+    // return the var of the fcsr register with id 3
+    switch (csr_identifier) {
+    case 1:
+    case 2:
+    case 3:
+        return mapping[FCSR_IDX];
+    default:
+        // stop lifting if status register is not implemented
+        std::stringstream str{};
+        str << "Implement more control and status registers!\n csr_identifier = " << csr_identifier << "\n";
+        DEBUG_LOG(str.str());
 
-    // prevent build warnings
-    (void)mapping;
-    (void)csr_identifier;
+        assert(0);
+        exit(1);
+        break;
+    }
+
     return nullptr;
 }
 
 void Lifter::write_csr(reg_map &mapping, SSAVar *new_csr, uint32_t csr_identifier) {
-    // TODO: implement correctly, e.g. for fcsr
-
-    // prevent build warnings
-    (void)mapping;
-    (void)new_csr;
-    (void)csr_identifier;
+    // return the var of the fcsr register with id 3
+    switch (csr_identifier) {
+    case 1:
+    case 2:
+    case 3:
+        mapping[FCSR_IDX] = new_csr;
+        break;
+    default:
+        // stop lifting if status register is not implemented
+        std::stringstream str{};
+        str << "Implement more control and status registers!\n csr_identifier = " << csr_identifier << "\n";
+        DEBUG_LOG(str.str());
+        assert(0);
+        exit(1);
+    }
 }
 
 void Lifter::lift_csr_read_write(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, bool with_immediate) {

@@ -34,15 +34,21 @@ void Lifter::lift(Program *prog) {
     needs_bb_start.resize(ir->virt_bb_ptrs.size());
     needs_bb_start[(prog->elf_base->header.e_entry - ir->virt_bb_start_addr)] = true;
 
+    // add statics for interger/general purpose registers
     for (size_t i = 0; i < 32; i++) {
         ir->add_static(Type::i64);
     }
 
+    // add statics for floating point regsiters
     for (size_t i = 0; i < 32; i++) {
         ir->add_static(Type::f64);
     }
-    // add the memory token as the last static slot
+
+    // add static for the memory token
     ir->add_static(Type::mt);
+
+    // add static for the fcsr
+    ir->add_static(Type::i64);
 
     BasicBlock *cur_bb = nullptr;
     reg_map mapping;
