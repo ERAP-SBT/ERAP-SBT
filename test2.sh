@@ -1,12 +1,13 @@
 #!/bin/bash
-
 # You need the following dependencies:
-# sudo apt-get install -y libmpfr-dev libmpc-dev zlib1g zlib1g-dev
+# sudo apt-get install -y libmpfr-dev libmpc-dev zlib1g zlib1g-dev linux-headers-amd64 gawk bison
 
 set -e
 set -x
 set -u
 set -o pipefail
+
+JOBS="-j$(nproc)"
 
 mkdir toolchain
 pushd toolchain
@@ -58,8 +59,8 @@ pushd binutils-build
     --with-system-zlib
 popd
 
-make -C binutils-build -j3 --output-sync all
-make -C binutils-build -j3 --output-sync install
+make -C binutils-build ${JOBS} --output-sync all
+make -C binutils-build ${JOBS} --output-sync install
 
 # Build gcc step 1
 
@@ -110,26 +111,41 @@ popd
 
 # build riscv64-linux-gnu-gcc cross compiler
 # Seperate make invocations because gccs Makefile is fragile
-make -C gcc-build -j3 --output-sync all-gcc
-make -C gcc-build --output-sync install-gcc
+make -C gcc-build ${JOBS} --output-sync all-gcc
+make -C gcc-build ${JOBS} --output-sync install-gcc
+
+
+# Build glibc
+
+CFLAGS="-march=rv64iac"
 
 # Build musl-libc
 
-#pushd musl-1.2.2
-#CFLAGS="-march=rv64iac" \
-#./configure \
-#    --target=riscv64-linux-gnu \
-#    --disable-shared \
-#    --prefix="${SYSROOT}"
-#popd
-#
-#make -C musl-1.2.2 -j3 --output-sync all
-#make -C musl-1.2.2 -j3 --output-sync install
+# linux-libc-dev-riscv64-cross
+# NOTE: uses linux-headers-amd64 of the host, I'm really not sure if that is correct ...
+pushd sysroot
+ln -sv /usr/riscv64-linux-gnu/include/linux include/linux
+ln -sv /usr/riscv64-linux-gnu/include/asm include/asm
+ln -sv /usr/riscv64-linux-gnu/include/asm-generic include/asm-generic
+popd
 
-# Build gcc step 2
+mkdir glibc-build
+pushd glibc-build
+../glibc-2.34/configure \
+    --host=riscv64-linux-gnu \
+    --prefix="${SYSROOT}"
+popd
+
+# install-others: installs the header <gnu/stubs.h> that is required by libgcc
+# apparently an issue since 2003: https://gcc.gnu.org/legacy-ml/gcc-patches/2003-11/msg00612.html
+make -C glibc-build ${JOBS} --output-sync install-headers "${SYSROOT}/include/gnu/stubs.h"
 
 # build libgcc using installed headers
-#make -C gcc-build -j3 --output-sync all-target-libgcc
-#make -C gcc-build -j3 --output-sync install-target-libgcc
+make -C gcc-build ${JOBS} --output-sync all-target-libgcc
+make -C gcc-build ${JOBS} --output-sync install-target-libgcc
+
+# glibc depends on libgcc
+make -C glibc-build ${JOBS}  --output-sync all
+make -C glibc-build ${JOBS}  --output-sync install
 
 popd
