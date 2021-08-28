@@ -33,15 +33,21 @@ void Lifter::lift(Program *prog) {
     uint64_t start_addr = prog->elf_base->header.e_entry;
     Function *curr_fun = ir->add_func();
 
+    // add statics for interger/general purpose registers
     for (size_t i = 0; i < 32; i++) {
         ir->add_static(Type::i64);
     }
 
+    // add statics for floating point regsiters
     for (size_t i = 0; i < 32; i++) {
         ir->add_static(Type::f64);
     }
-    // add the memory token as the last static slot
+
+    // add static for the memory token
     ir->add_static(Type::mt);
+
+    // add static for the fcsr
+    ir->add_static(Type::i64);
 
     BasicBlock *first_bb = ir->add_basic_block(start_addr, prog->elf_base->symbol_str_at_addr(start_addr).value_or(""));
     {

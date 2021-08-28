@@ -8,8 +8,8 @@ namespace lifter::RV64 {
 /* maximum number of riscv64 instructions a basicblock can have while lifting */
 constexpr size_t BASIC_BLOCK_MAX_INSTRUCTIONS = 10000;
 
-/* amount of static variables: zero register (x0) + 31 general purpose registers (x1-x31) + 32 floating point registers (f0-f31) + memory token*/
-constexpr size_t COUNT_STATIC_VARS = 65;
+/* amount of static variables: zero register (x0) + 31 general purpose registers (x1-x31) + 32 floating point registers (f0-f31) + memory token + fcsr*/
+constexpr size_t COUNT_STATIC_VARS = 66;
 
 class Lifter {
   public:
@@ -27,6 +27,9 @@ class Lifter {
     // Index of memory token in <reg_map> register mapping
     static constexpr size_t MEM_IDX = 64;
 
+    // Index of the fcsr register in <reg_map> register mapping
+    static constexpr size_t FCSR_IDX = 65;
+
     // Depth of jump address backtracking
     static constexpr int MAX_ADDRESS_SEARCH_DEPTH = 10;
 
@@ -35,7 +38,9 @@ class Lifter {
 
     // {0}: not used
     // {1, ..., 31}: RV-Registers
-    // {32}: the last valid memory token
+    // {32, ..., 63}: FP-Registers
+    // {64}: the last valid memory token
+    // {65}: fcsr
     using reg_map = std::array<SSAVar *, COUNT_STATIC_VARS>;
 
     // currently used for unresolved jumps

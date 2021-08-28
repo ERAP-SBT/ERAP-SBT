@@ -149,7 +149,7 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
             auto op = std::make_unique<Operation>(Instruction::_and);
             op->set_inputs(rs1, sign_bit_extraction_mask);
             op->set_outputs(sign_rs1);
-            sign_rs2->set_op(std::move(op));
+            sign_rs1->set_op(std::move(op));
         }
 
         // examine the new sign bit: sign_rs1 xor sign_rs2
