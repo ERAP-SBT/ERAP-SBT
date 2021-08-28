@@ -85,15 +85,47 @@ void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr
     assert((is_from_floating_point || is_to_floating_point) && "For conversion, at least one variable has to be an floating point!");
     assert(((is_from_floating_point && is_to_floating_point) ? _signed : true) && "Conversion between floating points is always signed!");
 
+    /*if (instr.instr.misc != 0) {
+        std::stringstream str{};
+        str << "misc = " << std::hex << (instr.instr.misc + 0) << "\n";
+        char buf[101];
+        frv_format(&instr.instr, 100, buf);
+        str << "instr = " << buf << "\n";
+        DEBUG_LOG(str.str());
+        assert(0);
+    } */
+
     // get the source variable from the mapping
     SSAVar *src = get_from_mapping(bb, mapping, instr.instr.rs1, ip, is_from_floating_point);
+
+    RoundingMode rounding_mode_val;
+    switch (instr.instr.misc) {
+    case 0:
+        rounding_mode_val = RoundingMode::RNEAREST;
+        break;
+    case 1:
+        rounding_mode_val = RoundingMode::RZERO;
+        break;
+    case 2:
+        rounding_mode_val = RoundingMode::RDOWN;
+        break;
+    case 3:
+        rounding_mode_val = RoundingMode::RUP;
+        break;
+    default:
+        // TODO: Implement dynamic rounding
+        assert(0 && "Dynamic rounding is currently not supported!");
+        break;
+    }
+
+    SSAVar *rounding_mode = bb->add_var_imm((uint64_t)rounding_mode_val, ip);
 
     // create the result variable
     SSAVar *dest = bb->add_var(to, ip);
 
     // create the operation and assign in- and outputs
     auto op = std::make_unique<Operation>(_signed ? Instruction::convert : Instruction::uconvert);
-    op->set_inputs(src);
+    op->set_inputs(src, rounding_mode);
     op->set_outputs(dest);
     dest->set_op(std::move(op));
 
