@@ -34,28 +34,7 @@ void Lifter::lift(Program *prog) {
     needs_bb_start.resize(ir->virt_bb_ptrs.size());
     needs_bb_start[(prog->elf_base->header.e_entry - ir->virt_bb_start_addr)] = true;
 
-<<<<<<< HEAD
     add_statics();
-=======
-    for (size_t i = 0; i < 32; i++) {
-        ir->add_static(Type::i64);
-    }
-
-    for (size_t i = 0; i < 32; i++) {
-        ir->add_static(Type::f64);
-    }
-    // add the memory token as the last static slot
-    ir->add_static(Type::mt);
-
-    BasicBlock *first_bb = ir->add_basic_block(start_addr, prog->elf_base->symbol_str_at_addr(start_addr).value_or(""));
-    {
-        std::stringstream str;
-        str << "Starting new basicblock #0x" << std::hex << first_bb->id;
-        DEBUG_LOG(str.str());
-    }
-    ir->entry_block = first_bb->id;
->>>>>>> added statics for floating point registers
-
     BasicBlock *cur_bb = nullptr;
     reg_map mapping;
     const auto create_new_bb = [this, prog, &cur_bb, &mapping](uint64_t prev_addr, uint64_t virt_addr) {

@@ -43,6 +43,9 @@ class Lifter {
     // Index of the fcsr register in <reg_map> register mapping
     static constexpr size_t FCSR_IDX = 65;
 
+    // Index of the fcsr register in <reg_map> register mapping
+    static constexpr size_t FCSR_IDX = 65;
+
     // Depth of jump address backtracking
     static constexpr int MAX_ADDRESS_SEARCH_DEPTH = 10;
 
