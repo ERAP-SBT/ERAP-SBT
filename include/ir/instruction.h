@@ -39,8 +39,15 @@ enum class Instruction {
     ffmsub,   // floating point fused multiply sub, d = a * b - c
     ffnmadd,  // floating point fused negative multiply add, d = - (a * b) + c
     ffnmsub,  // floating point fused negative multiply sub, d = - (a * b) - c
-    convert,  // conversion between integer and floating point or between single and double precision
-    uconvert, // conversion between unsigned integer and floating point
+    convert,  // conversion between integer and floating point or between single and double precision: input = {value, rounding_mode}
+    uconvert, // conversion between unsigned integer and floating point: input = {value, rounding_mode}
+};
+
+enum class RoundingMode {
+    RZERO,    // Round towards zero
+    RNEAREST, // Round to nearest (ties to even)
+    RDOWN,    // Round down, to -inf
+    RUP       // Round up, to +inf
 };
 
 std::ostream &operator<<(std::ostream &stream, Instruction instr);
