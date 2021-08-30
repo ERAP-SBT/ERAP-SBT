@@ -4,7 +4,7 @@ using namespace lifter::RV64;
 
 void Lifter::lift_sqrt(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
     // check an invariant
-    assert(is_floating_point(op_size) && "Sqrt only possible with floating points!");
+    assert(type_is_floating_point(op_size) && "Sqrt only possible with floating points!");
 
     SSAVar *src = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
 
@@ -25,7 +25,7 @@ void Lifter::lift_sqrt(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
 
 void Lifter::lift_float_min_max(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
     // check some invariants
-    assert(is_floating_point(op_size) && "Min/Max is only possible with floating points!");
+    assert(type_is_floating_point(op_size) && "Min/Max is only possible with floating points!");
     assert((instruction_type == Instruction::fmin || instruction_type == Instruction::fmax) && "Only fmin and fmax are allowed here!");
 
     // get the source variables
@@ -50,7 +50,7 @@ void Lifter::lift_float_min_max(BasicBlock *bb, const RV64Inst &instr, reg_map &
 
 void Lifter::lift_float_fma(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
     // check some invariants
-    assert(is_floating_point(op_size) && "FMA only possible with floating points!");
+    assert(type_is_floating_point(op_size) && "FMA only possible with floating points!");
     assert((instruction_type == Instruction::ffmadd || instruction_type == Instruction::ffmsub || instruction_type == Instruction::ffnmadd || instruction_type == Instruction::ffnmsub) &&
            "This function is for lifting fma instructions!");
 
@@ -77,8 +77,8 @@ void Lifter::lift_float_fma(BasicBlock *bb, const RV64Inst &instr, reg_map &mapp
 }
 
 void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type from, const Type to, bool _signed) {
-    bool is_from_floating_point = is_floating_point(from);
-    bool is_to_floating_point = is_floating_point(to);
+    bool is_from_floating_point = type_is_floating_point(from);
+    bool is_to_floating_point = type_is_floating_point(to);
 
     // check some invariants
     assert(from != to && "A conversion from and to the same type is useless!");
@@ -125,7 +125,7 @@ void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr
 }
 
 void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
-    assert(is_floating_point(op_size) && "Sign injection is only possible with floating points!");
+    assert(type_is_floating_point(op_size) && "Sign injection is only possible with floating points!");
 
     const bool is_single_precision = op_size == Type::f32;
 
@@ -219,8 +219,8 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
 }
 
 void Lifter::lift_float_move(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type from, const Type to) {
-    bool is_from_floating_point = is_floating_point(from);
-    bool is_to_floating_point = is_floating_point(to);
+    bool is_from_floating_point = type_is_floating_point(from);
+    bool is_to_floating_point = type_is_floating_point(to);
 
     // check an invariant
     assert((is_from_floating_point != is_to_floating_point) && "This method does only handle moves between floating point and integer registers!");
@@ -253,7 +253,7 @@ void Lifter::lift_float_comparison(BasicBlock *bb, const RV64Inst &instr, reg_ma
     // check some invariants
     assert((instruction_type == Instruction::sle || instruction_type == Instruction::slt || instruction_type == Instruction::seq) &&
            "This methods only handles the floating point comparisons 'sle', 'slt' and 'seq'!");
-    assert(is_floating_point(op_size) && "This method only handles floating points!");
+    assert(type_is_floating_point(op_size) && "This method only handles floating points!");
 
     // get the source variables
     SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
@@ -280,7 +280,7 @@ void Lifter::lift_float_comparison(BasicBlock *bb, const RV64Inst &instr, reg_ma
 
 void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
     // check invariant
-    assert(is_floating_point(op_size) && "Only floating points are allowed here!");
+    assert(type_is_floating_point(op_size) && "Only floating points are allowed here!");
 
     const bool is_single_precision = op_size == Type::f32;
     const Type integer_op_size = is_single_precision ? Type::i32 : Type::i64;

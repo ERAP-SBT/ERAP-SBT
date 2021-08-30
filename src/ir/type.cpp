@@ -51,3 +51,5 @@ int cast_dir(const Type t1, const Type t2) {
 
     return -1;
 }
+
+bool type_is_floating_point(const Type type) { return type == Type::f32 || type == Type::f64; }
