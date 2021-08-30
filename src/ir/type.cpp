@@ -31,7 +31,7 @@ std::ostream &operator<<(std::ostream &stream, Type type) {
     return stream;
 }
 
-int cast_dir(const Type &t1, const Type &t2) {
+int cast_dir(const Type t1, const Type t2) {
     size_t t1_i_idx = std::distance(i_cast_order.begin(), std::find(i_cast_order.begin(), i_cast_order.end(), t1));
     size_t t2_i_idx = std::distance(i_cast_order.begin(), std::find(i_cast_order.begin(), i_cast_order.end(), t2));
     if (t1_i_idx < i_cast_order.size() && t2_i_idx < i_cast_order.size()) {
