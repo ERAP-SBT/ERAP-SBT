@@ -513,13 +513,13 @@ inline void Lifter::lift_invalid([[maybe_unused]] BasicBlock *bb, [[maybe_unused
 
 void Lifter::lift_slt(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, bool is_unsigned, bool with_immediate) {
     // get operands for operations (the operands which were compared)
-    SSAVar *first_operand = get_from_mapping(bb, mapping, instr.instr.rs1, ip, false);
+    SSAVar *first_operand = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
     SSAVar *second_operand;
 
     if (with_immediate) {
         second_operand = load_immediate(bb, instr.instr.imm, ip, false);
     } else {
-        second_operand = get_from_mapping(bb, mapping, instr.instr.rs2, ip, false);
+        second_operand = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
     }
 
     // create variables for result
@@ -540,7 +540,7 @@ void Lifter::lift_slt(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
     destination->set_op(std::move(operation));
 
     // write SSAVar of the result of the operation back to mapping
-    write_to_mapping(mapping, destination, instr.instr.rd, false);
+    write_to_mapping(mapping, destination, instr.instr.rd);
 }
 
 void Lifter::lift_auipc(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip) {
@@ -559,7 +559,7 @@ void Lifter::lift_auipc(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
         result->set_op(std::move(add_op));
     }
     // write SSAVar back to mapping
-    write_to_mapping(mapping, result, instr.instr.rd, false);
+    write_to_mapping(mapping, result, instr.instr.rd);
 }
 
 void Lifter::lift_lui(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip) {
@@ -567,7 +567,7 @@ void Lifter::lift_lui(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
     SSAVar *immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip, false);
 
     // write SSAVar back to mapping
-    write_to_mapping(mapping, immediate, instr.instr.rd, false);
+    write_to_mapping(mapping, immediate, instr.instr.rd);
 }
 
 void Lifter::lift_fence([[maybe_unused]] BasicBlock *bb, [[maybe_unused]] const RV64Inst &instr, [[maybe_unused]] uint64_t ip) {

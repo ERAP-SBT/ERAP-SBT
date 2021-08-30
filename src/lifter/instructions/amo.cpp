@@ -60,7 +60,7 @@ void Lifter::store_val_to_rs1(BasicBlock *bb, const RV64Inst &instr, Lifter::reg
 void Lifter::lift_amo_load_reserve(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) { load_rs1_to_rd(bb, instr, mapping, ip, op_size); }
 
 void Lifter::lift_amo_store_conditional(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
-    store_val_to_rs1(bb, instr, mapping, ip, op_size, get_from_mapping(bb, mapping, instr.instr.rs2, ip, false));
+    store_val_to_rs1(bb, instr, mapping, ip, op_size, get_from_mapping(bb, mapping, instr.instr.rs2, ip));
 
     // if the operation succeeds (which it always does without actual atomic operations), 0 is placed into the destination register
     write_to_mapping(mapping, bb->add_var_imm(0, ip), instr.instr.rd);
@@ -69,7 +69,7 @@ void Lifter::lift_amo_store_conditional(BasicBlock *bb, const RV64Inst &instr, r
 void Lifter::lift_amo_swap(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
     // input1: rd, input2: rs2
     // this is up here so that when rs2 == rd, the call to load_rs1_to_rd doesn't override the value in rs2 as well
-    SSAVar *in_2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, false);
+    SSAVar *in_2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
 
     load_rs1_to_rd(bb, instr, mapping, ip, op_size);
 
