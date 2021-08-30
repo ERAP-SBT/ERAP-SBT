@@ -105,5 +105,5 @@ void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, const RV64Inst 
     }
 
     // write SSAVar of the result of the operation back to mapping
-    write_to_mapping(mapping, destination, instr.instr.rd, false);
+    write_to_mapping(mapping, destination, instr.instr.rd);
 }

@@ -51,7 +51,7 @@ void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
 }
 
 void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
-    const bool is_floating_point = op_size == Type::f32 || op_size == Type::f64;
+    const bool is_floating_point = type_is_floating_point(op_size);
     SSAVar *store_addr;
     if (instr.instr.imm != 0) {
         // 1. load offset
@@ -90,5 +90,5 @@ void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
     result_memory_token->set_op(std::move(operation));
 
     // write memory_token back
-    write_to_mapping(mapping, result_memory_token, MEM_IDX, false);
+    write_to_mapping(mapping, result_memory_token, MEM_IDX);
 }

@@ -152,14 +152,32 @@ class Lifter {
 
     static std::string str_decode_instr(const FrvInst *instr);
 
-    // TODO: Are this methods still in use or can they be deleted?
-    // std::vector<RefPtr<SSAVar>> filter_target_inputs(const std::vector<RefPtr<SSAVar>> &old_target_inputs, reg_map new_mapping, uint64_t split_addr) const;
+    /**
+     * Returns the corrosponding value from the mapping: If `is_floating_point_register == true` the slots for the floating points are accessed, if not the slots for the general purpose/integer
+     * registers are accessed. As identifer the register index as used by the RISC-V manual and frvdec is used. If the x0-Register is specified (`reg_id = 0 && is_floating_point_register == false`) a
+     * 0 immediate is created in the current basic block.
+     *
+     * @param bb The current {@link BasicBlock basic block}.
+     * @param mapping The {@link reg_map mapping} to read from.
+     * @param reg_id The identifier (id) of the register as used by RISC-V manual and frvdec.
+     * @param ip The current instruction pointer (ip), used for variable creation. (see handling of x0-Register)
+     * @param is_floating_point_register Defines from which slots should be read: either general purpose/integer register or floating point slots. The default value is false.
+     * @return SSAVar * A pointer to the variable stored at the given position in the mapping.
+     */
+    static SSAVar *get_from_mapping(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, bool is_floating_point_register = false);
 
-    // std::vector<std::pair<RefPtr<SSAVar>, size_t>> filter_target_inputs(const std::vector<std::pair<RefPtr<SSAVar>, size_t>> &old_target_inputs, reg_map new_mapping, uint64_t split_addr) const;
-
-    static SSAVar *get_from_mapping(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, bool is_floating_point_register);
-
-    static void write_to_mapping(reg_map &mapping, SSAVar *var, uint64_t reg_id, bool is_floating_point_register);
+    /**
+     * Writes the given {@link SSAVar variable} to the {@link reg_map mapping}. Calls with `reg_id = 0 && is_floating_point_register == false` are ignored due to this are writes the unused slot in the
+     * mapping for the x0-Register. With `is_floating_point_register == true` the variable is written to the slots for the floating point registers which are currently stored with a defined @link
+     * START_IDX_FLOATING_POINT_STATICS offset @endlink after the integer register variables.
+     *
+     * @param mapping The {@link reg_map mapping} which should be modified.
+     * @param var The variable to write to the mapping.
+     * @param reg_id The identifier (id) of the register as used by RISC-V manual and frvdec.
+     * @param is_floating_point_register Defines whether the variable should be written to the slots for general puropse/integer register or to the slots for floating point register. The default value
+     * is false.
+     */
+    static void write_to_mapping(reg_map &mapping, SSAVar *var, uint64_t reg_id, bool is_floating_point_register = false);
 
     void postprocess();
 };
