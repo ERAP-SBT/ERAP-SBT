@@ -3,7 +3,7 @@
 using namespace lifter::RV64;
 
 void Lifter::lift_arithmetical_logical(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
-    const bool is_floating_point = op_size == Type::f32 || op_size == Type::f64;
+    const bool is_floating_point = type_is_floating_point(op_size);
     SSAVar *source_one = get_from_mapping(bb, mapping, instr.instr.rs1, ip, is_floating_point);
     SSAVar *source_two = get_from_mapping(bb, mapping, instr.instr.rs2, ip, is_floating_point);
 
