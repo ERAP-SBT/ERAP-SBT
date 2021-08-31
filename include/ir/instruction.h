@@ -39,6 +39,7 @@ enum class Instruction {
     ffmadd,   // floating point fused multiply add, d = a * b + c
     ffmsub,   // floating point fused multiply sub, d = a * b - c
     ffnmadd,  // floating point fused negative multiply add, d = - (a * b) + c
+    ffnmsub,  // floating point fused negative multiply sub, d = - (a * b) - c
     convert,  // conversion between integer and floating point or between single and double precision: input = {value, rounding_mode}
     uconvert, // conversion between unsigned integer and floating point: input = {value, rounding_mode}
 };
