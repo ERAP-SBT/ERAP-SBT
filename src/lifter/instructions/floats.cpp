@@ -77,8 +77,8 @@ void Lifter::lift_float_fma(BasicBlock *bb, const RV64Inst &instr, reg_map &mapp
 }
 
 void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type from, const Type to, bool _signed) {
-    bool is_from_floating_point = type_is_floating_point(from);
-    bool is_to_floating_point = type_is_floating_point(to);
+    const bool is_from_floating_point = type_is_floating_point(from);
+    const bool is_to_floating_point = type_is_floating_point(to);
 
     // check some invariants
     assert(from != to && "A conversion from and to the same type is useless!");
@@ -219,8 +219,8 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
 }
 
 void Lifter::lift_float_move(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type from, const Type to) {
-    bool is_from_floating_point = type_is_floating_point(from);
-    bool is_to_floating_point = type_is_floating_point(to);
+    const bool is_from_floating_point = type_is_floating_point(from);
+    const bool is_to_floating_point = type_is_floating_point(to);
 
     // check an invariant
     assert((is_from_floating_point != is_to_floating_point) && "This method does only handle moves between floating point and integer registers!");

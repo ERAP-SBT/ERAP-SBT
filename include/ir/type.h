@@ -18,6 +18,6 @@ constexpr std::array<Type, 2> f_cast_order = {Type::f32, Type::f64};
  */
 int cast_dir(const Type t1, const Type t2);
 
-bool type_is_floating_point(const Type type);
+constexpr bool type_is_floating_point(const Type type) { return type == Type::f32 || type == Type::f64; }
 
 std::ostream &operator<<(std::ostream &stream, Type type);
