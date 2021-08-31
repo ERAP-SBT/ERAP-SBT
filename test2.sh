@@ -1,6 +1,6 @@
 #!/bin/bash
 # You need the following dependencies:
-# sudo apt-get install -y libmpfr-dev libmpc-dev zlib1g zlib1g-dev linux-headers-amd64 gawk bison
+# sudo apt-get install -y libmpfr-dev libmpc-dev zlib1g zlib1g-dev linux-libc-dev-riscv64-cross gawk bison
 
 set -e
 set -x
@@ -121,8 +121,7 @@ CFLAGS="-march=rv64iac"
 
 # Build musl-libc
 
-# linux-libc-dev-riscv64-cross
-# NOTE: uses linux-headers-amd64 of the host, I'm really not sure if that is correct ...
+# NOTE: we cheat and use the kernel headers provided by linux-libc-dev-riscv64-cross, it works.
 pushd sysroot
 ln -sv /usr/riscv64-linux-gnu/include/linux include/linux
 ln -sv /usr/riscv64-linux-gnu/include/asm include/asm
