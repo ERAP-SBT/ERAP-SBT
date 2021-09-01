@@ -314,5 +314,5 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
         ASSERT_EQ(jump.target(), second_block) << "The source of the jump between first and second basic block has to be the second basic block!";
     }
 
-    ir.print(std::cout);
+    // ir.print(std::cout);
 }
