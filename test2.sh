@@ -84,11 +84,12 @@ mkdir -p "${SYSROOT}/include"
 # other parts from myunix3
 #
 # We also specifc --with-abi / --with-arch to select the abi libgcc should use
+# We build with support for C++ as it seems to be required for building glibc
 ../gcc-10.2.0/configure \
     --host="${CONF_HOST}" \
     --build="${CONF_BUILD}" \
     --target="${CONF_TARGET}" \
-    --enable-languages=c \
+    --enable-languages=c,c++ \
     --disable-shared \
     --disable-libitm \
     --disable-libquadmath \
@@ -137,7 +138,9 @@ popd
 
 # install-others: installs the header <gnu/stubs.h> that is required by libgcc
 # apparently an issue since 2003: https://gcc.gnu.org/legacy-ml/gcc-patches/2003-11/msg00612.html
-make -C glibc-build ${JOBS} --output-sync install-headers "${SYSROOT}/include/gnu/stubs.h"
+make -C glibc-build ${JOBS} --output-sync install-headers
+#"${SYSROOT}/include/gnu/stubs.h"
+touch "${SYSROOT}/include/gnu/stubs.h"
 
 # build libgcc using installed headers
 make -C gcc-build ${JOBS} --output-sync all-target-libgcc
