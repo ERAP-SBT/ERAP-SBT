@@ -31,14 +31,14 @@ enum class Instruction {
     umin,     // dst, cmp1, cmp2
     max,      // signed max
     min,      // signed min
-    fmul,     // floating point multiplication
-    fsqrt,    // floating point square root
-    fmin,     // floating point minimum
-    fmax,     // floating point maximum
+    fmul,     // floating point multiplication, c = a * b
+    fdiv,     // floating point division, c = a / b
+    fsqrt,    // floating point square root, c = sqrt(a)
+    fmin,     // floating point minimum, c = min(a, b)
+    fmax,     // floating point maximum, c = max(a, b)
     ffmadd,   // floating point fused multiply add, d = a * b + c
     ffmsub,   // floating point fused multiply sub, d = a * b - c
     ffnmadd,  // floating point fused negative multiply add, d = - (a * b) + c
-    ffnmsub,  // floating point fused negative multiply sub, d = - (a * b) - c
     convert,  // conversion between integer and floating point or between single and double precision: input = {value, rounding_mode}
     uconvert, // conversion between unsigned integer and floating point: input = {value, rounding_mode}
 };

@@ -554,6 +554,7 @@ void Generator::compile_vars(const BasicBlock *block) {
         case Instruction::sle: /* !!! TODO: implement !!!*/
         case Instruction::seq:
         case Instruction::fmul:
+        case Instruction::fdiv:
         case Instruction::fsqrt:
         case Instruction::fmin:
         case Instruction::fmax:

@@ -337,19 +337,19 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         lift_float_fma(bb, instr, mapping, ip, Instruction::ffnmsub, Type::f32);
         break;
     case FRV_FADDS:
-        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::add, Type::f64);
+        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::add, Type::f32);
         break;
     case FRV_FSUBS:
-        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::sub, Type::f64);
+        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::sub, Type::f32);
         break;
     case FRV_FMULS:
         lift_mul(bb, instr, mapping, ip, Instruction::fmul, Type::f32);
         break;
     case FRV_FDIVS:
-        lift_div(bb, instr, mapping, ip, true, false, Type::f32);
+        lift_float_div(bb, instr, mapping, ip, Type::f32);
         break;
     case FRV_FSQRTS:
-        lift_sqrt(bb, instr, mapping, ip, Type::f32);
+        lift_float_sqrt(bb, instr, mapping, ip, Type::f32);
         break;
     case FRV_FSGNJS:
     case FRV_FSGNJNS:
@@ -435,10 +435,10 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         lift_mul(bb, instr, mapping, ip, Instruction::fmul, Type::f64);
         break;
     case FRV_FDIVD:
-        lift_div(bb, instr, mapping, ip, true, false, Type::f64);
+        lift_float_div(bb, instr, mapping, ip, Type::f64);
         break;
     case FRV_FSQRTD:
-        lift_sqrt(bb, instr, mapping, ip, Type::f64);
+        lift_float_sqrt(bb, instr, mapping, ip, Type::f64);
         break;
     case FRV_FSGNJD:
     case FRV_FSGNJND:

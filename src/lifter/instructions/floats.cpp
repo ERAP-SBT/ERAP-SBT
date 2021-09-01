@@ -2,7 +2,28 @@
 
 using namespace lifter::RV64;
 
-void Lifter::lift_sqrt(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
+void Lifter::lift_float_div(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
+    // check an invariant
+    assert(type_is_floating_point(op_size) && "This method is for lifting floating point div!");
+
+    SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
+    SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, true);
+
+    // check another invariant
+    assert(rs1->type == op_size && rs2->type == op_size && "Calculation with different sizes of floating points aren't possible!");
+
+    SSAVar *dest = bb->add_var(op_size, ip);
+
+    // create the operation and assign in- and outputs
+    auto op = std::make_unique<Operation>(Instruction::fdiv);
+    op->set_inputs(rs1, rs2);
+    op->set_outputs(dest);
+    dest->set_op(std::move(op));
+
+    write_to_mapping(mapping, dest, instr.instr.rd, true);
+}
+
+void Lifter::lift_float_sqrt(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
     // check an invariant
     assert(type_is_floating_point(op_size) && "Sqrt only possible with floating points!");
 

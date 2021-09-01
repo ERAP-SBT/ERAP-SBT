@@ -92,6 +92,9 @@ std::ostream &operator<<(std::ostream &stream, Instruction instr) {
     case Instruction::fmul:
         stream << "fmul";
         break;
+    case Instruction::fdiv:
+        stream << "fdiv";
+        break;
     case Instruction::fsqrt:
         stream << "fsqrt";
         break;

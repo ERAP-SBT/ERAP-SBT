@@ -8,7 +8,7 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, const RV64Inst &instr, re
     SSAVar *source_two = get_from_mapping(bb, mapping, instr.instr.rs2, ip, is_floating_point);
 
     // test for invalid operand sizes
-    if (source_one->type != op_size) {
+    if (!is_floating_point && source_one->type != op_size) {
         auto cast = convert_type(bb, ip, source_one, op_size);
         if (cast.has_value()) {
             source_one = cast.value();
@@ -16,7 +16,7 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, const RV64Inst &instr, re
             print_invalid_op_size(instruction_type, instr);
         }
     }
-    if (source_two->type != op_size) {
+    if (!is_floating_point && source_two->type != op_size) {
         auto cast = convert_type(bb, ip, source_two, op_size);
         if (cast.has_value()) {
             source_two = cast.value();
