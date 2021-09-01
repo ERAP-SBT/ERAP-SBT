@@ -108,6 +108,22 @@ class TestFloatingPointLifting : public ::testing::Test {
             expected_op_size = Type::f64;
             expected_instruction = Instruction::div;
             break;
+        case FRV_FMINS:
+            expected_op_size = Type::f32;
+            expected_instruction = Instruction::fmin;
+            break;
+        case FRV_FMIND:
+            expected_op_size = Type::f64;
+            expected_instruction = Instruction::fmin;
+            break;
+        case FRV_FMAXS:
+            expected_op_size = Type::f32;
+            expected_instruction = Instruction::fmax;
+            break;
+        case FRV_FMAXD:
+            expected_op_size = Type::f64;
+            expected_instruction = Instruction::fmax;
+            break;
         default:
             assert(0 && "The developer of the tests has failed!!");
         }
@@ -290,7 +306,7 @@ TEST_F(TestFloatingPointLifting, test_fp_sub_d) {
 // TODO: Fails due to static mapper with Type::f64, but combined with Type::f32 instruction... Change static typed static mapper? Convert types everytime? Cast?
 TEST_F(TestFloatingPointLifting, test_fp_mul_f) {
     // create fp mul instruction: fmul.s f12, f3, f4
-    const RV64Inst instr{FrvInst{FRV_FMULS, 12, 3, 4, 0, 0, 0}, 4};
+    // const RV64Inst instr{FrvInst{FRV_FMULS, 12, 3, 4, 0, 0, 0}, 4};
     // test_fp_arithmetic_lifting(instr);
 }
 
@@ -303,7 +319,7 @@ TEST_F(TestFloatingPointLifting, test_fp_mul_d) {
 // TODO: Fails due to static mapper with Type::f64, but combined with Type::f32 instruction... Change static typed static mapper? Convert types everytime? Cast?
 TEST_F(TestFloatingPointLifting, test_fp_div_s) {
     // create fp div instruction: fdiv.s f5, f30, f6
-    const RV64Inst instr{FrvInst{FRV_FDIVS, 5, 30, 6, 0, 0, 0}, 4};
+    // const RV64Inst instr{FrvInst{FRV_FDIVS, 5, 30, 6, 0, 0, 0}, 4};
     // test_fp_arithmetic_lifting(instr);
 }
 
@@ -316,12 +332,38 @@ TEST_F(TestFloatingPointLifting, test_fp_div_d) {
 // TODO: Fails due to static mapper with Type::f64, but combined with Type::f32 instruction... Change static typed static mapper? Convert types everytime? Cast?
 TEST_F(TestFloatingPointLifting, test_fp_sqrt_s) {
     // create fp sqrt instruction: fsqrt.s f5, f25
-    const RV64Inst instr{FrvInst{FRV_FSQRTS, 5, 25, 0, 0, 0, 0}, 4};
+    // const RV64Inst instr{FrvInst{FRV_FSQRTS, 5, 25, 0, 0, 0, 0}, 4};
     // test_fp_arithmetic_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_sqrt_d) {
     // create fp sqrt instruction: fsqrt.d f3, f9
     const RV64Inst instr{FrvInst{FRV_FSQRTD, 3, 9, 0, 0, 0, 0}, 4};
+    test_fp_arithmetic_lifting(instr);
+}
+
+// TODO: Fails due to static mapper with Type::f64, but combined with Type::f32 instruction... Change static typed static mapper? Convert types everytime? Cast?
+TEST_F(TestFloatingPointLifting, test_fp_min_f) {
+    // create fp sqrt instruction: fmin.s f8, f3, f5
+    // const RV64Inst instr{FrvInst{FRV_FMINS, 8, 3, 5, 0, 0, 0}, 4};
+    // test_fp_arithmetic_lifting(instr);
+}
+
+TEST_F(TestFloatingPointLifting, test_fp_min_d) {
+    // create fp sqrt instruction: fmin.d f23, f17, f9
+    const RV64Inst instr{FrvInst{FRV_FMIND, 23, 17, 9, 0, 0, 0}, 4};
+    test_fp_arithmetic_lifting(instr);
+}
+
+// TODO: Fails due to static mapper with Type::f64, but combined with Type::f32 instruction... Change static typed static mapper? Convert types everytime? Cast?
+TEST_F(TestFloatingPointLifting, test_fp_max_f) {
+    // create fp sqrt instruction: fmax.s f1, f5, f2
+    // const RV64Inst instr{FrvInst{FRV_FMAXS, 1, 5, 2, 0, 0, 0}, 4};
+    // test_fp_arithmetic_lifting(instr);
+}
+
+TEST_F(TestFloatingPointLifting, test_fp_max_d) {
+    // create fp sqrt instruction: fmax.d f4, f2, f24
+    const RV64Inst instr{FrvInst{FRV_FMAXD, 4, 2, 24, 0, 0, 0}, 4};
     test_fp_arithmetic_lifting(instr);
 }
