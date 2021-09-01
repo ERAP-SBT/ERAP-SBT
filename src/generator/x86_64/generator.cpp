@@ -211,15 +211,18 @@ void Generator::compile_phdr_info() {
 void Generator::compile_blocks() {
     compile_section(Section::TEXT);
 
-    for (const auto &block : ir->basic_blocks) {
+    reg_alloc = std::make_unique<RegAlloc>(this);
+    reg_alloc->compile_blocks();
+
+    /*for (const auto &block : ir->basic_blocks) {
         /*if (block->id <= 7000) {
             compile_block_reg_alloc(block.get());
         } else {
             compile_block(block.get());
-        }*/
+        }*
         //compile_block(block.get());
         compile_block_reg_alloc(block.get());
-    }
+    }*/
 }
 
 void Generator::compile_block(const BasicBlock *block) {

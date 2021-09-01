@@ -266,6 +266,11 @@ void Lifter::postprocess() {
             }
 
             if (cf_op.type == CFCInstruction::ijump || cf_op.type == CFCInstruction::icall) {
+                auto *target = cfOp.target();
+                if (target != nullptr) {
+                    auto &pred = target->predecessors;
+                    pred.erase(std::find(pred.begin(), pred.end(), bb.get()));
+                }
                 cf_op.set_target(nullptr);
                 continue;
             }

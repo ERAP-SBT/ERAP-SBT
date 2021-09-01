@@ -2,10 +2,10 @@
 #include <ostream>
 
 enum class Instruction {
-    store, // mt_out, addr, val, mt_in
-    load, // dst, addr, mem_token
-    add, // dst, op1, op2
-    sub, // dst, op1, op2: op1 - op2
+    store,   // mt_out, addr, val, mt_in
+    load,    // dst, addr, mem_token
+    add,     // dst, op1, op2
+    sub,     // dst, op1, op2: op1 - op2
     mul_l,   //                         => lower half of result
     ssmul_h, // signed * signed         => upper half of result
     uumul_h, // unsigned * unsigned     => upper half of result
