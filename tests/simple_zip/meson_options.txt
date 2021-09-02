@@ -1,0 +1,1 @@
+option('cc', type: 'string', value: 'riscv64-linux-gnu-gcc')
