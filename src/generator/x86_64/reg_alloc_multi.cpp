@@ -237,9 +237,9 @@ void RegAlloc::compile_vars(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map
         // print ir for better readability
         // TODO: add flag for this to reduce useless stuff in asm file
         // TODO: print ir
-        // ir_stream.clear();
-        // var->print(ir_stream, gen->ir);
-        // print_asm("%s\n", ir_stream.str().c_str());
+        ir_stream.str("");
+        var->print(ir_stream, gen->ir);
+        print_asm("# %s\n", ir_stream.str().c_str());
 
         // TODO: this essentially skips input vars but we should have a seperate if for that
         // since the location of the input vars is supplied by the previous block
