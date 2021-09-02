@@ -885,12 +885,6 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             print_asm("call syscall_impl\n");
             if (info.static_mapping.size() > 0) {
                 print_asm("mov [s%zu], rax\n", info.static_mapping.at(0));
-                if (info.static_mapping.size() == 2) {
-                    print_asm("mov [s%zu], rdx\n", info.static_mapping.at(1));
-                } else {
-                    // syscalls only return max 2 values
-                    assert(0);
-                }
             }
             print_asm("# destroy stack space\n");
             print_asm("mov rsp, rbp\npop rbp\n");
