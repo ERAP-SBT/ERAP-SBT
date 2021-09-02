@@ -36,7 +36,7 @@ meson compile -C build_rv64
 echo -e "${TXT_GREEN}Translating...${TXT_CLEAR}"
 set -x
 cd build_rv64
-../../../build/src/translate --output-binary=main.bin --output=translated.s main
+../../../build/src/translate --debug=false --output-binary=main.bin --output=translated.s main
 gcc -c translated.s -o translated.o
 ld -T ../../../src/generator/x86_64/helper/link.ld translated.o ../../../build/src/generator/x86_64/helper/libhelper.a -o translated
 
