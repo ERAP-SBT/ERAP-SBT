@@ -528,25 +528,25 @@ void Generator::compile_vars(const BasicBlock *block) {
         case Instruction::sumul_h: /* TODO: implement */
             assert(0);
             break;
-        case Instruction::max:
+        case Instruction::umax:
             assert(arg_count == 2);
             fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "cmova %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
             break;
-        case Instruction::min:
+        case Instruction::umin:
             assert(arg_count == 2);
             fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "cmovb %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
             break;
-        case Instruction::smax:
+        case Instruction::max:
             assert(arg_count == 2);
             fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "cmovg %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
             break;
-        case Instruction::smin:
+        case Instruction::min:
             assert(arg_count == 2);
             fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "cmovl %s, %s\n", in_regs[0], in_regs[1]);

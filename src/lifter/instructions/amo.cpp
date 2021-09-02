@@ -149,9 +149,9 @@ void Lifter::lift_amo_min_max(BasicBlock *bb, const RV64Inst &instr, reg_map &ma
 }
 
 void Lifter::lift_amo_min(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, const uint64_t ip, const Type op_size, const bool _signed) {
-    lift_amo_min_max(bb, instr, mapping, ip, op_size, _signed ? Instruction::smin : Instruction::min);
+    lift_amo_min_max(bb, instr, mapping, ip, op_size, _signed ? Instruction::min : Instruction::umin);
 }
 
 void Lifter::lift_amo_max(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, const uint64_t ip, const Type op_size, const bool _signed) {
-    lift_amo_min_max(bb, instr, mapping, ip, op_size, _signed ? Instruction::smax : Instruction::max);
+    lift_amo_min_max(bb, instr, mapping, ip, op_size, _signed ? Instruction::max : Instruction::umax);
 }
