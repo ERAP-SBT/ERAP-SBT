@@ -26,11 +26,11 @@ set -e
 
 echo -e "${TXT_GREEN}Building...${TXT_CLEAR}"
 set -x
-meson setup build_amd64 -Dcc=gcc
-meson compile -C build_amd64
+mkdir build_amd64
+gcc -g -static -o build_amd64/main main.c zip.c
 
-meson setup build_rv64 -Dcc=$1
-meson compile -C build_rv64
+mkdir build_rv64
+$1 -g -static -o build_rv64/main main.c zip.c
 
 { set +x; } 2>/dev/null
 echo -e "${TXT_GREEN}Translating...${TXT_CLEAR}"
