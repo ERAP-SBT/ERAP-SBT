@@ -2,6 +2,8 @@
 #include "common/internal.h"
 #include "generator/x86_64/generator.h"
 #include "ir/ir.h"
+#include "ir/optimizer/const_folding.h"
+#include "ir/optimizer/dce.h"
 #include "lifter/elf_file.h"
 #include "lifter/lifter.h"
 
@@ -144,6 +146,11 @@ int main(int argc, const char **argv) {
     }
 
     signal(SIGPIPE, SIG_IGN);
+
+    if (args.has_argument("optimize")) {
+        optimizer::const_fold(&ir);
+        optimizer::dce(&ir);
+    }
 
     auto output_object = temp_dir / "translated.o";
     FILE *assembler = open_assembler(output_object);
