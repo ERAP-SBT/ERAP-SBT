@@ -101,7 +101,7 @@ void Generator::compile() {
 
         /* Put the original image into a seperate section so we can set the start address */
         fprintf(out_fd, ".section .orig_binary, \"aw\"\n");
-        fprintf(out_fd, ".incbin \"%s.bin\"\n", binary_filepath.c_str());
+        fprintf(out_fd, ".incbin \"%s\"\n", binary_filepath.c_str());
     }
 
     /* we expect the linker to link the original binary image (if any) at
