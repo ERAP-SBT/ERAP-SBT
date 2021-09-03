@@ -43,28 +43,6 @@ const char *reg_name(const REGISTER reg, const Type type) {
     }
 }
 
-const char *mem_size(const Type type) {
-    switch (type) {
-    case Type::imm:
-    case Type::i64:
-        return "QWORD PTR";
-    case Type::i32:
-        return "DWORD PTR";
-    case Type::i16:
-        return "WORD PTR";
-    case Type::i8:
-        return "BYTE PTR";
-    case Type::f32:
-    case Type::f64:
-    case Type::mt:
-        assert(0);
-        exit(1);
-    }
-
-    assert(0);
-    exit(1);
-}
-
 Type choose_type(Type typ1, Type typ2) {
     assert(typ1 == typ2 || typ1 == Type::imm || typ2 == Type::imm);
     if (typ1 == Type::imm && typ2 == Type::imm) {
@@ -192,10 +170,9 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
 
         init_time_of_use(bb);
 
-        compile_vars(bb, reg_map, stack_map);
+        compile_vars(bb);
 
-        // compile_cf_ops(bb, reg_map, stack_map);
-        prepare_cf_ops(bb, reg_map, stack_map);
+        prepare_cf_ops(bb);
         {
             auto asm_block = AssembledBlock{};
             asm_block.bb = bb;
@@ -244,7 +221,8 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
     }
 }
 
-void RegAlloc::compile_vars(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map) {
+void RegAlloc::compile_vars(BasicBlock *bb) {
+    auto &reg_map = *cur_reg_map;
     std::ostringstream ir_stream;
     for (size_t var_idx = 0; var_idx < bb->variables.size(); ++var_idx) {
         auto *var = bb->variables[var_idx].get();
@@ -724,7 +702,7 @@ void RegAlloc::compile_vars(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map
     }
 }
 
-void RegAlloc::prepare_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map) {
+void RegAlloc::prepare_cf_ops(BasicBlock *bb) {
     // just set the input maps when the cf-op targets do not yet have a input mapping
     for (auto &cf_op : bb->control_flow_ops) {
         auto *target = cf_op.target();
@@ -849,11 +827,10 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             write_static_mapping(info.target, cur_time, info.mapping);
             // TODO: we get a problem if the dst is in a static that has already been written out (so overwritten)
             auto *dst = cf_op.in_vars[0].get();
-            if (dst->gen_info.location != SSAVar::GeneratorInfoX64::REGISTER || dst->gen_info.reg_idx != REG_A) {
-                clear_reg(cur_time + 1 + info.mapping.size(), REG_A);
-                load_val_in_reg(cur_time, dst, REG_A);
-            }
-            const auto dst_reg_name = reg_names[REG_A][0];
+            const auto dst_reg = load_val_in_reg(cur_time + 1 + info.mapping.size(), dst);
+            const auto tmp_reg = alloc_reg(cur_time + 1 + info.mapping.size(), REG_NONE, dst_reg);
+            const auto dst_reg_name = reg_names[dst_reg][0];
+            const auto tmp_reg_name = reg_names[tmp_reg][0];
             assert(dst->type == Type::imm || dst->type == Type::i64);
             print_asm("# destroy stack space\n");
             print_asm("add rsp, %zu\n", max_stack_frame_size * 8);
@@ -863,15 +840,15 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             /* we trust the lifter that the ijump destination is already aligned */
 
             /* turn absolute address into relative offset from start of first basicblock */
-            print_asm("sub rax, %zu\n", gen->ir->virt_bb_start_addr);
+            print_asm("sub %s, %zu\n", dst_reg_name, gen->ir->virt_bb_start_addr);
 
-            print_asm("cmp rax, ijump_lookup_end - ijump_lookup\n");
+            print_asm("cmp %s, ijump_lookup_end - ijump_lookup\n", dst_reg_name);
             print_asm("ja 0f\n");
-            print_asm("lea rdi, [rip + ijump_lookup]\n");
-            print_asm("mov rdi, [rdi + 4 * rax]\n");
-            print_asm("test rdi, rdi\n");
+            print_asm("lea %s, [rip + ijump_lookup]\n", tmp_reg_name);
+            print_asm("mov %s, [%s + 4 * %s]\n", tmp_reg_name, tmp_reg_name, dst_reg_name);
+            print_asm("test %s, %s\n", tmp_reg_name, tmp_reg_name);
             print_asm("je 0f\n");
-            print_asm("jmp rdi\n");
+            print_asm("jmp %s\n", tmp_reg_name);
             print_asm("0:\n");
             print_asm("lea rdi, [rip + err_unresolved_ijump_b%zu]\n", bb->id);
             print_asm("jmp panic\n");
@@ -1122,7 +1099,7 @@ void RegAlloc::generate_input_map(BasicBlock *bb) {
     bb->gen_info.input_map_setup = true;
 }
 
-void RegAlloc::write_static_mapping(BasicBlock *bb, size_t cur_time, const std::vector<std::pair<RefPtr<SSAVar>, size_t>> &mapping) {
+void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_time, const std::vector<std::pair<RefPtr<SSAVar>, size_t>> &mapping) {
     // TODO: this is a bit unfaithful to the time calculation since we write out registers first but that should be fine
 
     // TODO: here we could write out all register that do not overwrite a static that is uses as an input
@@ -1289,7 +1266,6 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
         print_asm("mov [rsp + 8 * %zu], %s\n", info.stack_slot, reg_names[reg][0]);
     }
 
-    auto &reg_map = *cur_reg_map;
     // write out registers
     for (size_t var_idx = 0; var_idx < inputs.size(); ++var_idx) {
         if (input_map[var_idx].location != BasicBlock::GeneratorInfo::InputInfo::REGISTER) {
@@ -1388,7 +1364,6 @@ void RegAlloc::init_time_of_use(BasicBlock *bb) {
 template <typename... Args> REGISTER RegAlloc::alloc_reg(size_t cur_time, REGISTER only_this_reg, Args... clear_regs) {
     static_assert((std::is_same_v<Args, REGISTER> && ...));
     auto &reg_map = *cur_reg_map;
-    auto &stack_map = *cur_stack_map;
 
     if (only_this_reg != REG_NONE) {
         auto &cur_var = reg_map[only_this_reg].cur_var;
@@ -1469,7 +1444,6 @@ template <typename... Args> REGISTER RegAlloc::alloc_reg(size_t cur_time, REGIST
 template <typename... Args> REGISTER RegAlloc::load_val_in_reg(size_t cur_time, SSAVar *var, REGISTER only_this_reg, Args... clear_regs) {
     static_assert((std::is_same_v<Args, REGISTER> && ...));
     auto &reg_map = *cur_reg_map;
-    auto &stack_map = *cur_stack_map;
 
     if (var->gen_info.location == SSAVar::GeneratorInfoX64::REGISTER) {
         // TODO: dont ignore clear_regs here

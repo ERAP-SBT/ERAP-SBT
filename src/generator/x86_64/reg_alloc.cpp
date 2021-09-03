@@ -594,7 +594,7 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
                 }
                 fprintf(out_fd, "mov %s, %ld\n", reg_name(dst_reg, dst->type), res);
 
-                if (op->type == Instruction::div || op->type == Instruction::udiv && op->out_vars[1] != nullptr) {
+                if (op->type == Instruction::div || (op->type == Instruction::udiv && op->out_vars[1] != nullptr)) {
                     // hack for div remainder
                     const auto dst_reg = alloc_reg(i);
                     auto *dst = op->out_vars[1];
@@ -619,6 +619,9 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
                         case Type::i8:
                             res = static_cast<int8_t>(val1) % static_cast<int8_t>(val2);
                             break;
+                        default:
+                            assert(0);
+                            exit(1);
                         }
                     } else {
                         switch (op->out_vars[1]->type) {
@@ -634,6 +637,9 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
                         case Type::i8:
                             res = (val1 & 0xFF) % (val2 & 0xFF);
                             break;
+                        default:
+                            assert(0);
+                            exit(1);
                         }
                     }
                     fprintf(out_fd, "mov %s, %ld\n", reg_name(dst_reg, dst->type), res);
@@ -665,7 +671,6 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
                     } else if (op->type == Instruction::div || op->type == Instruction::udiv) {
                         // TODO: merge this with the two var form?
                         // TODO: load value into rax,rdx from the beginning if the values aren't currently loaded somewhere
-                        const auto imm_reg = load_val_in_reg(in1, i);
                         assert(0);
                         exit(1);
                     } else {
@@ -778,6 +783,10 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
                     fprintf(out_fd, "mov %s, %ld\n", dst_reg_name, imm);
                     fprintf(out_fd, "b%zu_%zu_smin:\n", bb->id, i);
                     break;
+                default:
+                    // shouldn't happen
+                    assert(0);
+                    exit(1);
                 }
 
                 if (op->type != Instruction::div && op->type != Instruction::udiv && op->type != Instruction::ssmul_h && op->type != Instruction::uumul_h) {
@@ -895,6 +904,10 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
                     fprintf(out_fd, "cmp %s, %s\n", dst_reg_name, in2_reg_name);
                     fprintf(out_fd, "cmovg %s, %s\n", dst_reg_name, in2_reg_name);
                     break;
+                default:
+                    // shouldn't happen
+                    assert(0);
+                    exit(1);
                 }
 
                 if (op->type != Instruction::div && op->type != Instruction::udiv) {
@@ -1344,7 +1357,7 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
         case CFCInstruction::ijump: {
             // TODO: we get a problem if the dst is in a static that has already been written out (so overwritten)
             auto *dst = cf_op.in_vars[0].get();
-            const auto dst_reg = load_val_in_reg(dst, time, REG_A);
+            const auto dst_reg = load_val_in_reg(dst, time);
             const auto dst_reg_name = reg_names[dst_reg][0];
             assert(dst->type == Type::imm || dst->type == Type::i64);
             fprintf(out_fd, "# destroy stack space\n");
@@ -1355,12 +1368,12 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
             /* we trust the lifter that the ijump destination is already aligned */
 
             /* turn absolute address into relative offset from start of first basicblock */
-            fprintf(out_fd, "sub rax, %zu\n", ir->virt_bb_start_addr);
+            fprintf(out_fd, "sub %s, %zu\n", dst_reg_name, ir->virt_bb_start_addr);
 
-            fprintf(out_fd, "cmp rax, ijump_lookup_end - ijump_lookup\n");
+            fprintf(out_fd, "cmp %s, ijump_lookup_end - ijump_lookup\n", dst_reg_name);
             fprintf(out_fd, "ja 0f\n");
             fprintf(out_fd, "lea rdi, [rip + ijump_lookup]\n");
-            fprintf(out_fd, "mov rdi, [rdi + 4 * rax]\n");
+            fprintf(out_fd, "mov rdi, [rdi + 4 * %s]\n", dst_reg_name);
             fprintf(out_fd, "test rdi, rdi\n");
             fprintf(out_fd, "je 0f\n");
             fprintf(out_fd, "jmp rdi\n");
