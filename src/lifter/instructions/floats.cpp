@@ -9,8 +9,16 @@ void Lifter::lift_float_div(BasicBlock *bb, const RV64Inst &instr, reg_map &mapp
     SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
     SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, true);
 
-    // check another invariant
-    assert(rs1->type == op_size && rs2->type == op_size && "Calculation with different sizes of floating points aren't possible!");
+    assert(type_is_floating_point(rs1->type) && "The first source operand is not a floating point variable!");
+    assert(type_is_floating_point(rs2->type) && "The second source operand is not a floating point variable!");
+
+    if (rs1->type != op_size) {
+        rs1 = shrink_var(bb, rs1, ip, Type::f32);
+    }
+
+    if (rs2->type != op_size) {
+        rs2 = shrink_var(bb, rs2, ip, Type::f32);
+    }
 
     SSAVar *dest = bb->add_var(op_size, ip);
 
@@ -29,8 +37,11 @@ void Lifter::lift_float_sqrt(BasicBlock *bb, const RV64Inst &instr, reg_map &map
 
     SSAVar *src = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
 
-    // check another invariant
-    assert(src->type == op_size && "Calculation with different sizes of floating points aren't possible!");
+    assert(type_is_floating_point(src->type) && "The source variable is not a floating point variable!");
+
+    if (src->type != op_size) {
+        src = shrink_var(bb, src, ip, Type::f32);
+    }
 
     // create the result variable
     SSAVar *dest = bb->add_var(op_size, ip);
@@ -54,8 +65,16 @@ void Lifter::lift_float_min_max(BasicBlock *bb, const RV64Inst &instr, reg_map &
     SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, true);
 
     // more invariants
-    assert(rs1->type == op_size && "Calculation with different sizes of floating points aren't possible!");
-    assert(rs2->type == op_size && "Calculation with different sizes of floating points aren't possible!");
+    assert(type_is_floating_point(rs1->type) && "The first source variable is not a floating point variable!");
+    assert(type_is_floating_point(rs2->type) && "The second source variable is not a floating point variable!");
+
+    if (rs1->type != op_size) {
+        rs1 = shrink_var(bb, rs1, ip, Type::f32);
+    }
+
+    if (rs2->type != op_size) {
+        rs2 = shrink_var(bb, rs2, ip, Type::f32);
+    }
 
     // create the result variable
     SSAVar *dest = bb->add_var(op_size, ip);
@@ -81,9 +100,21 @@ void Lifter::lift_float_fma(BasicBlock *bb, const RV64Inst &instr, reg_map &mapp
     SSAVar *rs3 = get_from_mapping(bb, mapping, instr.instr.rs3, ip, true);
 
     // more invariants
-    assert(rs1->type == op_size && "Calculation with different sizes of floating points aren't possible!");
-    assert(rs2->type == op_size && "Calculation with different sizes of floating points aren't possible!");
-    assert(rs3->type == op_size && "Calculation with different sizes of floating points aren't possible!");
+    assert(type_is_floating_point(rs1->type) && "The first source variable is not a floating point variable!");
+    assert(type_is_floating_point(rs2->type) && "The second source variable is not a floating point variable!");
+    assert(type_is_floating_point(rs3->type) && "The third source variable is not a floating point variable!");
+
+    if (rs1->type != op_size) {
+        rs1 = shrink_var(bb, rs1, ip, Type::f32);
+    }
+
+    if (rs2->type != op_size) {
+        rs2 = shrink_var(bb, rs2, ip, Type::f32);
+    }
+
+    if (rs3->type != op_size) {
+        rs3 = shrink_var(bb, rs3, ip, Type::f32);
+    }
 
     // create the result variable
     SSAVar *dest = bb->add_var(op_size, ip);
@@ -109,7 +140,11 @@ void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr
     // get the source variable from the mapping
     SSAVar *src = get_from_mapping(bb, mapping, instr.instr.rs1, ip, is_from_floating_point);
 
-    assert(src->type == from && "The source variable has to have the same size as the from parameter");
+    assert(type_is_floating_point(src->type) && "The source variable is not a floating point variable!");
+
+    if (src->type != from) {
+        src = shrink_var(bb, src, ip, Type::f32);
+    }
 
     RoundingMode rounding_mode_val;
     switch (instr.instr.misc) {
@@ -158,7 +193,17 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
     SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
     SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, true);
 
-    assert(rs1->type == op_size && rs2->type == op_size && "The source variables have to have the same size as the op_size parameter");
+    // more invariants
+    assert(type_is_floating_point(rs1->type) && "The first source variable is not a floating point variable!");
+    assert(type_is_floating_point(rs2->type) && "The second source variable is not a floating point variable!");
+
+    if (rs1->type != op_size) {
+        rs1 = shrink_var(bb, rs1, ip, Type::f32);
+    }
+
+    if (rs2->type != op_size) {
+        rs2 = shrink_var(bb, rs2, ip, Type::f32);
+    }
 
     // mask the second source operand to extract the sign bit
     SSAVar *sign_rs2 = bb->add_var(op_size, ip);
@@ -249,6 +294,12 @@ void Lifter::lift_float_move(BasicBlock *bb, const RV64Inst &instr, reg_map &map
     // get the source variable from the mapping
     SSAVar *src = get_from_mapping(bb, mapping, instr.instr.rs1, ip, is_from_floating_point);
 
+    if (from == Type::f32 && src->type == Type::f64) {
+        src = shrink_var(bb, src, ip, Type::f32);
+    } else if (from == Type::i32 && src->type == Type::i64) {
+        src = shrink_var(bb, src, ip, Type::i32);
+    }
+
     assert(src->type == from && "The source variable has to have the same size as the from parameter");
 
     // create the result variable
@@ -280,7 +331,16 @@ void Lifter::lift_float_comparison(BasicBlock *bb, const RV64Inst &instr, reg_ma
     SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
     SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, true);
 
-    assert(rs1->type == op_size && rs1->type == op_size && "The source variables have to have the same size as the op_size!");
+    assert(type_is_floating_point(rs1->type) && "The first source variable is not a floating point variable!");
+    assert(type_is_floating_point(rs2->type) && "The second source variable is not a floating point variable!");
+
+    if (rs1->type != op_size) {
+        rs1 = shrink_var(bb, rs1, ip, Type::f32);
+    }
+
+    if (rs2->type != op_size) {
+        rs2 = shrink_var(bb, rs2, ip, Type::f32);
+    }
 
     // create the immediates used: 0 and 1
     SSAVar *zero = bb->add_var_imm(0, ip);
@@ -338,7 +398,11 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     // cast the floating point bit pattern to integer bit pattern to use bit manipulation
     SSAVar *f_src = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
 
-    assert(f_src->type == op_size && "The source variable has to have the same size as the op_size");
+    assert(type_is_floating_point(f_src->type) && "The source variable is not a floating point variable!");
+
+    if (f_src->type != op_size) {
+        f_src = shrink_var(bb, f_src, ip, Type::f32);
+    }
 
     SSAVar *i_src = bb->add_var(integer_op_size, ip);
     {

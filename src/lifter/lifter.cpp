@@ -179,6 +179,9 @@ void Lifter::lift(Program *prog) {
                     break;
                 }
 
+                // zero extend all f32 to f64 in order to map correctly to the fp statics
+                zero_extend_all_f32(cur_bb, mapping, cur_bb->virt_end_addr);
+
                 for (size_t i = 0; i < mapping.size(); i++) {
                     auto var = mapping[i];
                     if (var != nullptr) {
