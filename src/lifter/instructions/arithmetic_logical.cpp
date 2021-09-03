@@ -12,7 +12,12 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, const RV64Inst &instr, re
         if (cast.has_value()) {
             source_one = cast.value();
         } else {
-            print_invalid_op_size(instruction_type, instr);
+            auto cast = convert_type(bb, ip, source_one, op_size);
+            if (cast.has_value()) {
+                source_one = cast.value();
+            } else {
+                print_invalid_op_size(instruction_type, instr);
+            }
         }
     }
 
@@ -21,7 +26,12 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, const RV64Inst &instr, re
         if (cast.has_value()) {
             source_two = cast.value();
         } else {
-            print_invalid_op_size(instruction_type, instr);
+            auto cast = convert_type(bb, ip, source_two, op_size);
+            if (cast.has_value()) {
+                source_two = cast.value();
+            } else {
+                print_invalid_op_size(instruction_type, instr);
+            }
         }
     }
 

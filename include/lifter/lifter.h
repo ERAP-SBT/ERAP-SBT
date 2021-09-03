@@ -228,6 +228,15 @@ class Lifter {
 
     SSAVar *get_from_mapping_and_shrink(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, const Type expected_type);
 
+    /**
+     * Zero extends all f32 variables in the {@link reg_map mapping}. Mainly used to correct the mapping before assigning it to control flow operations.
+     *
+     * @param bb The current basic block.
+     * @param mapping The mapping to work on.
+     * @param ip The current instruction pointer for setting the right address of newly created variables.
+     */
+    static void zero_extend_all_f32(BasicBlock *bb, reg_map &mapping, uint64_t ip);
+
     void postprocess();
 };
 } // namespace lifter::RV64

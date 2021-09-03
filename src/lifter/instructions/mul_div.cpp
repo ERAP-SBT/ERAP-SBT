@@ -12,7 +12,12 @@ void Lifter::lift_mul(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
         if (cast.has_value()) {
             rs_1 = cast.value();
         } else {
-            print_invalid_op_size(instr_type, instr);
+            auto cast = convert_type(bb, ip, rs_1, in_type);
+            if (cast.has_value()) {
+                rs_1 = cast.value();
+            } else {
+                print_invalid_op_size(instr_type, instr);
+            }
         }
     }
 
