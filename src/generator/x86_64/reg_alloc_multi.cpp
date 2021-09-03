@@ -194,8 +194,21 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
 
         compile_vars(bb, reg_map, stack_map);
 
-        compile_cf_ops(bb, reg_map, stack_map);
+        // compile_cf_ops(bb, reg_map, stack_map);
+        prepare_cf_ops(bb, reg_map, stack_map);
+        {
+            auto asm_block = AssembledBlock{};
+            asm_block.bb = bb;
+            asm_block.assembly = asm_buf;
+            asm_buf.clear();
+            asm_block.reg_map = reg_map;
+            asm_block.stack_map = std::move(stack_map);
+            assembled_blocks.push_back(std::move(asm_block));
+        }
 
+        cur_bb = nullptr;
+        cur_stack_map = nullptr;
+        cur_reg_map = nullptr;
         bb->gen_info.compiled = true;
 
         max_stack_frame_size = std::max(max_stack_frame_size, stack_map.size());
@@ -208,24 +221,27 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
         }
 
         if (first_block) {
-            fprintf(gen->out_fd, "b%zu:\npush rbp\nmov rbp, rsp\nsub rsp, %zu\n", bb->id, max_stack_frame_size * 8);
+            // need to add a bit of space to the stack since the cfops might need to spill to the stack
+            max_stack_frame_size += gen->ir->statics.size();
+            // align to 16 bytes
+            max_stack_frame_size = ((max_stack_frame_size + 15) & 0xFFFFFFFF'FFFFFFF0);
+
+            fprintf(gen->out_fd, "b%zu:\nsub rsp, %zu\n", bb->id, max_stack_frame_size * 8);
             fprintf(gen->out_fd, "# MBRA\n"); // multi-block register allocation
             fprintf(gen->out_fd, "# Virt Start: %#lx\n# Virt End:  %#lx\n", bb->virt_start_addr, bb->virt_end_addr);
-            fprintf(gen->out_fd, "%s\n", asm_buf.c_str());
+            write_assembled_blocks(max_stack_frame_size);
 
             fprintf(gen->out_fd, "\n# Translation Blocks\n");
             for (const auto &pair : translation_blocks) {
-                fprintf(gen->out_fd, "b%zu:\npush rbp\nmov rbp, rsp\nsub rsp, %zu\n", pair.first, max_stack_frame_size * 8);
+                fprintf(gen->out_fd, "b%zu:\nsub rsp, %zu\n", pair.first, max_stack_frame_size * 8);
                 fprintf(gen->out_fd, "# MBRATB\n"); // multi-block register allocation translation block
                 fprintf(gen->out_fd, "%s\n", pair.second.c_str());
             }
             fprintf(gen->out_fd, "\n");
+            translation_blocks.clear();
+            assembled_blocks.clear();
         }
     }
-
-    cur_bb = nullptr;
-    cur_stack_map = nullptr;
-    cur_reg_map = nullptr;
 }
 
 void RegAlloc::compile_vars(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map) {
@@ -708,11 +724,36 @@ void RegAlloc::compile_vars(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map
     }
 }
 
-void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map) {
+void RegAlloc::prepare_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map) {
+    // just set the input maps when the cf-op targets do not yet have a input mapping
+    for (auto &cf_op : bb->control_flow_ops) {
+        auto *target = cf_op.target();
+        if (!target || target->gen_info.input_map_setup) {
+            continue;
+        }
+        switch (cf_op.type) {
+        case CFCInstruction::jump:
+            set_bb_inputs(target, std::get<CfOp::JumpInfo>(cf_op.info).target_inputs);
+            break;
+        case CFCInstruction::cjump:
+            set_bb_inputs(target, std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs);
+            break;
+        case CFCInstruction::syscall:
+            // TODO: we don't need this, just need to respect the clobbered registers from a syscall
+            set_bb_inputs_from_static(target);
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map, size_t max_stack_frame_size) {
     // TODO: when there is one cfop and it's a jump we can already omit the jmp bX_reg_alloc if the block isn't compiled yet
     // since it will get compiled straight after
 
     // really scuffed
+    // TODO: we already have these one level up
     const auto reg_map_bak = reg_map;
     const auto stack_map_bak = stack_map;
     std::vector<SSAVar::GeneratorInfoX64> gen_infos;
@@ -772,26 +813,14 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
 
         auto target_top_level = false;
         if (auto *target = cf_op.target(); target != nullptr) {
-            /*if (target->predecessors.empty()) {
-                target_top_level = true;
-            } else {
-                auto count = target->predecessors.size();
-                for (auto* pred : target->predecessors) {
-                    if (pred == target) {
-                        count--;
-                    }
-                }
-                if (count == 0) {
-                    target_top_level = true;
-                }
-            }*/
             target_top_level = is_block_top_level(target);
         }
         switch (cf_op.type) {
         case CFCInstruction::jump: {
             write_target_inputs(cf_op.target(), cur_time, std::get<CfOp::JumpInfo>(cf_op.info).target_inputs);
             if (target_top_level) {
-                print_asm("mov rsp, rbp\npop rbp\n");
+                print_asm("# destroy stack space\n");
+                print_asm("add rsp, %zu\n", max_stack_frame_size * 8);
                 print_asm("jmp b%zu\n", cf_op.target()->id);
             } else {
                 print_asm("jmp b%zu_reg_alloc\n", cf_op.target()->id);
@@ -801,7 +830,8 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
         case CFCInstruction::cjump: {
             write_target_inputs(cf_op.target(), cur_time, std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs);
             if (target_top_level) {
-                print_asm("mov rsp, rbp\npop rbp\n");
+                print_asm("# destroy stack space\n");
+                print_asm("add rsp, %zu\n", max_stack_frame_size * 8);
                 print_asm("jmp b%zu\n", cf_op.target()->id);
             } else {
                 print_asm("jmp b%zu_reg_alloc\n", cf_op.target()->id);
@@ -826,7 +856,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             const auto dst_reg_name = reg_names[REG_A][0];
             assert(dst->type == Type::imm || dst->type == Type::i64);
             print_asm("# destroy stack space\n");
-            print_asm("mov rsp, rbp\npop rbp\n");
+            print_asm("add rsp, %zu\n", max_stack_frame_size * 8);
 
             gen->err_msgs.emplace_back(Generator::ErrType::unresolved_ijump, bb);
 
@@ -872,13 +902,14 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
                 load_val_in_reg(cur_time, var, call_reg[i]);
             }
             if (cf_op.in_vars[6] == nullptr) {
-                print_asm("push 0\n");
+                print_asm("sub rsp, 16\n");
             } else {
                 // TODO: clear rax before when we have inputs < 64 bit
                 if (reg_map[REG_A].cur_var && reg_map[REG_A].cur_var->gen_info.last_use_time >= cur_time) {
                     save_reg(REG_A);
                 }
                 load_val_in_reg(cur_time, cf_op.in_vars[6].get(), REG_A);
+                print_asm("sub rsp, 8\n");
                 print_asm("push rax\n");
             }
 
@@ -887,7 +918,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
                 print_asm("mov [s%zu], rax\n", info.static_mapping.at(0));
             }
             print_asm("# destroy stack space\n");
-            print_asm("mov rsp, rbp\npop rbp\n");
+            print_asm("add rsp, %zu\n", max_stack_frame_size * 8 + 16);
             // need to jump to translation block
             // TODO: technically we don't need to if the block didn't have a input mapping before
             // so only do that when the next block does have an input mapping or more than one predecessor?
@@ -900,6 +931,47 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
         }
         }
     }
+}
+
+void RegAlloc::write_assembled_blocks(size_t max_stack_frame_size) {
+    for (size_t i = 0; i < assembled_blocks.size(); ++i) {
+        auto &block = assembled_blocks[i];
+
+        // reset geninfos since it gets overwritten when the block is compiled
+        /*for (auto& cf_op : block.bb->control_flow_ops) {
+            auto* target = cf_op.target();
+            if (!target) {
+                continue;
+            }
+            for (size_t input_idx = 0; input_idx < target->inputs.size(); ++input_idx) {
+                auto& info = target->gen_info.input_map[input_idx];
+                auto* input = target->inputs[input_idx];
+                input->gen_info.saved_in_stack = false;
+                if (info.location == BasicBlock::GeneratorInfo::InputInfo::STATIC) {
+                    input->gen_info.location = SSAVar::GeneratorInfoX64::STATIC;
+                    input->gen_info.static_idx = info.static_idx;
+                } else if (info.location == BasicBlock::GeneratorInfo::InputInfo::REGISTER) {
+                    input->gen_info.location = SSAVar::GeneratorInfoX64::REGISTER;
+                    input->gen_info.reg_idx = info.reg_idx;
+                } else if (info.location == BasicBlock::GeneratorInfo::InputInfo::STACK) {
+                    input->gen_info.location = SSAVar::GeneratorInfoX64::STACK_FRAME;
+                    input->gen_info.saved_in_stack = true;
+                    input->gen_info.stack_slot = info.stack_slot;
+                }
+            }
+        }*/
+
+        fprintf(gen->out_fd, "%s\n", block.assembly.c_str());
+        asm_buf.clear();
+        cur_bb = block.bb;
+        cur_reg_map = &block.reg_map;
+        cur_stack_map = &block.stack_map;
+        compile_cf_ops(block.bb, block.reg_map, block.stack_map, max_stack_frame_size);
+        fprintf(gen->out_fd, "%s\n", asm_buf.c_str());
+    }
+    cur_bb = nullptr;
+    cur_reg_map = nullptr;
+    cur_stack_map = nullptr;
 }
 
 void RegAlloc::generate_translation_block(BasicBlock *bb) {
@@ -930,7 +1002,7 @@ void RegAlloc::generate_translation_block(BasicBlock *bb) {
             break;
         case BasicBlock::GeneratorInfo::InputInfo::STACK:
             print_asm("mov rax, [s%zu]\n", src_static);
-            print_asm("mov [rbp - 8 - 8 * %zu], rax\n", input_info.stack_slot);
+            print_asm("mov [rsp + 8 * %zu], rax\n", input_info.stack_slot);
             break;
         case BasicBlock::GeneratorInfo::InputInfo::STATIC:
             if (input_info.static_idx != src_static) {
@@ -953,6 +1025,66 @@ void RegAlloc::generate_translation_block(BasicBlock *bb) {
 
     std::swap(tmp_buf, asm_buf);
     translation_blocks.push_back(std::make_pair(bb->id, std::move(tmp_buf)));
+}
+
+void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar>> &inputs) {
+    const auto cur_time = cur_bb->variables.size();
+    // fix for immediate inputs
+    for (size_t i = 0; i < inputs.size(); ++i) {
+        auto *input_var = inputs[i].get();
+        if (input_var->type == Type::mt) {
+            continue;
+        }
+
+        if (input_var->gen_info.location != SSAVar::GeneratorInfoX64::NOT_CALCULATED) {
+            continue;
+        }
+        assert(input_var->type == Type::imm);
+        load_val_in_reg(cur_time, input_var);
+    }
+
+    assert(target->inputs.size() == inputs.size());
+    if (target->id > BB_MERGE_TIL_ID || is_block_top_level(target)) {
+        // cheap fix to force single block register allocation
+        set_bb_inputs_from_static(target);
+    } else {
+        // just write input locations, compile the input map and we done
+        for (size_t i = 0; i < inputs.size(); ++i) {
+            auto *input_var = inputs[i].get();
+            auto *target_var = target->inputs[i];
+            if (input_var->type == Type::mt) {
+                continue;
+            }
+
+            assert(input_var->gen_info.location != SSAVar::GeneratorInfoX64::NOT_CALCULATED);
+            target_var->gen_info.location = input_var->gen_info.location;
+            target_var->gen_info.loc_info = input_var->gen_info.loc_info;
+
+            // TODO: make translation blocks/cfops put the values in the registers/statics *and* stack locations
+            // if applicable
+            if (input_var->gen_info.location == SSAVar::GeneratorInfoX64::STACK_FRAME) {
+                target_var->gen_info.saved_in_stack = true;
+                target_var->gen_info.stack_slot = input_var->gen_info.stack_slot;
+            }
+        }
+
+        generate_input_map(target);
+    }
+}
+
+void RegAlloc::set_bb_inputs_from_static(BasicBlock *target) {
+    for (size_t i = 0; i < target->inputs.size(); ++i) {
+        auto *var = target->inputs[i];
+        assert(std::holds_alternative<size_t>(var->info));
+
+        BasicBlock::GeneratorInfo::InputInfo info;
+        info.location = BasicBlock::GeneratorInfo::InputInfo::STATIC;
+        info.static_idx = std::get<size_t>(var->info);
+        var->gen_info.location = SSAVar::GeneratorInfoX64::STATIC;
+        var->gen_info.static_idx = info.static_idx;
+        target->gen_info.input_map.push_back(std::move(info));
+    }
+    target->gen_info.input_map_setup = true;
 }
 
 void RegAlloc::generate_input_map(BasicBlock *bb) {
@@ -1054,63 +1186,7 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
     // so that's what we do :)
     // register conflicts should be resolved by load_from_reg though
 
-    // fix for immediate inputs
-    for (size_t i = 0; i < inputs.size(); ++i) {
-        auto *input_var = inputs[i].get();
-        if (input_var->type == Type::mt) {
-            continue;
-        }
-
-        if (input_var->gen_info.location != SSAVar::GeneratorInfoX64::NOT_CALCULATED) {
-            continue;
-        }
-        assert(input_var->type == Type::imm);
-        load_val_in_reg(cur_time, input_var);
-    }
-
-    assert(target->inputs.size() == inputs.size());
-    if (!target->gen_info.input_map_setup) {
-        if (target->id > BB_MERGE_TIL_ID || is_block_top_level(target)) {
-            // cheap fix to force single block register allocation
-            for (size_t i = 0; i < target->inputs.size(); ++i) {
-                auto *var = target->inputs[i];
-                assert(std::holds_alternative<size_t>(var->info));
-
-                BasicBlock::GeneratorInfo::InputInfo info;
-                info.location = BasicBlock::GeneratorInfo::InputInfo::STATIC;
-                info.static_idx = std::get<size_t>(var->info);
-                var->gen_info.location = SSAVar::GeneratorInfoX64::STATIC;
-                var->gen_info.static_idx = info.static_idx;
-                target->gen_info.input_map.push_back(std::move(info));
-            }
-            target->gen_info.input_map_setup = true;
-        } else {
-            // TODO: when target is top-level, all inputs need to be in statics
-            // just write input locations, compile the input map and we done
-            for (size_t i = 0; i < inputs.size(); ++i) {
-                auto *input_var = inputs[i].get();
-                auto *target_var = target->inputs[i];
-                if (input_var->type == Type::mt) {
-                    continue;
-                }
-
-                assert(input_var->gen_info.location != SSAVar::GeneratorInfoX64::NOT_CALCULATED);
-                target_var->gen_info.location = input_var->gen_info.location;
-                target_var->gen_info.loc_info = input_var->gen_info.loc_info;
-
-                // TODO: make translation blocks/cfops put the values in the registers/statics *and* stack locations
-                // if applicable
-                if (input_var->gen_info.location == SSAVar::GeneratorInfoX64::STACK_FRAME) {
-                    target_var->gen_info.saved_in_stack = true;
-                    target_var->gen_info.stack_slot = input_var->gen_info.stack_slot;
-                }
-            }
-
-            generate_input_map(target);
-            return;
-        }
-    }
-
+    assert(target->gen_info.input_map_setup);
     assert(target->inputs.size() == target->gen_info.input_map.size());
     const auto &input_map = target->gen_info.input_map;
     // mark all stack slots used as inputs as non-free
@@ -1200,12 +1276,17 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
 
     // write out stack
     for (size_t var_idx = 0; var_idx < inputs.size(); ++var_idx) {
-        if (input_map[var_idx].location != BasicBlock::GeneratorInfo::InputInfo::STACK) {
+        auto &info = input_map[var_idx];
+        if (info.location != BasicBlock::GeneratorInfo::InputInfo::STACK) {
+            continue;
+        }
+        auto *input = inputs[var_idx].get();
+        if (input->gen_info.saved_in_stack && input->gen_info.stack_slot == info.stack_slot) {
             continue;
         }
 
-        const auto reg = load_val_in_reg(cur_time, inputs[var_idx].get());
-        print_asm("mov [rbp - 8 - 8 * %zu], %s\n", input_map[var_idx].stack_slot, reg_names[reg][0]);
+        const auto reg = load_val_in_reg(cur_time, input);
+        print_asm("mov [rsp + 8 * %zu], %s\n", info.stack_slot, reg_names[reg][0]);
     }
 
     auto &reg_map = *cur_reg_map;
@@ -1216,10 +1297,9 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
         }
 
         const auto reg = static_cast<REGISTER>(input_map[var_idx].reg_idx);
-        if (reg_map[reg].cur_var && reg_map[reg].cur_var->gen_info.last_use_time >= cur_time) {
-            save_reg(reg);
-        }
-        load_val_in_reg(cur_time, inputs[var_idx].get(), reg);
+        auto *input = inputs[var_idx].get();
+
+        load_val_in_reg(cur_time, input, reg);
     }
 }
 
@@ -1432,7 +1512,7 @@ template <typename... Args> REGISTER RegAlloc::load_val_in_reg(size_t cur_time, 
         if (var->gen_info.location == SSAVar::GeneratorInfoX64::STATIC) {
             print_asm("mov %s, [s%zu]\n", reg_name(reg, var->type), var->gen_info.static_idx);
         } else {
-            print_asm("mov %s, [rbp - 8 - 8 * %zu]\n", reg_name(reg, var->type), var->gen_info.stack_slot);
+            print_asm("mov %s, [rsp + 8 * %zu]\n", reg_name(reg, var->type), var->gen_info.stack_slot);
         }
     }
 
@@ -1499,7 +1579,7 @@ void RegAlloc::save_reg(REGISTER reg) {
         }
     }
 
-    print_asm("mov [rbp - 8 - 8 * %zu], %s\n", stack_slot, reg_name(reg, var->type));
+    print_asm("mov [rsp + 8 * %zu], %s\n", stack_slot, reg_name(reg, var->type));
     stack_map[stack_slot].free = false;
     stack_map[stack_slot].var = var;
     var->gen_info.saved_in_stack = true;

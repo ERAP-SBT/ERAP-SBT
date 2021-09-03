@@ -45,9 +45,18 @@ struct RegAlloc {
     using StackMap = std::vector<StackSlot>;
     // TODO: StaticMap?
 
+    struct AssembledBlock {
+        BasicBlock *bb;
+        RegMap reg_map;
+        StackMap stack_map;
+        std::string assembly;
+    };
+
     Generator *gen;
     // pair: bb_id, asm
     std::vector<std::pair<size_t, std::string>> translation_blocks;
+    // without cfops
+    std::vector<AssembledBlock> assembled_blocks;
     char print_buf[512];
     // need to store produced asm as we don't know the size of the stack frame and need to change it later on
     std::string asm_buf = {};
@@ -60,10 +69,14 @@ struct RegAlloc {
     void compile_blocks();
     void compile_block(BasicBlock *bb, bool first_block, size_t &max_stack_frame_size);
     void compile_vars(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map);
-    void compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map);
+    void prepare_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map);
+    void compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map, size_t max_stack_frame_size);
+    void write_assembled_blocks(size_t max_stack_frame_size);
 
     void generate_translation_block(BasicBlock *bb);
     void generate_input_map(BasicBlock *bb);
+    void set_bb_inputs_from_static(BasicBlock *target);
+    void set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar>> &inputs);
     void write_static_mapping(BasicBlock *bb, size_t cur_time, const std::vector<std::pair<RefPtr<SSAVar>, size_t>> &mapping);
     void write_target_inputs(BasicBlock *target, size_t cur_time, const std::vector<RefPtr<SSAVar>> &inputs);
     void init_time_of_use(BasicBlock *bb);

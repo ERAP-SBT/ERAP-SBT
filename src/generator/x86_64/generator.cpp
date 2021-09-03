@@ -221,7 +221,7 @@ void Generator::compile_blocks() {
         } else {
             compile_block(block.get());
         }*/
-        //compile_block(block.get());
+        // compile_block(block.get());
         compile_block_reg_alloc(block.get());
     }
 }
