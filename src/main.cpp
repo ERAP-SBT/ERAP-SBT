@@ -54,7 +54,7 @@ int main(int argc, const char **argv) {
         return EXIT_FAILURE;
     }
     auto temp_dir = *maybe_temp_dir;
-    std::cout << "Temporary directory is " << temp_dir << '\n';
+    DEBUG_LOG(std::string("Temporary directory is ") + temp_dir.string());
 
     IR ir;
 
@@ -153,6 +153,8 @@ int main(int argc, const char **argv) {
 
     if (!run_linker(linker_script_file, output_file, output_object, *helper_library))
         return EXIT_FAILURE;
+
+    std::cout << "Output written to " << output_file << '\n';
 
     return EXIT_SUCCESS;
 }
