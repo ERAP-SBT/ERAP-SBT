@@ -25,6 +25,10 @@ enum class Instruction {
     sign_extend,
     zero_extend,
     setup_stack,
+    umax, // dst, cmp1, cmp2
+    umin, // dst, cmp1, cmp2
+    max,  // signed max
+    min,  // signed min
 };
 
 std::ostream &operator<<(std::ostream &stream, Instruction instr);

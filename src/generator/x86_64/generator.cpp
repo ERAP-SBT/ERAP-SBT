@@ -475,7 +475,10 @@ void Generator::compile_vars(const BasicBlock *block) {
             break;
         case Instruction::sar:
             assert(arg_count == 2);
-            fprintf(out_fd, "mov cl, bl\nsar rax, cl\n");
+            // make sure that it uses the bit-width of the input operand for shifting
+            // so that the sign-bit is properly recognized
+            // TODO: find out if that is a problem elsewhere
+            fprintf(out_fd, "mov cl, bl\nsar %s, cl\n", rax_from_type(op->in_vars[0]->type));
             break;
         case Instruction::_or:
             assert(arg_count == 2);
@@ -524,6 +527,30 @@ void Generator::compile_vars(const BasicBlock *block) {
             break;
         case Instruction::sumul_h: /* TODO: implement */
             assert(0);
+            break;
+        case Instruction::umax:
+            assert(arg_count == 2);
+            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
+            fprintf(out_fd, "cmova %s, %s\n", in_regs[0], in_regs[1]);
+            fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
+            break;
+        case Instruction::umin:
+            assert(arg_count == 2);
+            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
+            fprintf(out_fd, "cmovb %s, %s\n", in_regs[0], in_regs[1]);
+            fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
+            break;
+        case Instruction::max:
+            assert(arg_count == 2);
+            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
+            fprintf(out_fd, "cmovg %s, %s\n", in_regs[0], in_regs[1]);
+            fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
+            break;
+        case Instruction::min:
+            assert(arg_count == 2);
+            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
+            fprintf(out_fd, "cmovl %s, %s\n", in_regs[0], in_regs[1]);
+            fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
             break;
         }
 
