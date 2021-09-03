@@ -63,7 +63,6 @@ class TestFloatingPointLifting : public ::testing::Test {
 
     void test_fp_arithmetic_lifting(const RV64Inst &instr) {
         lifter->parse_instruction(bb, instr, mapping, virt_start_addr, virt_start_addr + instr.size);
-        auto *result = bb->variables[COUNT_STATIC_VARS].get();
 
         Type expected_op_size;
         Instruction expected_instruction;
@@ -102,11 +101,11 @@ class TestFloatingPointLifting : public ::testing::Test {
             break;
         case FRV_FDIVS:
             expected_op_size = Type::f32;
-            expected_instruction = Instruction::div;
+            expected_instruction = Instruction::fdiv;
             break;
         case FRV_FDIVD:
             expected_op_size = Type::f64;
-            expected_instruction = Instruction::div;
+            expected_instruction = Instruction::fdiv;
             break;
         case FRV_FMINS:
             expected_op_size = Type::f32;
@@ -128,18 +127,55 @@ class TestFloatingPointLifting : public ::testing::Test {
             assert(0 && "The developer of the tests has failed!!");
         }
 
+        unsigned count_scanned_variables = 0;
+
+        SSAVar *input_one = mapping[instr.instr.rs1 + Lifter::START_IDX_FLOATING_POINT_STATICS];
+
+        SSAVar *input_two = mapping[instr.instr.rs2 + Lifter::START_IDX_FLOATING_POINT_STATICS];
+
+        // if single precision type expect casts
+        if (expected_op_size == Type::f32) {
+            count_scanned_variables++;
+            SSAVar *casted_input_one = bb->variables[COUNT_STATIC_VARS].get();
+            {
+                ASSERT_EQ(casted_input_one->type, Type::f32) << "The casted first input has the wrong type!";
+                ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_input_one->info)) << "The casted first input has no operation!";
+                auto *cast_op = std::get<std::unique_ptr<Operation>>(casted_input_one->info).get();
+                ASSERT_EQ(cast_op->type, Instruction::cast) << "The operation of the casted first input is not a cast!";
+                ASSERT_EQ(cast_op->out_vars[0], casted_input_one) << "The result of the first cast isn't the casted first input!";
+                ASSERT_EQ(cast_op->in_vars[0], input_one) << "The input of the first cast operation isn't the first input!";
+                input_one = casted_input_one;
+            }
+            if (instr.instr.rs2 != 0) {
+                count_scanned_variables++;
+                SSAVar *casted_input_two = bb->variables[COUNT_STATIC_VARS + 1].get();
+                ASSERT_EQ(casted_input_two->type, Type::f32) << "The casted second input has the wrong type!";
+                ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_input_two->info)) << "The casted second input has no operation!";
+                auto *cast_op = std::get<std::unique_ptr<Operation>>(casted_input_two->info).get();
+                ASSERT_EQ(cast_op->type, Instruction::cast) << "The operation of the casted second input is not a cast!";
+                ASSERT_EQ(cast_op->out_vars[0], casted_input_two) << "The result of the second cast isn't the casted second input!";
+                ASSERT_EQ(cast_op->in_vars[0], input_two) << "The input of the second cast operation isn't the second input!";
+                input_two = casted_input_two;
+            }
+        }
+
+        auto *result = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+
         ASSERT_EQ(result->type, expected_op_size) << "The result variable has the wrong type!";
         ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(result->info)) << "The result variable has no operation stored!";
         auto *op = std::get<std::unique_ptr<Operation>>(result->info).get();
         ASSERT_EQ(op->type, expected_instruction) << "The operation has the wrong instruction type!";
         ASSERT_EQ(op->out_vars[0], result) << "The results operations ouput isn't the result!";
         ASSERT_EQ(result, mapping[instr.instr.rd + Lifter::START_IDX_FLOATING_POINT_STATICS]) << "The result isn't written correct to the mapping!";
-        ASSERT_EQ(op->in_vars[0], mapping[instr.instr.rs1 + Lifter::START_IDX_FLOATING_POINT_STATICS]) << "The first input of the instruction isn't the first source operand!";
+        ASSERT_EQ(op->in_vars[0], input_one) << "The first input of the instruction isn't the first source operand!";
         if (instr.instr.rs2 != 0) {
-            ASSERT_EQ(op->in_vars[1], mapping[instr.instr.rs2 + Lifter::START_IDX_FLOATING_POINT_STATICS]) << "The second input of the instruction isn't the second source operand!";
+            ASSERT_EQ(op->in_vars[1], input_two) << "The second input of the instruction isn't the second source operand!";
         }
-        ASSERT_LE(bb->variables.size(), COUNT_STATIC_VARS + 1) << "In the basic block are more variables than expected!";
-        ASSERT_GE(bb->variables.size(), COUNT_STATIC_VARS + 1) << "In the basic block are less variables than expected!";
+
+        count_scanned_variables++;
+
+        ASSERT_LE(bb->variables.size(), COUNT_STATIC_VARS + count_scanned_variables) << "In the basic block are more variables than expected!";
+        ASSERT_GE(bb->variables.size(), COUNT_STATIC_VARS + count_scanned_variables) << "In the basic block are less variables than expected!";
     }
 };
 
@@ -306,8 +342,8 @@ TEST_F(TestFloatingPointLifting, test_fp_sub_d) {
 // TODO: Fails due to static mapper with Type::f64, but combined with Type::f32 instruction... Change static typed static mapper? Convert types everytime? Cast?
 TEST_F(TestFloatingPointLifting, test_fp_mul_f) {
     // create fp mul instruction: fmul.s f12, f3, f4
-    // const RV64Inst instr{FrvInst{FRV_FMULS, 12, 3, 4, 0, 0, 0}, 4};
-    // test_fp_arithmetic_lifting(instr);
+    const RV64Inst instr{FrvInst{FRV_FMULS, 12, 3, 4, 0, 0, 0}, 4};
+    test_fp_arithmetic_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_mul_d) {
@@ -319,8 +355,8 @@ TEST_F(TestFloatingPointLifting, test_fp_mul_d) {
 // TODO: Fails due to static mapper with Type::f64, but combined with Type::f32 instruction... Change static typed static mapper? Convert types everytime? Cast?
 TEST_F(TestFloatingPointLifting, test_fp_div_s) {
     // create fp div instruction: fdiv.s f5, f30, f6
-    // const RV64Inst instr{FrvInst{FRV_FDIVS, 5, 30, 6, 0, 0, 0}, 4};
-    // test_fp_arithmetic_lifting(instr);
+    const RV64Inst instr{FrvInst{FRV_FDIVS, 5, 30, 6, 0, 0, 0}, 4};
+    test_fp_arithmetic_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_div_d) {
@@ -332,8 +368,8 @@ TEST_F(TestFloatingPointLifting, test_fp_div_d) {
 // TODO: Fails due to static mapper with Type::f64, but combined with Type::f32 instruction... Change static typed static mapper? Convert types everytime? Cast?
 TEST_F(TestFloatingPointLifting, test_fp_sqrt_s) {
     // create fp sqrt instruction: fsqrt.s f5, f25
-    // const RV64Inst instr{FrvInst{FRV_FSQRTS, 5, 25, 0, 0, 0, 0}, 4};
-    // test_fp_arithmetic_lifting(instr);
+    const RV64Inst instr{FrvInst{FRV_FSQRTS, 5, 25, 0, 0, 0, 0}, 4};
+    test_fp_arithmetic_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_sqrt_d) {
@@ -345,8 +381,8 @@ TEST_F(TestFloatingPointLifting, test_fp_sqrt_d) {
 // TODO: Fails due to static mapper with Type::f64, but combined with Type::f32 instruction... Change static typed static mapper? Convert types everytime? Cast?
 TEST_F(TestFloatingPointLifting, test_fp_min_f) {
     // create fp sqrt instruction: fmin.s f8, f3, f5
-    // const RV64Inst instr{FrvInst{FRV_FMINS, 8, 3, 5, 0, 0, 0}, 4};
-    // test_fp_arithmetic_lifting(instr);
+    const RV64Inst instr{FrvInst{FRV_FMINS, 8, 3, 5, 0, 0, 0}, 4};
+    test_fp_arithmetic_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_min_d) {
@@ -358,8 +394,8 @@ TEST_F(TestFloatingPointLifting, test_fp_min_d) {
 // TODO: Fails due to static mapper with Type::f64, but combined with Type::f32 instruction... Change static typed static mapper? Convert types everytime? Cast?
 TEST_F(TestFloatingPointLifting, test_fp_max_f) {
     // create fp sqrt instruction: fmax.s f1, f5, f2
-    // const RV64Inst instr{FrvInst{FRV_FMAXS, 1, 5, 2, 0, 0, 0}, 4};
-    // test_fp_arithmetic_lifting(instr);
+    const RV64Inst instr{FrvInst{FRV_FMAXS, 1, 5, 2, 0, 0, 0}, 4};
+    test_fp_arithmetic_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_max_d) {
