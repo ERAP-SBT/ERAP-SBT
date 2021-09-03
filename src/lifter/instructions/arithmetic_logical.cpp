@@ -29,14 +29,15 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, const RV64Inst &instr, re
         if (is_floating_point) {
             if (source_two->type == Type::f64 && op_size == Type::f32) {
                 source_two = shrink_var(bb, source_two, ip, Type::f32);
-                assert(0);
             } else {
-                auto cast = convert_type(bb, ip, source_two, op_size);
-                if (cast.has_value()) {
-                    source_two = cast.value();
-                } else {
-                    print_invalid_op_size(instruction_type, instr);
-                }
+                assert(0);
+            }
+        } else {
+            auto cast = convert_type(bb, ip, source_two, op_size);
+            if (cast.has_value()) {
+                source_two = cast.value();
+            } else {
+                print_invalid_op_size(instruction_type, instr);
             }
         }
     }

@@ -64,6 +64,8 @@ class TestFloatingPointLifting : public ::testing::Test {
     void test_fp_arithmetic_lifting(const RV64Inst &instr) {
         lifter->parse_instruction(bb, instr, mapping, virt_start_addr, virt_start_addr + instr.size);
 
+        verify();
+
         Type expected_op_size;
         Instruction expected_instruction;
         switch (instr.instr.mnem) {
