@@ -296,13 +296,13 @@ uint64_t const_eval(const Instruction instr, const uint64_t val1, const uint64_t
         return val1 & val2;
     case Instruction::_xor:
         return val1 ^ val2;
-    case Instruction::max:
+    case Instruction::umax:
         return std::max(val1, val2);
-    case Instruction::min:
+    case Instruction::umin:
         return std::min(val1, val2);
-    case Instruction::smax:
+    case Instruction::max:
         return std::max(static_cast<int64_t>(val1), static_cast<int64_t>(val2));
-    case Instruction::smin:
+    case Instruction::min:
         return std::min(static_cast<int64_t>(val1), static_cast<int64_t>(val2));
     default:
         assert(0);
@@ -550,13 +550,13 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
             [[fallthrough]];
         case Instruction::_xor:
             [[fallthrough]];
+        case Instruction::umax:
+            [[fallthrough]];
+        case Instruction::umin:
+            [[fallthrough]];
         case Instruction::max:
             [[fallthrough]];
         case Instruction::min:
-            [[fallthrough]];
-        case Instruction::smax:
-            [[fallthrough]];
-        case Instruction::smin:
             [[fallthrough]];
         case Instruction::mul_l:
             [[fallthrough]];
@@ -754,25 +754,25 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
                 case Instruction::_xor:
                     fprintf(out_fd, "xor %s, %ld\n", dst_reg_name, imm);
                     break;
-                case Instruction::max:
+                case Instruction::umax:
                     fprintf(out_fd, "cmp %s, %ld\n", dst_reg_name, imm);
                     fprintf(out_fd, "jae b%zu_%zu_max\n", bb->id, i);
                     fprintf(out_fd, "mov %s, %ld\n", dst_reg_name, imm);
                     fprintf(out_fd, "b%zu_%zu_max:\n", bb->id, i);
                     break;
-                case Instruction::min:
+                case Instruction::umin:
                     fprintf(out_fd, "cmp %s, %ld\n", dst_reg_name, imm);
                     fprintf(out_fd, "jbe b%zu_%zu_min\n", bb->id, i);
                     fprintf(out_fd, "mov %s, %ld\n", dst_reg_name, imm);
                     fprintf(out_fd, "b%zu_%zu_min:\n", bb->id, i);
                     break;
-                case Instruction::smax:
+                case Instruction::max:
                     fprintf(out_fd, "cmp %s, %ld\n", dst_reg_name, imm);
                     fprintf(out_fd, "jge b%zu_%zu_smax\n", bb->id, i);
                     fprintf(out_fd, "mov %s, %ld\n", dst_reg_name, imm);
                     fprintf(out_fd, "b%zu_%zu_smax:\n", bb->id, i);
                     break;
-                case Instruction::smin:
+                case Instruction::min:
                     fprintf(out_fd, "cmp %s, %ld\n", dst_reg_name, imm);
                     fprintf(out_fd, "jle b%zu_%zu_smin\n", bb->id, i);
                     fprintf(out_fd, "mov %s, %ld\n", dst_reg_name, imm);
@@ -879,19 +879,19 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
                 case Instruction::_xor:
                     fprintf(out_fd, "xor %s, %s\n", dst_reg_name, in2_reg_name);
                     break;
-                case Instruction::max:
+                case Instruction::umax:
                     fprintf(out_fd, "cmp %s, %s\n", dst_reg_name, in2_reg_name);
                     fprintf(out_fd, "cmovb %s, %s\n", dst_reg_name, in2_reg_name);
                     break;
-                case Instruction::min:
+                case Instruction::umin:
                     fprintf(out_fd, "cmp %s, %s\n", dst_reg_name, in2_reg_name);
                     fprintf(out_fd, "cmova %s, %s\n", dst_reg_name, in2_reg_name);
                     break;
-                case Instruction::smax:
+                case Instruction::max:
                     fprintf(out_fd, "cmp %s, %s\n", dst_reg_name, in2_reg_name);
                     fprintf(out_fd, "cmovl %s, %s\n", dst_reg_name, in2_reg_name);
                     break;
-                case Instruction::smin:
+                case Instruction::min:
                     fprintf(out_fd, "cmp %s, %s\n", dst_reg_name, in2_reg_name);
                     fprintf(out_fd, "cmovg %s, %s\n", dst_reg_name, in2_reg_name);
                     break;

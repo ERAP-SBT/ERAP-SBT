@@ -287,13 +287,13 @@ void RegAlloc::compile_vars(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map
             [[fallthrough]];
         case Instruction::_xor:
             [[fallthrough]];
+        case Instruction::umax:
+            [[fallthrough]];
+        case Instruction::umin:
+            [[fallthrough]];
         case Instruction::max:
             [[fallthrough]];
         case Instruction::min:
-            [[fallthrough]];
-        case Instruction::smax:
-            [[fallthrough]];
-        case Instruction::smin:
             [[fallthrough]];
         case Instruction::mul_l:
             [[fallthrough]];
@@ -361,25 +361,25 @@ void RegAlloc::compile_vars(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map
                 case Instruction::_xor:
                     print_asm("xor %s, %ld\n", in1_reg_name, imm_val);
                     break;
-                case Instruction::max:
+                case Instruction::umax:
                     print_asm("cmp %s, %ld\n", in1_reg_name, imm_val);
                     print_asm("jae b%zu_%zu_max\n", bb->id, var_idx);
                     print_asm("mov %s, %ld\n", in1_reg_name, imm_val);
                     print_asm("b%zu_%zu_max:\n", bb->id, var_idx);
                     break;
-                case Instruction::min:
+                case Instruction::umin:
                     print_asm("cmp %s, %ld\n", in1_reg_name, imm_val);
                     print_asm("jbe b%zu_%zu_min\n", bb->id, var_idx);
                     print_asm("mov %s, %ld\n", in1_reg_name, imm_val);
                     print_asm("b%zu_%zu_min:\n", bb->id, var_idx);
                     break;
-                case Instruction::smax:
+                case Instruction::max:
                     print_asm("cmp %s, %ld\n", in1_reg_name, imm_val);
                     print_asm("jge b%zu_%zu_smax\n", bb->id, var_idx);
                     print_asm("mov %s, %ld\n", in1_reg_name, imm_val);
                     print_asm("b%zu_%zu_smax:\n", bb->id, var_idx);
                     break;
-                case Instruction::smin:
+                case Instruction::min:
                     print_asm("cmp %s, %ld\n", in1_reg_name, imm_val);
                     print_asm("jle b%zu_%zu_smin\n", bb->id, var_idx);
                     print_asm("mov %s, %ld\n", in1_reg_name, imm_val);
@@ -493,19 +493,19 @@ void RegAlloc::compile_vars(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map
             case Instruction::_xor:
                 print_asm("xor %s, %s\n", in1_reg_name, in2_reg_name);
                 break;
-            case Instruction::max:
+            case Instruction::umax:
                 print_asm("cmp %s, %s\n", in1_reg_name, in2_reg_name);
                 print_asm("cmovb %s, %s\n", in1_reg_name, in2_reg_name);
                 break;
-            case Instruction::min:
+            case Instruction::umin:
                 print_asm("cmp %s, %s\n", in1_reg_name, in2_reg_name);
                 print_asm("cmova %s, %s\n", in1_reg_name, in2_reg_name);
                 break;
-            case Instruction::smax:
+            case Instruction::max:
                 print_asm("cmp %s, %s\n", in1_reg_name, in2_reg_name);
                 print_asm("cmovl %s, %s\n", in1_reg_name, in2_reg_name);
                 break;
-            case Instruction::smin:
+            case Instruction::min:
                 print_asm("cmp %s, %s\n", in1_reg_name, in2_reg_name);
                 print_asm("cmovg %s, %s\n", in1_reg_name, in2_reg_name);
                 break;

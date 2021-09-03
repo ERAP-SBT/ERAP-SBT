@@ -880,7 +880,7 @@ void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op, cons
                 }
             } else {
                 fprintf(out_fd, "xor rax, rax\n");
-                fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(source_var->type), index_for_var(block, source_var));
+                fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", rax_from_type(source_var->type), index_for_var(block, source_var));
             }
         } else {
             fprintf(out_fd, "xor rax, rax\n");
