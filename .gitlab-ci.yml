@@ -7,7 +7,7 @@ before_script:
   # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=988219
   - echo "deb http://deb.debian.org/debian/ experimental main" > /etc/apt/sources.list.d/experimental.list
   - apt-get update
-  - apt-get install -y clang-format g++ git gcovr gcc-riscv64-linux-gnu
+  - apt-get install -y clang-format g++ git gcovr gcc-riscv64-linux-gnu python3-setuptools
   # grab meson from the experimental repository
   - apt-get install -y -t experimental meson
 
