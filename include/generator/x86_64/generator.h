@@ -133,14 +133,14 @@ struct Generator {
     void compile_err_msgs();
     void compile_ijump_lookup();
 
-    void compile_ijump(const BasicBlock *block, const CfOp &op);
-    void compile_call(const BasicBlock *block, const CfOp &op);
-    void compile_icall(const BasicBlock *block, const CfOp &op);
+    void compile_ijump(const BasicBlock *block, const CfOp &op, size_t stack_size);
+    void compile_call(const BasicBlock *block, const CfOp &op, size_t stack_size);
+    void compile_icall(const BasicBlock *block, const CfOp &op, size_t stack_size);
     void compile_vars(const BasicBlock *block);
-    void compile_cf_args(const BasicBlock *block, const CfOp &op);
-    void compile_ret_args(const BasicBlock *block, const CfOp &op);
-    void compile_cjump(const BasicBlock *block, const CfOp &op, size_t cond_idx);
-    void compile_syscall(const BasicBlock *block, const CfOp &op);
+    void compile_cf_args(const BasicBlock *block, const CfOp &op, size_t stack_size);
+    void compile_ret_args(const BasicBlock *block, const CfOp &op, size_t stack_size);
+    void compile_cjump(const BasicBlock *block, const CfOp &op, size_t cond_idx, size_t stack_size);
+    void compile_syscall(const BasicBlock *block, const CfOp &op, size_t stack_size);
     void compile_continuation_args(const BasicBlock *block, const std::vector<std::pair<RefPtr<SSAVar>, size_t>> &mapping);
 };
 } // namespace generator::x86_64

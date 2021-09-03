@@ -379,7 +379,7 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
 
                     if (last_used_var->type != Type::imm && !std::holds_alternative<size_t>(last_used_var->info)) {
                         // no need to save immediates or statics
-                        fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", last_used_idx, reg_names[reg][0]);
+                        fprintf(out_fd, "mov [rsp + 8 * %zu], %s\n", last_used_idx, reg_names[reg][0]);
                     }
                 }
             }
@@ -391,7 +391,7 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
             auto &info = var_map[idx];
             if (info.last_used >= cur_time && var->type != Type::imm && !std::holds_alternative<size_t>(var->info)) {
                 // TODO: see clear_reg
-                fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", idx, reg_names[reg][0]);
+                fprintf(out_fd, "mov [rsp + 8 * %zu], %s\n", idx, reg_names[reg][0]);
             }
 
             info.cur_reg = REG_NONE;
@@ -415,7 +415,7 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
             // but this is currently needed as we don't have fine-grained control over "time" in cfops
             // and when you need vars there they dont't get saved otherwise
             // for now maybe fix by using time - 1 in cfop context?
-            fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", idx, reg_name(reg, var->type));
+            fprintf(out_fd, "mov [rsp + 8 * %zu], %s\n", idx, reg_name(reg, var->type));
         }
         reg_map[reg].current_var = nullptr;
     };
@@ -462,7 +462,7 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
         } else if (std::holds_alternative<size_t>(var->info)) {
             fprintf(out_fd, "mov %s, [s%zu]\n", reg_names[reg][0], std::get<size_t>(var->info));
         } else {
-            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", reg_name(reg, var->type), index_for_var(bb, var));
+            fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", reg_name(reg, var->type), index_for_var(bb, var));
         }
 
         return reg;
@@ -519,7 +519,8 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
     }
 
     // stack-frame
-    fprintf(out_fd, "b%zu:\npush rbp\nmov rbp, rsp\nsub rsp, %zu\n", bb->id, bb->variables.size() * 8);
+    const size_t stack_size = (((bb->variables.size() * 8) + 15) & 0xFFFFFFFF'FFFFFFF0);
+    fprintf(out_fd, "b%zu:\nsub rsp, %zu\n", bb->id, stack_size);
     fprintf(out_fd, "# SBRA\n"); // single-block register allocation
     fprintf(out_fd, "# Virt Start: %#lx\n# Virt End:  %#lx\n", bb->virt_start_addr, bb->virt_end_addr);
 
@@ -692,7 +693,7 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
                 if (var_map[in1_idx].last_used > i && !std::holds_alternative<size_t>(in1->info)) {
                     // backup in1 if it is not a static
                     // TODO: mark value if it has already been saved once
-                    fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", in1_idx, dst_reg_name);
+                    fprintf(out_fd, "mov [rsp + 8 * %zu], %s\n", in1_idx, dst_reg_name);
                 }
 
                 switch (op->type) {
@@ -841,7 +842,7 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
                 if (var_map[in1_idx].last_used > i && !std::holds_alternative<size_t>(in1->info) && in1->type != Type::imm) {
                     // backup in1 if it is not a static or immediate
                     // TODO: mark value if it has already been saved once
-                    fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", in1_idx, dst_reg_name);
+                    fprintf(out_fd, "mov [rsp + 8 * %zu], %s\n", in1_idx, dst_reg_name);
                 }
 
                 switch (op->type) {
@@ -962,7 +963,7 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
             const auto in_idx = index_for_var(bb, input);
             auto &info = var_map[in_idx];
             if (info.last_used > i && !std::holds_alternative<size_t>(input->info) && input->type != Type::imm) {
-                fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", in_idx, dst_reg_name);
+                fprintf(out_fd, "mov [rsp + 8 * %zu], %s\n", in_idx, dst_reg_name);
             }
 
             // TODO: in theory you could simply alias the input var for cast and zero_extend
@@ -1005,7 +1006,7 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
 
             auto &info = var_map[index_for_var(bb, addr)];
             if (info.last_used > i && addr->type != Type::imm && !std::holds_alternative<size_t>(addr->info)) {
-                fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", index_for_var(bb, addr), reg_names[dst_reg][0]);
+                fprintf(out_fd, "mov [rsp + 8 * %zu], %s\n", index_for_var(bb, addr), reg_names[dst_reg][0]);
             }
 
             fprintf(out_fd, "mov %s, [%s]\n", reg_name(dst_reg, dst->type), reg_names[dst_reg][0]);
@@ -1332,7 +1333,7 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
             [[fallthrough]];
         case CFCInstruction::cjump:
             fprintf(out_fd, "# destroy stack space\n");
-            fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
+            fprintf(out_fd, "add rsp, %zu\n", stack_size);
             fprintf(out_fd, "jmp b%zu\n", cf_op.target()->id);
             break;
         case CFCInstruction::unreachable:
@@ -1347,7 +1348,7 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
             const auto dst_reg_name = reg_names[dst_reg][0];
             assert(dst->type == Type::imm || dst->type == Type::i64);
             fprintf(out_fd, "# destroy stack space\n");
-            fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
+            fprintf(out_fd, "add rsp, %zu\n", stack_size);
 
             err_msgs.emplace_back(ErrType::unresolved_ijump, bb);
 
@@ -1380,25 +1381,19 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
                 load_val_in_reg(cf_op.in_vars[i].get(), time, call_reg[i]);
             }
             if (cf_op.in_vars[6] == nullptr) {
-                fprintf(out_fd, "push 0\n");
+                fprintf(out_fd, "sub rsp, 16\n");
             } else {
                 // TODO: clear rax before when we have inputs < 64 bit
                 load_val_in_reg(cf_op.in_vars[6].get(), time, REG_A);
-                fprintf(out_fd, "push rax\n");
+                fprintf(out_fd, "sub rsp, 8\npush rax\n");
             }
 
-            fprintf(out_fd, "call syscall_impl\n");
+            fprintf(out_fd, "call syscall_impl\nadd rsp, 16\n");
             if (info.static_mapping.size() > 0) {
                 fprintf(out_fd, "mov [s%zu], rax\n", info.static_mapping.at(0));
-                if (info.static_mapping.size() == 2) {
-                    fprintf(out_fd, "mov [s%zu], rdx\n", info.static_mapping.at(1));
-                } else {
-                    // syscalls only return max 2 values
-                    assert(0);
-                }
             }
             fprintf(out_fd, "# destroy stack space\n");
-            fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
+            fprintf(out_fd, "add rsp, %zu\n", stack_size);
             fprintf(out_fd, "jmp b%zu\n", info.continuation_block->id);
             break;
         }
