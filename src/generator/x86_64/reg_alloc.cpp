@@ -644,8 +644,8 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
                     }
                     fprintf(out_fd, "mov %s, %ld\n", reg_name(dst_reg, dst->type), res);
                 }
-            } else if (in1->type == Type::imm && in2->type != Type::imm && !std::get<SSAVar::ImmInfo>(in1->info).binary_relative ||
-                       in1->type != Type::imm && in2->type == Type::imm && !std::get<SSAVar::ImmInfo>(in2->info).binary_relative) {
+            } else if ((in1->type == Type::imm && in2->type != Type::imm && !std::get<SSAVar::ImmInfo>(in1->info).binary_relative) ||
+                       (in1->type != Type::imm && in2->type == Type::imm && !std::get<SSAVar::ImmInfo>(in2->info).binary_relative)) {
 
                 if (in1->type == Type::imm) {
                     if (op->type != Instruction::sub && op->type != Instruction::sumul_h && op->type != Instruction::div && op->type != Instruction::udiv && op->type != Instruction::shl &&
@@ -1410,6 +1410,10 @@ void Generator::compile_block_reg_alloc(const BasicBlock *bb) {
             fprintf(out_fd, "jmp b%zu\n", info.continuation_block->id);
             break;
         }
+        default:
+            assert(0);
+            fprintf(stderr, "Encountered unsupported cfop\n");
+            exit(1);
         }
     }
 }
