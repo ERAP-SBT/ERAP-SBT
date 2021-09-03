@@ -283,6 +283,9 @@ void Lifter::lift_rec(Program *prog, Function *func, uint64_t start_addr, std::o
             cfOp.set_target(next_bb);
         }
 
+        // zero extend all f32 to f64 in order to map correctly to the fp statics
+        zero_extend_all_f32(curr_bb, mapping, curr_bb->virt_end_addr);
+
         for (size_t i = 0; i < mapping.size(); i++) {
             auto var = mapping[i];
             if (var != nullptr) {

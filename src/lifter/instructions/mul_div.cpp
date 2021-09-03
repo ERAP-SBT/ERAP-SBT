@@ -9,14 +9,18 @@ void Lifter::lift_mul(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
     SSAVar *rs_1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip, is_floating_point);
     if (rs_1->type != in_type) {
         if (is_floating_point) {
-            // TODO: Can this happen?
-            assert(0 && "Operation on floating points from different size!");
-        }
-        auto cast = convert_type(bb, ip, rs_1, in_type);
-        if (cast.has_value()) {
-            rs_1 = cast.value();
+            if (rs_1->type == Type::f64 && in_type == Type::f32) {
+                rs_1 = shrink_var(bb, rs_1, ip, Type::f32);
+            } else {
+                assert(0);
+            }
         } else {
-            print_invalid_op_size(instr_type, instr);
+            auto cast = convert_type(bb, ip, rs_1, in_type);
+            if (cast.has_value()) {
+                rs_1 = cast.value();
+            } else {
+                print_invalid_op_size(instr_type, instr);
+            }
         }
     }
 
@@ -24,8 +28,11 @@ void Lifter::lift_mul(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
     SSAVar *rs_2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, is_floating_point);
     if (rs_2->type != in_type) {
         if (is_floating_point) {
-            // TODO: Can this happen?
-            assert(0 && "Operation on floating points from different size!");
+            if (rs_2->type == Type::f64 && in_type == Type::f32) {
+                rs_2 = shrink_var(bb, rs_2, ip, Type::f32);
+            } else {
+                assert(0);
+            }
         }
         auto cast = convert_type(bb, ip, rs_2, in_type);
         if (cast.has_value()) {

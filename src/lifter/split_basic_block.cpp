@@ -33,6 +33,9 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
             mapping[static_id] = var;
         }
     }
+    // zero extend all f32 values in order to map them correctly to the f64 statics
+    zero_extend_all_f32(bb, mapping, addr);
+
     mapping[ZERO_IDX] = nullptr;
 
     // create the new BasicBlock
@@ -160,6 +163,7 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
         // variable is the result of an Operation -> adjust the inputs of the operation
         if (std::holds_alternative<std::unique_ptr<Operation>>(var->info)) {
             auto *operation = std::get<std::unique_ptr<Operation>>(var->info).get();
+            const bool is_single_precision_op = type_is_floating_point(operation->out_vars[0]->type);
             for (auto &in_var : operation->in_vars) {
                 // skip nullptrs
                 if (in_var == nullptr) {
@@ -170,7 +174,17 @@ void Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_bas
 
                 // the input must only be changed if the input variable is in the first BasicBlock
                 if (in_var_lifter_info.assign_addr < addr) {
-                    in_var = new_mapping[in_var_lifter_info.static_id];
+                    if (is_single_precision_op && in_var->type == Type::f32) {
+                        // cast f64 static to f32 if necessary
+                        in_var = new_bb->add_var(Type::f32, addr);
+                        auto op = std::make_unique<Operation>(Instruction::cast);
+                        op->set_inputs(new_mapping[in_var_lifter_info.static_id]);
+                        op->set_outputs(in_var);
+                        in_var->set_op(std::move(op));
+                    } else {
+                        // change input normaly
+                        in_var = new_mapping[in_var_lifter_info.static_id];
+                    }
                 }
             }
         }

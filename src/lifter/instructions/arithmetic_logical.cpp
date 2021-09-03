@@ -8,20 +8,37 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, const RV64Inst &instr, re
     SSAVar *source_two = get_from_mapping(bb, mapping, instr.instr.rs2, ip, is_floating_point);
 
     // test for invalid operand sizes
-    if (!is_floating_point && source_one->type != op_size) {
-        auto cast = convert_type(bb, ip, source_one, op_size);
-        if (cast.has_value()) {
-            source_one = cast.value();
+    if (source_one->type != op_size) {
+        if (is_floating_point) {
+            if (source_one->type == Type::f64 && op_size == Type::f32) {
+                source_one = shrink_var(bb, source_one, ip, Type::f32);
+            } else {
+                assert(0);
+            }
         } else {
-            print_invalid_op_size(instruction_type, instr);
+            auto cast = convert_type(bb, ip, source_one, op_size);
+            if (cast.has_value()) {
+                source_one = cast.value();
+            } else {
+                print_invalid_op_size(instruction_type, instr);
+            }
         }
     }
-    if (!is_floating_point && source_two->type != op_size) {
-        auto cast = convert_type(bb, ip, source_two, op_size);
-        if (cast.has_value()) {
-            source_two = cast.value();
+
+    if (source_two->type != op_size) {
+        if (is_floating_point) {
+            if (source_two->type == Type::f64 && op_size == Type::f32) {
+                source_two = shrink_var(bb, source_two, ip, Type::f32);
+            } else {
+                assert(0);
+            }
         } else {
-            print_invalid_op_size(instruction_type, instr);
+            auto cast = convert_type(bb, ip, source_two, op_size);
+            if (cast.has_value()) {
+                source_two = cast.value();
+            } else {
+                print_invalid_op_size(instruction_type, instr);
+            }
         }
     }
 

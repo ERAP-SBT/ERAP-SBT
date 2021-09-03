@@ -82,3 +82,21 @@ void Lifter::write_to_mapping(reg_map &mapping, SSAVar *var, uint64_t reg_id, bo
     std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = actual_reg_id;
     mapping[actual_reg_id] = var;
 }
+
+void Lifter::zero_extend_all_f32(BasicBlock *bb, reg_map &mapping, uint64_t ip) {
+    for (unsigned i = 0; i < mapping.size(); i++) {
+        if (i == ZERO_IDX) {
+            continue;
+        }
+
+        if (mapping[i]->type == Type::f32) {
+            SSAVar *extended_var = bb->add_var(Type::f64, ip);
+            auto op = std::make_unique<Operation>(Instruction::zero_extend);
+            op->set_inputs(mapping[i]);
+            op->set_outputs(extended_var);
+            extended_var->set_op(std::move(op));
+            std::get<SSAVar::LifterInfo>(extended_var->lifter_info).static_id = i;
+            mapping[i] = extended_var;
+        }
+    }
+}

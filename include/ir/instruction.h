@@ -19,7 +19,7 @@ enum class Instruction {
     _and,
     _not,
     _xor,
-    cast, // used for shrinking size of an integer variable or to cast the bits from floating point to integer or vice versa
+    cast, // used for shrinking size of an integer variable or to cast the bits from floating point to integer or vice versa or for shrinking the f32 values which are zero extended to f64
     slt,  // set if less than, (v1 < v2) ? v3 : v4
     sltu, // set if less than unsigned, (v1 <u v2) ? v3 : v4
     sle,  // set if less than or equal, (v1 <= v2) ? v3 : v4
