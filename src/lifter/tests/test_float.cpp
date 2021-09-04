@@ -27,11 +27,11 @@ class TestFloatingPointLifting : public ::testing::Test {
             ir->add_static(Type::i64);
         }
 
-        ir->add_static(Type::mt);
-
         for (unsigned i = 0; i < 32; i++) {
             ir->add_static(Type::f64);
         }
+
+        ir->add_static(Type::mt);
 
         ir->add_static(Type::i64);
 
@@ -416,6 +416,180 @@ class TestFloatingPointLifting : public ::testing::Test {
 
         ASSERT_LE(bb->variables.size(), COUNT_STATIC_VARS + count_scanned_variables) << "In the basic block are more variables than expected!";
         ASSERT_GE(bb->variables.size(), COUNT_STATIC_VARS + count_scanned_variables) << "In the basic block are less variables than expected!";
+    }
+
+    void test_sign_injection(const RV64Inst &instr) {
+        // preserve input values from overriding in the mapping in order to use them in comparison later on
+        const SSAVar *input_one = mapping[instr.instr.rs1 + Lifter::START_IDX_FLOATING_POINT_STATICS];
+        const SSAVar *input_two = mapping[instr.instr.rs2 + Lifter::START_IDX_FLOATING_POINT_STATICS];
+
+        lifter->parse_instruction(bb, instr, mapping, virt_start_addr, virt_start_addr + 4);
+
+        verify();
+
+        Type expected_type;
+
+        switch (instr.instr.mnem) {
+        case FRV_FSGNJS:
+            expected_type = Type::f32;
+            break;
+        case FRV_FSGNJD:
+            expected_type = Type::f64;
+            break;
+        case FRV_FSGNJNS:
+            expected_type = Type::f32;
+            break;
+        case FRV_FSGNJND:
+            expected_type = Type::f64;
+            break;
+        case FRV_FSGNJXS:
+            expected_type = Type::f32;
+            break;
+        case FRV_FSGNJXD:
+            expected_type = Type::f64;
+            break;
+        default:
+            FAIL() << "The developer of the tests has failed!";
+        }
+
+        const bool is_single_precision = expected_type == Type::f32;
+        unsigned count_scanned_variables = 0;
+
+        // test the masks
+        SSAVar *sign_bit_extraction_mask = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        {
+            ASSERT_EQ(sign_bit_extraction_mask->type, Type::imm) << "The sign bit extraction mask should be an immediate!";
+            ASSERT_TRUE(std::holds_alternative<SSAVar::ImmInfo>(sign_bit_extraction_mask->info)) << "The sign bit extraction mask should have an ImmInfo!";
+            SSAVar::ImmInfo &imm_info = std::get<SSAVar::ImmInfo>(sign_bit_extraction_mask->info);
+            ASSERT_EQ(imm_info.val, (is_single_precision ? 0x80000000 : 0x8000000000000000)) << "The sign bit extraction mask has the wrong value!";
+            ASSERT_FALSE(imm_info.binary_relative) << "The sign bit extraction mask mustn't be binary relativ!";
+            count_scanned_variables++;
+        }
+
+        SSAVar *sign_zero_mask = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        {
+            ASSERT_EQ(sign_zero_mask->type, Type::imm) << "The sign bit zero mask should be an immediate!";
+            ASSERT_TRUE(std::holds_alternative<SSAVar::ImmInfo>(sign_zero_mask->info)) << "The sign bit zero mask should have an ImmInfo!";
+            SSAVar::ImmInfo &imm_info = std::get<SSAVar::ImmInfo>(sign_zero_mask->info);
+            ASSERT_EQ(imm_info.val, (is_single_precision ? 0x7FFFFFFF : 0x7FFFFFFFFFFFFFFF)) << "The sign bit zero mask has the wrong value!";
+            ASSERT_FALSE(imm_info.binary_relative) << "The sign bit zero mask mustn't be binary relativ!";
+            count_scanned_variables++;
+        }
+
+        if (is_single_precision) {
+            {
+                SSAVar *casted_input_one = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+                ASSERT_EQ(casted_input_one->type, Type::f32) << "The casted first input has the wrong type!";
+                ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_input_one->info)) << "The casted first input variable doesn't have an operation!";
+                auto *cast_op = std::get<std::unique_ptr<Operation>>(casted_input_one->info).get();
+                ASSERT_EQ(cast_op->type, Instruction::cast) << "The cast operation has the wrong type!";
+                ASSERT_EQ(cast_op->out_vars[0], casted_input_one) << "The cast operation doesn't have the casted first input as output!";
+                ASSERT_EQ(cast_op->in_vars[0], input_one) << "The cast operation doesn't have the first input as input!";
+                input_one = casted_input_one;
+                count_scanned_variables++;
+            }
+            {
+                SSAVar *casted_input_two = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+                ASSERT_EQ(casted_input_two->type, Type::f32) << "The casted second input has the wrong type!";
+                ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_input_two->info)) << "The casted second input variable doesn't have an operation!";
+                auto *cast_op = std::get<std::unique_ptr<Operation>>(casted_input_two->info).get();
+                ASSERT_EQ(cast_op->type, Instruction::cast) << "The cast operation has the wrong type!";
+                ASSERT_EQ(cast_op->out_vars[0], casted_input_two) << "The cast operation doesn't have the casted second input as output!";
+                ASSERT_EQ(cast_op->in_vars[0], input_two) << "The cast operation doesn't have the second input as input!";
+                input_two = casted_input_two;
+                count_scanned_variables++;
+            }
+        }
+
+        SSAVar *input_two_sign = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        {
+            ASSERT_EQ(input_two_sign->type, expected_type) << "The sign of the second input has the wrong type!";
+            ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(input_two_sign->info)) << "The sign of the second input doesn't have an operation!";
+            auto *op = std::get<std::unique_ptr<Operation>>(input_two_sign->info).get();
+            ASSERT_EQ(op->type, Instruction::_and) << "The operation of the sign of the second input has the wrong type!";
+            ASSERT_EQ(op->out_vars[0], input_two_sign) << "The sign of the second input isn't the ouput of it's operation!";
+            ASSERT_EQ(op->in_vars[0], input_two) << "The first input of the operation of the sign of the second input isn't the second input!";
+            ASSERT_EQ(op->in_vars[1], sign_bit_extraction_mask) << "The second input of the operation isn't the sign bit extraction mask!";
+            count_scanned_variables++;
+        }
+
+        SSAVar *expected_new_sign;
+        switch (instr.instr.mnem) {
+        case FRV_FSGNJS:
+        case FRV_FSGNJD:
+            expected_new_sign = input_two_sign;
+            break;
+        case FRV_FSGNJNS:
+        case FRV_FSGNJND: {
+            SSAVar *negated_sign_bit = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+            ASSERT_EQ(negated_sign_bit->type, expected_type) << "The negated sign bit has the wrong type!";
+            ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(negated_sign_bit->info)) << "The negated sign bit doesn't have an operation!";
+            auto *op = std::get<std::unique_ptr<Operation>>(negated_sign_bit->info).get();
+            ASSERT_EQ(op->type, Instruction::_xor) << "The operation of the negated sign bit has the wrong type!";
+            ASSERT_EQ(op->out_vars[0], negated_sign_bit) << "The negated sign bit isn't the ouput of it's operation!";
+            ASSERT_EQ(op->in_vars[0], input_two_sign) << "The second input's sign isn't the first input!";
+            ASSERT_EQ(op->in_vars[1], sign_bit_extraction_mask) << "The second input of the operation isn't the sign bit extraction mask!";
+            count_scanned_variables++;
+            expected_new_sign = negated_sign_bit;
+            break;
+        }
+        case FRV_FSGNJXS:
+        case FRV_FSGNJXD: {
+            SSAVar *input_one_sign = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+            {
+                ASSERT_EQ(input_one_sign->type, expected_type) << "The first input's sign bit has the wrong type!";
+                ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(input_one_sign->info)) << "The sign bit of the first input doesn't have an operation!";
+                auto *op = std::get<std::unique_ptr<Operation>>(input_one_sign->info).get();
+                ASSERT_EQ(op->type, Instruction::_and) << "The operation of the sign bit of the first input has the wrong type!";
+                ASSERT_EQ(op->out_vars[0], input_one_sign) << "The sign bit of the first input isn't the ouput of it's operation!";
+                ASSERT_EQ(op->in_vars[0], input_one) << "The first input isn't the first input!";
+                ASSERT_EQ(op->in_vars[1], sign_bit_extraction_mask) << "The second input of the operation isn't the sign bit extraction mask!";
+                count_scanned_variables++;
+            }
+
+            {
+                expected_new_sign = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+                ASSERT_EQ(expected_new_sign->type, expected_type) << "The new sign bit has the wrong type!";
+                ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(expected_new_sign->info)) << "The new sign bit doesn't have an operation!";
+                auto *op = std::get<std::unique_ptr<Operation>>(expected_new_sign->info).get();
+                ASSERT_EQ(op->type, Instruction::_xor) << "The operation of the new sign bit has the wrong type!";
+                ASSERT_EQ(op->out_vars[0], expected_new_sign) << "The new sign bit isn't the ouput of it's operation!";
+                ASSERT_EQ(op->in_vars[0], input_one_sign) << "The first input isn't the first input's sign bit!";
+                ASSERT_EQ(op->in_vars[1], input_two_sign) << "The second input isn't the second input's sign bit!";
+                count_scanned_variables++;
+            }
+            break;
+        }
+        default:
+            FAIL() << "The developer of the tests failed!";
+        }
+
+        SSAVar *input_one_signless = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        {
+            ASSERT_EQ(input_one_signless->type, expected_type) << "The first input (signless) has the wrong type!";
+            ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(input_one_signless->info)) << "The first input (signless) doesn't have an operation!";
+            auto *op = std::get<std::unique_ptr<Operation>>(input_one_signless->info).get();
+            ASSERT_EQ(op->type, Instruction::_and) << "The operation of the first input (signless) has the wrong type!";
+            ASSERT_EQ(op->out_vars[0], input_one_signless) << "The first input (signless) isn't the ouput of it's operation!";
+            ASSERT_EQ(op->in_vars[0], input_one) << "The first input isn't the first input!";
+            ASSERT_EQ(op->in_vars[1], sign_zero_mask) << "The second input isn't the zero sign bit mask!";
+            count_scanned_variables++;
+        }
+
+        SSAVar *result = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        {
+            ASSERT_EQ(result->type, expected_type) << "The result has the wrong type!";
+            ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(result->info)) << "The result doesn't have an operation!";
+            auto *op = std::get<std::unique_ptr<Operation>>(result->info).get();
+            ASSERT_EQ(op->type, Instruction::_or) << "The operation of the result has the wrong type!";
+            ASSERT_EQ(op->out_vars[0], result) << "The result isn't the output of it's operation!";
+            ASSERT_EQ(op->in_vars[0], input_one_signless) << "The first input isn't the first input (signless)!";
+            ASSERT_EQ(op->in_vars[1], expected_new_sign) << "The second input isn't the expected new sign!";
+            count_scanned_variables++;
+        }
+
+        // assert that the test has tested all variables
+        assert(bb->variables.size() == COUNT_STATIC_VARS + count_scanned_variables);
     }
 };
 
@@ -805,4 +979,42 @@ TEST_F(TestFloatingPointLifting, test_fp_fcvtds) {
     // create instruction: fcvt.d.s f14, f8 (rounding should/will be ignored)
     const RV64Inst instr{FrvInst{FRV_FCVTDS, 14, 8, 0, 0, 0, 0}, 4};
     test_conversion(instr);
+}
+
+/* sign injection */
+
+TEST_F(TestFloatingPointLifting, test_fp_fsgnjs) {
+    // create instruction: fsgnj.s f2, f4, f9
+    const RV64Inst instr{FrvInst{FRV_FSGNJS, 2, 4, 9, 0, 0, 0}, 4};
+    test_sign_injection(instr);
+}
+
+TEST_F(TestFloatingPointLifting, test_fp_fsgnjd) {
+    // create instruction: fsgnj.d f22, f0, f24
+    const RV64Inst instr{FrvInst{FRV_FSGNJD, 22, 0, 24, 0, 0, 0}, 4};
+    test_sign_injection(instr);
+}
+
+TEST_F(TestFloatingPointLifting, test_fp_fsgnjns) {
+    // create instruction: fsgnjn.s f24, f6, f16
+    const RV64Inst instr{FrvInst{FRV_FSGNJNS, 24, 6, 16, 0, 0, 0}, 4};
+    test_sign_injection(instr);
+}
+
+TEST_F(TestFloatingPointLifting, test_fp_fsgnjnd) {
+    // create instruction: fsgnjn.d f7, f2, f2
+    const RV64Inst instr{FrvInst{FRV_FSGNJND, 7, 2, 2, 0, 0, 0}, 4};
+    test_sign_injection(instr);
+}
+
+TEST_F(TestFloatingPointLifting, test_fp_fsgnjxs) {
+    // create instruction: fsgnjx.s f28, f9, f0
+    const RV64Inst instr{FrvInst{FRV_FSGNJXS, 28, 9, 0, 0, 0, 0}, 4};
+    test_sign_injection(instr);
+}
+
+TEST_F(TestFloatingPointLifting, test_fp_fsgnjxd) {
+    // create instruction: fsgnjx.d f19, f20, f21
+    const RV64Inst instr{FrvInst{FRV_FSGNJXD, 19, 20, 21, 0, 0, 0}, 4};
+    test_sign_injection(instr);
 }
