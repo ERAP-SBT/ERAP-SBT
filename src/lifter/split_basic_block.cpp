@@ -106,7 +106,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
                 block->successors.erase(std::remove_if(block->successors.begin(), block->successors.end(), [old_target](const auto *b) { return old_target == b; }), block->successors.end());
 
                 if (old_target) {
-                    old_target->predecessors.erase(std::remove_if(old_target->predecessors.begin(), old_target->predecessors.end(), [old_target](const auto *b) { return old_target == b; }),
+                    old_target->predecessors.erase(std::remove_if(old_target->predecessors.begin(), old_target->predecessors.end(), [block](const auto *b) { return block == b; }),
                                                    old_target->predecessors.end());
                 }
             }
@@ -127,11 +127,47 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
             continue;
         }
 
+        if (jmp_addr >= bb->virt_start_addr && jmp_addr <= bb->virt_end_addr) {
+            // the old block jumped to itself so we need to make the new bb a predecessor of it
+            if (auto it = std::find(bb->predecessors.begin(), bb->predecessors.end(), bb); it != bb->predecessors.end()) {
+                bb->predecessors.erase(it);
+                bb->predecessors.emplace_back(new_bb);
+            }
+            continue;
+        }
+
         if (jmp_addr < new_virt_start_addr || jmp_addr > new_virt_end_addr) {
             continue;
         }
 
+        // should be bb
+        auto *old_target = cf_op.target();
         cf_op.set_target(new_bb);
+        auto target_still_present = false;
+        for (const auto &cf_op : new_bb->control_flow_ops) {
+            if (cf_op.target() == old_target) {
+                target_still_present = true;
+                break;
+            }
+        }
+        if (!target_still_present) {
+            new_bb->successors.erase(std::remove_if(new_bb->successors.begin(), new_bb->successors.end(), [old_target](const auto *b) { return old_target == b; }), new_bb->successors.end());
+
+            if (old_target) {
+                old_target->predecessors.erase(std::remove_if(old_target->predecessors.begin(), old_target->predecessors.end(), [old_target](const auto *b) { return old_target == b; }),
+                                               old_target->predecessors.end());
+            }
+        }
+
+        // make self-referencing
+        if (std::find(new_bb->predecessors.begin(), new_bb->predecessors.end(), new_bb) == new_bb->predecessors.end()) {
+            new_bb->predecessors.emplace_back(new_bb);
+            // successor add should be able to go here
+            // TODO: assert this
+        }
+        if (std::find(new_bb->successors.begin(), new_bb->successors.end(), new_bb) == new_bb->successors.end()) {
+            new_bb->successors.emplace_back(new_bb);
+        }
     }
 
     // the register mapping in the BasicBlock
@@ -139,6 +175,10 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
     {
         // add a jump from the first to the second BasicBlock
         auto &cf_op = bb->add_cf_op(CFCInstruction::jump, new_bb, bb->virt_end_addr, addr);
+        if (std::find(new_bb->predecessors.begin(), new_bb->predecessors.end(), bb) == new_bb->predecessors.end()) {
+            // TODO: is this if necessary? need to check if the code above can push bb into new_bb->predecessors
+            new_bb->predecessors.emplace_back(bb);
+        }
 
         // static assignments
         for (size_t i = 0; i < count_used_static_vars; i++) {
@@ -220,7 +260,8 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
         }
 
         BasicBlock *target = cf_op.target();
-        if (target) {
+        if (target && target != bb && target != new_bb) {
+            // we already fixed up self-references
             // remove first BasicBlock from predecessors of the target of the Control-Flow-Operation
             auto it = std::find(target->predecessors.begin(), target->predecessors.end(), bb);
             if (it != target->predecessors.end()) {

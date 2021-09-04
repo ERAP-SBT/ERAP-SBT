@@ -269,7 +269,12 @@ void Lifter::postprocess() {
                 auto *target = cfOp.target();
                 if (target != nullptr) {
                     auto &pred = target->predecessors;
-                    pred.erase(std::find(pred.begin(), pred.end(), bb.get()));
+                    if (auto it = std::find(pred.begin(), pred.end(), bb.get()); it != pred.end()) {
+                        pred.erase(it);
+                    }
+                    if (auto it = std::find(bb->successors.begin(), bb->successors.end(), target); it != bb->successors.end()) {
+                        bb->successors.erase(it);
+                    }
                 }
                 cf_op.set_target(nullptr);
                 continue;
@@ -313,9 +318,11 @@ void Lifter::postprocess() {
                 /* This jump could not be resolved, and won't be able to resolve it at runtime */
                 cf_op.type = CFCInstruction::unreachable;
                 cf_op.info = std::monostate{};
+                bb->successors.erase(std::find(bb->successors.begin(), bb->successors.end(), dummy));
             }
         }
     }
+    dummy->predecessors.clear();
 
     /* TODO: this isn't very nice: make all relative immediates actually relative */
     for (auto &bb : ir->basic_blocks) {

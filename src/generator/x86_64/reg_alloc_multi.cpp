@@ -1629,13 +1629,11 @@ bool RegAlloc::is_block_top_level(BasicBlock *bb) {
         return true;
     }
 
-    // TODO: super inefficient, need to fix predecessors in lifter
-    for (const auto &block : gen->ir->basic_blocks) {
-        for (const auto &cf_op : block->control_flow_ops) {
-            if (cf_op.target() == bb) {
-                return false;
-            }
+    for (auto *pred : bb->predecessors) {
+        if (pred != bb) {
+            return false;
         }
     }
+
     return true;
 }
