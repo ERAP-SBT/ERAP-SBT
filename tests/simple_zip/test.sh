@@ -36,9 +36,7 @@ $1 -g -static -o build_rv64/main main.c zip.c
 echo -e "${TXT_GREEN}Translating...${TXT_CLEAR}"
 set -x
 cd build_rv64
-../../../build/src/translate --debug=false --output-binary=main.bin --output=translated.s main
-gcc -c translated.s -o translated.o
-ld -T ../../../src/generator/x86_64/helper/link.ld translated.o ../../../build/src/generator/x86_64/helper/libhelper.a -o translated
+../../../build/src/translate --debug=false --output=translated main
 
 { set +x; } 2>/dev/null
 cd ..
