@@ -107,6 +107,44 @@ void RegAlloc::compile_blocks() {
         translation_blocks.clear();
         asm_buf.clear();
     }
+
+    // when blocks have a self-contained circular reference chain, they do not get recognized as top-level so
+    // we compile them here and use the lowest-id-block (which should later be the lowest-address one) as the first
+    for (const auto &bb : gen->ir->basic_blocks) {
+        if (bb->gen_info.compiled) {
+            continue;
+        }
+
+        auto supported = true;
+        for (auto *input : bb->inputs) {
+            if (!std::holds_alternative<size_t>(input->info)) {
+                supported = false;
+                break;
+            }
+
+            const auto static_idx = std::get<size_t>(input->info);
+            input->gen_info.location = SSAVar::GeneratorInfoX64::STATIC;
+            input->gen_info.static_idx = static_idx;
+        }
+
+        if (!supported) {
+            // TODO: compile the normal way?
+            continue;
+        }
+
+        // only for testing
+        if (!bb->gen_info.input_map_setup) {
+            assert(!bb->gen_info.input_map_setup);
+            generate_input_map(bb.get());
+        }
+
+        size_t max_stack_frame = 0;
+        bb->gen_info.manual_top_level = true;
+        compile_block(bb.get(), true, max_stack_frame);
+
+        translation_blocks.clear();
+        asm_buf.clear();
+    }
 }
 
 constexpr size_t BB_OLD_COMPILE_ID_TIL = static_cast<size_t>(-1);
@@ -1467,6 +1505,7 @@ template <typename... Args> REGISTER RegAlloc::load_val_in_reg(size_t cur_time, 
         clear_reg(cur_time, only_this_reg);
         print_asm("mov %s, %s\n", reg_names[only_this_reg][0], reg_names[var->gen_info.reg_idx][0]);
         reg_map[var->gen_info.reg_idx].cur_var = nullptr;
+        reg_map[only_this_reg].cur_var = var;
         var->gen_info.reg_idx = only_this_reg;
         return only_this_reg;
     }
@@ -1586,7 +1625,7 @@ void RegAlloc::clear_after_alloc_time(size_t alloc_time) {
 }
 
 bool RegAlloc::is_block_top_level(BasicBlock *bb) {
-    if (bb->id > BB_OLD_COMPILE_ID_TIL || bb->id > BB_MERGE_TIL_ID) {
+    if (bb->id > BB_OLD_COMPILE_ID_TIL || bb->id > BB_MERGE_TIL_ID || bb->gen_info.manual_top_level) {
         return true;
     }
 
