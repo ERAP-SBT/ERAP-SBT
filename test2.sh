@@ -115,13 +115,6 @@ popd
 make -C gcc-build ${JOBS} --output-sync all-gcc
 make -C gcc-build ${JOBS} --output-sync install-gcc
 
-
-# Build glibc
-
-CFLAGS="-march=rv64iac"
-
-# Build musl-libc
-
 # NOTE: we cheat and use the kernel headers provided by linux-libc-dev-riscv64-cross, it works.
 pushd sysroot
 ln -sv /usr/riscv64-linux-gnu/include/linux include/linux
@@ -129,8 +122,12 @@ ln -sv /usr/riscv64-linux-gnu/include/asm include/asm
 ln -sv /usr/riscv64-linux-gnu/include/asm-generic include/asm-generic
 popd
 
+# Build glibc
+
 mkdir glibc-build
 pushd glibc-build
+# -O3: glibc can't be build without optimizations
+CFLAGS="-march=rv64iac -O3" \
 ../glibc-2.34/configure \
     --host=riscv64-linux-gnu \
     --prefix="${SYSROOT}"
