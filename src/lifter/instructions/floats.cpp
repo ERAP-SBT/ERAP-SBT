@@ -140,34 +140,40 @@ void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr
     // get the source variable from the mapping
     SSAVar *src = get_from_mapping(bb, mapping, instr.instr.rs1, ip, is_from_floating_point);
 
-    assert(type_is_floating_point(src->type) && "The source variable is not a floating point variable!");
-
     if (src->type != from) {
-        src = shrink_var(bb, src, ip, Type::f32);
+        src = shrink_var(bb, src, ip, from);
     }
 
-    RoundingMode rounding_mode_val;
-    switch (instr.instr.misc) {
-    case 0:
-        rounding_mode_val = RoundingMode::RNEAREST;
-        break;
-    case 1:
-        rounding_mode_val = RoundingMode::RZERO;
-        break;
-    case 2:
-        rounding_mode_val = RoundingMode::RDOWN;
-        break;
-    case 3:
-        rounding_mode_val = RoundingMode::RUP;
-        break;
-    default:
-        // TODO: Implement dynamic rounding
-        assert(0 && "Dynamic rounding is currently not supported!");
-        break;
+    // default is that no rounding mode is set
+    SSAVar *rounding_mode = nullptr;
+
+    // Only conversions to integers should have an rounding mode
+    if (to == Type::i32 || to == Type::i64) {
+        RoundingMode rounding_mode_val;
+        switch (instr.instr.misc) {
+        case 0:
+        case 4:
+            // both RISC-V Rounding Modes are rounding to the nearest, but ties will be rounded to even (0) respectively to max magnitude (4).
+            // but this details cannot be saved in x86_64 and therefore both RISC-V rounding modes get mapped to the same IR rounding mode.
+            rounding_mode_val = RoundingMode::RNEAREST;
+            break;
+        case 1:
+            rounding_mode_val = RoundingMode::RZERO;
+            break;
+        case 2:
+            rounding_mode_val = RoundingMode::RDOWN;
+            break;
+        case 3:
+            rounding_mode_val = RoundingMode::RUP;
+            break;
+        default:
+            // TODO: Implement dynamic rounding
+            assert(0 && "Dynamic rounding is currently not supported!");
+            break;
+        }
+
+        rounding_mode = bb->add_var_imm((uint64_t)rounding_mode_val, ip);
     }
-
-    SSAVar *rounding_mode = bb->add_var_imm((uint64_t)rounding_mode_val, ip);
-
     // create the result variable
     SSAVar *dest = bb->add_var(to, ip);
 
