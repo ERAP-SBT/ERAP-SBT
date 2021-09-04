@@ -171,6 +171,10 @@ void print_help(bool usage_only) {
         std::cerr << "    --dump-elf:    Show information about the input file\n";
         std::cerr << "    --helper-path: Set the path to the runtime helper library\n";
         std::cerr << "                   (This is only required if the translator can't find it by itself)\n";
+        std::cerr << '\n';
+        std::cerr << "Environment variables:\n";
+        std::cerr << "    AS: Override the assembler binary (by default, the system `as` is used)\n";
+        std::cerr << "    LD: Override the linker binary (by default, the system `ld` is used)\n";
     }
 }
 
@@ -207,10 +211,17 @@ std::optional<path> find_helper_library(const path &exec_dir, const Args &args) 
     }
 }
 
+inline const char *get_binary(const char *env_name, const char *fallback) {
+    const char *env_bin = getenv(env_name);
+    return env_bin != nullptr ? env_bin : fallback;
+}
+
 FILE *open_assembler(const path &output_file) {
+    const char *as = get_binary("AS", "as");
+
     // Note: operator<< on path quotes its output.
     std::stringstream s;
-    s << "as -c -o " << output_file;
+    s << as << " -c -o " << output_file;
     auto command_line = s.str();
 
     DEBUG_LOG(std::string("Creating assembler subprocess with: ") + command_line);
@@ -224,8 +235,10 @@ FILE *open_assembler(const path &output_file) {
 }
 
 bool run_linker(const path &linker_script_file, const path &output_file, const path &translated_object, const path &helper_library) {
+    const char *ld = get_binary("LD", "ld");
+
     std::stringstream tmp;
-    tmp << "ld -T " << linker_script_file << " -o " << output_file << ' ';
+    tmp << ld << " -T " << linker_script_file << " -o " << output_file << ' ';
     tmp << translated_object << ' ' << helper_library;
     auto command_line = tmp.str();
 
