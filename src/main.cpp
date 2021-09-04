@@ -1,7 +1,6 @@
 #include "argument_parser.h"
 #include "common/internal.h"
 #include "generator/x86_64/generator.h"
-#include "generator/x86_64/linker_script.h"
 #include "ir/ir.h"
 #include "lifter/elf_file.h"
 #include "lifter/lifter.h"
@@ -18,7 +17,7 @@ using std::filesystem::path;
 void print_help(bool usage_only);
 void dump_elf(const ELF64File *);
 std::optional<path> create_temp_directory();
-std::optional<path> find_helper_library(const path &exec_dir, const Args &args);
+bool find_runtime_dependencies(const path &exec_dir, const Args &args, path &out_helper_lib, path &out_linker_script);
 FILE *open_assembler(const path &output_file);
 bool run_linker(const path &linker_script_file, const path &output_file, const path &translated_object, const path &helper_library);
 } // namespace
@@ -138,20 +137,11 @@ int main(int argc, const char **argv) {
         return EXIT_FAILURE;
     }
 
-    auto linker_script_file = temp_dir / "linker.ld";
-    {
-        std::ofstream linker_script(linker_script_file);
-        linker_script << LINKER_SCRIPT;
-    }
-
-    auto helper_library = find_helper_library(executable_dir, args);
-    if (!helper_library) {
-        std::cerr << "The helper library was not found (maybe your directory layout is different).\n";
-        std::cerr << "Try setting --helper-path to the path of libhelper.a\n";
+    path helper_library, linker_script_file;
+    if (!find_runtime_dependencies(executable_dir, args, helper_library, linker_script_file))
         return EXIT_FAILURE;
-    }
 
-    if (!run_linker(linker_script_file, output_file, output_object, *helper_library))
+    if (!run_linker(linker_script_file, output_file, output_object, helper_library))
         return EXIT_FAILURE;
 
     std::cout << "Output written to " << output_file << '\n';
@@ -170,7 +160,8 @@ void print_help(bool usage_only) {
         std::cerr << "    --print-ir:    Prints a textual representation of the IR (if no file is specified, prints to standard out)\n";
         std::cerr << "    --dump-elf:    Show information about the input file\n";
         std::cerr << "    --helper-path: Set the path to the runtime helper library\n";
-        std::cerr << "                   (This is only required if the translator can't find it by itself)\n";
+        std::cerr << "    --linkerscript-path: Set the path to the linker script\n";
+        std::cerr << "                   (The above two are only required if the translator can't find these by itself)\n";
         std::cerr << '\n';
         std::cerr << "Environment variables:\n";
         std::cerr << "    AS: Override the assembler binary (by default, the system `as` is used)\n";
@@ -199,16 +190,48 @@ std::optional<path> create_temp_directory() {
     return full_path;
 }
 
-std::optional<path> find_helper_library(const path &exec_dir, const Args &args) {
+bool find_runtime_dependencies(const path &exec_dir, const Args &args, path &out_helper_lib, path &out_linker_script) {
     if (args.has_argument("helper-path")) {
-        return path(args.get_argument("helper-path"));
-    }
-    auto path = exec_dir / "generator/x86_64/helper/libhelper.a";
-    if (std::filesystem::exists(path)) {
-        return path;
+        out_helper_lib = path(args.get_argument("helper-path"));
     } else {
-        return std::nullopt;
+        // If the translator is in a build environment, the helper library is at <bin_dir>/generator/x86_64/helper/libhelper-x86_64.a
+        auto hlp_path = exec_dir / "generator/x86_64/helper/libhelper-x86_64.a";
+        if (std::filesystem::exists(hlp_path)) {
+            out_helper_lib = hlp_path;
+        } else {
+            // If the translator is in a install environment ("meson install"), the helper library is at <PREFIX>/share/eragp-sbt-2021/libhelper-x86_64.a
+            hlp_path = std::filesystem::weakly_canonical(exec_dir / "../share/eragp-sbt-2021/libhelper-x86_64.a");
+            if (std::filesystem::exists(hlp_path)) {
+                out_helper_lib = hlp_path;
+            } else {
+                std::cerr << "The helper library was not found (maybe your directory layout is different).\n";
+                std::cerr << "Try setting --helper-path to the path of libhelper-x86_64.a\n";
+                return false;
+            }
+        }
     }
+
+    if (args.has_argument("linkerscript-path")) {
+        out_linker_script = path(args.get_argument("linkerscript-path"));
+    } else {
+        // Build environment: Assume that the build directory is a subdirectory of the source root
+        auto lds_path = std::filesystem::weakly_canonical(exec_dir / "../../src/generator/x86_64/helper/link.ld");
+        if (std::filesystem::exists(lds_path)) {
+            out_linker_script = lds_path;
+        } else {
+            // Install environment: link.ld is at <PREFIX>/share/eragp-sbt-2021/link.ld
+            lds_path = std::filesystem::weakly_canonical(exec_dir / "../share/eragp-sbt-2021/link.ld");
+            if (std::filesystem::exists(lds_path)) {
+                out_linker_script = lds_path;
+            } else {
+                std::cerr << "The linker script was not found (maybe your directory layout is different).\n";
+                std::cerr << "Try setting --linkerscript-path to the path of link.ld\n";
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 inline const char *get_binary(const char *env_name, const char *fallback) {
