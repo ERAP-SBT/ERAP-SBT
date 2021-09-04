@@ -64,6 +64,11 @@ make -C binutils-build ${JOBS} --output-sync install
 
 # Build gcc step 1
 
+# time-x doesn't have the gmp / mpfr / mpc / isl dependencies installed
+pushd gcc-10.2.0
+./contrib/download_prerequisites
+popd
+
 # Building in the source directory is buggy / does not work
 mkdir gcc-build
 pushd gcc-build
