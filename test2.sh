@@ -135,10 +135,12 @@ popd
 mkdir glibc-build
 pushd glibc-build
 # -O3: glibc can't be build without optimizations
+# --enable-shared: build libc.so: not sure why that is needed, but it should help with building libstdc++
 CFLAGS="-march=rv64iac -O3" \
 ../glibc-2.34/configure \
     --host=riscv64-linux-gnu \
-    --prefix="${SYSROOT}"
+    --prefix="${SYSROOT}" \
+    --enable-shared
 popd
 
 # install-others: installs the header <gnu/stubs.h> that is required by libgcc
