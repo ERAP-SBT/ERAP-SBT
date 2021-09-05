@@ -38,7 +38,8 @@ tar -xvf gcc-10.2.0.tar.xz
 tar -xvf glibc-2.34.tar.xz
 
 SYSROOT="$PWD/sysroot" # XXX: symlink to build musl libc before running this script
-PATH="${SYSROOT}/bin:$PATH"
+PREFIX="/usr"
+PATH="${SYSROOT}${PREFIX}/bin:$PATH"
 export PATH
 
 CONF_HOST="x86_64-linux-gnu"
@@ -54,7 +55,7 @@ pushd binutils-build
     --host="${CONF_HOST}" \
     --build="${CONF_BUILD}" \
     --target="${CONF_TARGET}" \
-    --prefix="${SYSROOT}" \
+    --prefix="${PREFIX}" \
     --disable-gdb \
     --disable-readline \
     --with-sysroot="${SYSROOT}" \
@@ -62,7 +63,7 @@ pushd binutils-build
 popd
 
 make -C binutils-build ${JOBS} all
-make -C binutils-build ${JOBS} install
+make -C binutils-build ${JOBS} install DESTDIR="${SYSROOT}"
 
 # Build gcc step 1
 
@@ -108,7 +109,7 @@ mkdir -p "${SYSROOT}/include"
     --disable-multilib \
     --with-arch=rv64imafdc \
     --with-abi=lp64 \
-    --prefix="${SYSROOT}" \
+    --prefix="${PREFIX}" \
     --disable-nls \
     --with-system-zlib \
     --disable-threads \
@@ -120,7 +121,7 @@ popd
 # build riscv64-linux-gnu-gcc cross compiler
 # Seperate make invocations because gccs Makefile is fragile
 make -C gcc-build ${JOBS} all-gcc
-make -C gcc-build ${JOBS} install-gcc
+make -C gcc-build ${JOBS} install-gcc DESTDIR="${SYSROOT}"
 
 # NOTE: we cheat and use the kernel headers provided by linux-libc-dev-riscv64-cross, it works.
 pushd sysroot
@@ -139,7 +140,7 @@ pushd glibc-build
 CFLAGS="-march=rv64iac -O3" \
 ../glibc-2.34/configure \
     --host=riscv64-linux-gnu \
-    --prefix="${SYSROOT}" \
+    --prefix="${PREFIX}" \
     --enable-shared
 popd
 
@@ -151,14 +152,14 @@ touch "${SYSROOT}/include/gnu/stubs.h"
 
 # build libgcc using installed headers
 make -C gcc-build ${JOBS} all-target-libgcc
-make -C gcc-build ${JOBS} install-target-libgcc
+make -C gcc-build ${JOBS} install-target-libgcc DESTDIR="${SYSROOT}"
 
 # glibc depends on libgcc
 make -C glibc-build ${JOBS} all
-make -C glibc-build ${JOBS} install
+make -C glibc-build ${JOBS} install DESTDIR="${SYSROOT}"
 
 # according to https://wiki.osdev.org/Hosted_GCC_Cross-Compiler libstdc++ depends on libc
 make -C gcc-build ${JOBS} all-target-libstdc++-v3
-make -C gcc-build ${JOBS} install-target-libstdc++-v3
+make -C gcc-build ${JOBS} install-target-libstdc++-v3 DESTDIR="${SYSROOT}"
 
 popd
