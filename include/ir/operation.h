@@ -143,7 +143,15 @@ struct CfOp {
     void set_target(BasicBlock *target);
 
     BasicBlock *target() const;
-    const std::vector<RefPtr<SSAVar>> &target_inputs() const;
+
+    /**
+     * @brief Returns a list of target inputs, depending on the type.
+     *
+     * Note that changing target inputs (e.g. by calling @ref add_target_input) does not update
+     * previously returned references until this method is called again.
+     */
+    const std::vector<SSAVar *> &target_inputs() const;
+    size_t target_input_count() const;
 
     void print(std::ostream &, const IR *) const;
 };

@@ -56,10 +56,10 @@ std::unordered_set<SSAVar *> Lifter::get_last_static_assignments(size_t idx, Bas
                 } else if (cfOp.target() == des_target) {
                     // syscalls place their result in registers x10 and x11 and therefore invalidate the variables in these registers.
                     if (cfOp.type != CFCInstruction::syscall || (idx != 10 && idx != 11)) {
-                        for (RefPtr<SSAVar> ti : cfOp.target_inputs()) {
+                        for (SSAVar *ti : cfOp.target_inputs()) {
                             // The target input is a possible predecessor if it is not a static variable and it has the correct static index
-                            if (!ti->is_static() && std::get<SSAVar::LifterInfo>(ti->lifter_info).static_id == idx && possible_preds.find(ti.get()) == possible_preds.end()) {
-                                possible_preds.emplace(ti.release());
+                            if (!ti->is_static() && std::get<SSAVar::LifterInfo>(ti->lifter_info).static_id == idx && possible_preds.find(ti) == possible_preds.end()) {
+                                possible_preds.emplace(ti);
                                 if (!FULL_BACKTRACKING) {
                                     break;
                                 }

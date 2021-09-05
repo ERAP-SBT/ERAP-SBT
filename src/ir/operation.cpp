@@ -325,35 +325,49 @@ BasicBlock *CfOp::target() const {
     return nullptr;
 }
 
-const std::vector<RefPtr<SSAVar>> &CfOp::target_inputs() const {
-    static auto vec = std::vector<RefPtr<SSAVar>>{};
+const std::vector<SSAVar *> &CfOp::target_inputs() const {
+    static std::vector<SSAVar *> vec{};
     vec.clear();
 
-    switch (type) {
-    case CFCInstruction::jump:
-        return std::get<JumpInfo>(info).target_inputs;
-    case CFCInstruction::cjump:
-        return std::get<CJumpInfo>(info).target_inputs;
-    case CFCInstruction::call:
-        return std::get<CallInfo>(info).target_inputs;
-    case CFCInstruction::syscall:
-        for (auto &var : std::get<SyscallInfo>(info).continuation_mapping) {
-            vec.emplace_back(var.first);
-        }
-        return vec;
-    case CFCInstruction::icall:
-        for (auto &var : std::get<ICallInfo>(info).mapping) {
-            vec.emplace_back(var.first);
-        }
-        return vec;
-    case CFCInstruction::ijump:
-        for (auto &var : std::get<IJumpInfo>(info).mapping) {
-            vec.emplace_back(var.first);
-        }
-        return vec;
-    default:
-        assert(0);
-    }
+    std::visit(
+        [](auto &i) {
+            using T = std::decay_t<decltype(i)>;
+            if constexpr (std::is_same_v<T, JumpInfo> || std::is_same_v<T, CJumpInfo> || std::is_same_v<T, CallInfo>) {
+                vec.reserve(i.target_inputs.size());
+                for (auto &var : i.target_inputs) {
+                    vec.push_back(var.get());
+                }
+            } else if constexpr (std::is_same_v<T, SyscallInfo>) {
+                vec.reserve(i.continuation_mapping.size());
+                for (auto &var : i.continuation_mapping) {
+                    vec.push_back(var.first.get());
+                }
+            } else if constexpr (std::is_same_v<T, IJumpInfo> || std::is_same_v<T, ICallInfo>) {
+                vec.reserve(i.mapping.size());
+                for (auto &var : i.mapping) {
+                    vec.push_back(var.first.get());
+                }
+            }
+        },
+        info);
+    return vec;
+}
+
+size_t CfOp::target_input_count() const {
+    return std::visit(
+        [](auto &i) -> size_t {
+            using T = std::decay_t<decltype(i)>;
+            if constexpr (std::is_same_v<T, JumpInfo> || std::is_same_v<T, CJumpInfo> || std::is_same_v<T, CallInfo>) {
+                return i.target_inputs.size();
+            } else if constexpr (std::is_same_v<T, SyscallInfo>) {
+                return i.continuation_mapping.size();
+            } else if constexpr (std::is_same_v<T, IJumpInfo> || std::is_same_v<T, ICallInfo>) {
+                return i.mapping.size();
+            } else {
+                return 0;
+            }
+        },
+        info);
 }
 
 void CfOp::print(std::ostream &stream, const IR *ir) const {
