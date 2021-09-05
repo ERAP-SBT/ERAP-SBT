@@ -123,9 +123,9 @@ make -C gcc-build ${JOBS} --output-sync install-gcc
 # NOTE: we cheat and use the kernel headers provided by linux-libc-dev-riscv64-cross, it works.
 pushd sysroot
 LINUX_HEADERS="${LINUX_HEADERS:-/usr/riscv64-linux-gnu/include}"
-ln -sv "${LINUX_HEADERS}/linux" include/linux
-ln -sv "${LINUX_HEADERS}/asm" include/asm
-ln -sv "${LINUX_HEADERS}/asm-generic" include/asm-generic
+cp -vr "${LINUX_HEADERS}/linux" include/linux
+cp -vr "${LINUX_HEADERS}/asm" include/asm
+cp -vr "${LINUX_HEADERS}/asm-generic" include/asm-generic
 popd
 
 # Build glibc
