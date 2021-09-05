@@ -43,6 +43,28 @@ const char *reg_name(const REGISTER reg, const Type type) {
     }
 }
 
+const char *mem_size(const Type type) {
+    switch (type) {
+    case Type::imm:
+    case Type::i64:
+        return "QWORD PTR";
+    case Type::i32:
+        return "DWORD PTR";
+    case Type::i16:
+        return "WORD PTR";
+    case Type::i8:
+        return "BYTE PTR";
+    case Type::f32:
+    case Type::f64:
+    case Type::mt:
+        assert(0);
+        exit(1);
+    }
+
+    assert(0);
+    exit(1);
+}
+
 Type choose_type(Type typ1, Type typ2) {
     assert(typ1 == typ2 || typ1 == Type::imm || typ2 == Type::imm);
     if (typ1 == Type::imm && typ2 == Type::imm) {
@@ -269,9 +291,14 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
         // print ir for better readability
         // TODO: add flag for this to reduce useless stuff in asm file
         // TODO: print ir
+        // TODO: when we merge ops, we need to print ir before the merged op
         ir_stream.str("");
         var->print(ir_stream, gen->ir);
         print_asm("# %s\n", ir_stream.str().c_str());
+
+        if (var->gen_info.already_generated) {
+            continue;
+        }
 
         // TODO: this essentially skips input vars but we should have a seperate if for that
         // since the location of the input vars is supplied by the previous block
@@ -323,6 +350,8 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
             auto *in1 = op->in_vars[0].get();
             auto *in2 = op->in_vars[1].get();
             auto *dst = op->out_vars[0];
+            // TODO: the imm-branch and not-imm-branch can probably be merged if we use a string as the second operand
+            // and just put the imm in there
             // TODO: with two immediates we could constant evaluate but that should be taken care of by the IR
             // TODO: when there are two immediates and one of them is binary relative we can optimize that into
             // one lea reg, [binary + in1 + in2] if it can be assembled
@@ -347,14 +376,153 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                 }
 
                 const auto in1_reg_name = reg_name(in1_reg, choose_type(in1->type, Type::imm));
+                REGISTER dst_reg = REG_NONE;
+                if (op->type != Instruction::add || in1->gen_info.last_use_time == cur_time) {
+                    dst_reg = in1_reg;
+                } else {
+                    // check if there is a free register
+                    for (size_t reg = 0; reg < REG_COUNT; ++reg) {
+                        if (reg_map[reg].cur_var == nullptr) {
+                            dst_reg = static_cast<REGISTER>(reg);
+                            break;
+                        }
+                        auto *var = reg_map[reg].cur_var;
+                        if (var->gen_info.last_use_time < cur_time) {
+                            dst_reg = static_cast<REGISTER>(reg);
+                            break;
+                        }
+                    }
+                    if (dst_reg == REG_NONE) {
+                        size_t in1_next_use = 0;
+                        for (auto use : in1->gen_info.uses) {
+                            if (use > cur_time) {
+                                in1_next_use = use;
+                                break;
+                            }
+                        }
 
-                if (in1->gen_info.last_use_time > cur_time) {
-                    save_reg(in1_reg);
+                        // check if there is a variable thats already saved on the stack and used after the dst
+                        auto check_unsaved_vars = !in1->gen_info.saved_in_stack;
+                        for (size_t reg = 0; reg < REG_COUNT; ++reg) {
+                            auto *var = reg_map[reg].cur_var;
+                            if (!check_unsaved_vars && !var->gen_info.saved_in_stack) {
+                                continue;
+                            }
+                            size_t var_next_use = 0;
+                            for (auto use : var->gen_info.uses) {
+                                if (use > cur_time) {
+                                    var_next_use = use;
+                                    break;
+                                }
+                            }
+                            if (var_next_use > in1_next_use) {
+                                dst_reg = static_cast<REGISTER>(reg);
+                                break;
+                            }
+                        }
+
+                        if (dst_reg == REG_NONE) {
+                            dst_reg = in1_reg;
+                        }
+                    }
+                }
+                const auto dst_reg_name = reg_name(dst_reg, choose_type(in1->type, Type::imm));
+
+                if (reg_map[dst_reg].cur_var && reg_map[dst_reg].cur_var->gen_info.last_use_time > cur_time) {
+                    save_reg(dst_reg);
+                }
+
+                // TODO: optimization flag for merging?
+                auto did_merge = false;
+                if (dst->ref_count == 1 && op->type == Instruction::add && bb->variables.size() > var_idx + 1) {
+                    // check if next instruction is a load
+                    auto *next_var = bb->variables[var_idx + 1].get();
+                    if (std::holds_alternative<std::unique_ptr<Operation>>(next_var->info)) {
+                        // TODO: dont shadow local var
+                        auto *op = std::get<std::unique_ptr<Operation>>(next_var->info).get();
+                        if (op->type == Instruction::load && op->in_vars[0] == dst) {
+                            auto *load_dst = op->out_vars[0];
+                            // check for zero/sign-extend
+                            if (load_dst->ref_count == 1 && bb->variables.size() > var_idx + 2) {
+                                auto *nnext_var = bb->variables[var_idx + 2].get();
+                                if (std::holds_alternative<std::unique_ptr<Operation>>(nnext_var->info)) {
+                                    auto *nop = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
+                                    if (nop->type == Instruction::zero_extend) {
+                                        auto *ext_dst = nop->out_vars[0];
+                                        if (load_dst->type == Type::i32) {
+                                            print_asm("mov %s, [%s + %ld]\n", reg_names[dst_reg][1], in1_reg_name, imm_val);
+                                        } else {
+                                            print_asm("movzx %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                                        }
+                                        clear_reg(cur_time, dst_reg);
+                                        set_var_to_reg(cur_time, ext_dst, dst_reg);
+                                        load_dst->gen_info.already_generated = true;
+                                        ext_dst->gen_info.already_generated = true;
+                                        did_merge = true;
+                                    } else if (nop->type == Instruction::sign_extend) {
+                                        auto *ext_dst = nop->out_vars[0];
+                                        if (load_dst->type == Type::i32) {
+                                            assert(ext_dst->type == Type::i32 || ext_dst->type == Type::i64);
+                                            print_asm("movsxd %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                                        } else {
+                                            print_asm("movsx %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                                        }
+                                        clear_reg(cur_time, dst_reg);
+                                        set_var_to_reg(cur_time, ext_dst, dst_reg);
+                                        load_dst->gen_info.already_generated = true;
+                                        ext_dst->gen_info.already_generated = true;
+                                        did_merge = true;
+                                    }
+                                }
+                            }
+
+                            if (!did_merge) {
+                                // merge add and load
+                                print_asm("mov %s, [%s + %ld]\n", reg_name(dst_reg, load_dst->type), in1_reg_name, imm_val);
+                                clear_reg(cur_time, dst_reg);
+                                set_var_to_reg(cur_time, load_dst, dst_reg);
+                                load_dst->gen_info.already_generated = true;
+                                did_merge = true;
+                            }
+                        } else if (op->type == Instruction::cast) {
+                            // detect add/cast/store sequence
+                            auto *cast_var = op->out_vars[0];
+                            if (cast_var->ref_count == 1 && bb->variables.size() > var_idx + 2) {
+                                auto *nnext_var = bb->variables[var_idx + 2].get();
+                                if (std::holds_alternative<std::unique_ptr<Operation>>(nnext_var->info)) {
+                                    auto *nop = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
+                                    if (nop->type == Instruction::store && nop->in_vars[0] == dst && nop->in_vars[1] == cast_var) {
+                                        auto *store_dst = nop->out_vars[0]; // should be == nnext_var
+                                        // load source of cast
+                                        const auto cast_reg = load_val_in_reg(cur_time, op->in_vars[0].get());
+                                        print_asm("mov [%s + %ld], %s\n", in1_reg_name, imm_val, reg_name(cast_reg, cast_var->type));
+                                        cast_var->gen_info.already_generated = true;
+                                        store_dst->gen_info.already_generated = true;
+                                        did_merge = true;
+                                    }
+                                }
+                            }
+                        } else if (op->type == Instruction::store && op->in_vars[0].get() == dst) {
+                            // merge add/store
+                            auto *store_src = op->in_vars[1].get();
+                            const auto src_reg = load_val_in_reg(cur_time, store_src);
+                            print_asm("mov [%s + %ld], %s\n", in1_reg_name, imm_val, reg_name(src_reg, store_src->type));
+                            op->out_vars[0]->gen_info.already_generated = true;
+                            did_merge = true;
+                        }
+                    }
+                }
+                if (did_merge) {
+                    break;
                 }
 
                 switch (op->type) {
                 case Instruction::add:
-                    print_asm("add %s, %ld\n", in1_reg_name, imm_val);
+                    if (dst_reg == in1_reg) {
+                        print_asm("add %s, %ld\n", in1_reg_name, imm_val);
+                    } else {
+                        print_asm("lea %s, [%s + %ld]\n", dst_reg_name, in1_reg_name, imm_val);
+                    }
                     break;
                 case Instruction::sub:
                     print_asm("sub %s, %ld\n", in1_reg_name, imm_val);
@@ -431,7 +599,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     exit(1);
                 }
 
-                clear_reg(cur_time, in1_reg);
+                clear_reg(cur_time, dst_reg);
 
                 if (op->type == Instruction::ssmul_h || op->type == Instruction::uumul_h) {
                     // result is in rdx
@@ -444,7 +612,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                         set_var_to_reg(cur_time, op->out_vars[1], REG_D);
                     }
                 } else {
-                    set_var_to_reg(cur_time, dst, in1_reg);
+                    set_var_to_reg(cur_time, dst, dst_reg);
                 }
                 break;
             }
@@ -770,8 +938,8 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
 
     // really scuffed
     // TODO: we already have these one level up
-    const auto reg_map_bak = reg_map;
-    const auto stack_map_bak = stack_map;
+    auto reg_map_bak = reg_map;
+    auto stack_map_bak = stack_map;
     std::vector<SSAVar::GeneratorInfoX64> gen_infos;
     for (auto &var : bb->variables) {
         gen_infos.emplace_back(var->gen_info);
@@ -803,6 +971,14 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             } else {
                 const auto cmp2_reg = load_val_in_reg(cur_time, cmp2);
                 print_asm("cmp %s, %s\n", reg_name(cmp1_reg, type), reg_name(cmp2_reg, type));
+            }
+
+            // TODO: this can be done a lot more selectively
+            gen_infos.clear();
+            reg_map_bak = reg_map;
+            stack_map_bak = stack_map;
+            for (auto &var : bb->variables) {
+                gen_infos.emplace_back(var->gen_info);
             }
 
             switch (std::get<CfOp::CJumpInfo>(cf_op.info).type) {

@@ -44,6 +44,7 @@ struct SSAVar : Refable {
         enum LOCATION : uint8_t { NOT_CALCULATED, STACK_FRAME, STATIC, REGISTER };
         LOCATION location = NOT_CALCULATED;
         bool saved_in_stack = false; // a variable can be in a register and saved in the stack frame
+        bool already_generated = false;
 
         size_t last_use_time = 0;
         std::vector<size_t> uses = {};

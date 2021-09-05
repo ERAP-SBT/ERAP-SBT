@@ -29,6 +29,11 @@ void Lifter::print_invalid_op_size(const Instruction instructionType, const RV64
 BasicBlock *Lifter::get_bb(uint64_t addr) const { return ir->bb_at_addr(addr); }
 
 SSAVar *Lifter::shrink_var(BasicBlock *bb, SSAVar *var, uint64_t ip, const Type target_size) {
+    if (var->type == target_size) {
+        // cant return imms since this is used for store and we currently dont support a store with imm as a value
+        return var;
+    }
+
     // create cast operation
     std::unique_ptr<Operation> cast = std::make_unique<Operation>(Instruction::cast);
 
