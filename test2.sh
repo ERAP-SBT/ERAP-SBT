@@ -57,6 +57,7 @@ pushd binutils-build
     --prefix="${SYSROOT}" \
     --disable-gdb \
     --disable-readline \
+    --with-sysroot="${SYSROOT}" \
     --with-system-zlib
 popd
 
