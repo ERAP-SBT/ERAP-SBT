@@ -70,13 +70,13 @@ Type resolve_simple_op_type(const Operation &op) {
 
 class ConstFoldPass {
     std::map<size_t, SSAVar *> rewrites;
+    std::vector<std::unique_ptr<SSAVar>> new_immediates;
     BasicBlock *current_block;
-    size_t var_index;
 
   public:
     void process_block(BasicBlock *block);
 
-    SSAVar *insert_imm_var(Type type, int64_t imm, bool bin_rel = false);
+    SSAVar *queue_imm(Type type, uint64_t imm, bool bin_rel = false);
 
     void rewrite_visit_refptr(RefPtr<SSAVar> &);
     void do_input_rewrites(Operation &);
@@ -103,13 +103,11 @@ class ConstFoldPass {
     void fixup_block();
 };
 
-SSAVar *ConstFoldPass::insert_imm_var(Type type, int64_t imm, bool bin_rel) {
+SSAVar *ConstFoldPass::queue_imm(Type type, uint64_t imm, bool bin_rel) {
     size_t new_id = current_block->cur_ssa_id++;
     auto new_var = std::make_unique<SSAVar>(new_id, imm, bin_rel);
     new_var->type = type;
-    auto insert_point = std::next(current_block->variables.begin(), var_index);
-    ++var_index;
-    return current_block->variables.insert(insert_point, std::move(new_var))->get();
+    return new_immediates.emplace_back(std::move(new_var)).get();
 }
 
 void ConstFoldPass::simplify_double_op_imm_left(Type type, Operation &cur, Operation &prev) {
@@ -121,14 +119,14 @@ void ConstFoldPass::simplify_double_op_imm_left(Type type, Operation &cur, Opera
             // v1 <- add imm, any (not imm)
             // v2 <- add imm, v1
             int64_t result = eval_binary_op(Instruction::add, type, pa->get_immediate().val, ca->get_immediate().val);
-            ca = insert_imm_var(type, result);
+            ca = queue_imm(type, result);
             cb = pb;
         } else if (pb->is_immediate()) {
             assert(!pa->is_immediate());
             // v1 <- add any (not imm), imm
             // v2 <- add imm, v1
             int64_t result = eval_binary_op(Instruction::add, type, pb->get_immediate().val, ca->get_immediate().val);
-            ca = insert_imm_var(type, result);
+            ca = queue_imm(type, result);
             cb = pa;
         }
     }
@@ -143,14 +141,14 @@ void ConstFoldPass::simplify_double_op_imm_right(Type type, Operation &cur, Oper
             // v1 <- add imm, any (not imm)
             // v2 <- add v1, imm
             int64_t result = eval_binary_op(Instruction::add, type, pa->get_immediate().val, cb->get_immediate().val);
-            cb = insert_imm_var(type, result);
+            cb = queue_imm(type, result);
             ca = pb;
         } else if (pb->is_immediate()) {
             assert(!pa->is_immediate());
             // v1 <- add any (not imm), imm
             // v2 <- add v1, imm
             int64_t result = eval_binary_op(Instruction::add, type, pb->get_immediate().val, cb->get_immediate().val);
-            cb = insert_imm_var(type, result);
+            cb = queue_imm(type, result);
             ca = pa;
         }
     }
@@ -321,7 +319,7 @@ void ConstFoldPass::process_block(BasicBlock *block) {
     rewrites.clear();
     current_block = block;
 
-    for (var_index = 0; var_index < block->variables.size(); var_index++) {
+    for (size_t var_index = 0; var_index < block->variables.size(); var_index++) {
         auto &var = block->variables[var_index];
         if (!var->is_operation())
             continue;
@@ -429,6 +427,15 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                 replace_with_immediate(var.get(), result);
             }
         }
+
+        // New immediates can't be inserted directly, because that would invalidate the references above.
+        // However, nothing prevents us from not inserting immediates until the end of the iteration.
+        for (auto &new_imm : new_immediates) {
+            auto insert_point = std::next(block->variables.begin(), var_index);
+            block->variables.insert(insert_point, std::move(new_imm));
+            ++var_index;
+        }
+        new_immediates.clear();
     }
 
     // Apply rewrites to control flow ops
