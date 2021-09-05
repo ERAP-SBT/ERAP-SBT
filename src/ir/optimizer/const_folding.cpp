@@ -55,9 +55,10 @@ Type resolve_simple_op_type(const Operation &op) {
         std::cerr << "Warning: Could not resolve definitive non-imm type\n";
         return Type::i64;
     } else if (type_set.size() > 1) {
-        std::cerr << "Warning: Type conflict detected\n";
+        std::cerr << "Warning: Type conflict detected! Types are:\n";
         Type largest = Type::i8;
         for (Type t : type_set) {
+            std::cerr << " - " << t << '\n';
             if (cast_dir(largest, t) == 1) {
                 largest = t;
             }
@@ -399,7 +400,7 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                 // op imm
                 auto &ii = in->get_immediate();
                 if (input == Type::imm) {
-                    std::cerr << "Found morphing operation with imm as input, this shouldn't really happen\n";
+                    std::cerr << "Found morphing operation (b" << block->id << "/v" << var->id << ") with imm as input, this shouldn't really happen\n";
                     input = output;
                 }
                 if (ii.binary_relative)
