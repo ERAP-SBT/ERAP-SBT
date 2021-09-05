@@ -154,4 +154,8 @@ make -C gcc-build ${JOBS} install-target-libgcc
 make -C glibc-build ${JOBS} all
 make -C glibc-build ${JOBS} install
 
+# according to https://wiki.osdev.org/Hosted_GCC_Cross-Compiler libstdc++ depends on libc
+make -C gcc-build ${JOBS} all-target-libstdc++-v3
+make -C gcc-build ${JOBS} install-target-libstdc++-v3
+
 popd
