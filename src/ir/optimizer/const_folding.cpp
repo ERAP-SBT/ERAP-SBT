@@ -78,7 +78,9 @@ class ConstFoldPass {
 
     SSAVar *insert_imm_var(Type type, int64_t imm, bool bin_rel = false);
 
-    void do_input_rewrites(Operation &op);
+    void rewrite_visit_refptr(RefPtr<SSAVar> &);
+    void do_input_rewrites(Operation &);
+    void do_cf_rewrites(CfOp &);
 
     void replace_with_immediate(SSAVar *var, uint64_t immediate, bool bin_rel = false);
     void replace_var(SSAVar *var, SSAVar *new_var);
@@ -250,15 +252,61 @@ void ConstFoldPass::simplify_morph(Instruction insn, Type in_type, SSAVar *in_va
     }
 }
 
+void ConstFoldPass::rewrite_visit_refptr(RefPtr<SSAVar> &ref) {
+    if (!ref)
+        return;
+    auto it = rewrites.find(ref->id);
+    if (it != rewrites.end()) {
+        ref.reset(it->second);
+    }
+}
+
 void ConstFoldPass::do_input_rewrites(Operation &op) {
     for (auto &in_var : op.in_vars) {
-        if (!in_var)
-            continue;
-        auto it = rewrites.find(in_var->id);
-        if (it != rewrites.end()) {
-            in_var.reset(it->second);
-        }
+        rewrite_visit_refptr(in_var);
     }
+}
+
+template <typename> [[maybe_unused]] inline constexpr bool always_false_v = false;
+
+void ConstFoldPass::do_cf_rewrites(CfOp &cf) {
+    for (auto &in : cf.in_vars) {
+        rewrite_visit_refptr(in);
+    }
+    std::visit(
+        [this](auto &info) {
+            using T = std::decay_t<decltype(info)>;
+            if constexpr (std::is_same_v<T, CfOp::JumpInfo> || std::is_same_v<T, CfOp::CJumpInfo>) {
+                for (auto &var : info.target_inputs) {
+                    rewrite_visit_refptr(var);
+                }
+            } else if constexpr (std::is_same_v<T, CfOp::IJumpInfo> || std::is_same_v<T, CfOp::RetInfo>) {
+                for (auto &var : info.mapping) {
+                    rewrite_visit_refptr(var.first);
+                }
+            } else if constexpr (std::is_same_v<T, CfOp::CallInfo>) {
+                for (auto &var : info.continuation_mapping) {
+                    rewrite_visit_refptr(var.first);
+                }
+                for (auto &var : info.target_inputs) {
+                    rewrite_visit_refptr(var);
+                }
+            } else if constexpr (std::is_same_v<T, CfOp::ICallInfo>) {
+                for (auto &var : info.continuation_mapping) {
+                    rewrite_visit_refptr(var.first);
+                }
+                for (auto &var : info.mapping) {
+                    rewrite_visit_refptr(var.first);
+                }
+            } else if constexpr (std::is_same_v<T, CfOp::SyscallInfo>) {
+                for (auto &var : info.continuation_mapping) {
+                    rewrite_visit_refptr(var.first);
+                }
+            } else if constexpr (!std::is_same_v<T, std::monostate>) {
+                static_assert(always_false_v<T>, "Missing CfOp info in rewrite visitor");
+            }
+        },
+        cf.info);
 }
 
 constexpr bool can_handle_types(std::initializer_list<Type> types) {
@@ -385,14 +433,7 @@ void ConstFoldPass::process_block(BasicBlock *block) {
 
     // Apply rewrites to control flow ops
     for (auto &cf : block->control_flow_ops) {
-        for (auto &in : cf.in_vars) {
-            if (!in)
-                continue;
-            auto it = rewrites.find(in->id);
-            if (it != rewrites.end()) {
-                in.reset(it->second);
-            }
-        }
+        do_cf_rewrites(cf);
     }
 
     fixup_block();
