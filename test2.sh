@@ -94,7 +94,7 @@ mkdir -p "${SYSROOT}/include"
     --host="${CONF_HOST}" \
     --build="${CONF_BUILD}" \
     --target="${CONF_TARGET}" \
-    --enable-languages=c,c++ \
+    --enable-languages=c,c++,fortran \
     --disable-shared \
     --disable-libitm \
     --disable-libquadmath \
