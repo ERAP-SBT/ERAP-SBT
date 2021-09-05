@@ -88,9 +88,9 @@ struct RegAlloc {
         // fprintf(gen->out_fd, "%s", print_buf);
     }
 
-    template <typename... Args> REGISTER alloc_reg(size_t cur_time, REGISTER only_this_reg = REG_NONE, Args... clear_regs);
+    template <bool evict_imms = true, typename... Args> REGISTER alloc_reg(size_t cur_time, REGISTER only_this_reg = REG_NONE, Args... clear_regs);
 
-    template <typename... Args> REGISTER load_val_in_reg(size_t cur_time, SSAVar *var, REGISTER only_this_reg = REG_NONE, Args... clear_regs);
+    template <bool evict_imms = true, typename... Args> REGISTER load_val_in_reg(size_t cur_time, SSAVar *var, REGISTER only_this_reg = REG_NONE, Args... clear_regs);
 
     // empty reg and do not save the value
     void clear_reg(size_t cur_time, REGISTER reg);

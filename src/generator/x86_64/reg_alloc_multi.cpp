@@ -1231,7 +1231,9 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
             continue;
         }
         assert(input_var->type == Type::imm);
-        load_val_in_reg(cur_time, input_var);
+        // TODO: when all predecessors of a bb move the same immediate into an input we can tell the next
+        // bb that the input is an immediate and save a register
+        load_val_in_reg<false>(cur_time, input_var);
     }
 
     assert(target->inputs.size() == inputs.size());
@@ -1575,7 +1577,7 @@ void RegAlloc::init_time_of_use(BasicBlock *bb) {
     }
 }
 
-template <typename... Args> REGISTER RegAlloc::alloc_reg(size_t cur_time, REGISTER only_this_reg, Args... clear_regs) {
+template <bool evict_imms, typename... Args> REGISTER RegAlloc::alloc_reg(size_t cur_time, REGISTER only_this_reg, Args... clear_regs) {
     static_assert((std::is_same_v<Args, REGISTER> && ...));
     auto &reg_map = *cur_reg_map;
 
@@ -1625,6 +1627,12 @@ template <typename... Args> REGISTER RegAlloc::alloc_reg(size_t cur_time, REGIST
                     continue;
                 }
 
+                if (!evict_imms && reg_map[i].cur_var->type == Type::imm) {
+                    // in cfops immediates loaded must not be evicted as we have no other means to pass them
+                    // to the following block
+                    continue;
+                }
+
                 size_t next_use = 0;
                 for (const auto use_time : reg_map[i].cur_var->gen_info.uses) {
                     if (use_time > cur_time) {
@@ -1655,13 +1663,23 @@ template <typename... Args> REGISTER RegAlloc::alloc_reg(size_t cur_time, REGIST
     return reg;
 }
 
-template <typename... Args> REGISTER RegAlloc::load_val_in_reg(size_t cur_time, SSAVar *var, REGISTER only_this_reg, Args... clear_regs) {
+template <bool evict_imms, typename... Args> REGISTER RegAlloc::load_val_in_reg(size_t cur_time, SSAVar *var, REGISTER only_this_reg, Args... clear_regs) {
     static_assert((std::is_same_v<Args, REGISTER> && ...));
     auto &reg_map = *cur_reg_map;
 
     if (var->gen_info.location == SSAVar::GeneratorInfoX64::REGISTER) {
-        // TODO: dont ignore clear_regs here
         if (only_this_reg == REG_NONE || var->gen_info.reg_idx == only_this_reg) {
+            if (((var->gen_info.reg_idx == clear_regs) && ...)) {
+                // clear_regs take precedent over only_this_reg though it should never happen
+                assert(((only_this_reg != clear_regs) && ...));
+                const auto new_reg = alloc_reg(cur_time, REG_NONE, clear_regs...);
+                print_asm("mov %s, %s\n", reg_names[new_reg][0], reg_names[var->gen_info.reg_idx][0]);
+                reg_map[var->gen_info.reg_idx].cur_var = nullptr;
+                reg_map[new_reg].cur_var = var;
+                reg_map[new_reg].alloc_time = cur_time;
+                var->gen_info.reg_idx = new_reg;
+                return new_reg;
+            }
             return static_cast<REGISTER>(var->gen_info.reg_idx);
         }
 
@@ -1686,7 +1704,7 @@ template <typename... Args> REGISTER RegAlloc::load_val_in_reg(size_t cur_time, 
         return only_this_reg;
     }
 
-    const auto reg = alloc_reg(cur_time, only_this_reg, clear_regs...);
+    const auto reg = alloc_reg<evict_imms>(cur_time, only_this_reg, clear_regs...);
 
     if (var->type == Type::imm) {
         auto &info = std::get<SSAVar::ImmInfo>(var->info);
