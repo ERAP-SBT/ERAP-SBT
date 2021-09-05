@@ -7,7 +7,8 @@ set -x
 set -u
 set -o pipefail
 
-JOBS="-j$(nproc)"
+# Run make jobs in parallel, --output-sync keeps the output readable
+JOBS="-j$(nproc) --output-sync"
 
 mkdir toolchain
 pushd toolchain
@@ -59,8 +60,8 @@ pushd binutils-build
     --with-system-zlib
 popd
 
-make -C binutils-build ${JOBS} --output-sync all
-make -C binutils-build ${JOBS} --output-sync install
+make -C binutils-build ${JOBS} all
+make -C binutils-build ${JOBS} install
 
 # Build gcc step 1
 
@@ -117,8 +118,8 @@ popd
 
 # build riscv64-linux-gnu-gcc cross compiler
 # Seperate make invocations because gccs Makefile is fragile
-make -C gcc-build ${JOBS} --output-sync all-gcc
-make -C gcc-build ${JOBS} --output-sync install-gcc
+make -C gcc-build ${JOBS} all-gcc
+make -C gcc-build ${JOBS} install-gcc
 
 # NOTE: we cheat and use the kernel headers provided by linux-libc-dev-riscv64-cross, it works.
 pushd sysroot
@@ -141,16 +142,16 @@ popd
 
 # install-others: installs the header <gnu/stubs.h> that is required by libgcc
 # apparently an issue since 2003: https://gcc.gnu.org/legacy-ml/gcc-patches/2003-11/msg00612.html
-make -C glibc-build ${JOBS} --output-sync install-headers
+make -C glibc-build ${JOBS} install-headers
 #"${SYSROOT}/include/gnu/stubs.h"
 touch "${SYSROOT}/include/gnu/stubs.h"
 
 # build libgcc using installed headers
-make -C gcc-build ${JOBS} --output-sync all-target-libgcc
-make -C gcc-build ${JOBS} --output-sync install-target-libgcc
+make -C gcc-build ${JOBS} all-target-libgcc
+make -C gcc-build ${JOBS} install-target-libgcc
 
 # glibc depends on libgcc
-make -C glibc-build ${JOBS}  --output-sync all
-make -C glibc-build ${JOBS}  --output-sync install
+make -C glibc-build ${JOBS} all
+make -C glibc-build ${JOBS} install
 
 popd
