@@ -111,46 +111,178 @@ SSAVar *ConstFoldPass::queue_imm(Type type, uint64_t imm, bool bin_rel) {
     return new_immediates.emplace_back(std::move(new_var)).get();
 }
 
+// Note: Prefix notation in comments means IR operation, infix notation means operation on / evaluation of immediates.
+
+// TODO needs thorough tests
+
 void ConstFoldPass::simplify_double_op_imm_left(Type type, Operation &cur, Operation &prev) {
+    // ca: imm, cb: operation
     auto &ca = cur.in_vars[0], &cb = cur.in_vars[1];
-    if (cur.type == Instruction::add && prev.type == Instruction::add) {
-        auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
-        if (pa->is_immediate()) {
-            assert(!pb->is_immediate());
-            // v1 <- add imm, any (not imm)
-            // v2 <- add imm, v1
-            int64_t result = eval_binary_op(Instruction::add, type, pa->get_immediate().val, ca->get_immediate().val);
-            ca = queue_imm(type, result);
-            cb = pb;
-        } else if (pb->is_immediate()) {
-            assert(!pa->is_immediate());
-            // v1 <- add any (not imm), imm
-            // v2 <- add imm, v1
-            int64_t result = eval_binary_op(Instruction::add, type, pb->get_immediate().val, ca->get_immediate().val);
-            ca = queue_imm(type, result);
-            cb = pa;
+    auto &cai = ca->get_immediate();
+    if (cur.type == Instruction::add) {
+        if (prev.type == Instruction::add) {
+            auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
+            assert(!pa->is_immediate() || !pb->is_immediate()); // Ops with imm/imm should be folded by now
+            if (pa->is_immediate()) {
+                // pa: imm, pb: not imm
+                // add ca, (add pa, pb)
+                // => add (pa + ca), pb
+                auto result = eval_binary_op(Instruction::add, type, pa->get_immediate().val, cai.val);
+                ca = queue_imm(type, result);
+                cb = pb;
+            } else if (pb->is_immediate()) {
+                // pa: not imm, pb: imm
+                // add imm, (add pa, pb)
+                // => add (pb + ca), pa
+                auto result = eval_binary_op(Instruction::add, type, pb->get_immediate().val, cai.val);
+                ca = queue_imm(type, result);
+                cb = pa;
+            }
+        } else if (prev.type == Instruction::sub) {
+            auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
+            assert(!pa->is_immediate() || !pb->is_immediate());
+            if (pa->is_immediate()) {
+                // pa: imm, pb: not imm
+                // add ca, (sub pa, pb)
+                // => sub (pa + ca), pb
+                auto result = eval_binary_op(Instruction::add, type, pa->get_immediate().val, cai.val);
+                cur.type = Instruction::sub;
+                ca = queue_imm(type, result);
+                cb = pb;
+            } else if (pb->is_immediate()) {
+                // pa: not imm, pb: imm
+                // add ca, (sub pa, pb)
+                // => add (ca - pb), pa
+                auto result = eval_binary_op(Instruction::sub, type, cai.val, pb->get_immediate().val);
+                ca = queue_imm(type, result);
+                cb = pa;
+            }
+        }
+    } else if (cur.type == Instruction::sub) {
+        if (prev.type == Instruction::add) {
+            auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
+            assert(!pa->is_immediate() || !pb->is_immediate());
+            if (pa->is_immediate()) {
+                // pa: imm, pb: not imm
+                // sub ca, (add pa, pb)
+                // => sub (ca - pa), pb
+                auto result = eval_binary_op(Instruction::sub, type, cai.val, pa->get_immediate().val);
+                ca = queue_imm(type, result);
+                cb = pb;
+            } else if (pb->is_immediate()) {
+                // pa: not imm, pb: imm
+                // sub ca, (add pa, pb)
+                // => sub (ca - pb), pa
+                auto result = eval_binary_op(Instruction::sub, type, cai.val, pb->get_immediate().val);
+                ca = queue_imm(type, result);
+                cb = pa;
+            }
+        } else if (prev.type == Instruction::sub) {
+            auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
+            assert(!pa->is_immediate() || !pb->is_immediate());
+            if (pa->is_immediate()) {
+                // pa: imm, pb: not imm
+                // sub ca, (sub pa, pb)
+                // => add (ca - pa), pb
+                auto result = eval_binary_op(Instruction::sub, type, cai.val, pa->get_immediate().val);
+                cur.type = Instruction::add;
+                ca = queue_imm(type, result);
+                cb = pb;
+            } else if (pb->is_immediate()) {
+                // pa: not imm, pb: imm
+                // sub ca, (sub pa, pb)
+                // => sub (pb + ca), pa
+                auto result = eval_binary_op(Instruction::add, type, pb->get_immediate().val, cai.val);
+                ca = queue_imm(type, result);
+                cb = pa;
+            }
         }
     }
 }
 
 void ConstFoldPass::simplify_double_op_imm_right(Type type, Operation &cur, Operation &prev) {
+    // ca: operation, cb: imm
     auto &ca = cur.in_vars[0], &cb = cur.in_vars[1];
-    if (cur.type == Instruction::add && prev.type == Instruction::add) {
-        auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
-        if (pa->is_immediate()) {
-            assert(!pb->is_immediate());
-            // v1 <- add imm, any (not imm)
-            // v2 <- add v1, imm
-            int64_t result = eval_binary_op(Instruction::add, type, pa->get_immediate().val, cb->get_immediate().val);
-            cb = queue_imm(type, result);
-            ca = pb;
-        } else if (pb->is_immediate()) {
-            assert(!pa->is_immediate());
-            // v1 <- add any (not imm), imm
-            // v2 <- add v1, imm
-            int64_t result = eval_binary_op(Instruction::add, type, pb->get_immediate().val, cb->get_immediate().val);
-            cb = queue_imm(type, result);
-            ca = pa;
+    auto &cbi = cb->get_immediate();
+    if (cur.type == Instruction::add) {
+        if (prev.type == Instruction::add) {
+            auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
+            assert(!pa->is_immediate() || !pb->is_immediate());
+            if (pa->is_immediate()) {
+                // pa: imm, pb: not imm
+                // add (add pa, pb), cb
+                // => add (pa + cb), pb
+                auto result = eval_binary_op(Instruction::add, type, pa->get_immediate().val, cbi.val);
+                ca = queue_imm(type, result);
+                cb = pb;
+            } else if (pb->is_immediate()) {
+                // pa: not imm, pb: imm
+                // add (add pa, pb), cb
+                // => add (pb + cb), pa
+                auto result = eval_binary_op(Instruction::add, type, pb->get_immediate().val, cbi.val);
+                ca = queue_imm(type, result);
+                cb = pa;
+            }
+        } else if (prev.type == Instruction::sub) {
+            auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
+            assert(!pa->is_immediate() || !pb->is_immediate());
+            if (pa->is_immediate()) {
+                // pa: imm, pb: not imm
+                // add (sub pa, pb), cb
+                // => sub (pa + cb), pb
+                auto result = eval_binary_op(Instruction::add, type, pa->get_immediate().val, cbi.val);
+                cur.type = Instruction::sub;
+                ca = queue_imm(type, result);
+                cb = pb;
+            } else if (pb->is_immediate()) {
+                // pa: not imm, pb: imm
+                // add (sub pa, pb), cb
+                // => sub pa, (pb - cb)
+                auto result = eval_binary_op(Instruction::sub, type, pb->get_immediate().val, cbi.val);
+                cur.type = Instruction::sub;
+                ca = pa;
+                cb = queue_imm(type, result);
+            }
+        }
+    } else if (cur.type == Instruction::sub) {
+        if (prev.type == Instruction::add) {
+            auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
+            assert(!pa->is_immediate() || !pb->is_immediate());
+            if (pa->is_immediate()) {
+                // pa: imm, pb: not imm
+                // sub (add pa, pb), cb
+                // => add (pa - cb), pb
+                auto result = eval_binary_op(Instruction::sub, type, pa->get_immediate().val, cbi.val);
+                cur.type = Instruction::add;
+                ca = queue_imm(type, result);
+                cb = pb;
+            } else if (pb->is_immediate()) {
+                // pa: not imm, pb: imm
+                // sub (add pa, pb), cb
+                // => add (pb - cb), pa
+                auto result = eval_binary_op(Instruction::sub, type, pb->get_immediate().val, cbi.val);
+                cur.type = Instruction::add;
+                ca = queue_imm(type, result);
+                cb = pa;
+            }
+        } else if (prev.type == Instruction::sub) {
+            auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
+            assert(!pa->is_immediate() || !pb->is_immediate());
+            if (pa->is_immediate()) {
+                // pa: imm, pb: not imm
+                // sub (sub pa, pb), cb
+                // => sub (pa - cb), pb
+                auto result = eval_binary_op(Instruction::sub, type, pa->get_immediate().val, cbi.val);
+                ca = queue_imm(type, result);
+                cb = pb;
+            } else if (pb->is_immediate()) {
+                // pa: not imm, pb: imm
+                // sub (sub pa, pb), cb
+                // => sub pa, (pb - cb)
+                auto result = eval_binary_op(Instruction::sub, type, pb->get_immediate().val, cbi.val);
+                ca = pa;
+                cb = queue_imm(type, result);
+            }
         }
     }
 }
@@ -389,6 +521,12 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                 Type type = resolve_simple_op_type(op);
                 int64_t result = eval_unary_op(op.type, type, ii.val);
                 replace_with_immediate(var.get(), result);
+            } else if (in->is_operation()) {
+                auto &prev = in->get_operation();
+                if (prev.type == Instruction::_not) {
+                    // not (not x) = x
+                    replace_var(var.get(), prev.in_vars[0]);
+                }
             }
         } else if (is_morphing_op(op.type)) {
             auto &in = op.in_vars[0];
