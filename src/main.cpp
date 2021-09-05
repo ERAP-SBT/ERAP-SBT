@@ -124,18 +124,6 @@ int main(int argc, const char **argv) {
     lifter.lift(&prog);
     const auto time_post_lift = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 
-    if (args.has_argument("print-ir")) {
-        if (auto file = args.get_argument("print-ir"); !file.empty()) {
-            std::ofstream out(std::string{file});
-            ir.print(out);
-        } else {
-            std::cout << "------------------------------------------------------------\n";
-            std::cout << "IR after Lifting:\n";
-            ir.print(std::cout);
-            std::cout << "------------------------------------------------------------\n";
-        }
-    }
-
     {
         std::vector<std::string> verification_messages;
         if (!ir.verify(verification_messages)) {
@@ -151,6 +139,18 @@ int main(int argc, const char **argv) {
     if (args.has_argument("optimize")) {
         optimizer::const_fold(&ir);
         optimizer::dce(&ir);
+    }
+
+    if (args.has_argument("print-ir")) {
+        if (auto file = args.get_argument("print-ir"); !file.empty()) {
+            std::ofstream out(std::string{file});
+            ir.print(out);
+        } else {
+            std::cout << "------------------------------------------------------------\n";
+            std::cout << "IR after Lifting:\n";
+            ir.print(std::cout);
+            std::cout << "------------------------------------------------------------\n";
+        }
     }
 
     auto output_object = temp_dir / "translated.o";
