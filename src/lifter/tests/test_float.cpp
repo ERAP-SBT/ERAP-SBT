@@ -7,6 +7,8 @@ using namespace lifter::RV64;
 
 using reg_map = Lifter::reg_map;
 
+#if 0
+
 class TestFloatingPointLifting : public ::testing::Test {
   public:
     IR *ir;
@@ -1255,3 +1257,5 @@ TEST_F(TestFloatingPointLifting, test_fp_fled) {
     const RV64Inst instr{FrvInst{FRV_FLED, 27, 3, 15, 0, 0, 0}, 4};
     test_fp_compare_lifting(instr);
 }
+
+#endif
