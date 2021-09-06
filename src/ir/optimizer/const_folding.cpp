@@ -30,6 +30,10 @@ constexpr bool is_binary_op(Instruction insn) {
     case Instruction::_or:
     case Instruction::_and:
     case Instruction::_xor:
+    case Instruction::max:
+    case Instruction::umax:
+    case Instruction::min:
+    case Instruction::umin:
         return true;
     default:
         return false;
@@ -573,6 +577,23 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                 auto [div_result, rem_result] = eval_div(op.type, type, b->get_immediate().val, a->get_immediate().val);
                 int64_t result = op.out_vars[0] ? div_result : rem_result;
                 replace_with_immediate(var.get(), result);
+            }
+        } else if (op.type == Instruction::slt || op.type == Instruction::sltu) {
+            auto &a = op.in_vars[0], &b = op.in_vars[1], &val_if_less = op.in_vars[2], &val_else = op.in_vars[3];
+            if (a->is_immediate() && b->is_immediate()) {
+                // slt(u) imm, imm, any, any
+                Type type;
+                if (a->type != b->type) {
+                    std::cerr << "Warning: Type mismatch on slt(u), using largest\n";
+                    type = cast_dir(a->type, b->type) == 1 ? b->type : a->type;
+                } else if (a->type == Type::imm && op.type == Instruction::slt) {
+                    std::cerr << "Warning: slt (signed) with imm values, treating as i64\n";
+                    type = Type::i64;
+                } else {
+                    type = a->type;
+                }
+                int cmp = typed_compare(type, a->get_immediate().val, b->get_immediate().val, op.type == Instruction::slt);
+                replace_var(var.get(), cmp < 0 ? val_if_less : val_else);
             }
         }
 
