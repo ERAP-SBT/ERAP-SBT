@@ -425,7 +425,7 @@ void Generator::compile_vars(const BasicBlock *block) {
 
         switch (op->type) {
         case Instruction::store:
-            assert(op->in_vars[0]->type == Type::i64);
+            assert(op->in_vars[0]->type == Type::i64 || op->in_vars[0]->type == Type::imm);
             assert(arg_count == 3);
             fprintf(out_fd, "mov %s [%s], %s\n", ptr_from_type(op->in_vars[1]->type), in_regs[0], in_regs[1]);
             break;
