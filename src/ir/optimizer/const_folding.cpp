@@ -490,24 +490,33 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                 int64_t result = eval_binary_op(op.type, type, ia.val, ib.val);
                 replace_with_immediate(var.get(), result, bin_rel);
                 continue;
-            } else if (a->is_immediate()) {
-                if (a->get_immediate().binary_relative)
-                    continue; // TODO
-                if (b->is_operation()) {
+            } else {
+                if (a->is_immediate() && b->is_operation()) {
+                    if (a->get_immediate().binary_relative)
+                        continue; // TODO
                     // op imm, op
                     simplify_double_op_imm_left(type, op, b->get_operation());
-                }
-                // op imm, any
-                simplify_bi_imm_left(op.type, type, a->get_immediate().val, var.get(), b);
-            } else if (b->is_immediate()) {
-                if (b->get_immediate().binary_relative)
-                    continue; // TODO
-                if (a->is_operation()) {
+                } else if (b->is_immediate() && a->is_operation()) {
+                    if (b->get_immediate().binary_relative)
+                        continue; // TODO
                     // op op, imm
                     simplify_double_op_imm_right(type, op, a->get_operation());
                 }
-                // op any, imm
-                simplify_bi_imm_right(op.type, type, b->get_immediate().val, var.get(), a);
+
+                // simplify_double_op_* can change the order parameters; thus the separate check
+                if (a->is_immediate()) {
+                    const auto &imm = a->get_immediate();
+                    if (imm.binary_relative)
+                        continue;
+                    // op imm, any
+                    simplify_bi_imm_left(op.type, type, imm.val, var.get(), b);
+                } else if (b->is_immediate()) {
+                    const auto &imm = b->get_immediate();
+                    if (imm.binary_relative)
+                        continue;
+                    // op any, imm
+                    simplify_bi_imm_right(op.type, type, imm.val, var.get(), a);
+                }
             }
         } else if (is_unary_op(op.type)) {
             auto &in = op.in_vars[0];
