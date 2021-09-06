@@ -228,7 +228,7 @@ class TestFloatingPointLifting : public ::testing::Test {
         ASSERT_GE(bb->variables.size(), COUNT_STATIC_VARS + count_scanned_variables) << "In the basic block are less variables than expected!";
     }
 
-    void test_conversion(const RV64Inst &instr) {
+    void test_conversion_lifting(const RV64Inst &instr) {
         Type expected_from_type;
         Type expected_to_type;
         Instruction expected_instruction;
@@ -418,7 +418,7 @@ class TestFloatingPointLifting : public ::testing::Test {
         ASSERT_GE(bb->variables.size(), COUNT_STATIC_VARS + count_scanned_variables) << "In the basic block are less variables than expected!";
     }
 
-    void test_sign_injection(const RV64Inst &instr) {
+    void test_sign_injection_lifting(const RV64Inst &instr) {
         // preserve input values from overriding in the mapping in order to use them in comparison later on
         const SSAVar *input_one = mapping[instr.instr.rs1 + Lifter::START_IDX_FLOATING_POINT_STATICS];
         const SSAVar *input_two = mapping[instr.instr.rs2 + Lifter::START_IDX_FLOATING_POINT_STATICS];
@@ -590,6 +590,75 @@ class TestFloatingPointLifting : public ::testing::Test {
 
         // assert that the test has tested all variables
         assert(bb->variables.size() == COUNT_STATIC_VARS + count_scanned_variables);
+    }
+
+    void test_moves_lifting(const RV64Inst &instr) {
+        Type expected_from;
+        Type expected_to;
+        switch (instr.instr.mnem) {
+        case FRV_FMVXW:
+            expected_from = Type::f32;
+            expected_to = Type::i32;
+            break;
+        case FRV_FMVWX:
+            expected_from = Type::i32;
+            expected_to = Type::f32;
+            break;
+        case FRV_FMVXD:
+            expected_from = Type::f64;
+            expected_to = Type::i64;
+            break;
+        case FRV_FMVDX:
+            expected_from = Type::i64;
+            expected_to = Type::f64;
+            break;
+        }
+
+        SSAVar *input_var = mapping[instr.instr.rs1 + (type_is_floating_point(expected_from) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)];
+
+        lifter->parse_instruction(bb, instr, mapping, virt_start_addr, virt_start_addr + 4);
+
+        verify();
+
+        unsigned count_scanned_variables = 0;
+
+        if (expected_from == Type::i32 || expected_from == Type::f32) {
+            SSAVar *casted_input = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+            ASSERT_EQ(casted_input->type, expected_from) << "The casted input has the wrong type!";
+            ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_input->info)) << "The casted input doesn't have an operation!";
+            auto *op = std::get<std::unique_ptr<Operation>>(casted_input->info).get();
+            ASSERT_EQ(op->type, Instruction::cast) << "The operation has the wrong type!";
+            ASSERT_EQ(op->out_vars[0], casted_input) << "The casted input isn't the output of it's operation!";
+            ASSERT_EQ(op->in_vars[0], input_var) << "The input isn't the input of the operation";
+            input_var = casted_input;
+            count_scanned_variables++;
+        }
+
+        // check mov operation
+        SSAVar *result = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        {
+            ASSERT_EQ(result->type, expected_to) << "The result variable has the wrong type!";
+            ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(result->info)) << "The result variable doesn't have an operation!";
+            auto *op = std::get<std::unique_ptr<Operation>>(result->info).get();
+            ASSERT_EQ(op->type, Instruction::cast) << "The operation of the result has the wrong type!";
+            ASSERT_EQ(op->out_vars[0], result) << "The result isn't the output of it's operation!";
+            ASSERT_EQ(op->in_vars[0], input_var) << "The opertion of the result has the wrong input!";
+            count_scanned_variables++;
+        }
+
+        if (expected_to == Type::i32) {
+            SSAVar *casted_result = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+            ASSERT_EQ(casted_result->type, Type::i64) << "The casted result has the wrong type!";
+            ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_result->info)) << "The casted result variable doesn't have an operation!";
+            auto *op = std::get<std::unique_ptr<Operation>>(casted_result->info).get();
+            ASSERT_EQ(op->type, Instruction::sign_extend) << "The operation of the casted result has the wrong type!";
+            ASSERT_EQ(op->out_vars[0], casted_result) << "The casted result isn't the output of it's operation!";
+            ASSERT_EQ(op->in_vars[0], result) << "The result isn't the input of the operation";
+            result = casted_result;
+            count_scanned_variables++;
+        }
+
+        ASSERT_EQ(result, mapping[instr.instr.rd + (type_is_floating_point(expected_to) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)]) << "The result isn't written correctly to the mapping!";
     }
 };
 
@@ -872,49 +941,49 @@ TEST_F(TestFloatingPointLifting, test_fp_fnmsub_d) {
 TEST_F(TestFloatingPointLifting, test_fp_fcvtws) {
     // create instruction: fcvt.w.s x5, f5, RNE
     const RV64Inst instr{FrvInst{FRV_FCVTWS, 5, 5, 0, 0, 0, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtwus) {
     // create instruction: fcvt.wu.s x4, f6, RTZ
     const RV64Inst instr{FrvInst{FRV_FCVTWUS, 4, 6, 0, 0, 1, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtls) {
     // create instruction: fcvt.l.s x8, f1, RDN
     const RV64Inst instr{FrvInst{FRV_FCVTLS, 8, 1, 0, 0, 2, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtlus) {
     // create instruction: fcvt.lu.s x2, f15, RUP
     const RV64Inst instr{FrvInst{FRV_FCVTLUS, 2, 15, 0, 0, 3, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtsw) {
     // create instruction: fcvt.s.w f4, x7 (rounding should/will be ignored)
     const RV64Inst instr{FrvInst{FRV_FCVTSW, 4, 7, 0, 0, 0, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtswu) {
     // create instruction: fcvt.s.wu f1, x2 (rounding should/will be ignored)
     const RV64Inst instr{FrvInst{FRV_FCVTSWU, 1, 2, 0, 0, 0, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtsl) {
     // create instruction: fcvt.s.l f18, x27 (rounding should/will be ignored)
     const RV64Inst instr{FrvInst{FRV_FCVTSL, 18, 27, 0, 0, 0, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtslu) {
     // create instruction: fcvt.s.lu f31, x4 (rounding should/will be ignored)
     const RV64Inst instr{FrvInst{FRV_FCVTSLU, 31, 4, 0, 0, 0, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 /* integer <-> double precision conversion */
@@ -922,49 +991,49 @@ TEST_F(TestFloatingPointLifting, test_fp_fcvtslu) {
 TEST_F(TestFloatingPointLifting, test_fp_fcvtwd) {
     // create instruction: fcvt.w.d x8, f24, RMM
     const RV64Inst instr{FrvInst{FRV_FCVTWD, 8, 24, 0, 0, 4, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtwud) {
     // create instruction: fcvt.wu.d x15, f7, RUP
     const RV64Inst instr{FrvInst{FRV_FCVTWUD, 15, 7, 0, 0, 3, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtld) {
     // create instruction: fcvt.l.d x26, f31, RDN
     const RV64Inst instr{FrvInst{FRV_FCVTLD, 26, 31, 0, 0, 2, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtlud) {
     // create instruction: fcvt.lu.d x9, f9, RNE
     const RV64Inst instr{FrvInst{FRV_FCVTLUD, 9, 9, 0, 0, 0, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtdw) {
     // create instruction: fcvt.d.w f6, x18 (rounding should/will be ignored)
     const RV64Inst instr{FrvInst{FRV_FCVTDW, 6, 18, 0, 0, 0, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtdwu) {
     // create instruction: fcvt.d.wu f0, x14 (rounding should/will be ignored)
     const RV64Inst instr{FrvInst{FRV_FCVTDWU, 0, 14, 0, 0, 0, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtdl) {
     // create instruction: fcvt.d.l f16, x9 (rounding should/will be ignored)
     const RV64Inst instr{FrvInst{FRV_FCVTDL, 16, 9, 0, 0, 0, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtdlu) {
     // create instruction: fcvt.d.lu f28, x10 (rounding should/will be ignored)
     const RV64Inst instr{FrvInst{FRV_FCVTDLU, 6, 10, 0, 0, 0, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 /* single precision <-> double precision conversion */
@@ -972,13 +1041,13 @@ TEST_F(TestFloatingPointLifting, test_fp_fcvtdlu) {
 TEST_F(TestFloatingPointLifting, test_fp_fcvtsd) {
     // create instruction: fcvt.s.d f4, f4 (rounding should/will be ignored)
     const RV64Inst instr{FrvInst{FRV_FCVTSD, 4, 4, 0, 0, 0, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtds) {
     // create instruction: fcvt.d.s f14, f8 (rounding should/will be ignored)
     const RV64Inst instr{FrvInst{FRV_FCVTDS, 14, 8, 0, 0, 0, 0}, 4};
-    test_conversion(instr);
+    test_conversion_lifting(instr);
 }
 
 /* sign injection */
@@ -986,35 +1055,61 @@ TEST_F(TestFloatingPointLifting, test_fp_fcvtds) {
 TEST_F(TestFloatingPointLifting, test_fp_fsgnjs) {
     // create instruction: fsgnj.s f2, f4, f9
     const RV64Inst instr{FrvInst{FRV_FSGNJS, 2, 4, 9, 0, 0, 0}, 4};
-    test_sign_injection(instr);
+    test_sign_injection_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fsgnjd) {
     // create instruction: fsgnj.d f22, f0, f24
     const RV64Inst instr{FrvInst{FRV_FSGNJD, 22, 0, 24, 0, 0, 0}, 4};
-    test_sign_injection(instr);
+    test_sign_injection_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fsgnjns) {
     // create instruction: fsgnjn.s f24, f6, f16
     const RV64Inst instr{FrvInst{FRV_FSGNJNS, 24, 6, 16, 0, 0, 0}, 4};
-    test_sign_injection(instr);
+    test_sign_injection_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fsgnjnd) {
     // create instruction: fsgnjn.d f7, f2, f2
     const RV64Inst instr{FrvInst{FRV_FSGNJND, 7, 2, 2, 0, 0, 0}, 4};
-    test_sign_injection(instr);
+    test_sign_injection_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fsgnjxs) {
     // create instruction: fsgnjx.s f28, f9, f0
     const RV64Inst instr{FrvInst{FRV_FSGNJXS, 28, 9, 0, 0, 0, 0}, 4};
-    test_sign_injection(instr);
+    test_sign_injection_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fsgnjxd) {
     // create instruction: fsgnjx.d f19, f20, f21
     const RV64Inst instr{FrvInst{FRV_FSGNJXD, 19, 20, 21, 0, 0, 0}, 4};
-    test_sign_injection(instr);
+    test_sign_injection_lifting(instr);
+}
+
+/* move instruction */
+
+TEST_F(TestFloatingPointLifting, test_fp_fmvxw) {
+    // create instruction: fmv.x.w x4, f8
+    const RV64Inst instr{FrvInst{FRV_FMVXW, 4, 8, 0, 0, 0, 0}, 4};
+    test_moves_lifting(instr);
+}
+
+TEST_F(TestFloatingPointLifting, test_fp_fmvwx) {
+    // create instruction: fmv.w.x f5, x12
+    const RV64Inst instr{FrvInst{FRV_FMVWX, 5, 12, 0, 0, 0, 0}, 4};
+    test_moves_lifting(instr);
+}
+
+TEST_F(TestFloatingPointLifting, test_fp_fmvxd) {
+    // create instruction: fmv.x.d x28, f25
+    const RV64Inst instr{FrvInst{FRV_FMVXD, 28, 25, 0, 0, 0, 0}, 4};
+    test_moves_lifting(instr);
+}
+
+TEST_F(TestFloatingPointLifting, test_fp_fmvdx) {
+    // create instruction: fmv.d.x f22, x15
+    const RV64Inst instr{FrvInst{FRV_FMVDX, 22, 15, 0, 0, 0, 0}, 4};
+    test_moves_lifting(instr);
 }
