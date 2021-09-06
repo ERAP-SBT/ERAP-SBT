@@ -287,8 +287,7 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         lift_amo_max(bb, instr, mapping, ip, Type::i64, false);
         break;
 
-        /* ziscr */
-#if 0
+    /* ziscr */
     case FRV_CSRRW:
         lift_csr_read_write(bb, instr, mapping, ip, false);
         break;
@@ -307,7 +306,7 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_CSRRCI:
         lift_csr_read_clear(bb, instr, mapping, ip, true);
         break;
-#endif
+
     /* F Extension */
     case FRV_FLW:
         lift_load(bb, instr, mapping, ip, Type::f32, false);
