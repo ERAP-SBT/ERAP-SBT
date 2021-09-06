@@ -139,6 +139,14 @@ template <typename T> inline T eval_binary_op2(Instruction insn, T a, T b) {
         return a & b;
     case Instruction::_xor:
         return a ^ b;
+    case Instruction::umax:
+        return std::max(a, b);
+    case Instruction::max:
+        return std::max((Signed)a, (Signed)b);
+    case Instruction::umin:
+        return std::min(a, b);
+    case Instruction::min:
+        return std::min((Signed)a, (Signed)b);
     default:
         unreachable();
     }
@@ -199,8 +207,18 @@ uint64_t eval_unary_op(Instruction insn, Type type, uint64_t val) {
 #undef switch_action
 }
 
+namespace {
+template <typename T> inline int compare(T a, T b) { return a < b ? -1 : (a > b ? 1 : 0); }
+} // namespace
+
 bool typed_equal(Type type, uint64_t a, uint64_t b) {
 #define switch_action(sw_typ) return ((sw_typ)a) == ((sw_typ)b);
+    switch_int_types(type)
+#undef switch_action
+}
+
+int typed_compare(Type type, uint64_t a, uint64_t b, bool signed_compare) {
+#define switch_action(sw_typ) return signed_compare ? compare((SignedIntT<sw_typ>)a, (SignedIntT<sw_typ>)b) : compare(a, b);
     switch_int_types(type)
 #undef switch_action
 }
