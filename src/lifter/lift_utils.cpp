@@ -70,6 +70,10 @@ SSAVar *Lifter::get_from_mapping(BasicBlock *bb, reg_map &mapping, uint64_t reg_
         return bb->add_var_imm(0, ip);
     }
 
+    if (is_floating_point_register) {
+        assert(0 && "Currently not implemented! Please activate lifter floating point support and then remove this assertion!");
+    }
+
     return mapping[reg_id + (is_floating_point_register ? START_IDX_FLOATING_POINT_STATICS : 0)];
 }
 
@@ -77,6 +81,11 @@ void Lifter::write_to_mapping(reg_map &mapping, SSAVar *var, uint64_t reg_id, bo
     if (!is_floating_point_register && reg_id == ZERO_IDX) {
         return;
     }
+
+    if (is_floating_point_register) {
+        assert(0 && "Currently not implemented! Please activate lifter floating point support and then remove this assertion!");
+    }
+
     uint64_t actual_reg_id = reg_id + (is_floating_point_register ? START_IDX_FLOATING_POINT_STATICS : 0);
 
     std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = actual_reg_id;

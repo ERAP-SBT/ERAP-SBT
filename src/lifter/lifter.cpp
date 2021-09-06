@@ -39,16 +39,20 @@ void Lifter::lift(Program *prog) {
         ir->add_static(Type::i64);
     }
 
+#if 0
     // add statics for floating point regsiters
     for (size_t i = 0; i < 32; i++) {
         ir->add_static(Type::f64);
     }
+#endif
 
     // add static for the memory token
     ir->add_static(Type::mt);
 
+#if 0
     // add static for the fcsr
     ir->add_static(Type::i64);
+#endif
 
     BasicBlock *cur_bb = nullptr;
     reg_map mapping;

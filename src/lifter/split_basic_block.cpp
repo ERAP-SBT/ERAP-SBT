@@ -163,7 +163,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
         // variable is the result of an Operation -> adjust the inputs of the operation
         if (std::holds_alternative<std::unique_ptr<Operation>>(var->info)) {
             auto *operation = std::get<std::unique_ptr<Operation>>(var->info).get();
-            const bool is_single_precision_op = type_is_floating_point(operation->out_vars[0]->type);
+            const bool is_single_precision_op = type_is_floating_point(var->type);
             for (auto &in_var : operation->in_vars) {
                 // skip nullptrs
                 if (in_var == nullptr) {
