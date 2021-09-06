@@ -111,9 +111,9 @@ TEST(TestConstFolding, test_double) {
     ASSERT_TRUE(e->is_operation());
     const auto &op = e->get_operation();
 
-    ASSERT_TRUE(op.in_vars[0] && op.in_vars[0]->is_static());
-    ASSERT_EQ(op.in_vars[0]->get_static(), 0);
+    ASSERT_TRUE(op.in_vars[1] && op.in_vars[1]->is_static());
+    ASSERT_EQ(op.in_vars[1]->get_static(), 0);
 
-    ASSERT_TRUE(op.in_vars[1] && op.in_vars[1]->is_immediate());
-    ASSERT_EQ(op.in_vars[1]->get_immediate().val, 3);
+    ASSERT_TRUE(op.in_vars[0] && op.in_vars[0]->is_immediate());
+    ASSERT_EQ(op.in_vars[0]->get_immediate().val, 3);
 }
