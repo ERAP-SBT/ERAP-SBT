@@ -7,6 +7,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <fcntl.h>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -127,9 +128,42 @@ int main(int argc, const char **argv) {
     if (!assembler) {
         return EXIT_FAILURE;
     }
+    if (!args.has_argument("asm-out")) {
+        generator::x86_64::Generator generator(&ir, binary_image_file.string(), assembler);
+        generator.compile();
+    } else {
+        const auto asm_file = std::string{args.get_argument("asm-out")};
+        auto asm_out = fopen(asm_file.c_str(), "w");
+        if (!asm_out) {
+            std::cerr << "The assembly output couldn't be opened: " << std::strerror(errno) << "\n";
+            return EXIT_FAILURE;
+        }
 
-    generator::x86_64::Generator generator(&ir, binary_image_file.string(), assembler);
-    generator.compile();
+        generator::x86_64::Generator generator(&ir, binary_image_file.string(), asm_out);
+        generator.compile();
+        const auto file_size = ftell(asm_out);
+        fclose(asm_out);
+
+        asm_out = fopen(asm_file.c_str(), "r");
+        if (!asm_out) {
+            return EXIT_FAILURE;
+        }
+
+        const auto asm_out_fd = fileno(asm_out);
+        const auto assembler_fd = fileno(assembler);
+        auto bytes_left = file_size;
+        while (true) {
+            const auto res = splice(asm_out_fd, nullptr, assembler_fd, nullptr, bytes_left, 0);
+            if (res < 0) {
+                std::cerr << "Failed to assemble the binary: " << std::strerror(errno) << '\n';
+                return EXIT_FAILURE;
+            }
+            bytes_left -= res;
+            if (res == 0 || bytes_left == 0) {
+                break;
+            }
+        }
+    }
 
     auto asm_status = pclose(assembler);
     if (asm_status != EXIT_SUCCESS) {
@@ -158,6 +192,7 @@ void print_help(bool usage_only) {
         std::cerr << "    --output:      Set the output file name (by default, the input file path suffixed with `.translated`)\n";
         std::cerr << "    --debug:       Enables debug logging (use --debug=false to prevent logging in debug builds)\n";
         std::cerr << "    --print-ir:    Prints a textual representation of the IR (if no file is specified, prints to standard out)\n";
+        std::cerr << "    --asm-out:     Output the generated Assembly to a file\n";
         std::cerr << "    --dump-elf:    Show information about the input file\n";
         std::cerr << "    --helper-path: Set the path to the runtime helper library\n";
         std::cerr << "    --linkerscript-path: Set the path to the linker script\n";
