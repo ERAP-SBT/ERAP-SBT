@@ -163,6 +163,8 @@ int main(int argc, const char **argv) {
                 break;
             }
         }
+
+        fclose(asm_out);
     }
 
     auto asm_status = pclose(assembler);
