@@ -165,6 +165,7 @@ class TestFloatingPointLifting : public ::testing::Test {
 
         default:
             FAIL() << "The developer of the tests has failed!!";
+            break;
         }
 
         unsigned count_scanned_variables = 0;
@@ -450,6 +451,7 @@ class TestFloatingPointLifting : public ::testing::Test {
             break;
         default:
             FAIL() << "The developer of the tests has failed!";
+            break;
         }
 
         const bool is_single_precision = expected_type == Type::f32;
@@ -612,6 +614,9 @@ class TestFloatingPointLifting : public ::testing::Test {
             expected_from = Type::i64;
             expected_to = Type::f64;
             break;
+        default:
+            FAIL() << "The developer of the tests failed!";
+            break;
         }
 
         SSAVar *input_var = mapping[instr.instr.rs1 + (type_is_floating_point(expected_from) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)];
@@ -659,6 +664,105 @@ class TestFloatingPointLifting : public ::testing::Test {
         }
 
         ASSERT_EQ(result, mapping[instr.instr.rd + (type_is_floating_point(expected_to) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)]) << "The result isn't written correctly to the mapping!";
+    }
+
+    void test_fp_compare_lifting(const RV64Inst &instr) {
+        SSAVar *input_one = mapping[instr.instr.rs1 + Lifter::START_IDX_FLOATING_POINT_STATICS];
+        SSAVar *input_two = mapping[instr.instr.rs2 + Lifter::START_IDX_FLOATING_POINT_STATICS];
+
+        lifter->parse_instruction(bb, instr, mapping, virt_start_addr, virt_start_addr + 4);
+
+        verify();
+
+        Instruction expected_instruction;
+        Type op_size;
+        switch (instr.instr.mnem) {
+        case FRV_FLTS:
+            expected_instruction = Instruction::slt;
+            op_size = Type::f32;
+            break;
+        case FRV_FLTD:
+            expected_instruction = Instruction::slt;
+            op_size = Type::f64;
+            break;
+        case FRV_FEQS:
+            expected_instruction = Instruction::seq;
+            op_size = Type::f32;
+            break;
+        case FRV_FEQD:
+            expected_instruction = Instruction::seq;
+            op_size = Type::f64;
+            break;
+        case FRV_FLES:
+            expected_instruction = Instruction::sle;
+            op_size = Type::f32;
+            break;
+        case FRV_FLED:
+            expected_instruction = Instruction::sle;
+            op_size = Type::f64;
+            break;
+        default:
+            FAIL() << "The developer of the tests failed!";
+            break;
+        }
+
+        unsigned count_scanned_variables = 0;
+
+        if (op_size == Type::f32) {
+            {
+                SSAVar *casted_input_one = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+                ASSERT_EQ(casted_input_one->type, Type::f32) << "The casted first input has the wrong type!";
+                ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_input_one->info)) << "The casted first input doesn't have an operation!";
+                auto *cast_op = std::get<std::unique_ptr<Operation>>(casted_input_one->info).get();
+                ASSERT_EQ(cast_op->type, Instruction::cast) << "The operation of the casted first input should be an cast instruction!";
+                ASSERT_EQ(cast_op->out_vars[0], casted_input_one) << "The casted first input isn't the output of it's operation!";
+                ASSERT_EQ(cast_op->in_vars[0], input_one) << "The first input isn't the input of the operation of casted first input!";
+                count_scanned_variables++;
+                input_one = casted_input_one;
+            }
+            {
+                SSAVar *casted_second_two = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+                ASSERT_EQ(casted_second_two->type, Type::f32) << "The casted second input has the wrong type!";
+                ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_second_two->info)) << "The casted second input doesn't have an operation!";
+                auto *cast_op = std::get<std::unique_ptr<Operation>>(casted_second_two->info).get();
+                ASSERT_EQ(cast_op->type, Instruction::cast) << "The operation of the casted second input should be an cast instruction!";
+                ASSERT_EQ(cast_op->out_vars[0], casted_second_two) << "The casted second input isn't the output of it's operation!";
+                ASSERT_EQ(cast_op->in_vars[0], input_two) << "The second input isn't the input of the operation of casted second input!";
+                count_scanned_variables++;
+                input_two = casted_second_two;
+            }
+        }
+
+        SSAVar *zero_imm = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        {
+            ASSERT_EQ(zero_imm->type, Type::imm) << "The zero immediate isn't an immediate!";
+            ASSERT_TRUE(std::holds_alternative<SSAVar::ImmInfo>(zero_imm->info)) << "The zero immediate doesn't have an ImmInfo!";
+            SSAVar::ImmInfo &imm_info = std::get<SSAVar::ImmInfo>(zero_imm->info);
+            ASSERT_EQ(imm_info.val, 0) << "The zero immediate isn't zero!";
+            count_scanned_variables++;
+        }
+
+        SSAVar *one_imm = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        {
+            ASSERT_EQ(one_imm->type, Type::imm) << "The one immediate isn't an immediate!";
+            ASSERT_TRUE(std::holds_alternative<SSAVar::ImmInfo>(one_imm->info)) << "The one immediate doesn't have an ImmInfo!";
+            SSAVar::ImmInfo &imm_info = std::get<SSAVar::ImmInfo>(one_imm->info);
+            ASSERT_EQ(imm_info.val, 1) << "The one immediate isn't one!";
+            count_scanned_variables++;
+        }
+
+        SSAVar *result = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        {
+            ASSERT_EQ(result->type, Type::i64) << "The result has to be an integer as the result would be stored to the integer registers!";
+            ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(result->info)) << "The result doesn't have an operation!";
+            auto *op = std::get<std::unique_ptr<Operation>>(result->info).get();
+            ASSERT_EQ(op->type, expected_instruction) << "The operation has the wrong operation!";
+            ASSERT_EQ(op->out_vars[0], result) << "The result isn't the output of it's operation!";
+            ASSERT_EQ(op->in_vars[0], input_one) << "The first input isn't the first input of the operation!";
+            ASSERT_EQ(op->in_vars[1], input_two) << "The second input isn't the second input of the operation!";
+        }
+
+        ASSERT_EQ(result, mapping[instr.instr.rd]) << "The result isn't stored correctly to the mapping!";
     }
 };
 
@@ -1050,7 +1154,7 @@ TEST_F(TestFloatingPointLifting, test_fp_fcvtds) {
     test_conversion_lifting(instr);
 }
 
-/* sign injection */
+/* sign injection instructions */
 
 TEST_F(TestFloatingPointLifting, test_fp_fsgnjs) {
     // create instruction: fsgnj.s f2, f4, f9
@@ -1088,7 +1192,7 @@ TEST_F(TestFloatingPointLifting, test_fp_fsgnjxd) {
     test_sign_injection_lifting(instr);
 }
 
-/* move instruction */
+/* move instructions */
 
 TEST_F(TestFloatingPointLifting, test_fp_fmvxw) {
     // create instruction: fmv.x.w x4, f8
@@ -1112,4 +1216,42 @@ TEST_F(TestFloatingPointLifting, test_fp_fmvdx) {
     // create instruction: fmv.d.x f22, x15
     const RV64Inst instr{FrvInst{FRV_FMVDX, 22, 15, 0, 0, 0, 0}, 4};
     test_moves_lifting(instr);
+}
+
+/* compare instructions */
+
+TEST_F(TestFloatingPointLifting, test_fp_flts) {
+    // create instruction: flt.s x12, f9, f16
+    const RV64Inst instr{FrvInst{FRV_FLTS, 12, 9, 16, 0, 0, 0}, 4};
+    test_fp_compare_lifting(instr);
+}
+
+TEST_F(TestFloatingPointLifting, test_fp_fltd) {
+    // create instruction: flt.d x17, f31, f21
+    const RV64Inst instr{FrvInst{FRV_FLTD, 17, 31, 21, 0, 0, 0}, 4};
+    test_fp_compare_lifting(instr);
+}
+
+TEST_F(TestFloatingPointLifting, test_fp_feqs) {
+    // create instruction: feq.s x27, f22, f11
+    const RV64Inst instr{FrvInst{FRV_FEQS, 27, 22, 11, 0, 0, 0}, 4};
+    test_fp_compare_lifting(instr);
+}
+
+TEST_F(TestFloatingPointLifting, test_fp_feqd) {
+    // create instruction: feq.d x2, f26, f3
+    const RV64Inst instr{FrvInst{FRV_FEQD, 2, 26, 3, 0, 0, 0}, 4};
+    test_fp_compare_lifting(instr);
+}
+
+TEST_F(TestFloatingPointLifting, test_fp_fles) {
+    // create instruction: fle.s x29, f30, f21
+    const RV64Inst instr{FrvInst{FRV_FLES, 29, 30, 21, 0, 0, 0}, 4};
+    test_fp_compare_lifting(instr);
+}
+
+TEST_F(TestFloatingPointLifting, test_fp_fled) {
+    // create instruction: fle.d x27, f3, f15
+    const RV64Inst instr{FrvInst{FRV_FLED, 27, 3, 15, 0, 0, 0}, 4};
+    test_fp_compare_lifting(instr);
 }
