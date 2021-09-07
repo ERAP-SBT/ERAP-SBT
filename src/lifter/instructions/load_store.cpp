@@ -35,7 +35,7 @@ void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
     load_dest->set_op(std::move(operation));
 
     // last step: extend load_dest variable to 64 bit
-    if (cast_dir(op_size, Type::i64)) {
+    if (cast_dir(op_size, Type::i64) == 1) {
         SSAVar *extended_result = bb->add_var(Type::i64, ip);
         {
             auto extend_operation = std::make_unique<Operation>((sign_extend ? Instruction::sign_extend : Instruction::zero_extend));
@@ -73,7 +73,7 @@ void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
     SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
 
     // check whether rs2 is "bigger" than the op_size
-    if (cast_dir(op_size, rs2->type) == 1) {
+    if (cast_dir(op_size, rs2->type) == 1 || rs2->type == Type::imm) {
         rs2 = shrink_var(bb, rs2, ip, op_size);
     }
 

@@ -23,7 +23,7 @@ SSAVar *Lifter::load_rs1_to_rd(BasicBlock *bb, const RV64Inst &instr, Lifter::re
     SSAVar *write_back_result = load_dest;
 
     // extend the result ot 64bit to store it in the mapping (according to the definition of the amo instructions)
-    if (op_size == Type::i32) {
+    if (cast_dir(op_size, Type::i64) == 1) {
         SSAVar *extended_result = bb->add_var(Type::i64, ip);
         {
             auto extend_operation = std::make_unique<Operation>(Instruction::sign_extend);
@@ -63,7 +63,7 @@ void Lifter::lift_amo_store_conditional(BasicBlock *bb, const RV64Inst &instr, r
     store_val_to_rs1(bb, instr, mapping, ip, op_size, get_from_mapping(bb, mapping, instr.instr.rs2, ip));
 
     // if the operation succeeds (which it always does without actual atomic operations), 0 is placed into the destination register
-    write_to_mapping(mapping, bb->add_var_imm(0, ip, false, instr.instr.rd), instr.instr.rd);
+    write_to_mapping(mapping, bb->add_var_imm(0, ip), instr.instr.rd);
 }
 
 void Lifter::lift_amo_swap(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
