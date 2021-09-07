@@ -1635,6 +1635,11 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::alloc_reg(size_t
 
                 size_t next_use = 0;
                 for (const auto use_time : reg_map[i].cur_var->gen_info.uses) {
+                    if (use_time == cur_time) {
+                        // var is used in this step so don't reuse it
+                        next_use = 0;
+                        break;
+                    }
                     if (use_time > cur_time) {
                         next_use = use_time;
                         break;
@@ -1669,7 +1674,7 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::load_val_in_reg(
 
     if (var->gen_info.location == SSAVar::GeneratorInfoX64::REGISTER) {
         if (only_this_reg == REG_NONE || var->gen_info.reg_idx == only_this_reg) {
-            if (((var->gen_info.reg_idx == clear_regs) && ...)) {
+            if (((var->gen_info.reg_idx == clear_regs) || ...)) {
                 // clear_regs take precedent over only_this_reg though it should never happen
                 assert(((only_this_reg != clear_regs) && ...));
                 const auto new_reg = alloc_reg(cur_time, REG_NONE, clear_regs...);
