@@ -3,17 +3,23 @@
 using namespace lifter::RV64;
 
 void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size, bool sign_extend) {
-    // 1. load offset
-    SSAVar *offset = load_immediate(bb, instr.instr.imm, ip, false);
+    SSAVar *load_addr;
 
-    // 3. add offset to rs1
-    SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, (int64_t)ip);
-    SSAVar *load_addr = bb->add_var(Type::i64, ip);
-    {
-        auto add_op = std::make_unique<Operation>(Instruction::add);
-        add_op->set_inputs(rs1, offset);
-        add_op->set_outputs(load_addr);
-        load_addr->set_op(std::move(add_op));
+    if (instr.instr.imm != 0) {
+        // 1. load offset
+        SSAVar *offset = load_immediate(bb, instr.instr.imm, ip, false);
+
+        // 3. add offset to rs1
+        SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, (int64_t)ip);
+        load_addr = bb->add_var(Type::i64, ip);
+        {
+            auto add_op = std::make_unique<Operation>(Instruction::add);
+            add_op->set_inputs(rs1, offset);
+            add_op->set_outputs(load_addr);
+            load_addr->set_op(std::move(add_op));
+        }
+    } else {
+        load_addr = get_from_mapping(bb, mapping, instr.instr.rs1, (int64_t)ip);
     }
 
     // create SSAVariable for the destination operand
@@ -45,17 +51,22 @@ void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
 }
 
 void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
-    // 1. load offset
-    SSAVar *offset = load_immediate(bb, instr.instr.imm, ip, false);
+    SSAVar *store_addr;
+    if (instr.instr.imm != 0) {
+        // 1. load offset
+        SSAVar *offset = load_immediate(bb, instr.instr.imm, ip, false);
 
-    // 2. add offset to rs1
-    SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
-    SSAVar *store_addr = bb->add_var(Type::i64, ip);
-    {
-        auto add_op = std::make_unique<Operation>(Instruction::add);
-        add_op->set_inputs(rs1, offset);
-        add_op->set_outputs(store_addr);
-        store_addr->set_op(std::move(add_op));
+        // 2. add offset to rs1
+        SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
+        store_addr = bb->add_var(Type::i64, ip);
+        {
+            auto add_op = std::make_unique<Operation>(Instruction::add);
+            add_op->set_inputs(rs1, offset);
+            add_op->set_outputs(store_addr);
+            store_addr->set_op(std::move(add_op));
+        }
+    } else {
+        store_addr = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
     }
 
     // cast variable to store to operand size

@@ -61,6 +61,12 @@ void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, const RV64Inst 
         immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip, false);
     }
 
+    if (instr.instr.rs1 == 0 && instruction_type == Instruction::add) {
+        // just write out the immediate
+        write_to_mapping(mapping, immediate, instr.instr.rd);
+        return;
+    }
+
     SSAVar *source_one = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
 
     // test for invalid operand sizes and don't check immediates op_size
