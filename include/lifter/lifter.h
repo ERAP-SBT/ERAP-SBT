@@ -82,16 +82,25 @@ class Lifter {
     static void lift_div(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, bool _signed, bool remainder, const Type in_type);
 
     // atomics
+    /**
+     * Adds operations and variables to the {@link BasicBlock} bb which perform the load from the memory at address in rs1 to rd. If the {@link Type op_size} is {@link Type::i32}, the load value is
+     * sign_extended and written to the corresponding place in the mapping. But as a 32bit operation will be performed on this value, the value is returned as 32bit value. This saves some sign extend
+     * and cast instructions in the IR. If the operation size is {@link Type::i64}, the no sign extension is needed and therefore the loaded value is written to the mapping as he is returned by this
+     * method. This explanation is valid in the context of amo instructions and therefore there are less applications of this method in other contexts.
+     *
+     * @param bb The current basic block.
+     * @param instr The decoded instruction.
+     * @param mapping The current mapping.
+     * @param ip The current instruction pointer.
+     * @param op_size The operation size of the instruction, either {@link Type::i32} or {@link Type::i64}.
+     * @return SSAVar* The returned
+     */
+    static SSAVar *load_rs1_to_rd(BasicBlock *bb, const RV64Inst &instr, Lifter::reg_map &mapping, uint64_t ip, const Type op_size);
+    static void store_val_to_rs1(BasicBlock *bb, const RV64Inst &instr, Lifter::reg_map &mapping, uint64_t ip, const Type &op_size, SSAVar *value);
     static void lift_amo_load_reserve(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size);
     static void lift_amo_store_conditional(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size);
-    static void lift_amo_add(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size);
     static void lift_amo_swap(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size);
-    static void lift_amo_xor(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size);
-    static void lift_amo_or(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size);
-    static void lift_amo_and(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size);
-    static void lift_amo_min_max(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, Type op_size, Instruction instr_type);
-    static void lift_amo_min(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size, bool _signed);
-    static void lift_amo_max(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size, bool _signed);
+    static void lift_amo_binary_op(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size);
 
     // ziscr and ziscr helpers
     static void lift_csr_read_write(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, bool with_immediate);
