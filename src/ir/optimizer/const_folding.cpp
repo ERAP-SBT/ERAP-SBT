@@ -3,6 +3,7 @@
 #include "ir/eval.h"
 #include "ir/instruction.h"
 #include "ir/ir.h"
+#include "ir/optimizer/common.h"
 #include "ir/type.h"
 
 #include <functional>
@@ -41,7 +42,8 @@ constexpr bool is_binary_op(Instruction insn) {
 }
 constexpr bool is_morphing_op(Instruction insn) { return insn == Instruction::sign_extend || insn == Instruction::zero_extend || insn == Instruction::cast; }
 
-Type resolve_simple_op_type(const Operation &op) {
+Type resolve_simple_op_type(const Operation &op, [[maybe_unused]] size_t block_id, [[maybe_unused]] size_t var_id) {
+#ifndef NDEBUG
     // TODO This set is only here to help find possible errors and should be removed.
     std::set<Type> type_set;
 
@@ -56,10 +58,10 @@ Type resolve_simple_op_type(const Operation &op) {
         }
     }
     if (type_set.empty()) {
-        std::cerr << "Warning: Could not resolve definitive non-imm type\n";
+        std::cerr << "Warning: Could not resolve definitive non-imm type (b" << block_id << "/v" << var_id << ")\n";
         return Type::i64;
     } else if (type_set.size() > 1) {
-        std::cerr << "Warning: Type conflict detected! Types are:\n";
+        std::cerr << "Warning: Type conflict detected (in b" << block_id << "/v" << var_id << ")! Types are:\n";
         Type largest = Type::i8;
         for (Type t : type_set) {
             std::cerr << " - " << t << '\n';
@@ -71,24 +73,31 @@ Type resolve_simple_op_type(const Operation &op) {
     } else {
         return *type_set.begin();
     }
+#else
+    return op.out_vars[0]->type;
+#endif
 }
 
 class ConstFoldPass {
-    std::map<size_t, SSAVar *> rewrites;
+    VarRewriter rewrite;
     std::vector<std::unique_ptr<SSAVar>> new_immediates;
     BasicBlock *current_block;
 
   public:
     void process_block(BasicBlock *block);
 
+  private:
     SSAVar *queue_imm(Type type, uint64_t imm, bool bin_rel = false);
-
-    void rewrite_visit_refptr(RefPtr<SSAVar> &);
-    void do_input_rewrites(Operation &);
-    void do_cf_rewrites(CfOp &);
 
     void replace_with_immediate(SSAVar *var, uint64_t immediate, bool bin_rel = false);
     void replace_var(SSAVar *var, SSAVar *new_var);
+
+    struct BinOp {
+        Instruction type;
+        SSAVar *a, *b;
+    };
+
+    SSAVar *eval_to_imm(Instruction, Type, uint64_t, uint64_t);
 
     /** Simplify commutative operation. Used by simplify_bi_imm_{left,right} */
     void simplify_bi_comm(Instruction insn, Type type, uint64_t immediate, SSAVar *cur, SSAVar *in);
@@ -100,10 +109,12 @@ class ConstFoldPass {
     /** Simplify a morphing operation (e.g. i32 v2 <- cast i32 v1) */
     void simplify_morph(Instruction insn, Type in_type, SSAVar *in_var, Type out_type, SSAVar *out_var);
 
+    /** Simplify commutative operation with imm/op as parameters. Used by simplify_double_op_imm_{left,right} */
+    std::optional<BinOp> simplify_double_op_comm(Type type, Instruction cins, const SSAVar::ImmInfo &imm, Instruction pins, SSAVar *pa, SSAVar *pb);
     /** Simplify an operation with an immediate on the left and an operation on the right */
-    void simplify_double_op_imm_left(Type type, Operation &cur, Operation &prev);
+    std::optional<BinOp> simplify_double_op_imm_left(Type type, Instruction cins, const SSAVar::ImmInfo &imm, Instruction pins, SSAVar *pa, SSAVar *pb);
     /** Simplify an operation with an immediate on the right and an operation on the left */
-    void simplify_double_op_imm_right(Type type, Operation &cur, Operation &prev);
+    std::optional<BinOp> simplify_double_op_imm_right(Type type, Instruction cins, const SSAVar::ImmInfo &imm, Instruction pins, SSAVar *pa, SSAVar *pb);
 
     void fixup_block();
 };
@@ -115,185 +126,181 @@ SSAVar *ConstFoldPass::queue_imm(Type type, uint64_t imm, bool bin_rel) {
     return new_immediates.emplace_back(std::move(new_var)).get();
 }
 
+constexpr bool is_commutative(Instruction insn) {
+    switch (insn) {
+    case Instruction::add:
+    case Instruction::_and:
+    case Instruction::_or:
+    case Instruction::_xor:
+        return true;
+    default:
+        return false;
+    }
+}
+
+SSAVar *ConstFoldPass::eval_to_imm(Instruction insn, Type type, uint64_t a, uint64_t b) {
+    auto result = eval_binary_op(insn, type, a, b);
+    return queue_imm(type, result);
+}
+
 // Note: Prefix notation in comments means IR operation, infix notation means operation on / evaluation of immediates.
 
 // TODO needs thorough tests
 
-void ConstFoldPass::simplify_double_op_imm_left(Type type, Operation &cur, Operation &prev) {
-    // ca: imm, cb: operation
-    auto &ca = cur.in_vars[0], &cb = cur.in_vars[1];
-    auto &cai = ca->get_immediate();
-    if (cur.type == Instruction::add) {
-        if (prev.type == Instruction::add) {
-            auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
-            assert(!pa->is_immediate() || !pb->is_immediate()); // Ops with imm/imm should be folded by now
+std::optional<ConstFoldPass::BinOp> ConstFoldPass::simplify_double_op_comm(Type type, Instruction cins, const SSAVar::ImmInfo &imm, Instruction pins, SSAVar *pa, SSAVar *pb) {
+    if (cins == Instruction::add) {
+        if (pins == Instruction::add) {
+            // add ca, (add pa, pb)
             if (pa->is_immediate()) {
                 // pa: imm, pb: not imm
-                // add ca, (add pa, pb)
                 // => add (pa + ca), pb
-                auto result = eval_binary_op(Instruction::add, type, pa->get_immediate().val, cai.val);
-                ca = queue_imm(type, result);
-                cb = pb;
+                auto *result = eval_to_imm(Instruction::add, type, pa->get_immediate().val, imm.val);
+                return BinOp{Instruction::add, result, pb};
             } else if (pb->is_immediate()) {
                 // pa: not imm, pb: imm
-                // add imm, (add pa, pb)
                 // => add (pb + ca), pa
-                auto result = eval_binary_op(Instruction::add, type, pb->get_immediate().val, cai.val);
-                ca = queue_imm(type, result);
-                cb = pa;
+                auto *result = eval_to_imm(Instruction::add, type, pb->get_immediate().val, imm.val);
+                return BinOp{Instruction::add, result, pa};
             }
-        } else if (prev.type == Instruction::sub) {
-            auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
-            assert(!pa->is_immediate() || !pb->is_immediate());
+        } else if (pins == Instruction::sub) {
+            // add ca, (sub pa, pb)
             if (pa->is_immediate()) {
                 // pa: imm, pb: not imm
-                // add ca, (sub pa, pb)
                 // => sub (pa + ca), pb
-                auto result = eval_binary_op(Instruction::add, type, pa->get_immediate().val, cai.val);
-                cur.type = Instruction::sub;
-                ca = queue_imm(type, result);
-                cb = pb;
+                auto *result = eval_to_imm(Instruction::add, type, pa->get_immediate().val, imm.val);
+                return BinOp{Instruction::sub, result, pb};
             } else if (pb->is_immediate()) {
                 // pa: not imm, pb: imm
-                // add ca, (sub pa, pb)
                 // => add (ca - pb), pa
-                auto result = eval_binary_op(Instruction::sub, type, cai.val, pb->get_immediate().val);
-                ca = queue_imm(type, result);
-                cb = pa;
+                auto *result = eval_to_imm(Instruction::sub, type, imm.val, pb->get_immediate().val);
+                return BinOp{Instruction::add, result, pa};
             }
         }
-    } else if (cur.type == Instruction::sub) {
-        if (prev.type == Instruction::add) {
-            auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
-            assert(!pa->is_immediate() || !pb->is_immediate());
+    } else if (cins == Instruction::_and) {
+        if (pins == Instruction::_and) {
+            if (pa->is_immediate()) {
+                // pa: imm, pb: not imm
+                // and ca, (and pa, pb)
+                // => and (pa & ca), pb
+                auto *result = eval_to_imm(Instruction::_and, type, pa->get_immediate().val, imm.val);
+                return BinOp{Instruction::_and, result, pb};
+            } else if (pb->is_immediate()) {
+                // pa: not imm, pb: imm
+                // and ca, (and pa, pb)
+                // => and (pb & ca), pa
+                auto *result = eval_to_imm(Instruction::_and, type, pb->get_immediate().val, imm.val);
+                return BinOp{Instruction::_and, result, pa};
+            }
+        }
+    } else if (cins == Instruction::_or) {
+        if (pins == Instruction::_or) {
+            if (pa->is_immediate()) {
+                // pa: imm, pb: not imm
+                // or ca, (or pa, pb)
+                // => or (pa | ca), pb
+                auto *result = eval_to_imm(Instruction::_or, type, pa->get_immediate().val, imm.val);
+                return BinOp{Instruction::_or, result, pb};
+            } else if (pb->is_immediate()) {
+                // pa: not imm, pb: imm
+                // or ca, (or pa, pb)
+                // => or (pb | ca), pa
+                auto *result = eval_to_imm(Instruction::_or, type, pb->get_immediate().val, imm.val);
+                return BinOp{Instruction::_or, result, pa};
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<ConstFoldPass::BinOp> ConstFoldPass::simplify_double_op_imm_left(Type type, Instruction cins, const SSAVar::ImmInfo &imm, Instruction pins, SSAVar *pa, SSAVar *pb) {
+    if (!is_binary_op(pins))
+        return std::nullopt;
+    if (!pa->is_immediate() && !pb->is_immediate())
+        return std::nullopt;
+    assert(!(pa->is_immediate() && pb->is_immediate())); // Ops with imm/imm should be folded by now
+
+    if (is_commutative(cins)) {
+        return simplify_double_op_comm(type, cins, imm, pins, pa, pb);
+    } else if (cins == Instruction::sub) {
+        if (pins == Instruction::add) {
             if (pa->is_immediate()) {
                 // pa: imm, pb: not imm
                 // sub ca, (add pa, pb)
                 // => sub (ca - pa), pb
-                auto result = eval_binary_op(Instruction::sub, type, cai.val, pa->get_immediate().val);
-                ca = queue_imm(type, result);
-                cb = pb;
+                auto *result = eval_to_imm(Instruction::sub, type, imm.val, pa->get_immediate().val);
+                return BinOp{Instruction::sub, result, pb};
             } else if (pb->is_immediate()) {
                 // pa: not imm, pb: imm
                 // sub ca, (add pa, pb)
                 // => sub (ca - pb), pa
-                auto result = eval_binary_op(Instruction::sub, type, cai.val, pb->get_immediate().val);
-                ca = queue_imm(type, result);
-                cb = pa;
+                auto *result = eval_to_imm(Instruction::sub, type, imm.val, pb->get_immediate().val);
+                return BinOp{Instruction::sub, result, pa};
             }
-        } else if (prev.type == Instruction::sub) {
-            auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
-            assert(!pa->is_immediate() || !pb->is_immediate());
+        } else if (pins == Instruction::sub) {
             if (pa->is_immediate()) {
                 // pa: imm, pb: not imm
                 // sub ca, (sub pa, pb)
                 // => add (ca - pa), pb
-                auto result = eval_binary_op(Instruction::sub, type, cai.val, pa->get_immediate().val);
-                cur.type = Instruction::add;
-                ca = queue_imm(type, result);
-                cb = pb;
+                auto *result = eval_to_imm(Instruction::sub, type, imm.val, pa->get_immediate().val);
+                return BinOp{Instruction::add, result, pb};
             } else if (pb->is_immediate()) {
                 // pa: not imm, pb: imm
                 // sub ca, (sub pa, pb)
                 // => sub (pb + ca), pa
-                auto result = eval_binary_op(Instruction::add, type, pb->get_immediate().val, cai.val);
-                ca = queue_imm(type, result);
-                cb = pa;
+                auto *result = eval_to_imm(Instruction::add, type, pb->get_immediate().val, imm.val);
+                return BinOp{Instruction::add, result, pa};
             }
         }
     }
+    return std::nullopt;
 }
 
-void ConstFoldPass::simplify_double_op_imm_right(Type type, Operation &cur, Operation &prev) {
-    // ca: operation, cb: imm
-    auto &ca = cur.in_vars[0], &cb = cur.in_vars[1];
-    auto &cbi = cb->get_immediate();
-    if (cur.type == Instruction::add) {
-        if (prev.type == Instruction::add) {
-            auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
-            assert(!pa->is_immediate() || !pb->is_immediate());
-            if (pa->is_immediate()) {
-                // pa: imm, pb: not imm
-                // add (add pa, pb), cb
-                // => add (pa + cb), pb
-                auto result = eval_binary_op(Instruction::add, type, pa->get_immediate().val, cbi.val);
-                ca = queue_imm(type, result);
-                cb = pb;
-            } else if (pb->is_immediate()) {
-                // pa: not imm, pb: imm
-                // add (add pa, pb), cb
-                // => add (pb + cb), pa
-                auto result = eval_binary_op(Instruction::add, type, pb->get_immediate().val, cbi.val);
-                ca = queue_imm(type, result);
-                cb = pa;
-            }
-        } else if (prev.type == Instruction::sub) {
-            auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
-            assert(!pa->is_immediate() || !pb->is_immediate());
-            if (pa->is_immediate()) {
-                // pa: imm, pb: not imm
-                // add (sub pa, pb), cb
-                // => sub (pa + cb), pb
-                auto result = eval_binary_op(Instruction::add, type, pa->get_immediate().val, cbi.val);
-                cur.type = Instruction::sub;
-                ca = queue_imm(type, result);
-                cb = pb;
-            } else if (pb->is_immediate()) {
-                // pa: not imm, pb: imm
-                // add (sub pa, pb), cb
-                // => sub pa, (pb - cb)
-                auto result = eval_binary_op(Instruction::sub, type, pb->get_immediate().val, cbi.val);
-                cur.type = Instruction::sub;
-                ca = pa;
-                cb = queue_imm(type, result);
-            }
-        }
-    } else if (cur.type == Instruction::sub) {
-        if (prev.type == Instruction::add) {
-            auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
-            assert(!pa->is_immediate() || !pb->is_immediate());
+std::optional<ConstFoldPass::BinOp> ConstFoldPass::simplify_double_op_imm_right(Type type, Instruction cins, const SSAVar::ImmInfo &imm, Instruction pins, SSAVar *pa, SSAVar *pb) {
+    if (!is_binary_op(pins))
+        return std::nullopt;
+    if (!pa->is_immediate() && !pb->is_immediate())
+        return std::nullopt;
+    assert(!(pa->is_immediate() && pb->is_immediate()));
+
+    if (is_commutative(cins)) {
+        return simplify_double_op_comm(type, cins, imm, pins, pa, pb);
+    } else if (cins == Instruction::sub) {
+        if (pins == Instruction::add) {
             if (pa->is_immediate()) {
                 // pa: imm, pb: not imm
                 // sub (add pa, pb), cb
                 // => add (pa - cb), pb
-                auto result = eval_binary_op(Instruction::sub, type, pa->get_immediate().val, cbi.val);
-                cur.type = Instruction::add;
-                ca = queue_imm(type, result);
-                cb = pb;
+                auto *result = eval_to_imm(Instruction::sub, type, pa->get_immediate().val, imm.val);
+                return BinOp{Instruction::sub, result, pb};
             } else if (pb->is_immediate()) {
                 // pa: not imm, pb: imm
                 // sub (add pa, pb), cb
                 // => add (pb - cb), pa
-                auto result = eval_binary_op(Instruction::sub, type, pb->get_immediate().val, cbi.val);
-                cur.type = Instruction::add;
-                ca = queue_imm(type, result);
-                cb = pa;
+                auto *result = eval_to_imm(Instruction::sub, type, pb->get_immediate().val, imm.val);
+                return BinOp{Instruction::add, result, pa};
             }
-        } else if (prev.type == Instruction::sub) {
-            auto &pa = prev.in_vars[0], &pb = prev.in_vars[1];
-            assert(!pa->is_immediate() || !pb->is_immediate());
+        } else if (pins == Instruction::sub) {
             if (pa->is_immediate()) {
                 // pa: imm, pb: not imm
                 // sub (sub pa, pb), cb
                 // => sub (pa - cb), pb
-                auto result = eval_binary_op(Instruction::sub, type, pa->get_immediate().val, cbi.val);
-                ca = queue_imm(type, result);
-                cb = pb;
+                auto *result = eval_to_imm(Instruction::sub, type, pa->get_immediate().val, imm.val);
+                return BinOp{Instruction::sub, result, pb};
             } else if (pb->is_immediate()) {
                 // pa: not imm, pb: imm
                 // sub (sub pa, pb), cb
                 // => sub pa, (pb - cb)
-                auto result = eval_binary_op(Instruction::sub, type, pb->get_immediate().val, cbi.val);
-                ca = pa;
-                cb = queue_imm(type, result);
+                auto *result = eval_to_imm(Instruction::sub, type, pb->get_immediate().val, imm.val);
+                return BinOp{Instruction::sub, pa, result};
             }
         }
     }
+    return std::nullopt;
 }
 
 void ConstFoldPass::replace_with_immediate(SSAVar *var, uint64_t imm, bool bin_rel) { var->info = SSAVar::ImmInfo{static_cast<int64_t>(imm), bin_rel}; }
 
-void ConstFoldPass::replace_var(SSAVar *var, SSAVar *new_var) { rewrites[var->id] = new_var; }
+void ConstFoldPass::replace_var(SSAVar *var, SSAVar *new_var) { rewrite.replace(var, new_var); }
 
 void ConstFoldPass::simplify_bi_comm(Instruction insn, Type type, uint64_t immediate, SSAVar *cur, SSAVar *in) {
     switch (insn) {
@@ -319,22 +326,14 @@ void ConstFoldPass::simplify_bi_comm(Instruction insn, Type type, uint64_t immed
     case Instruction::_xor:
         if (typed_equal(type, immediate, 0)) {
             replace_var(cur, in);
+        } else if (typed_equal(type, immediate, UINT64_MAX)) {
+            auto &op = cur->get_operation();
+            op.type = Instruction::_not;
+            op.set_inputs(in);
         }
         break;
     default:
         break;
-    }
-}
-
-constexpr bool is_commutative(Instruction insn) {
-    switch (insn) {
-    case Instruction::add:
-    case Instruction::_and:
-    case Instruction::_or:
-    case Instruction::_xor:
-        return true;
-    default:
-        return false;
     }
 }
 
@@ -387,63 +386,6 @@ void ConstFoldPass::simplify_morph(Instruction insn, Type in_type, SSAVar *in_va
     }
 }
 
-void ConstFoldPass::rewrite_visit_refptr(RefPtr<SSAVar> &ref) {
-    if (!ref)
-        return;
-    auto it = rewrites.find(ref->id);
-    if (it != rewrites.end()) {
-        ref.reset(it->second);
-    }
-}
-
-void ConstFoldPass::do_input_rewrites(Operation &op) {
-    for (auto &in_var : op.in_vars) {
-        rewrite_visit_refptr(in_var);
-    }
-}
-
-template <typename> [[maybe_unused]] inline constexpr bool always_false_v = false;
-
-void ConstFoldPass::do_cf_rewrites(CfOp &cf) {
-    for (auto &in : cf.in_vars) {
-        rewrite_visit_refptr(in);
-    }
-    std::visit(
-        [this](auto &info) {
-            using T = std::decay_t<decltype(info)>;
-            if constexpr (std::is_same_v<T, CfOp::JumpInfo> || std::is_same_v<T, CfOp::CJumpInfo>) {
-                for (auto &var : info.target_inputs) {
-                    rewrite_visit_refptr(var);
-                }
-            } else if constexpr (std::is_same_v<T, CfOp::IJumpInfo> || std::is_same_v<T, CfOp::RetInfo>) {
-                for (auto &var : info.mapping) {
-                    rewrite_visit_refptr(var.first);
-                }
-            } else if constexpr (std::is_same_v<T, CfOp::CallInfo>) {
-                for (auto &var : info.continuation_mapping) {
-                    rewrite_visit_refptr(var.first);
-                }
-                for (auto &var : info.target_inputs) {
-                    rewrite_visit_refptr(var);
-                }
-            } else if constexpr (std::is_same_v<T, CfOp::ICallInfo>) {
-                for (auto &var : info.continuation_mapping) {
-                    rewrite_visit_refptr(var.first);
-                }
-                for (auto &var : info.mapping) {
-                    rewrite_visit_refptr(var.first);
-                }
-            } else if constexpr (std::is_same_v<T, CfOp::SyscallInfo>) {
-                for (auto &var : info.continuation_mapping) {
-                    rewrite_visit_refptr(var.first);
-                }
-            } else if constexpr (!std::is_same_v<T, std::monostate>) {
-                static_assert(always_false_v<T>, "Missing CfOp info in rewrite visitor");
-            }
-        },
-        cf.info);
-}
-
 constexpr bool can_handle_types(std::initializer_list<Type> types) {
     for (auto type : types) {
         if (!is_integer(type) && type != Type::imm)
@@ -453,22 +395,22 @@ constexpr bool can_handle_types(std::initializer_list<Type> types) {
 }
 
 void ConstFoldPass::process_block(BasicBlock *block) {
-    rewrites.clear();
+    rewrite = {};
     current_block = block;
 
     for (size_t var_index = 0; var_index < block->variables.size(); var_index++) {
-        auto &var = block->variables[var_index];
+        auto *var = block->variables[var_index].get();
         if (!var->is_operation())
             continue;
 
         auto &op = var->get_operation();
-        do_input_rewrites(op);
+        rewrite.apply_to(op);
 
         if (is_binary_op(op.type)) {
             auto &a = op.in_vars[0], &b = op.in_vars[1];
             if (!can_handle_types({a->type, b->type}))
                 continue;
-            Type type = resolve_simple_op_type(op);
+            Type type = resolve_simple_op_type(op, block->id, var->id);
             if (a->is_immediate() && b->is_immediate()) {
                 // op imm, imm
                 auto &ia = a->get_immediate(), &ib = b->get_immediate();
@@ -492,34 +434,49 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                 }
 
                 int64_t result = eval_binary_op(op.type, type, ia.val, ib.val);
-                replace_with_immediate(var.get(), result, bin_rel);
+                replace_with_immediate(var, result, bin_rel);
                 continue;
             } else {
                 if (a->is_immediate() && b->is_operation()) {
-                    if (a->get_immediate().binary_relative)
+                    const auto &ai = a->get_immediate();
+                    const auto &bo = b->get_operation();
+                    if (ai.binary_relative)
                         continue; // TODO
                     // op imm, op
-                    simplify_double_op_imm_left(type, op, b->get_operation());
+                    if (auto nw = simplify_double_op_imm_left(type, op.type, ai, bo.type, bo.in_vars[0].get(), bo.in_vars[1].get())) {
+                        op.type = nw->type;
+                        op.set_inputs(nw->a, nw->b);
+                    }
                 } else if (b->is_immediate() && a->is_operation()) {
-                    if (b->get_immediate().binary_relative)
+                    const auto &ao = a->get_operation();
+                    const auto &bi = b->get_immediate();
+                    if (bi.binary_relative)
                         continue; // TODO
                     // op op, imm
-                    simplify_double_op_imm_right(type, op, a->get_operation());
+                    if (auto nw = simplify_double_op_imm_right(type, op.type, bi, ao.type, ao.in_vars[0].get(), ao.in_vars[1].get())) {
+                        op.type = nw->type;
+                        op.set_inputs(nw->a, nw->b);
+                    }
                 }
 
-                // simplify_double_op_* can change the order parameters; thus the separate check
+                // simplify_double_op_* can change the order of parameters; thus the separate check
                 if (a->is_immediate()) {
                     const auto &imm = a->get_immediate();
                     if (imm.binary_relative)
                         continue;
                     // op imm, any
-                    simplify_bi_imm_left(op.type, type, imm.val, var.get(), b);
+                    simplify_bi_imm_left(op.type, type, imm.val, var, b);
                 } else if (b->is_immediate()) {
                     const auto &imm = b->get_immediate();
                     if (imm.binary_relative)
                         continue;
                     // op any, imm
-                    simplify_bi_imm_right(op.type, type, imm.val, var.get(), a);
+                    simplify_bi_imm_right(op.type, type, imm.val, var, a);
+                }
+
+                if ((op.type == Instruction::_xor || op.type == Instruction::sub) && a.get() == b.get()) {
+                    // xor a, a = 0, sub a, a = 0
+                    replace_with_immediate(var, 0);
                 }
             }
         } else if (is_unary_op(op.type)) {
@@ -531,21 +488,21 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                 auto &ii = in->get_immediate();
                 if (ii.binary_relative)
                     continue;
-                Type type = resolve_simple_op_type(op);
+                Type type = resolve_simple_op_type(op, block->id, var->id);
                 int64_t result = eval_unary_op(op.type, type, ii.val);
-                replace_with_immediate(var.get(), result);
+                replace_with_immediate(var, result);
             } else if (in->is_operation()) {
                 auto &prev = in->get_operation();
                 if (prev.type == Instruction::_not) {
                     // not (not x) = x
-                    replace_var(var.get(), prev.in_vars[0]);
+                    replace_var(var, prev.in_vars[0]);
                 }
             }
         } else if (is_morphing_op(op.type)) {
             auto &in = op.in_vars[0];
             if (!can_handle_types({in->type}))
                 continue;
-            assert(op.out_vars[0] == var.get());
+            assert(op.out_vars[0] == var);
             Type input = in->type, output = var->type;
             if (in->is_immediate()) {
                 // op imm
@@ -557,10 +514,10 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                 if (ii.binary_relative)
                     continue;
                 int64_t result = eval_morphing_op(op.type, input, output, ii.val);
-                replace_with_immediate(var.get(), result);
+                replace_with_immediate(var, result);
             } else {
                 // op any
-                simplify_morph(op.type, input, in, output, var.get());
+                simplify_morph(op.type, input, in, output, var);
             }
         } else if (op.type == Instruction::div || op.type == Instruction::udiv) {
             // TODO handle multiple outputs
@@ -573,10 +530,10 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                 auto &ai = a->get_immediate(), &bi = b->get_immediate();
                 if (ai.binary_relative || bi.binary_relative)
                     continue;
-                Type type = resolve_simple_op_type(op);
+                Type type = resolve_simple_op_type(op, block->id, var->id);
                 auto [div_result, rem_result] = eval_div(op.type, type, b->get_immediate().val, a->get_immediate().val);
                 int64_t result = op.out_vars[0] ? div_result : rem_result;
-                replace_with_immediate(var.get(), result);
+                replace_with_immediate(var, result);
             }
         } else if (op.type == Instruction::slt || op.type == Instruction::sltu) {
             auto &a = op.in_vars[0], &b = op.in_vars[1], &val_if_less = op.in_vars[2], &val_else = op.in_vars[3];
@@ -593,7 +550,7 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                     type = a->type;
                 }
                 int cmp = typed_compare(type, a->get_immediate().val, b->get_immediate().val, op.type == Instruction::slt);
-                replace_var(var.get(), cmp < 0 ? val_if_less : val_else);
+                replace_var(var, cmp < 0 ? val_if_less : val_else);
             }
         }
 
@@ -608,9 +565,7 @@ void ConstFoldPass::process_block(BasicBlock *block) {
     }
 
     // Apply rewrites to control flow ops
-    for (auto &cf : block->control_flow_ops) {
-        do_cf_rewrites(cf);
-    }
+    rewrite.apply_to(block->control_flow_ops);
 
     fixup_block();
 }
