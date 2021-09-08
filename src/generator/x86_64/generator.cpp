@@ -13,6 +13,8 @@ std::array<const char *, 4> op_reg_mapping_16 = {"ax", "bx", "cx", "dx"};
 
 std::array<const char *, 4> op_reg_mapping_8 = {"al", "bl", "cl", "dl"};
 
+std::array<const char *, 4> op_reg_mapping_fp = {"xmm0", "xmm1", "xmm2", "xmm3"};
+
 std::array<const char *, 4> &op_reg_map_for_type(const Type type) {
     switch (type) {
     case Type::imm:
@@ -24,8 +26,9 @@ std::array<const char *, 4> &op_reg_map_for_type(const Type type) {
         return op_reg_mapping_16;
     case Type::i8:
         return op_reg_mapping_8;
-    case Type::f64:
     case Type::f32:
+    case Type::f64:
+        // return op_reg_mapping_fp;
     case Type::mt:
         assert(0);
         exit(1);
@@ -415,11 +418,16 @@ void Generator::compile_vars(const BasicBlock *block) {
                 continue;
 
             const auto *reg_str = op_reg_map_for_type(in_var->type)[in_idx];
-            const auto *full_reg_str = op_reg_map_for_type(Type::i64)[in_idx];
 
-            // zero the full register so stuff doesn't go broke e.g. in zero-extend
-            fprintf(out_fd, "xor %s, %s\n", full_reg_str, full_reg_str);
-            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", reg_str, index_for_var(block, in_var));
+            // zero the full register so stuff doesn't go broke e.g. in zero-extend, cast
+            if (type_is_floating_point(in_var->type)) {
+                fprintf(out_fd, "pxor %s, %s\n", reg_str, reg_str);
+                fprintf(out_fd, "mov%s %s, [rbp - 8 - 8 * %zu]\n", (in_var->type == Type::f32 ? "d" : "q"), reg_str, index_for_var(block, in_var));
+            } else {
+                const auto *full_reg_str = op_reg_map_for_type(Type::i64)[in_idx];
+                fprintf(out_fd, "xor %s, %s\n", full_reg_str, full_reg_str);
+                fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", reg_str, index_for_var(block, in_var));
+            }
             in_regs[in_idx] = reg_str;
         }
 
@@ -427,13 +435,21 @@ void Generator::compile_vars(const BasicBlock *block) {
         case Instruction::store:
             assert(op->in_vars[0]->type == Type::i64 || op->in_vars[0]->type == Type::imm);
             assert(arg_count == 3);
-            fprintf(out_fd, "mov %s [%s], %s\n", ptr_from_type(op->in_vars[1]->type), in_regs[0], in_regs[1]);
+            if (type_is_floating_point(op->in_vars[1]->type)) {
+                fprintf(out_fd, "mov%s %s [%s], %s\n", (op->in_vars[1]->type == Type::f32 ? "d" : "q"), ptr_from_type(op->in_vars[1]->type), in_regs[0], in_regs[1]);
+            } else {
+                fprintf(out_fd, "mov %s [%s], %s\n", ptr_from_type(op->in_vars[1]->type), in_regs[0], in_regs[1]);
+            }
             break;
         case Instruction::load:
             assert(op->in_vars[0]->type == Type::i64 || op->in_vars[0]->type == Type::imm);
             assert(op->out_vars[0] == var);
             assert(arg_count == 2);
-            fprintf(out_fd, "mov %s, %s [%s]\n", op_reg_map_for_type(var->type)[0], ptr_from_type(var->type), in_regs[0]);
+            if (type_is_floating_point(var->type)) {
+                fprintf(out_fd, "mov%s xmm0, %s [%s]", (op->in_vars[1]->type == Type::f32 ? "d" : "q"), ptr_from_type(var->type), in_regs[0]);
+            } else {
+                fprintf(out_fd, "mov %s, %s [%s]\n", op_reg_map_for_type(var->type)[0], ptr_from_type(var->type), in_regs[0]);
+            }
             break;
         case Instruction::add:
             assert(arg_count == 2);
@@ -555,6 +571,8 @@ void Generator::compile_vars(const BasicBlock *block) {
         case Instruction::sle: /* !!! TODO: implement !!!*/
         case Instruction::seq:
         case Instruction::fmul:
+            assert(arg_count == 2);
+            fprintf(out_fd, "");
         case Instruction::fdiv:
         case Instruction::fsqrt:
         case Instruction::fmadd:
