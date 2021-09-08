@@ -252,7 +252,9 @@ void parse_opt_flags(const Args &args, uint32_t &gen_optimizations) {
             continue;
         }
 
-        if (opt_flag == "generator") {
+        if (opt_flag == "all") {
+            gen_optimizations = 0xFFFFFFFF;
+        } else if (opt_flag == "generator") {
             gen_optimizations = 0xFFFFFFFF;
         } else if (opt_flag == "sbra") {
             gen_optimizations |= generator::x86_64::Generator::OPT_SBRA;
