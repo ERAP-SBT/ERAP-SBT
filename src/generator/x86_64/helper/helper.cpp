@@ -1,12 +1,16 @@
 #include "stddef.h"
 
 #include <cstdint>
+
 // TODO: define these structs ourselves?
 #include "generator/syscall_ids.h"
+#include "generator/x86_64/helper/rv64_syscalls.h"
 
 #include <linux/errno.h>
 #include <sys/epoll.h>
 #include <sys/stat.h>
+
+namespace helper {
 
 extern "C" {
 extern uint8_t *orig_binary_vaddr;
@@ -15,19 +19,14 @@ extern uint64_t phdr_num;
 extern uint64_t phdr_size;
 }
 
-namespace {
-// terrible hack cause when i try to put this in the sources, the linker fails with
-// "ld: failed to convert GOTPCREL relocation; relink with --no-relax"
-#include "rv64_syscalls.cpp"
-
 // from https://github.com/aengelke/ria-jit/blob/master/src/runtime/emulateEcall.c
-[[maybe_unused]] size_t syscall0(int syscall_number);
-[[maybe_unused]] size_t syscall1(int syscall_number, size_t a1);
-[[maybe_unused]] size_t syscall2(int syscall_number, size_t a1, size_t a2);
-[[maybe_unused]] size_t syscall3(int syscall_number, size_t a1, size_t a2, size_t a3);
-[[maybe_unused]] size_t syscall4(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4);
-[[maybe_unused]] size_t syscall5(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5);
-[[maybe_unused]] size_t syscall6(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5, size_t a6);
+[[maybe_unused]] size_t syscall0(AMD64_SYSCALL_ID id);
+[[maybe_unused]] size_t syscall1(AMD64_SYSCALL_ID id, size_t a1);
+[[maybe_unused]] size_t syscall2(AMD64_SYSCALL_ID id, size_t a1, size_t a2);
+[[maybe_unused]] size_t syscall3(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3);
+[[maybe_unused]] size_t syscall4(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4);
+[[maybe_unused]] size_t syscall5(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5);
+[[maybe_unused]] size_t syscall6(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5, size_t a6);
 
 size_t strlen(const char *);
 void memcpy(void *dst, const void *src, size_t count);
@@ -93,13 +92,12 @@ struct rv64_epoll_event_t {
     uint32_t _pad;
     epoll_data_t data;
 };
-} // namespace
 
 extern "C" [[noreturn]] void panic(const char *err_msg);
 
 // TODO: make a bitmap which syscalls are passthrough, which are not implemented
 extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
-    if (id <= RISCV_SYSCALL_ID_MAX) {
+    if (id <= static_cast<uint64_t>(RISCV_SYSCALL_ID::SYSCALL_ID_MAX)) {
         const auto &info = rv64_syscall_table[id];
         if (info.action == SyscallAction::succeed) {
             return 0;
@@ -126,8 +124,9 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                 break;
             }
         } else if (info.action == SyscallAction::handle) {
-            switch (id) {
-            case RISCV_EPOLL_CTL: {
+            // not sure if this is a good idea
+            switch (static_cast<RISCV_SYSCALL_ID>(id)) {
+            case RISCV_SYSCALL_ID::EPOLL_CTL: {
                 struct epoll_event event;
                 auto *rv64_event = reinterpret_cast<rv64_epoll_event_t *>(arg3);
                 if (rv64_event) {
@@ -135,20 +134,20 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                     event.data = rv64_event->data;
                     event.events = rv64_event->events;
                 }
-                const auto res = syscall4(AMD64_EPOLL_CTL, arg0, arg1, arg2, reinterpret_cast<size_t>(&event));
+                const auto res = syscall4(AMD64_SYSCALL_ID::EPOLL_CTL, arg0, arg1, arg2, reinterpret_cast<size_t>(&event));
                 return res;
             }
-            case RISCV_EPOLL_PWAIT: {
+            case RISCV_SYSCALL_ID::EPOLL_PWAIT: {
                 struct epoll_event event;
                 auto *rv64_event = reinterpret_cast<rv64_epoll_event_t *>(arg1);
-                const auto res = syscall6(AMD64_EPOLL_PWAIT, arg0, reinterpret_cast<size_t>(&event), arg2, arg3, arg4, arg5);
+                const auto res = syscall6(AMD64_SYSCALL_ID::EPOLL_PWAIT, arg0, reinterpret_cast<size_t>(&event), arg2, arg3, arg4, arg5);
                 rv64_event->data = event.data;
                 rv64_event->events = event.events;
                 return res;
             }
-            case RISCV_FSTATAT: {
+            case RISCV_SYSCALL_ID::FSTATAT: {
                 struct stat buf = {};
-                const auto result = syscall4(AMD64_NEWFSTATAT, arg0, arg1, reinterpret_cast<uint64_t>(&buf), arg3);
+                const auto result = syscall4(AMD64_SYSCALL_ID::NEWFSTATAT, arg0, arg1, reinterpret_cast<uint64_t>(&buf), arg3);
                 auto *r_stat = reinterpret_cast<rv64_fstat_t *>(arg2);
                 r_stat->st_blksize = buf.st_blksize;
                 r_stat->st_size = buf.st_size;
@@ -168,9 +167,9 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                 r_stat->st_uid = buf.st_uid;
                 return result;
             }
-            case RISCV_FSTAT: {
+            case RISCV_SYSCALL_ID::FSTAT: {
                 struct stat buf = {};
-                const auto result = syscall2(AMD64_FSTAT, arg0, reinterpret_cast<uint64_t>(&buf));
+                const auto result = syscall2(AMD64_SYSCALL_ID::FSTAT, arg0, reinterpret_cast<uint64_t>(&buf));
                 auto *r_stat = reinterpret_cast<rv64_fstat_t *>(arg1);
                 r_stat->st_blksize = buf.st_blksize;
                 r_stat->st_size = buf.st_size;
@@ -190,10 +189,10 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                 r_stat->st_uid = buf.st_uid;
                 return result;
             }
-            case RISCV_EPOLL_PWAIT2: {
+            case RISCV_SYSCALL_ID::EPOLL_PWAIT2: {
                 struct epoll_event event;
                 auto *rv64_event = reinterpret_cast<rv64_epoll_event_t *>(arg1);
-                const auto res = syscall6(AMD64_EPOLL_PWAIT2, arg0, reinterpret_cast<size_t>(&event), arg2, arg3, arg4, arg5);
+                const auto res = syscall6(AMD64_SYSCALL_ID::EPOLL_PWAIT2, arg0, reinterpret_cast<size_t>(&event), arg2, arg3, arg4, arg5);
                 rv64_event->data = event.data;
                 rv64_event->events = event.events;
                 return res;
@@ -213,10 +212,10 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
 
 extern "C" [[noreturn]] void panic(const char *err_msg) {
     static_assert(sizeof(size_t) == sizeof(const char *));
-    syscall3(AMD64_WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(panic_str), sizeof(panic_str));
+    syscall3(AMD64_SYSCALL_ID::WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(panic_str), sizeof(panic_str));
     // in theory string length is known so maybe give it as an arg?
-    syscall3(AMD64_WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(err_msg), strlen(err_msg));
-    syscall1(AMD64_EXIT, 1);
+    syscall3(AMD64_SYSCALL_ID::WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(err_msg), strlen(err_msg));
+    syscall1(AMD64_SYSCALL_ID::EXIT, 1);
     __builtin_unreachable();
 }
 
@@ -304,49 +303,48 @@ extern "C" uint8_t *copy_stack(uint8_t *stack, uint8_t *out_stack) {
     return out_stack;
 }
 
-namespace {
 // from https://github.com/aengelke/ria-jit/blob/master/src/runtime/emulateEcall.c
-size_t syscall0(int syscall_number) {
-    size_t retval = syscall_number;
+size_t syscall0(AMD64_SYSCALL_ID id) {
+    auto retval = static_cast<size_t>(id);
     __asm__ volatile("syscall" : "+a"(retval) : : "memory", "rcx", "r11");
     return retval;
 }
 
-size_t syscall1(int syscall_number, size_t a1) {
-    size_t retval = syscall_number;
+size_t syscall1(AMD64_SYSCALL_ID id, size_t a1) {
+    auto retval = static_cast<size_t>(id);
     __asm__ volatile("syscall" : "+a"(retval) : "D"(a1) : "memory", "rcx", "r11");
     return retval;
 }
 
-size_t syscall2(int syscall_number, size_t a1, size_t a2) {
-    size_t retval = syscall_number;
+size_t syscall2(AMD64_SYSCALL_ID id, size_t a1, size_t a2) {
+    auto retval = static_cast<size_t>(id);
     __asm__ volatile("syscall" : "+a"(retval) : "D"(a1), "S"(a2) : "memory", "rcx", "r11");
     return retval;
 }
 
-size_t syscall3(int syscall_number, size_t a1, size_t a2, size_t a3) {
-    size_t retval = syscall_number;
+size_t syscall3(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3) {
+    auto retval = static_cast<size_t>(id);
     __asm__ volatile("syscall" : "+a"(retval) : "D"(a1), "S"(a2), "d"(a3) : "memory", "rcx", "r11");
     return retval;
 }
 
-size_t syscall4(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4) {
-    size_t retval = syscall_number;
+size_t syscall4(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4) {
+    auto retval = static_cast<size_t>(id);
     register size_t r10 __asm__("r10") = a4;
     __asm__ volatile("syscall" : "+a"(retval) : "D"(a1), "S"(a2), "d"(a3), "r"(r10) : "memory", "rcx", "r11");
     return retval;
 }
 
-size_t syscall5(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5) {
-    size_t retval = syscall_number;
+size_t syscall5(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5) {
+    auto retval = static_cast<size_t>(id);
     register size_t r10 __asm__("r10") = a4;
     register size_t r8 __asm__("r8") = a5;
     __asm__ volatile("syscall" : "+a"(retval) : "D"(a1), "S"(a2), "d"(a3), "r"(r10), "r"(r8) : "memory", "rcx", "r11");
     return retval;
 }
 
-size_t syscall6(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5, size_t a6) {
-    size_t retval = syscall_number;
+size_t syscall6(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5, size_t a6) {
+    auto retval = static_cast<size_t>(id);
     register size_t r8 __asm__("r8") = a5;
     register size_t r9 __asm__("r9") = a6;
     register size_t r10 __asm__("r10") = a4;
@@ -379,4 +377,4 @@ void itoa(char *str_addr, unsigned int num, unsigned int num_digits) {
     }
 }
 
-} // namespace
+} // namespace helper

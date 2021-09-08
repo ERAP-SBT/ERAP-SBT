@@ -1,4 +1,4 @@
-helper_sources = ['helper.cpp']
+helper_sources = ['helper.cpp', 'rv64_syscalls.cpp']
 
 runtime_dep_dir = get_option('datadir') / meson.project_name()
 

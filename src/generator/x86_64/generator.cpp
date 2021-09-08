@@ -1,7 +1,5 @@
 #include "generator/x86_64/generator.h"
 
-#include "generator/x86_64/helper/rv64_syscalls.h"
-
 using namespace generator::x86_64;
 
 // TODO: imm handling is questionable at best here
