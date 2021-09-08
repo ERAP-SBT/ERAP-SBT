@@ -98,6 +98,23 @@ const char *fp_op_size_from_type(const Type type) {
     assert(is_float(type));
     return type == Type::f32 ? "s" : "d";
 }
+
+const char *convert_name_from_type(const Type type) {
+    switch (type) {
+    case Type::i32:
+    case Type::i64:
+        return "si";
+    case Type::f32:
+        return "ss";
+    case Type::f64:
+        return "sd";
+    default:
+        assert(0);
+        exit(0);
+        break;
+    }
+}
+
 } // namespace
 
 void Generator::compile() {
@@ -690,28 +707,50 @@ void Generator::compile_vars(const BasicBlock *block) {
             assert(var->type == op->in_vars[0]->type && var->type == op->in_vars[2]->type && var->type == op->in_vars[3]->type);
             const bool is_single_precision = var->type == Type::f32;
             fprintf(out_fd, "muls%s xmm0, xmm1\n", fp_op_size_from_type(var->type));
-            // negate the result of the product by using a mask and xor
+            // toggle the sign of the result (negate) of the product by using a mask and xor
             fprintf(out_fd, "mov rax, %s\n", is_single_precision ? "0x80000000" : "0x8000000000000000");
             fprintf(out_fd, "mov%s xmm3, rax\n", is_single_precision ? "d" : "q");
             fprintf(out_fd, "pxor xmm0, xmm3\n");
             fprintf(out_fd, "adds%s xmm0, xmm2\n", fp_op_size_from_type(var->type));
             break;
         }
-        case Instruction::fnmsub:
+        case Instruction::fnmsub: {
             assert(arg_count == 3);
             assert(is_float(var->type));
             assert(var->type == op->in_vars[0]->type && var->type == op->in_vars[2]->type && var->type == op->in_vars[3]->type);
             const bool is_single_precision = var->type == Type::f32;
             fprintf(out_fd, "muls%s xmm0, xmm1\n", fp_op_size_from_type(var->type));
-            // negate the result of the product by using a mask and xor
+            // toggle the sign of the result (negate) of the product by using a mask and xor
             fprintf(out_fd, "mov rax, %s\n", is_single_precision ? "0x80000000" : "0x8000000000000000");
             fprintf(out_fd, "mov%s xmm3, rax\n", is_single_precision ? "d" : "q");
             fprintf(out_fd, "pxor xmm0, xmm3\n");
             fprintf(out_fd, "subs%s xmm0, xmm2\n", fp_op_size_from_type(var->type));
             break;
+        }
         case Instruction::convert:
+            assert(arg_count == 1);
+            fprintf(out_fd, "cvt%s2%s %s, %s\n", convert_name_from_type(op->in_vars[0]->type), convert_name_from_type(var->type), (is_float(var->type) ? "xmm0" : rax_from_type(var->type)),
+                    (is_float(op->in_vars[0]->type) ? "xmm0" : rax_from_type(op->in_vars[0]->type)));
+            break;
         case Instruction::uconvert:
-            assert(0);
+            assert(arg_count == 1);
+            const Type in_var_type = op->in_vars[0]->type;
+            if (is_float(in_var_type)) {
+                const bool is_single_precision = in_var_type == Type::f32;
+                // clear the sign bit
+                fprintf(out_fd, "mov rbx, %s\n", is_single_precision ? "0x7FFFFFFF" : "0x7FFFFFFFFFFFFFFF");
+                fprintf(out_fd, "mov%s xmm3, rbx\n", is_single_precision ? "d" : "q");
+                fprintf(out_fd, "pand xmm0, xmm3\n");
+                break;
+            } else {
+                // calculate absulute value of integer: (taken from https://bits.stephan-brumme.com/absInteger.html)
+                assert(in_var_type == Type::i32 || in_var_type == Type::i64);
+                fprintf(out_fd, "c%s\n", in_var_type == Type::i32 ? "dq" : "qo");
+                fprintf(out_fd, "xor %s, %s\n", op_reg_map_for_type(in_var_type)[0], op_reg_map_for_type(in_var_type)[3]);
+                fprintf(out_fd, "sub %s, %s\n", op_reg_map_for_type(in_var_type)[0], op_reg_map_for_type(in_var_type)[3]);
+            }
+            fprintf(out_fd, "cvt%s2%s %s, %s\n", convert_name_from_type(in_var_type), convert_name_from_type(var->type), (is_float(var->type) ? "xmm0" : rax_from_type(var->type)),
+                    (is_float(in_var_type) ? "xmm0" : rax_from_type(in_var_type)));
             break;
         }
 
