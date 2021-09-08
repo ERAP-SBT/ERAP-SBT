@@ -9,7 +9,6 @@ static_library('helper-x86_64',
     helper_sources,
     include_directories : inc,
     cpp_args: ['-ffreestanding', '-fno-exceptions', '-fno-stack-protector', '-nostdlib', '-fsanitize-undefined-trap-on-error'],
-    pic: true,
     override_options: ['b_sanitize=none', 'b_coverage=false'],
     install: true,
     install_dir: runtime_dep_dir
