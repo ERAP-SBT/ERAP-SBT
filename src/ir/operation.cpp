@@ -11,7 +11,6 @@ template <typename T> static size_t count_non_null(const T &container) {
 }
 
 void Operation::set_inputs(SSAVar *in1, SSAVar *in2, SSAVar *in3, SSAVar *in4) {
-    assert(count_non_null(in_vars) == 0);
     in_vars[0] = in1;
     in_vars[1] = in2;
     in_vars[2] = in3;
@@ -19,7 +18,6 @@ void Operation::set_inputs(SSAVar *in1, SSAVar *in2, SSAVar *in3, SSAVar *in4) {
 }
 
 void Operation::set_outputs(SSAVar *out1, SSAVar *out2, SSAVar *out3) {
-    assert(count_non_null(out_vars) == 0);
     out_vars[0] = out1;
     out_vars[1] = out2;
     out_vars[2] = out3;
