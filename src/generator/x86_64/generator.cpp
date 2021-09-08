@@ -93,6 +93,11 @@ size_t index_for_var(const BasicBlock *block, const SSAVar *var) {
     assert(0);
     exit(1);
 }
+
+const char *fp_op_size_from_type(const Type type) {
+    assert(is_float(type));
+    return type == Type::f32 ? "s" : "d";
+}
 } // namespace
 
 void Generator::compile() {
@@ -420,7 +425,7 @@ void Generator::compile_vars(const BasicBlock *block) {
             const auto *reg_str = op_reg_map_for_type(in_var->type)[in_idx];
 
             // zero the full register so stuff doesn't go broke e.g. in zero-extend, cast
-            if (type_is_floating_point(in_var->type)) {
+            if (is_float(in_var->type)) {
                 fprintf(out_fd, "pxor %s, %s\n", reg_str, reg_str);
                 fprintf(out_fd, "mov%s %s, [rbp - 8 - 8 * %zu]\n", (in_var->type == Type::f32 ? "d" : "q"), reg_str, index_for_var(block, in_var));
             } else {
@@ -435,7 +440,7 @@ void Generator::compile_vars(const BasicBlock *block) {
         case Instruction::store:
             assert(op->in_vars[0]->type == Type::i64 || op->in_vars[0]->type == Type::imm);
             assert(arg_count == 3);
-            if (type_is_floating_point(op->in_vars[1]->type)) {
+            if (is_float(op->in_vars[1]->type)) {
                 fprintf(out_fd, "mov%s %s [%s], %s\n", (op->in_vars[1]->type == Type::f32 ? "d" : "q"), ptr_from_type(op->in_vars[1]->type), in_regs[0], in_regs[1]);
             } else {
                 fprintf(out_fd, "mov %s [%s], %s\n", ptr_from_type(op->in_vars[1]->type), in_regs[0], in_regs[1]);
@@ -445,52 +450,70 @@ void Generator::compile_vars(const BasicBlock *block) {
             assert(op->in_vars[0]->type == Type::i64 || op->in_vars[0]->type == Type::imm);
             assert(op->out_vars[0] == var);
             assert(arg_count == 2);
-            if (type_is_floating_point(var->type)) {
-                fprintf(out_fd, "mov%s xmm0, %s [%s]", (op->in_vars[1]->type == Type::f32 ? "d" : "q"), ptr_from_type(var->type), in_regs[0]);
+            if (is_float(var->type)) {
+                fprintf(out_fd, "mov%s xmm0, %s [%s]\n", (op->in_vars[1]->type == Type::f32 ? "d" : "q"), ptr_from_type(var->type), in_regs[0]);
             } else {
                 fprintf(out_fd, "mov %s, %s [%s]\n", op_reg_map_for_type(var->type)[0], ptr_from_type(var->type), in_regs[0]);
             }
             break;
         case Instruction::add:
             assert(arg_count == 2);
-            fprintf(out_fd, "add rax, rbx\n");
+            assert(var->type == op->in_vars[0]->type && op->in_vars[0]->type == op->in_vars[1]->type);
+            if (is_float(var->type)) {
+                fprintf(out_fd, "adds%s xmm0, xmm1\n", fp_op_size_from_type(op->in_vars[0]->type));
+            } else {
+                fprintf(out_fd, "add rax, rbx\n");
+            }
             break;
         case Instruction::sub:
             assert(arg_count == 2);
-            fprintf(out_fd, "sub rax, rbx\n");
+            assert(var->type == op->in_vars[0]->type && op->in_vars[0]->type == op->in_vars[1]->type);
+            if (is_float(var->type)) {
+                fprintf(out_fd, "subs%s xmm0, xmm1\n", fp_op_size_from_type(op->in_vars[0]->type));
+            } else {
+                fprintf(out_fd, "sub rax, rbx\n");
+            }
             break;
         case Instruction::mul_l:
             assert(arg_count == 2);
+            assert(!is_float(var->type));
             fprintf(out_fd, "imul rax, rbx\n");
             break;
         case Instruction::ssmul_h:
             assert(arg_count == 2);
+            assert(!is_float(var->type));
             fprintf(out_fd, "imul rbx\nmov rax, rdx\n");
             break;
         case Instruction::uumul_h:
             assert(arg_count == 2);
+            assert(!is_float(var->type));
             fprintf(out_fd, "mul rbx\nmov rax, rdx\n");
             break;
         case Instruction::div:
             assert(arg_count == 2 || arg_count == 3);
+            assert(!is_float(var->type));
             fprintf(out_fd, "cqo\nidiv rbx\n");
             fprintf(out_fd, "mov rbx, rdx\n"); // second output is remainder and needs to be in rbx atm
             break;
         case Instruction::udiv:
             assert(arg_count == 2);
+            assert(!is_float(var->type));
             fprintf(out_fd, "xor rdx, rdx\ndiv rbx\n");
             fprintf(out_fd, "mov rbx, rdx\n"); // second output is remainder and needs to be in rbx atm
             break;
         case Instruction::shl:
             assert(arg_count == 2);
+            assert(!is_float(var->type));
             fprintf(out_fd, "mov cl, bl\nshl %s, cl\n", rax_from_type(op->in_vars[0]->type));
             break;
         case Instruction::shr:
             assert(arg_count == 2);
+            assert(!is_float(var->type));
             fprintf(out_fd, "mov cl, bl\nshr %s, cl\n", rax_from_type(op->in_vars[0]->type));
             break;
         case Instruction::sar:
             assert(arg_count == 2);
+            assert(!is_float(var->type));
             // make sure that it uses the bit-width of the input operand for shifting
             // so that the sign-bit is properly recognized
             // TODO: find out if that is a problem elsewhere
@@ -498,22 +521,54 @@ void Generator::compile_vars(const BasicBlock *block) {
             break;
         case Instruction::_or:
             assert(arg_count == 2);
-            fprintf(out_fd, "or rax, rbx\n");
+            assert(var->type == op->in_vars[0]->type && op->in_vars[0]->type == op->in_vars[1]->type);
+            if (is_float(var->type)) {
+                fprintf(out_fd, "por xmm0, xmm1\n");
+            } else {
+                fprintf(out_fd, "or rax, rbx\n");
+            }
             break;
         case Instruction::_and:
             assert(arg_count == 2);
-            fprintf(out_fd, "and rax, rbx\n");
+            assert(var->type == op->in_vars[0]->type && op->in_vars[0]->type == op->in_vars[1]->type);
+            if (is_float(var->type)) {
+                fprintf(out_fd, "pand xmm0, xmm1\n");
+            } else {
+                fprintf(out_fd, "and rax, rbx\n");
+            }
             break;
         case Instruction::_not:
             assert(arg_count == 1);
-            fprintf(out_fd, "not rax\n");
+            if (is_float(var->type)) {
+                assert(0 && "Currently not supported!");
+            } else {
+                fprintf(out_fd, "not rax\n");
+            }
             break;
         case Instruction::_xor:
             assert(arg_count == 2);
-            fprintf(out_fd, "xor rax, rbx\n");
+            assert(var->type == op->in_vars[0]->type && op->in_vars[0]->type == op->in_vars[1]->type);
+            if (is_float(var->type)) {
+                fprintf(out_fd, "pxor xmm0, xmm1\n");
+            } else {
+                fprintf(out_fd, "xor rax, rbx\n");
+            }
             break;
         case Instruction::cast:
             assert(arg_count == 1);
+            if (is_float(var->type)) {
+                if (op->in_vars[0]->type == Type::f64 && var->type == Type::f32) {
+                    // nothing to be done
+                } else if (is_integer(op->in_vars[0]->type)) {
+                    fprintf(out_fd, "mov%s xmm0, %s\n", (var->type == Type::f32 ? "d" : "q"), in_regs[0]);
+                } else {
+                    assert(0);
+                }
+            } else if (is_integer(var->type)) {
+                fprintf(out_fd, "mov%s %s, xmm0\n", (var->type == Type::i32 ? "d" : "q"), rax_from_type(var->type));
+            } else {
+                assert(0);
+            }
             break;
         case Instruction::setup_stack:
             assert(arg_count == 0);
@@ -525,18 +580,27 @@ void Generator::compile_vars(const BasicBlock *block) {
             break;
         case Instruction::sign_extend:
             assert(arg_count == 1);
+            assert(!is_float(var->type));
             if (op->in_vars[0]->type != Type::i64) {
                 fprintf(out_fd, "movsx rax, %s\n", in_regs[0]);
             }
             break;
         case Instruction::slt:
             assert(arg_count == 4);
-            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
-            fprintf(out_fd, "cmovl %s, %s\n", in_regs[0], in_regs[2]);
-            fprintf(out_fd, "cmovge %s, %s\n", in_regs[0], in_regs[3]);
+            if (is_float(op->in_vars[0]->type)) {
+                assert(op->in_vars[0]->type == op->in_vars[1]->type);
+                fprintf(out_fd, "comis%s %s, %s\n", fp_op_size_from_type(op->in_vars[0]->type), in_regs[0], in_regs[1]);
+                fprintf(out_fd, "cmovb %s, %s\n", rax_from_type(var->type), in_regs[2]);
+                fprintf(out_fd, "cmovae %s, %s\n", rax_from_type(var->type), in_regs[3]);
+            } else {
+                fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
+                fprintf(out_fd, "cmovl %s, %s\n", in_regs[0], in_regs[2]);
+                fprintf(out_fd, "cmovge %s, %s\n", in_regs[0], in_regs[3]);
+            }
             break;
         case Instruction::sltu:
             assert(arg_count == 4);
+            assert(!is_float(op->in_vars[0]->type));
             fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "cmovb %s, %s\n", in_regs[0], in_regs[2]);
             fprintf(out_fd, "cmovae %s, %s\n", in_regs[0], in_regs[3]);
@@ -546,39 +610,105 @@ void Generator::compile_vars(const BasicBlock *block) {
             break;
         case Instruction::umax:
             assert(arg_count == 2);
+            assert(!is_float(var->type));
             fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "cmova %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
             break;
         case Instruction::umin:
             assert(arg_count == 2);
+            assert(!is_float(var->type));
             fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "cmovb %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
             break;
         case Instruction::max:
             assert(arg_count == 2);
+            assert(!is_float(var->type));
             fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "cmovg %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
             break;
         case Instruction::min:
             assert(arg_count == 2);
+            assert(!is_float(var->type));
             fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "cmovl %s, %s\n", in_regs[0], in_regs[1]);
             fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
             break;
-        case Instruction::sle: /* !!! TODO: implement !!!*/
+        case Instruction::sle:
+            assert(arg_count == 4);
+            assert(is_float(op->in_vars[0]->type));
+            assert(op->in_vars[0]->type == op->in_vars[1]->type);
+            fprintf(out_fd, "comis%s %s, %s\n", fp_op_size_from_type(op->in_vars[0]->type), in_regs[0], in_regs[1]);
+            fprintf(out_fd, "cmovbe %s, %s\n", rax_from_type(var->type), in_regs[2]);
+            fprintf(out_fd, "cmova %s, %s\n", rax_from_type(var->type), in_regs[3]);
+            break;
         case Instruction::seq:
+            assert(arg_count == 4);
+            assert(is_float(op->in_vars[0]->type));
+            assert(op->in_vars[0]->type == op->in_vars[1]->type);
+            fprintf(out_fd, "comis%s %s, %s\n", fp_op_size_from_type(op->in_vars[0]->type), in_regs[0], in_regs[1]);
+            fprintf(out_fd, "cmove %s, %s\n", rax_from_type(var->type), in_regs[2]);
+            fprintf(out_fd, "cmovne %s, %s\n", rax_from_type(var->type), in_regs[3]);
+            break;
         case Instruction::fmul:
             assert(arg_count == 2);
-            fprintf(out_fd, "");
+            assert(is_float(var->type));
+            assert(var->type == op->in_vars[0]->type && var->type == op->in_vars[2]->type);
+            fprintf(out_fd, "muls%s xmm0, xmm1\n", fp_op_size_from_type(var->type));
+            break;
         case Instruction::fdiv:
+            assert(arg_count == 2);
+            assert(is_float(var->type));
+            assert(var->type == op->in_vars[0]->type && var->type == op->in_vars[2]->type);
+            fprintf(out_fd, "divs%s xmm0, xmm1\n", fp_op_size_from_type(var->type));
+            break;
         case Instruction::fsqrt:
+            assert(arg_count == 1);
+            assert(is_float(var->type));
+            assert(var->type == op->in_vars[0]->type);
+            fprintf(out_fd, "sqrts%s xmm0, xmm0\n", fp_op_size_from_type(var->type));
+            break;
         case Instruction::fmadd:
+            assert(arg_count == 3);
+            assert(is_float(var->type));
+            assert(var->type == op->in_vars[0]->type && var->type == op->in_vars[2]->type && var->type == op->in_vars[3]->type);
+            fprintf(out_fd, "muls%s xmm0, xmm1\n", fp_op_size_from_type(var->type));
+            fprintf(out_fd, "adds%s xmm0, xmm2\n", fp_op_size_from_type(var->type));
+            break;
         case Instruction::fmsub:
-        case Instruction::fnmadd:
+            assert(arg_count == 3);
+            assert(is_float(var->type));
+            assert(var->type == op->in_vars[0]->type && var->type == op->in_vars[2]->type && var->type == op->in_vars[3]->type);
+            fprintf(out_fd, "muls%s xmm0, xmm1\n", fp_op_size_from_type(var->type));
+            fprintf(out_fd, "subs%s xmm0, xmm2\n", fp_op_size_from_type(var->type));
+            break;
+        case Instruction::fnmadd: {
+            assert(arg_count == 3);
+            assert(is_float(var->type));
+            assert(var->type == op->in_vars[0]->type && var->type == op->in_vars[2]->type && var->type == op->in_vars[3]->type);
+            const bool is_single_precision = var->type == Type::f32;
+            fprintf(out_fd, "muls%s xmm0, xmm1\n", fp_op_size_from_type(var->type));
+            // negate the result of the product by using a mask and xor
+            fprintf(out_fd, "mov rax, %s\n", is_single_precision ? "0x80000000" : "0x8000000000000000");
+            fprintf(out_fd, "mov%s xmm3, rax\n", is_single_precision ? "d" : "q");
+            fprintf(out_fd, "pxor xmm0, xmm3\n");
+            fprintf(out_fd, "adds%s xmm0, xmm2\n", fp_op_size_from_type(var->type));
+            break;
+        }
         case Instruction::fnmsub:
+            assert(arg_count == 3);
+            assert(is_float(var->type));
+            assert(var->type == op->in_vars[0]->type && var->type == op->in_vars[2]->type && var->type == op->in_vars[3]->type);
+            const bool is_single_precision = var->type == Type::f32;
+            fprintf(out_fd, "muls%s xmm0, xmm1\n", fp_op_size_from_type(var->type));
+            // negate the result of the product by using a mask and xor
+            fprintf(out_fd, "mov rax, %s\n", is_single_precision ? "0x80000000" : "0x8000000000000000");
+            fprintf(out_fd, "mov%s xmm3, rax\n", is_single_precision ? "d" : "q");
+            fprintf(out_fd, "pxor xmm0, xmm3\n");
+            fprintf(out_fd, "subs%s xmm0, xmm2\n", fp_op_size_from_type(var->type));
+            break;
         case Instruction::convert:
         case Instruction::uconvert:
             assert(0);
