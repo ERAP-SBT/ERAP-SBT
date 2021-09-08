@@ -5,6 +5,7 @@
 #include "lifter/elf_file.h"
 #include "lifter/lifter.h"
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <fcntl.h>
@@ -16,6 +17,7 @@ namespace {
 using std::filesystem::path;
 
 void print_help(bool usage_only);
+void parse_opt_flags(const Args &args, uint32_t &gen_optimizations);
 void dump_elf(const ELF64File *);
 std::optional<path> create_temp_directory();
 bool find_runtime_dependencies(const path &exec_dir, const Args &args, path &out_helper_lib, path &out_linker_script);
@@ -24,6 +26,7 @@ bool run_linker(const path &linker_script_file, const path &output_file, const p
 } // namespace
 
 int main(int argc, const char **argv) {
+    using namespace std::chrono;
     // Parse arguments, excluding the first entry (executable name)
     Args args(argv + 1, argv + argc);
 
@@ -48,6 +51,9 @@ int main(int argc, const char **argv) {
         print_help(true);
         return EXIT_FAILURE;
     }
+
+    uint32_t gen_optimizations = 0;
+    parse_opt_flags(args, gen_optimizations);
 
     path elf_path(args.positional[0]);
 
@@ -100,12 +106,14 @@ int main(int argc, const char **argv) {
         output_file.concat(".translated");
     }
 
+    const auto time_pre_lift = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
     Program prog(std::move(elf_file));
     // support floating points if the flag isn't set or the provided value isn't equal to true
     const bool fp_support = !args.has_argument("disable-fp") || (args.get_argument("disable-fp") != "" && !args.get_value_as_bool("disable-fp"));
 
     auto lifter = lifter::RV64::Lifter(&ir, fp_support);
     lifter.lift(&prog);
+    const auto time_post_lift = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 
     if (args.has_argument("print-ir")) {
         if (auto file = args.get_argument("print-ir"); !file.empty()) {
@@ -134,9 +142,12 @@ int main(int argc, const char **argv) {
     if (!assembler) {
         return EXIT_FAILURE;
     }
+    uint64_t time_pre_gen, time_post_gen;
     if (!args.has_argument("asm-out")) {
+        time_pre_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
         generator::x86_64::Generator generator(&ir, binary_image_file.string(), assembler);
         generator.compile();
+        time_post_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
     } else {
         const auto asm_file = std::string{args.get_argument("asm-out")};
         auto asm_out = fopen(asm_file.c_str(), "w");
@@ -145,8 +156,11 @@ int main(int argc, const char **argv) {
             return EXIT_FAILURE;
         }
 
+        time_pre_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
         generator::x86_64::Generator generator(&ir, binary_image_file.string(), asm_out);
+        generator.optimizations = gen_optimizations;
         generator.compile();
+        time_post_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
         const auto file_size = ftell(asm_out);
         fclose(asm_out);
 
@@ -187,6 +201,8 @@ int main(int argc, const char **argv) {
         return EXIT_FAILURE;
 
     std::cout << "Output written to " << output_file << '\n';
+    std::cout << "Lifting took " << (time_post_lift - time_pre_lift) << "ms\n";
+    std::cout << "Generating took " << (time_post_gen - time_pre_gen) << "ms\n";
 
     return EXIT_SUCCESS;
 }
@@ -196,21 +212,62 @@ void print_help(bool usage_only) {
     std::cerr << "usage: translate <file> [args...]\n";
     if (!usage_only) {
         std::cerr << "Possible arguments are (--key=value):\n";
-        std::cerr << "    --help:                 Shows this help message\n";
-        std::cerr << "    --output:               Set the output file name (by default, the input file path suffixed with `.translated`)\n";
-        std::cerr << "    --debug:                Enables debug logging (use --debug=false to prevent logging in debug builds)\n";
-        std::cerr << "    --print-ir:             Prints a textual representation of the IR (if no file is specified, prints to standard out)\n";
-        std::cerr << "    --asm-out:              Output the generated Assembly to a file\n";
-        std::cerr << "    --dump-elf:             Show information about the input file\n";
-        std::cerr << "    --disable-fp:           Disables the support of floating point instructions.\n";
+        std::cerr << "    --help:        Shows this help message\n";
+        std::cerr << "    --output:      Set the output file name (by default, the input file path suffixed with `.translated`)\n";
+        std::cerr << "    --debug:       Enables debug logging (use --debug=false to prevent logging in debug builds)\n";
+        std::cerr << "    --print-ir:    Prints a textual representation of the IR (if no file is specified, prints to standard out)\n";
+        std::cerr << "    --asm-out:     Output the generated Assembly to a file\n";
+        std::cerr << "    --dump-elf:    Show information about the input file\n";
+        std::cerr << "    --optimize:    Set optimization flags, comma-seperated list. Specifying a group enables all flags in that group.\n";
+        std::cerr << "    Optimization Flags:\n";
+        std::cerr << "      - generator:\n";
+        std::cerr << "          - sbra: Single-Block Register Allocation\n";
+        std::cerr << "          - mbra: Multi-Block Register Allocation (takes precedent over sbra)\n";
+        std::cerr << "          - unused_statics: Eliminate unused static-load-stores in the default generator\n";
+        std::cerr << "    --helper-path: Set the path to the runtime helper library\n";
+        std::cerr << "    --linkerscript-path: Set the path to the linker script\n";
+        std::cerr << "                   (The above two are only required if the translator can't find these by itself)\n";
+        std::cerr << "    --disable-fp:   Disables the support of floating point instructions.\n";
         std::cerr << "    --transform-call-ret:   Detect and replace RISC-V `call` and `return` instructions\n\n";
-        std::cerr << "    --helper-path:          Set the path to the runtime helper library\n";
-        std::cerr << "    --linkerscript-path:    Set the path to the linker script\n";
-        std::cerr << "                            (The above two are only required if the translator can't find these by itself)\n";
         std::cerr << '\n';
         std::cerr << "Environment variables:\n";
         std::cerr << "    AS: Override the assembler binary (by default, the system `as` is used)\n";
         std::cerr << "    LD: Override the linker binary (by default, the system `ld` is used)\n";
+    }
+}
+
+void parse_opt_flags(const Args &args, uint32_t &gen_optimizations) {
+    if (!args.has_argument("optimize")) {
+        // TODO: turn on flags by default?
+        return;
+    }
+    auto val = args.get_argument("optimize");
+    while (true) {
+        const auto comma_pos = val.find_first_of(',');
+        const auto opt_flag = val.substr(0, comma_pos);
+        if (opt_flag.empty()) {
+            if (comma_pos == std::string::npos) {
+                break;
+            }
+            continue;
+        }
+
+        if (opt_flag == "generator") {
+            gen_optimizations = 0xFFFFFFFF;
+        } else if (opt_flag == "sbra") {
+            gen_optimizations |= generator::x86_64::Generator::OPT_SBRA;
+        } else if (opt_flag == "mbra") {
+            gen_optimizations |= generator::x86_64::Generator::OPT_MBRA;
+        } else if (opt_flag == "unused_statics") {
+            gen_optimizations |= generator::x86_64::Generator::OPT_UNUSED_STATIC;
+        } else {
+            std::cerr << "Warning: Unknown optimization flag: '" << opt_flag << "'\n";
+        }
+
+        if (comma_pos == std::string::npos) {
+            break;
+        }
+        val.remove_prefix(comma_pos + 1);
     }
 }
 

@@ -211,18 +211,18 @@ void Generator::compile_phdr_info() {
 void Generator::compile_blocks() {
     compile_section(Section::TEXT);
 
-    reg_alloc = std::make_unique<RegAlloc>(this);
-    reg_alloc->compile_blocks();
-    return;
+    if (optimizations & OPT_MBRA) {
+        reg_alloc = std::make_unique<RegAlloc>(this);
+        reg_alloc->compile_blocks();
+        return;
+    }
 
     for (const auto &block : ir->basic_blocks) {
-        /*if (block->id <= 7000) {
+        if (optimizations & OPT_SBRA) {
             compile_block_reg_alloc(block.get());
         } else {
             compile_block(block.get());
-        }*/
-        // compile_block(block.get());
-        compile_block_reg_alloc(block.get());
+        }
     }
 }
 
