@@ -95,6 +95,7 @@ struct RegAlloc {
     // empty reg and do not save the value
     void clear_reg(size_t cur_time, REGISTER reg, bool imm_to_stack = false);
 
+    size_t allocate_stack_slot(SSAVar *var);
     void save_reg(REGISTER reg, bool imm_to_stack = false);
 
     void set_var_to_reg(size_t cur_time, SSAVar *var, REGISTER reg) {

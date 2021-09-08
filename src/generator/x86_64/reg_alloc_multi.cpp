@@ -1219,6 +1219,7 @@ void RegAlloc::generate_translation_block(BasicBlock *bb) {
 }
 
 void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar>> &inputs) {
+    auto &reg_map = *cur_reg_map;
     const auto cur_time = cur_bb->variables.size();
     // fix for immediate inputs
     for (size_t i = 0; i < inputs.size(); ++i) {
@@ -1241,6 +1242,12 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
         // cheap fix to force single block register allocation
         set_bb_inputs_from_static(target);
     } else {
+        for (auto &input : inputs) {
+            input.get()->gen_info.allocated_to_input = false;
+        }
+
+        bool rax_used = false;
+        SSAVar *rax_input;
         // just write input locations, compile the input map and we done
         for (size_t i = 0; i < inputs.size(); ++i) {
             auto *input_var = inputs[i].get();
@@ -1249,7 +1256,42 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
                 continue;
             }
 
+            if (input_var->gen_info.allocated_to_input) {
+                // this var was already used as an input so we need to create a new location to store it
+                // since there might be a different predecessor that stores it somewhere else
+                const auto stack_slot = allocate_stack_slot(input_var);
+                target_var->gen_info.location = SSAVar::GeneratorInfoX64::STACK_FRAME;
+                target_var->gen_info.saved_in_stack = true;
+                target_var->gen_info.stack_slot = stack_slot;
+
+                // move var to stack slot
+                if (input_var->gen_info.location == SSAVar::GeneratorInfoX64::REGISTER) {
+                    print_asm("mov [rsp + %zu], %s\n", stack_slot, reg_names[input_var->gen_info.reg_idx][0]);
+                } else {
+                    auto reg = REG_NONE;
+                    // find free/unused register
+                    for (size_t i = 0; i < REG_COUNT; ++i) {
+                        if (reg_map[i].cur_var == nullptr || reg_map[i].cur_var->gen_info.last_use_time < cur_time) {
+                            reg = static_cast<REGISTER>(i);
+                            break;
+                        }
+                    }
+                    if (reg == REG_NONE) {
+                        // use rax to transfer
+                        reg = REG_A;
+                        if (rax_used) {
+                            save_reg(REG_A);
+                            clear_reg(cur_time, REG_A);
+                        }
+                        load_val_in_reg(cur_time, input_var, REG_A);
+                    }
+                    print_asm("mov [rsp + %zu], %s\n", stack_slot, reg_names[reg][0]);
+                }
+                continue;
+            }
+
             assert(input_var->gen_info.location != SSAVar::GeneratorInfoX64::NOT_CALCULATED);
+            input_var->gen_info.allocated_to_input = true;
             target_var->gen_info.location = input_var->gen_info.location;
             target_var->gen_info.loc_info = input_var->gen_info.loc_info;
 
@@ -1259,6 +1301,16 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
                 target_var->gen_info.saved_in_stack = true;
                 target_var->gen_info.stack_slot = input_var->gen_info.stack_slot;
             }
+
+            if (input_var->gen_info.location == SSAVar::GeneratorInfoX64::REGISTER && input_var->gen_info.reg_idx == REG_A) {
+                rax_used = true;
+                rax_input = input_var;
+            }
+        }
+        if (rax_used && rax_input->gen_info.location != SSAVar::GeneratorInfoX64::REGISTER) {
+            assert(reg_map[REG_A].cur_var->gen_info.saved_in_stack);
+            clear_reg(cur_time, REG_A);
+            load_val_in_reg(cur_time, rax_input, REG_A);
         }
 
         generate_input_map(target);
@@ -1750,25 +1802,8 @@ void RegAlloc::clear_reg(size_t cur_time, REGISTER reg, bool imm_to_stack) {
     reg_map[reg].cur_var = nullptr;
 }
 
-void RegAlloc::save_reg(REGISTER reg, bool imm_to_stack) {
-    auto &reg_map = *cur_reg_map;
+size_t RegAlloc::allocate_stack_slot(SSAVar *var) {
     auto &stack_map = *cur_stack_map;
-
-    auto *var = reg_map[reg].cur_var;
-    if (!var) {
-        return;
-    }
-
-    if (var->gen_info.saved_in_stack) {
-        // var was already saved, no need to save it again
-        return;
-    }
-
-    if (var->type == Type::imm && !imm_to_stack) {
-        // no need to save immediates i think
-        return;
-    }
-
     // find slot for var
     size_t stack_slot = 0;
     {
@@ -1786,13 +1821,37 @@ void RegAlloc::save_reg(REGISTER reg, bool imm_to_stack) {
         }
     }
 
+    stack_map[stack_slot].free = false;
+    stack_map[stack_slot].var = var;
+    return stack_slot;
+}
+
+void RegAlloc::save_reg(REGISTER reg, bool imm_to_stack) {
+    auto &reg_map = *cur_reg_map;
+
+    auto *var = reg_map[reg].cur_var;
+    if (!var) {
+        return;
+    }
+
+    if (var->gen_info.saved_in_stack) {
+        // var was already saved, no need to save it again
+        return;
+    }
+
+    if (var->type == Type::imm && !imm_to_stack) {
+        // no need to save immediates i think
+        return;
+    }
+
+    // find slot for var
+    size_t stack_slot = allocate_stack_slot(var);
+
     if (var->type == Type::imm) {
         print_asm("mov QWORD PTR [rsp + 8 * %zu], %ld\n", stack_slot, std::get<SSAVar::ImmInfo>(var->info).val);
     } else {
         print_asm("mov [rsp + 8 * %zu], %s\n", stack_slot, reg_name(reg, var->type));
     }
-    stack_map[stack_slot].free = false;
-    stack_map[stack_slot].var = var;
     var->gen_info.saved_in_stack = true;
     var->gen_info.stack_slot = stack_slot;
 }
