@@ -958,7 +958,12 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
         }
         const auto &cf_op = bb->control_flow_ops[cf_idx];
         print_asm("b%zu_reg_alloc_cf%zu:\n", bb->id, cf_idx);
+        auto target_top_level = false;
+        if (auto *target = cf_op.target(); target != nullptr) {
+            target_top_level = is_block_top_level(target);
+        }
 
+        auto cjump_asm = std::string{};
         if (cf_op.type == CFCInstruction::cjump) {
             auto *cmp1 = cf_op.in_vars[0].get();
             auto *cmp2 = cf_op.in_vars[1].get();
@@ -979,6 +984,35 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             stack_map_bak = stack_map;
             for (auto &var : bb->variables) {
                 gen_infos.emplace_back(var->gen_info);
+            }
+
+            std::swap(cjump_asm, asm_buf);
+            write_target_inputs(cf_op.target(), cur_time, std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs);
+            std::swap(cjump_asm, asm_buf);
+            if (!target_top_level && cjump_asm.empty()) {
+                // generate a direct jump
+                switch (std::get<CfOp::CJumpInfo>(cf_op.info).type) {
+                case CfOp::CJumpInfo::CJumpType::eq:
+                    print_asm("je ");
+                    break;
+                case CfOp::CJumpInfo::CJumpType::neq:
+                    print_asm("jne ");
+                    break;
+                case CfOp::CJumpInfo::CJumpType::lt:
+                    print_asm("jb ");
+                    break;
+                case CfOp::CJumpInfo::CJumpType::gt:
+                    print_asm("ja ");
+                    break;
+                case CfOp::CJumpInfo::CJumpType::slt:
+                    print_asm("jl ");
+                    break;
+                case CfOp::CJumpInfo::CJumpType::sgt:
+                    print_asm("jg ");
+                    break;
+                }
+                print_asm("b%zu_reg_alloc\n", cf_op.target()->id);
+                continue;
             }
 
             switch (std::get<CfOp::CJumpInfo>(cf_op.info).type) {
@@ -1003,10 +1037,6 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             }
         }
 
-        auto target_top_level = false;
-        if (auto *target = cf_op.target(); target != nullptr) {
-            target_top_level = is_block_top_level(target);
-        }
         switch (cf_op.type) {
         case CFCInstruction::jump: {
             write_target_inputs(cf_op.target(), cur_time, std::get<CfOp::JumpInfo>(cf_op.info).target_inputs);
@@ -1020,7 +1050,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             break;
         }
         case CFCInstruction::cjump: {
-            write_target_inputs(cf_op.target(), cur_time, std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs);
+            asm_buf += cjump_asm;
             if (target_top_level) {
                 print_asm("# destroy stack space\n");
                 print_asm("add rsp, %zu\n", max_stack_frame_size * 8);
@@ -1219,6 +1249,7 @@ void RegAlloc::generate_translation_block(BasicBlock *bb) {
 }
 
 void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar>> &inputs) {
+    // TODO: when there are multiple blocks that follow only generate an input mapping once
     auto &reg_map = *cur_reg_map;
     const auto cur_time = cur_bb->variables.size();
     // fix for immediate inputs
