@@ -20,6 +20,8 @@ struct SSAVar : Refable {
          * false: val is absolute
          */
         bool binary_relative = false;
+
+        constexpr bool operator==(const ImmInfo &other) const { return val == other.val && binary_relative == other.binary_relative; }
     };
 
     struct LifterInfo {
