@@ -93,9 +93,9 @@ struct RegAlloc {
     template <bool evict_imms = true, typename... Args> REGISTER load_val_in_reg(size_t cur_time, SSAVar *var, REGISTER only_this_reg = REG_NONE, Args... clear_regs);
 
     // empty reg and do not save the value
-    void clear_reg(size_t cur_time, REGISTER reg);
+    void clear_reg(size_t cur_time, REGISTER reg, bool imm_to_stack = false);
 
-    void save_reg(REGISTER reg);
+    void save_reg(REGISTER reg, bool imm_to_stack = false);
 
     void set_var_to_reg(size_t cur_time, SSAVar *var, REGISTER reg) {
         auto &reg_map = *cur_reg_map;

@@ -369,7 +369,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                         save_reg(REG_D);
                     }
                     clear_reg(cur_time, REG_D);
-                    if (op->type == Instruction::div && op->type == Instruction::udiv) {
+                    if (op->type == Instruction::div || op->type == Instruction::udiv) {
                         // TODO: theoretically this could go below but having it up here should actually be better for the pipeline, no?
                         print_asm("cqo\n");
                     }
@@ -434,7 +434,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
 
                 // TODO: optimization flag for merging?
                 auto did_merge = false;
-                if (dst->ref_count == 1 && op->type == Instruction::add && bb->variables.size() > var_idx + 1) {
+                if (dst && dst->ref_count == 1 && op->type == Instruction::add && bb->variables.size() > var_idx + 1) {
                     // check if next instruction is a load
                     auto *next_var = bb->variables[var_idx + 1].get();
                     if (std::holds_alternative<std::unique_ptr<Operation>>(next_var->info)) {
@@ -1627,12 +1627,6 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::alloc_reg(size_t
                     continue;
                 }
 
-                if (!evict_imms && reg_map[i].cur_var->type == Type::imm) {
-                    // in cfops immediates loaded must not be evicted as we have no other means to pass them
-                    // to the following block
-                    continue;
-                }
-
                 size_t next_use = 0;
                 for (const auto use_time : reg_map[i].cur_var->gen_info.uses) {
                     if (use_time == cur_time) {
@@ -1658,11 +1652,12 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::alloc_reg(size_t
             assert(farthest_use_reg != REG_NONE);
 
             reg = farthest_use_reg;
-            save_reg(farthest_use_reg);
+            // in cfops imms need to be saved to stack cause there's not other means to pass them
+            save_reg(farthest_use_reg, !evict_imms);
         }
     }
 
-    clear_reg(cur_time, reg);
+    clear_reg(cur_time, reg, !evict_imms);
     reg_map[reg].cur_var = nullptr;
     reg_map[reg].alloc_time = cur_time;
     return reg;
@@ -1734,14 +1729,14 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::load_val_in_reg(
     return reg;
 }
 
-void RegAlloc::clear_reg(size_t cur_time, REGISTER reg) {
+void RegAlloc::clear_reg(size_t cur_time, REGISTER reg, bool imm_to_stack) {
     auto &reg_map = *cur_reg_map;
     auto *var = reg_map[reg].cur_var;
     if (!var) {
         return;
     }
 
-    if (var->type == Type::imm) {
+    if (var->type == Type::imm && !imm_to_stack) {
         // we simply calculate the value on demand
         var->gen_info.location = SSAVar::GeneratorInfoX64::NOT_CALCULATED;
     } else if (var->gen_info.saved_in_stack) {
@@ -1755,7 +1750,7 @@ void RegAlloc::clear_reg(size_t cur_time, REGISTER reg) {
     reg_map[reg].cur_var = nullptr;
 }
 
-void RegAlloc::save_reg(REGISTER reg) {
+void RegAlloc::save_reg(REGISTER reg, bool imm_to_stack) {
     auto &reg_map = *cur_reg_map;
     auto &stack_map = *cur_stack_map;
 
@@ -1769,7 +1764,7 @@ void RegAlloc::save_reg(REGISTER reg) {
         return;
     }
 
-    if (var->type == Type::imm) {
+    if (var->type == Type::imm && !imm_to_stack) {
         // no need to save immediates i think
         return;
     }
@@ -1791,7 +1786,11 @@ void RegAlloc::save_reg(REGISTER reg) {
         }
     }
 
-    print_asm("mov [rsp + 8 * %zu], %s\n", stack_slot, reg_name(reg, var->type));
+    if (var->type == Type::imm) {
+        print_asm("mov QWORD PTR [rsp + 8 * %zu], %ld\n", stack_slot, std::get<SSAVar::ImmInfo>(var->info).val);
+    } else {
+        print_asm("mov [rsp + 8 * %zu], %s\n", stack_slot, reg_name(reg, var->type));
+    }
     stack_map[stack_slot].free = false;
     stack_map[stack_slot].var = var;
     var->gen_info.saved_in_stack = true;
