@@ -30,6 +30,7 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, const RV64Inst &instr, re
 
     // create the operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(instruction_type);
+    operation->lifter_info.in_op_size = op_size;
 
     // set operation in- and outputs
     operation->set_inputs(source_one, source_two);
@@ -85,6 +86,7 @@ void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, const RV64Inst 
 
     // create the operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(instruction_type);
+    operation->lifter_info.in_op_size = op_size;
 
     // set operation in- and outputs
     operation->set_inputs(source_one, immediate);

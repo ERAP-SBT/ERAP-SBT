@@ -213,19 +213,44 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
 
                 // the input must only be changed if the input variable is in the first BasicBlock
                 if (in_var_lifter_info.assign_addr < addr) {
-                    // the last part of the condition is to prevent issues with operations which uses the same variable,
-                    // because then the variable is already casted. The casted value is then stored in the new_mapping and
-                    // can therefore easily be used.
-                    if (is_float(var->type) && in_var->type == Type::f32 && std::holds_alternative<size_t>(new_mapping[in_var_lifter_info.static_id]->info)) {
-                        // cast f64 static to f32 if necessary
-                        SSAVar *casted_in_var = new_bb->add_var(Type::f32, addr);
+                    if (in_var->type == Type::imm && operation->type != Instruction::cast) {
+                        auto *var_to_cast = new_mapping[in_var_lifter_info.static_id];
+
+                        // create cast
+                        size_t assign_addr = 0;
+                        if (operation->out_vars[0]) {
+                            assign_addr = std::get<SSAVar::LifterInfo>(operation->out_vars[0]->lifter_info).assign_addr;
+                        } else if (operation->out_vars[1]) {
+                            assign_addr = std::get<SSAVar::LifterInfo>(operation->out_vars[1]->lifter_info).assign_addr;
+                        }
+                        SSAVar *new_in;
+                        {
+                            auto var = std::make_unique<SSAVar>(new_bb->cur_ssa_id++, operation->lifter_info.in_op_size);
+                            var->lifter_info = SSAVar::LifterInfo{assign_addr, 0};
+                            new_in = var.get();
+                            new_bb->variables.insert(new_bb->variables.end() - 1, std::move(var));
+                        }
                         auto op = std::make_unique<Operation>(Instruction::cast);
-                        op->set_inputs(new_mapping[in_var_lifter_info.static_id]);
-                        op->set_outputs(casted_in_var);
-                        casted_in_var->set_op(std::move(op));
-                        new_mapping[in_var_lifter_info.static_id] = casted_in_var;
+                        operation->lifter_info.in_op_size = var_to_cast->type;
+                        op->set_inputs(var_to_cast);
+                        op->set_outputs(new_in);
+                        new_in->set_op(std::move(op));
+                        in_var = new_in;
+                    } else {
+                        // the last part of the condition is to prevent issues with operations which uses the same variable,
+                        // because then the variable is already casted. The casted value is then stored in the new_mapping and
+                        // can therefore easily be used.
+                        if (is_float(var->type) && in_var->type == Type::f32 && std::holds_alternative<size_t>(new_mapping[in_var_lifter_info.static_id]->info)) {
+                            // cast f64 static to f32 if necessary
+                            SSAVar *casted_in_var = new_bb->add_var(Type::f32, addr);
+                            auto op = std::make_unique<Operation>(Instruction::cast);
+                            op->set_inputs(new_mapping[in_var_lifter_info.static_id]);
+                            op->set_outputs(casted_in_var);
+                            casted_in_var->set_op(std::move(op));
+                            new_mapping[in_var_lifter_info.static_id] = casted_in_var;
+                        }
+                        in_var = new_mapping[in_var_lifter_info.static_id];
                     }
-                    in_var = new_mapping[in_var_lifter_info.static_id];
                 }
             }
         }

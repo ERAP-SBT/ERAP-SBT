@@ -7,6 +7,7 @@ void Lifter::lift_shift_shared(BasicBlock *bb, const RV64Inst &instr, reg_map &m
 
     auto *result = bb->add_var(op_size, ip);
     auto op = std::make_unique<Operation>(instruction_type);
+    op->lifter_info.in_op_size = op_size;
     op->set_inputs(source, shift_val);
     op->set_outputs(result);
     result->set_op(std::move(op));
@@ -15,6 +16,7 @@ void Lifter::lift_shift_shared(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         // produces a sign-extended result
         auto *sext_res = bb->add_var(Type::i64, ip);
         auto op = std::make_unique<Operation>(Instruction::sign_extend);
+        op->lifter_info.in_op_size = Type::i32;
         op->set_inputs(result);
         op->set_outputs(sext_res);
         sext_res->set_op(std::move(op));
@@ -41,6 +43,7 @@ void Lifter::lift_shift(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
     // create new variable with the result of the masking
     SSAVar *masked_count_shifts = bb->add_var(op_size, ip);
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(Instruction::_and);
+    operation->lifter_info.in_op_size = Type::i64;
     operation->set_inputs(rs2, mask);
     operation->set_outputs(masked_count_shifts);
     masked_count_shifts->set_op(std::move(operation));

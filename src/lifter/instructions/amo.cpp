@@ -91,6 +91,7 @@ void Lifter::lift_amo_binary_op(BasicBlock *bb, const RV64Inst &instr, reg_map &
     SSAVar *op_result = bb->add_var(op_size, ip);
     {
         auto op = std::make_unique<Operation>(instruction_type);
+        op->lifter_info.in_op_size = op_size;
         op->set_inputs(in_1, in_2);
         op->set_outputs(op_result);
         op_result->set_op(std::move(op));
