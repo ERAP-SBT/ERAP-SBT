@@ -217,16 +217,10 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
                         auto *var_to_cast = new_mapping[in_var_lifter_info.static_id];
 
                         // create cast
-                        size_t assign_addr = 0;
-                        if (operation->out_vars[0]) {
-                            assign_addr = std::get<SSAVar::LifterInfo>(operation->out_vars[0]->lifter_info).assign_addr;
-                        } else if (operation->out_vars[1]) {
-                            assign_addr = std::get<SSAVar::LifterInfo>(operation->out_vars[1]->lifter_info).assign_addr;
-                        }
                         SSAVar *new_in;
                         {
                             auto var = std::make_unique<SSAVar>(new_bb->cur_ssa_id++, operation->lifter_info.in_op_size);
-                            var->lifter_info = SSAVar::LifterInfo{assign_addr, 0};
+                            var->lifter_info = SSAVar::LifterInfo{in_var_lifter_info.assign_addr, 0};
                             new_in = var.get();
                             new_bb->variables.insert(new_bb->variables.end() - 1, std::move(var));
                         }
