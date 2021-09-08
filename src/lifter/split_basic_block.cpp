@@ -216,20 +216,24 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
                     if (in_var->type == Type::imm && operation->type != Instruction::cast) {
                         auto *var_to_cast = new_mapping[in_var_lifter_info.static_id];
 
-                        // create cast
-                        SSAVar *new_in;
-                        {
-                            auto var = std::make_unique<SSAVar>(new_bb->cur_ssa_id++, operation->lifter_info.in_op_size);
-                            var->lifter_info = SSAVar::LifterInfo{in_var_lifter_info.assign_addr, 0};
-                            new_in = var.get();
-                            new_bb->variables.insert(new_bb->variables.end() - 1, std::move(var));
+                        if (var_to_cast->type != operation->lifter_info.in_op_size) {
+                            // create cast
+                            SSAVar *new_in;
+                            {
+                                auto var = std::make_unique<SSAVar>(new_bb->cur_ssa_id++, operation->lifter_info.in_op_size);
+                                var->lifter_info = SSAVar::LifterInfo{in_var_lifter_info.assign_addr, 0};
+                                new_in = var.get();
+                                new_bb->variables.insert(new_bb->variables.end() - 1, std::move(var));
+                            }
+                            auto op = std::make_unique<Operation>(Instruction::cast);
+                            op->lifter_info.in_op_size = var_to_cast->type;
+                            op->set_inputs(var_to_cast);
+                            op->set_outputs(new_in);
+                            new_in->set_op(std::move(op));
+                            in_var = new_in;
+                        } else {
+                            in_var = var_to_cast;
                         }
-                        auto op = std::make_unique<Operation>(Instruction::cast);
-                        operation->lifter_info.in_op_size = var_to_cast->type;
-                        op->set_inputs(var_to_cast);
-                        op->set_outputs(new_in);
-                        new_in->set_op(std::move(op));
-                        in_var = new_in;
                     } else {
                         // the last part of the condition is to prevent issues with operations which uses the same variable,
                         // because then the variable is already casted. The casted value is then stored in the new_mapping and
