@@ -1,8 +1,16 @@
 #include "stddef.h"
 
 #include <cstdint>
+
 // TODO: define these structs ourselves?
+#include "generator/syscall_ids.h"
+#include "generator/x86_64/helper/rv64_syscalls.h"
+
+#include <linux/errno.h>
+#include <sys/epoll.h>
 #include <sys/stat.h>
+
+namespace helper {
 
 extern "C" {
 extern uint8_t *orig_binary_vaddr;
@@ -11,80 +19,20 @@ extern uint64_t phdr_num;
 extern uint64_t phdr_size;
 }
 
-namespace {
-
 // from https://github.com/aengelke/ria-jit/blob/master/src/runtime/emulateEcall.c
-[[maybe_unused]] size_t syscall0(int syscall_number);
-[[maybe_unused]] size_t syscall1(int syscall_number, size_t a1);
-[[maybe_unused]] size_t syscall2(int syscall_number, size_t a1, size_t a2);
-[[maybe_unused]] size_t syscall3(int syscall_number, size_t a1, size_t a2, size_t a3);
-[[maybe_unused]] size_t syscall4(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4);
-[[maybe_unused]] size_t syscall5(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5);
-[[maybe_unused]] size_t syscall6(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5, size_t a6);
+[[maybe_unused]] size_t syscall0(AMD64_SYSCALL_ID id);
+[[maybe_unused]] size_t syscall1(AMD64_SYSCALL_ID id, size_t a1);
+[[maybe_unused]] size_t syscall2(AMD64_SYSCALL_ID id, size_t a1, size_t a2);
+[[maybe_unused]] size_t syscall3(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3);
+[[maybe_unused]] size_t syscall4(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4);
+[[maybe_unused]] size_t syscall5(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5);
+[[maybe_unused]] size_t syscall6(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5, size_t a6);
 
 size_t strlen(const char *);
 void memcpy(void *dst, const void *src, size_t count);
 void itoa(char *str_addr, unsigned int num, unsigned int num_digits);
 
 const char panic_str[] = "PANIC: ";
-
-enum RV_SYSCALL_ID : uint32_t {
-    RISCV_IOCTL = 29,
-    RISCV_MKDIRAT = 34,
-    RISCV_FTRUNCATE = 46,
-    RISCV_FCHMODAT = 53,
-    RISCV_OPENAT = 56,
-    RISCV_CLOSE = 57,
-    RISCV_LSEEK = 62,
-    RISCV_READ = 63,
-    RISCV_WRITE = 64,
-    RISCV_READV = 65,
-    RISCV_WRITEV = 66,
-    RISCV_READ_LINK_AT = 78,
-    RISCV_FSTATAT = 79,
-    RISCV_FSTAT = 80,
-    RISCV_UTIME_NS_AT = 88,
-    RISCV_EXIT = 93,
-    RISCV_EXIT_GROUP = 94,
-    RISCV_SET_TID_ADDR = 96,
-    RISCV_FUTEX = 98,
-    RISCV_CLOCK_GET_TIME = 113,
-    RISCV_UNAME = 160,
-    RISCV_BRK = 214,
-    RISCV_MUNMAP = 215,
-    RISCV_MMAP = 222,
-    RISCV_MPROTECT = 226,
-    RISCV_MADVISE = 233
-};
-
-enum AMD64_SYSCALL_ID : uint32_t {
-    AMD64_READ = 0,
-    AMD64_WRITE = 1,
-    AMD64_CLOSE = 3,
-    AMD64_FSTAT = 5,
-    AMD64_LSEEK = 8,
-    AMD64_MMAP = 9,
-    AMD64_MPROTECT = 10,
-    AMD64_MUNMAP = 11,
-    AMD64_BRK = 12,
-    AMD64_IOCTL = 16,
-    AMD64_READV = 19,
-    AMD64_WRITEV = 20,
-    AMD64_MADVISE = 28,
-    AMD64_EXIT = 60,
-    AMD64_UNAME = 63,
-    AMD64_FTRUNCATE = 77,
-    AMD64_FUTEX = 202,
-    AMD64_SET_TID_ADDR = 218,
-    AMD64_CLOCK_GET_TIME = 228,
-    AMD64_EXIT_GROUP = 231,
-    AMD64_OPENAT = 257,
-    AMD64_MKDIRAT = 258,
-    AMD64_NEWFSTATAT = 262,
-    AMD64_READ_LINK_AT = 267,
-    AMD64_FCHMODAT = 268,
-    AMD64_UTIME_NS_AT = 280,
-};
 
 struct auxv_t {
     // see https://fossies.org/dox/Checker-0.9.9.1/gcc-startup_8c_source.html#l00042
@@ -137,106 +85,122 @@ struct rv64_fstat_t {
     unsigned int __unused4;
     unsigned int __unused5;
 };
-} // namespace
+
+// on riscv this struct isn't packed
+struct rv64_epoll_event_t {
+    uint32_t events;
+    uint32_t _pad;
+    epoll_data_t data;
+};
 
 extern "C" [[noreturn]] void panic(const char *err_msg);
 
+// TODO: make a bitmap which syscalls are passthrough, which are not implemented
 extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
-    switch (id) {
-    case RISCV_IOCTL:
-        return syscall3(AMD64_IOCTL, arg0, arg1, arg2);
-    case RISCV_MKDIRAT:
-        return syscall3(AMD64_MKDIRAT, arg0, arg1, arg2);
-    case RISCV_FTRUNCATE:
-        return syscall2(AMD64_FTRUNCATE, arg0, arg1);
-    case RISCV_FCHMODAT:
-        return syscall2(AMD64_FCHMODAT, arg0, arg1);
-    case RISCV_OPENAT:
-        return syscall3(AMD64_OPENAT, arg0, arg1, arg2);
-    case RISCV_CLOSE:
-        return syscall1(AMD64_CLOSE, arg0);
-    case RISCV_LSEEK:
-        return syscall3(AMD64_LSEEK, arg0, arg1, arg2);
-    case RISCV_READ:
-        return syscall3(AMD64_READ, arg0, arg1, arg2);
-    case RISCV_WRITE:
-        return syscall3(AMD64_WRITE, arg0, arg1, arg2);
-    case RISCV_READV:
-        return syscall3(AMD64_READV, arg0, arg1, arg2);
-    case RISCV_WRITEV:
-        return syscall3(AMD64_WRITEV, arg0, arg1, arg2);
-    case RISCV_READ_LINK_AT:
-        return syscall4(AMD64_READ_LINK_AT, arg0, arg1, arg2, arg3);
-    case RISCV_FSTATAT: {
-        struct stat buf = {};
-        const auto result = syscall4(AMD64_NEWFSTATAT, arg0, arg1, reinterpret_cast<uint64_t>(&buf), arg3);
-        auto *r_stat = reinterpret_cast<rv64_fstat_t *>(arg2);
-        r_stat->st_blksize = buf.st_blksize;
-        r_stat->st_size = buf.st_size;
-        r_stat->st_atim = buf.st_atim.tv_sec;
-        r_stat->st_atime_nsec = buf.st_atim.tv_nsec;
-        r_stat->st_blocks = buf.st_blocks;
-        r_stat->st_ctim = buf.st_ctim.tv_sec;
-        r_stat->st_ctime_nsec = buf.st_ctim.tv_nsec;
-        r_stat->st_dev = buf.st_dev;
-        r_stat->st_gid = buf.st_gid;
-        r_stat->st_ino = buf.st_ino;
-        r_stat->st_mode = buf.st_mode;
-        r_stat->st_mtim = buf.st_mtim.tv_sec;
-        r_stat->st_mtime_nsec = buf.st_mtim.tv_nsec;
-        r_stat->st_nlink = buf.st_nlink;
-        r_stat->st_rdev = buf.st_rdev;
-        r_stat->st_uid = buf.st_uid;
-        return result;
-    }
-    case RISCV_FSTAT: {
-        struct stat buf = {};
-        const auto result = syscall2(AMD64_FSTAT, arg0, reinterpret_cast<uint64_t>(&buf));
-        auto *r_stat = reinterpret_cast<rv64_fstat_t *>(arg1);
-        r_stat->st_blksize = buf.st_blksize;
-        r_stat->st_size = buf.st_size;
-        r_stat->st_atim = buf.st_atim.tv_sec;
-        r_stat->st_atime_nsec = buf.st_atim.tv_nsec;
-        r_stat->st_blocks = buf.st_blocks;
-        r_stat->st_ctim = buf.st_ctim.tv_sec;
-        r_stat->st_ctime_nsec = buf.st_ctim.tv_nsec;
-        r_stat->st_dev = buf.st_dev;
-        r_stat->st_gid = buf.st_gid;
-        r_stat->st_ino = buf.st_ino;
-        r_stat->st_mode = buf.st_mode;
-        r_stat->st_mtim = buf.st_mtim.tv_sec;
-        r_stat->st_mtime_nsec = buf.st_mtim.tv_nsec;
-        r_stat->st_nlink = buf.st_nlink;
-        r_stat->st_rdev = buf.st_rdev;
-        r_stat->st_uid = buf.st_uid;
-        return result;
-    }
-    case RISCV_UTIME_NS_AT:
-        return syscall4(AMD64_UTIME_NS_AT, arg0, arg1, arg2, arg3);
-    case RISCV_EXIT:
-        return syscall1(AMD64_EXIT, arg0);
-    case RISCV_EXIT_GROUP:
-        return syscall1(AMD64_EXIT_GROUP, arg0);
-    case RISCV_SET_TID_ADDR:
-        return syscall1(AMD64_SET_TID_ADDR, arg0);
-    case RISCV_FUTEX:
-        return syscall6(AMD64_FUTEX, arg0, arg1, arg2, arg3, arg4, arg5);
-    case RISCV_CLOCK_GET_TIME:
-        return syscall2(AMD64_CLOCK_GET_TIME, arg0, arg1);
-    case RISCV_UNAME:
-        return syscall1(AMD64_UNAME, arg0);
-    case RISCV_BRK:
-        return syscall1(AMD64_BRK, arg0);
-    case RISCV_MUNMAP:
-        return syscall2(AMD64_MUNMAP, arg0, arg1);
-    case RISCV_MMAP:
-        return syscall6(AMD64_MMAP, arg0, arg1, arg2, arg3, arg4, arg5);
-    case RISCV_MPROTECT:
-        return syscall3(AMD64_MPROTECT, arg0, arg1, arg2);
-    case RISCV_MADVISE:
-        return syscall3(AMD64_MADVISE, arg0, arg1, arg2);
-    default:
-        break;
+    if (id <= static_cast<uint64_t>(RISCV_SYSCALL_ID::SYSCALL_ID_MAX)) {
+        const auto &info = rv64_syscall_table[id];
+        if (info.action == SyscallAction::succeed) {
+            return 0;
+        } else if (info.action == SyscallAction::unimplemented) {
+            return -ENOSYS;
+        } else if (info.action == SyscallAction::passthrough) {
+            // just assume 6?
+            switch (info.param_count) {
+            case 0:
+                return syscall0(info.translated_id);
+            case 1:
+                return syscall1(info.translated_id, arg0);
+            case 2:
+                return syscall2(info.translated_id, arg0, arg1);
+            case 3:
+                return syscall3(info.translated_id, arg0, arg1, arg2);
+            case 4:
+                return syscall4(info.translated_id, arg0, arg1, arg2, arg3);
+            case 5:
+                return syscall5(info.translated_id, arg0, arg1, arg2, arg3, arg4);
+            case 6:
+                return syscall6(info.translated_id, arg0, arg1, arg2, arg3, arg4, arg5);
+            default:
+                break;
+            }
+        } else if (info.action == SyscallAction::handle) {
+            // not sure if this is a good idea
+            switch (static_cast<RISCV_SYSCALL_ID>(id)) {
+            case RISCV_SYSCALL_ID::EPOLL_CTL: {
+                struct epoll_event event;
+                auto *rv64_event = reinterpret_cast<rv64_epoll_event_t *>(arg3);
+                if (rv64_event) {
+                    // can be null on CTL_DELETE
+                    event.data = rv64_event->data;
+                    event.events = rv64_event->events;
+                }
+                const auto res = syscall4(AMD64_SYSCALL_ID::EPOLL_CTL, arg0, arg1, arg2, reinterpret_cast<size_t>(&event));
+                return res;
+            }
+            case RISCV_SYSCALL_ID::EPOLL_PWAIT: {
+                struct epoll_event event;
+                auto *rv64_event = reinterpret_cast<rv64_epoll_event_t *>(arg1);
+                const auto res = syscall6(AMD64_SYSCALL_ID::EPOLL_PWAIT, arg0, reinterpret_cast<size_t>(&event), arg2, arg3, arg4, arg5);
+                rv64_event->data = event.data;
+                rv64_event->events = event.events;
+                return res;
+            }
+            case RISCV_SYSCALL_ID::FSTATAT: {
+                struct stat buf = {};
+                const auto result = syscall4(AMD64_SYSCALL_ID::NEWFSTATAT, arg0, arg1, reinterpret_cast<uint64_t>(&buf), arg3);
+                auto *r_stat = reinterpret_cast<rv64_fstat_t *>(arg2);
+                r_stat->st_blksize = buf.st_blksize;
+                r_stat->st_size = buf.st_size;
+                r_stat->st_atim = buf.st_atim.tv_sec;
+                r_stat->st_atime_nsec = buf.st_atim.tv_nsec;
+                r_stat->st_blocks = buf.st_blocks;
+                r_stat->st_ctim = buf.st_ctim.tv_sec;
+                r_stat->st_ctime_nsec = buf.st_ctim.tv_nsec;
+                r_stat->st_dev = buf.st_dev;
+                r_stat->st_gid = buf.st_gid;
+                r_stat->st_ino = buf.st_ino;
+                r_stat->st_mode = buf.st_mode;
+                r_stat->st_mtim = buf.st_mtim.tv_sec;
+                r_stat->st_mtime_nsec = buf.st_mtim.tv_nsec;
+                r_stat->st_nlink = buf.st_nlink;
+                r_stat->st_rdev = buf.st_rdev;
+                r_stat->st_uid = buf.st_uid;
+                return result;
+            }
+            case RISCV_SYSCALL_ID::FSTAT: {
+                struct stat buf = {};
+                const auto result = syscall2(AMD64_SYSCALL_ID::FSTAT, arg0, reinterpret_cast<uint64_t>(&buf));
+                auto *r_stat = reinterpret_cast<rv64_fstat_t *>(arg1);
+                r_stat->st_blksize = buf.st_blksize;
+                r_stat->st_size = buf.st_size;
+                r_stat->st_atim = buf.st_atim.tv_sec;
+                r_stat->st_atime_nsec = buf.st_atim.tv_nsec;
+                r_stat->st_blocks = buf.st_blocks;
+                r_stat->st_ctim = buf.st_ctim.tv_sec;
+                r_stat->st_ctime_nsec = buf.st_ctim.tv_nsec;
+                r_stat->st_dev = buf.st_dev;
+                r_stat->st_gid = buf.st_gid;
+                r_stat->st_ino = buf.st_ino;
+                r_stat->st_mode = buf.st_mode;
+                r_stat->st_mtim = buf.st_mtim.tv_sec;
+                r_stat->st_mtime_nsec = buf.st_mtim.tv_nsec;
+                r_stat->st_nlink = buf.st_nlink;
+                r_stat->st_rdev = buf.st_rdev;
+                r_stat->st_uid = buf.st_uid;
+                return result;
+            }
+            case RISCV_SYSCALL_ID::EPOLL_PWAIT2: {
+                struct epoll_event event;
+                auto *rv64_event = reinterpret_cast<rv64_epoll_event_t *>(arg1);
+                const auto res = syscall6(AMD64_SYSCALL_ID::EPOLL_PWAIT2, arg0, reinterpret_cast<size_t>(&event), arg2, arg3, arg4, arg5);
+                rv64_event->data = event.data;
+                rv64_event->events = event.events;
+                return res;
+            }
+            default:
+                break;
+            }
+        }
     }
 
     char syscall_str[31 + 8 + 1 + 1] = "Couldn't translate syscall ID: ";
@@ -248,10 +212,10 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
 
 extern "C" [[noreturn]] void panic(const char *err_msg) {
     static_assert(sizeof(size_t) == sizeof(const char *));
-    syscall3(AMD64_WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(panic_str), sizeof(panic_str));
+    syscall3(AMD64_SYSCALL_ID::WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(panic_str), sizeof(panic_str));
     // in theory string length is known so maybe give it as an arg?
-    syscall3(AMD64_WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(err_msg), strlen(err_msg));
-    syscall1(AMD64_EXIT, 1);
+    syscall3(AMD64_SYSCALL_ID::WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(err_msg), strlen(err_msg));
+    syscall1(AMD64_SYSCALL_ID::EXIT, 1);
     __builtin_unreachable();
 }
 
@@ -339,49 +303,48 @@ extern "C" uint8_t *copy_stack(uint8_t *stack, uint8_t *out_stack) {
     return out_stack;
 }
 
-namespace {
 // from https://github.com/aengelke/ria-jit/blob/master/src/runtime/emulateEcall.c
-size_t syscall0(int syscall_number) {
-    size_t retval = syscall_number;
+size_t syscall0(AMD64_SYSCALL_ID id) {
+    auto retval = static_cast<size_t>(id);
     __asm__ volatile("syscall" : "+a"(retval) : : "memory", "rcx", "r11");
     return retval;
 }
 
-size_t syscall1(int syscall_number, size_t a1) {
-    size_t retval = syscall_number;
+size_t syscall1(AMD64_SYSCALL_ID id, size_t a1) {
+    auto retval = static_cast<size_t>(id);
     __asm__ volatile("syscall" : "+a"(retval) : "D"(a1) : "memory", "rcx", "r11");
     return retval;
 }
 
-size_t syscall2(int syscall_number, size_t a1, size_t a2) {
-    size_t retval = syscall_number;
+size_t syscall2(AMD64_SYSCALL_ID id, size_t a1, size_t a2) {
+    auto retval = static_cast<size_t>(id);
     __asm__ volatile("syscall" : "+a"(retval) : "D"(a1), "S"(a2) : "memory", "rcx", "r11");
     return retval;
 }
 
-size_t syscall3(int syscall_number, size_t a1, size_t a2, size_t a3) {
-    size_t retval = syscall_number;
+size_t syscall3(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3) {
+    auto retval = static_cast<size_t>(id);
     __asm__ volatile("syscall" : "+a"(retval) : "D"(a1), "S"(a2), "d"(a3) : "memory", "rcx", "r11");
     return retval;
 }
 
-size_t syscall4(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4) {
-    size_t retval = syscall_number;
+size_t syscall4(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4) {
+    auto retval = static_cast<size_t>(id);
     register size_t r10 __asm__("r10") = a4;
     __asm__ volatile("syscall" : "+a"(retval) : "D"(a1), "S"(a2), "d"(a3), "r"(r10) : "memory", "rcx", "r11");
     return retval;
 }
 
-size_t syscall5(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5) {
-    size_t retval = syscall_number;
+size_t syscall5(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5) {
+    auto retval = static_cast<size_t>(id);
     register size_t r10 __asm__("r10") = a4;
     register size_t r8 __asm__("r8") = a5;
     __asm__ volatile("syscall" : "+a"(retval) : "D"(a1), "S"(a2), "d"(a3), "r"(r10), "r"(r8) : "memory", "rcx", "r11");
     return retval;
 }
 
-size_t syscall6(int syscall_number, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5, size_t a6) {
-    size_t retval = syscall_number;
+size_t syscall6(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5, size_t a6) {
+    auto retval = static_cast<size_t>(id);
     register size_t r8 __asm__("r8") = a5;
     register size_t r9 __asm__("r9") = a6;
     register size_t r10 __asm__("r10") = a4;
@@ -414,4 +377,4 @@ void itoa(char *str_addr, unsigned int num, unsigned int num_digits) {
     }
 }
 
-} // namespace
+} // namespace helper

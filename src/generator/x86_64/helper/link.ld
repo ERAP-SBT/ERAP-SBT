@@ -8,13 +8,25 @@ SECTIONS {
      * forbids
      */
 
-    /* place our things mostly out the way */
-    . = 0x100000000; /* 4GB */
-
     .orig_binary ABSOLUTE(orig_binary_vaddr) : {
         *(.orig_binary)
 
         /* account for bss memory etc. */
         . = ABSOLUTE(orig_binary_vaddr) + orig_binary_size;
+    }
+
+    /* place our things after the original binary */
+    . = ABSOLUTE(orig_binary_vaddr) + orig_binary_size;
+    .text : {
+        *(.text)
+    }
+    .bss : {
+        *(.bss)
+    }
+    .rodata : {
+        *(.rodata)
+    }
+    .data : {
+        *(.data)
     }
 }
