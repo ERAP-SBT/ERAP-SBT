@@ -73,8 +73,9 @@ void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
     // cast variable to store to operand size
     SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, is_floating_point);
 
-    // floating points don't need to be shrinked
-    SSAVar *store_var = is_floating_point ? rs2 : shrink_var(bb, rs2, ip, op_size);
+    if ((op_size == Type::f32 && rs2->type == Type::f64) || rs2->type == Type::imm || cast_dir(op_size, rs2->type) == 1) {
+        rs2 = shrink_var(bb, rs2, ip, op_size);
+    }
 
     // create memory_token
     SSAVar *result_memory_token = bb->add_var(Type::mt, ip, MEM_IDX);
@@ -83,7 +84,7 @@ void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(Instruction::store);
 
     // set in- and outputs
-    operation->set_inputs(store_addr, store_var, mapping[MEM_IDX]);
+    operation->set_inputs(store_addr, rs2, mapping[MEM_IDX]);
     operation->set_outputs(result_memory_token);
 
     // set operation

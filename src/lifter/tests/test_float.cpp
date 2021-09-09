@@ -929,16 +929,27 @@ TEST_F(TestFloatingPointLifting, test_fp_store) {
         ASSERT_EQ(op->in_vars[1], offset_immediate) << "The second input of the address calculation isn't the offset immediate!";
     }
 
+    // check the cast
+    SSAVar *casted_store_var = bb->variables[COUNT_STATIC_VARS + 2].get();
+    {
+        ASSERT_EQ(casted_store_var->type, Type::f32) << "The casted store variable has the wrong type!";
+        ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_store_var->info)) << "The casted store var doesn't have an operation!";
+        auto *cast_op = std::get<std::unique_ptr<Operation>>(casted_store_var->info).get();
+        ASSERT_EQ(cast_op->type, Instruction::cast) << "The cast operation has the wrong type!";
+        ASSERT_EQ(cast_op->out_vars[0], casted_store_var) << "The casted store var isn't the result of it's operation!";
+        ASSERT_EQ(cast_op->in_vars[0], mapping[source_register_id + Lifter::START_IDX_FLOATING_POINT_STATICS]) << "The first input of the cast isn't the source variable (original store var)!";
+    }
+
     // check the store operation
     {
-        auto *result_memory_token = bb->variables[COUNT_STATIC_VARS + 2].get();
+        auto *result_memory_token = bb->variables[COUNT_STATIC_VARS + 3].get();
         ASSERT_EQ(result_memory_token, mapping[Lifter::MEM_IDX]) << "The memory token isn't written to the mapping!";
         ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(result_memory_token->info)) << "The result memory token doesn't contain an operation!";
         auto *op = std::get<std::unique_ptr<Operation>>(result_memory_token->info).get();
         ASSERT_EQ(op->type, Instruction::store) << "The operation isn't a store operation!";
         ASSERT_EQ(op->out_vars[0], result_memory_token) << "The result memory token isn't the output of it's operation!";
         ASSERT_EQ(op->in_vars[0], address) << "The first input of the operation isn't the store address!";
-        ASSERT_EQ(op->in_vars[1], mapping[source_register_id + Lifter::START_IDX_FLOATING_POINT_STATICS]) << "The second input of the operation isn't the variable to store!";
+        ASSERT_EQ(op->in_vars[1], casted_store_var) << "The second input of the operation isn't casted store var!";
         ASSERT_EQ(op->in_vars[2], prev_memory_token) << "The third input of the operation isn't the memory token!";
     }
 }
