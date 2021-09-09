@@ -74,7 +74,7 @@ void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
     SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, is_floating_point);
 
     // check whether rs2 is "bigger" than the op_size
-    if (cast_dir(op_size, rs2->type) == 1 || rs2->type == Type::imm) {
+    if ((op_size == Type::f32 && rs2->type == Type::f64) || rs2->type == Type::imm || cast_dir(op_size, rs2->type) == 1) {
         rs2 = shrink_var(bb, rs2, ip, op_size);
     }
 
