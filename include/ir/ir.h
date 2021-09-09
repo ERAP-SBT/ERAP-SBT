@@ -53,7 +53,13 @@ struct IR {
         return id;
     }
 
-    BasicBlock *bb_at_addr(uint64_t addr) { return virt_bb_ptrs.at((addr - virt_bb_start_addr) / 2); }
+    BasicBlock *bb_at_addr(uint64_t addr) {
+        const auto off = (addr - virt_bb_start_addr) / 2;
+        if (off >= virt_bb_ptrs.size()) {
+            return nullptr;
+        }
+        return virt_bb_ptrs[off];
+    }
 
     void setup_bb_addr_vec(uint64_t start_addr, uint64_t end_addr) {
         virt_bb_start_addr = start_addr;

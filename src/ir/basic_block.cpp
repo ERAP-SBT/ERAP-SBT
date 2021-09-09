@@ -33,7 +33,7 @@ void BasicBlock::set_virt_end_addr(uint64_t addr) {
 
     /* Update this->ir->virt_bb_ptrs */
     for (size_t i = (this->virt_start_addr - this->ir->virt_bb_start_addr) / 2; i <= (this->virt_end_addr - this->ir->virt_bb_start_addr) / 2; i++) {
-        this->ir->virt_bb_ptrs.at(i) = this;
+        this->ir->virt_bb_ptrs[i] = this;
     }
 }
 
