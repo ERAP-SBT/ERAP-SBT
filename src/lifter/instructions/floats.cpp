@@ -211,8 +211,28 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
         rs2 = shrink_var(bb, rs2, ip, Type::f32);
     }
 
+    const Type i_op_size = (op_size == Type::f32 ? Type::i32 : Type::i64);
+
+    // cast fp inputs to integers to perform logical operations
+    {
+        SSAVar *i_rs1 = bb->add_var(i_op_size, ip);
+        auto op = std::make_unique<Operation>(Instruction::cast);
+        op->set_inputs(rs1);
+        op->set_outputs(i_rs1);
+        i_rs1->set_op(std::move(op));
+        rs1 = i_rs1;
+    }
+    {
+        SSAVar *i_rs2 = bb->add_var(i_op_size, ip);
+        auto op = std::make_unique<Operation>(Instruction::cast);
+        op->set_inputs(rs2);
+        op->set_outputs(i_rs2);
+        i_rs2->set_op(std::move(op));
+        rs2 = i_rs2;
+    }
+
     // mask the second source operand to extract the sign bit
-    SSAVar *sign_rs2 = bb->add_var(op_size, ip);
+    SSAVar *sign_rs2 = bb->add_var(i_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::_and);
         op->set_inputs(rs2, sign_bit_extraction_mask);
@@ -232,7 +252,7 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
     case FRV_FSGNJNS:
     case FRV_FSGNJND: {
         // the new sign of rs1 is the negation of the sign of rs2: "sign xor 1"
-        new_sign = bb->add_var(op_size, ip);
+        new_sign = bb->add_var(i_op_size, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::_xor);
             op->set_inputs(sign_rs2, sign_bit_extraction_mask);
@@ -244,7 +264,7 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
     case FRV_FSGNJXS:
     case FRV_FSGNJXD: {
         // mask the first source operand to extract the sign bit
-        SSAVar *sign_rs1 = bb->add_var(op_size, ip);
+        SSAVar *sign_rs1 = bb->add_var(i_op_size, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::_and);
             op->set_inputs(rs1, sign_bit_extraction_mask);
@@ -253,7 +273,7 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
         }
 
         // examine the new sign bit: sign_rs1 xor sign_rs2
-        new_sign = bb->add_var(op_size, ip);
+        new_sign = bb->add_var(i_op_size, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::_xor);
             op->set_inputs(sign_rs1, sign_rs2);
@@ -270,7 +290,7 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
     }
 
     // set the sign of the first operand to zero: "sign and 0"
-    SSAVar *zero_signed_rs1 = bb->add_var(op_size, ip);
+    SSAVar *zero_signed_rs1 = bb->add_var(i_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::_and);
         op->set_inputs(rs1, sign_zero_mask);
@@ -279,7 +299,7 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
     }
 
     // change the sign of the first source operand to the sign of the second source operand: "sign or other_sign"
-    SSAVar *rs1_res = bb->add_var(op_size, ip);
+    SSAVar *rs1_res = bb->add_var(i_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::_or);
         op->set_inputs(zero_signed_rs1, new_sign);
@@ -287,7 +307,16 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
         rs1_res->set_op(std::move(op));
     }
 
-    write_to_mapping(mapping, rs1_res, instr.instr.rd, true);
+    // cast the calculated value back to fp
+    SSAVar *fp_res = bb->add_var(op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::cast);
+        op->set_inputs(rs1_res);
+        op->set_outputs(fp_res);
+        fp_res->set_op(std::move(op));
+    }
+
+    write_to_mapping(mapping, fp_res, instr.instr.rd, true);
 }
 
 void Lifter::lift_float_move(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type from, const Type to) {
