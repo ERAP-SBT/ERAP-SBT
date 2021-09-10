@@ -118,51 +118,51 @@ class TestFloatingPointLifting : public ::testing::Test {
             break;
         case FRV_FMINS:
             expected_op_size = Type::f32;
-            expected_instruction = Instruction::fmin;
+            expected_instruction = Instruction::min;
             break;
         case FRV_FMIND:
             expected_op_size = Type::f64;
-            expected_instruction = Instruction::fmin;
+            expected_instruction = Instruction::min;
             break;
         case FRV_FMAXS:
             expected_op_size = Type::f32;
-            expected_instruction = Instruction::fmax;
+            expected_instruction = Instruction::max;
             break;
         case FRV_FMAXD:
             expected_op_size = Type::f64;
-            expected_instruction = Instruction::fmax;
+            expected_instruction = Instruction::max;
             break;
         case FRV_FMADDS:
             expected_op_size = Type::f32;
-            expected_instruction = Instruction::ffmadd;
+            expected_instruction = Instruction::fmadd;
             break;
         case FRV_FMADDD:
             expected_op_size = Type::f64;
-            expected_instruction = Instruction::ffmadd;
+            expected_instruction = Instruction::fmadd;
             break;
         case FRV_FMSUBS:
             expected_op_size = Type::f32;
-            expected_instruction = Instruction::ffmsub;
+            expected_instruction = Instruction::fmsub;
             break;
         case FRV_FMSUBD:
             expected_op_size = Type::f64;
-            expected_instruction = Instruction::ffmsub;
+            expected_instruction = Instruction::fmsub;
             break;
         case FRV_FNMADDS:
             expected_op_size = Type::f32;
-            expected_instruction = Instruction::ffnmsub;
+            expected_instruction = Instruction::fnmsub;
             break;
         case FRV_FNMADDD:
             expected_op_size = Type::f64;
-            expected_instruction = Instruction::ffnmsub;
+            expected_instruction = Instruction::fnmsub;
             break;
         case FRV_FNMSUBS:
             expected_op_size = Type::f32;
-            expected_instruction = Instruction::ffnmadd;
+            expected_instruction = Instruction::fnmadd;
             break;
         case FRV_FNMSUBD:
             expected_op_size = Type::f64;
-            expected_instruction = Instruction::ffnmadd;
+            expected_instruction = Instruction::fnmadd;
             break;
 
         default:
@@ -375,16 +375,16 @@ class TestFloatingPointLifting : public ::testing::Test {
             switch (instr.instr.misc) {
             case 0:
             case 4:
-                expected_rounding_mode = RoundingMode::RNEAREST;
+                expected_rounding_mode = RoundingMode::NEAREST;
                 break;
             case 1:
-                expected_rounding_mode = RoundingMode::RZERO;
+                expected_rounding_mode = RoundingMode::ZERO;
                 break;
             case 2:
-                expected_rounding_mode = RoundingMode::RDOWN;
+                expected_rounding_mode = RoundingMode::DOWN;
                 break;
             case 3:
-                expected_rounding_mode = RoundingMode::RUP;
+                expected_rounding_mode = RoundingMode::UP;
                 break;
 
             default:
