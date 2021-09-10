@@ -333,6 +333,8 @@ void Lifter::lift_float_move(BasicBlock *bb, const RV64Inst &instr, reg_map &map
         src = shrink_var(bb, src, ip, Type::f32);
     } else if (from == Type::i32 && src->type == Type::i64) {
         src = shrink_var(bb, src, ip, Type::i32);
+    } else if(src->type == Type::imm) {
+        src = shrink_var(bb, src, ip, from);
     }
 
     assert(src->type == from && "The source variable has to have the same size as the from parameter");
