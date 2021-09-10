@@ -44,10 +44,5 @@ int cast_dir(const Type t1, const Type t2) {
         return t1_f_idx < t2_f_idx;
     }
 
-    // no cast from integer to float or vice versa
-    if ((t1_i_idx < i_cast_order.size() && t2_f_idx < f_cast_order.size()) || (t1_f_idx < f_cast_order.size() && t2_i_idx < i_cast_order.size())) {
-        return 0;
-    }
-
     return -1;
 }

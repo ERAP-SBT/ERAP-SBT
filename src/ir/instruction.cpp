@@ -98,23 +98,17 @@ std::ostream &operator<<(std::ostream &stream, Instruction instr) {
     case Instruction::fsqrt:
         stream << "fsqrt";
         break;
-    case Instruction::fmin:
-        stream << "fmin";
+    case Instruction::fmadd:
+        stream << "fmadd";
         break;
-    case Instruction::fmax:
-        stream << "fmax";
+    case Instruction::fmsub:
+        stream << "fmsub";
         break;
-    case Instruction::ffmadd:
-        stream << "ffmadd";
+    case Instruction::fnmadd:
+        stream << "fnmadd";
         break;
-    case Instruction::ffmsub:
-        stream << "ffmsub";
-        break;
-    case Instruction::ffnmadd:
-        stream << "ffnmadd";
-        break;
-    case Instruction::ffnmsub:
-        stream << "ffnmsub";
+    case Instruction::fnmsub:
+        stream << "fnmsub";
         break;
     case Instruction::convert:
         stream << "convert";

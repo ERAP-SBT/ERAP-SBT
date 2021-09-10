@@ -557,12 +557,10 @@ void Generator::compile_vars(const BasicBlock *block) {
         case Instruction::fmul:
         case Instruction::fdiv:
         case Instruction::fsqrt:
-        case Instruction::fmin:
-        case Instruction::fmax:
-        case Instruction::ffmadd:
-        case Instruction::ffmsub:
-        case Instruction::ffnmadd:
-        case Instruction::ffnmsub:
+        case Instruction::fmadd:
+        case Instruction::fmsub:
+        case Instruction::fnmadd:
+        case Instruction::fnmsub:
         case Instruction::convert:
         case Instruction::uconvert:
             assert(0);
