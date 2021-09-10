@@ -153,10 +153,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
 
     // store the variables in the new basic block and adjust their inputs (if necessary)
     for (auto it = second_bb_vars.rbegin(); it != second_bb_vars.rend(); it++) {
-        // add variable to the new BasicBlock
-        new_bb->variables.push_back(std::move(*it));
-        SSAVar *var = new_bb->variables.back().get();
-
+        SSAVar *var = (*it).get();
         // set new id according to the new BasicBlocks ids
         var->id = new_bb->cur_ssa_id++;
 
@@ -176,18 +173,20 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
                 if (in_var_lifter_info.assign_addr < addr) {
                     if (is_single_precision_op && in_var->type == Type::f32) {
                         // cast f64 static to f32 if necessary
-                        in_var = new_bb->add_var(Type::f32, addr);
+                        SSAVar *casted_in_var = new_bb->add_var(Type::f32, addr);
                         auto op = std::make_unique<Operation>(Instruction::cast);
                         op->set_inputs(new_mapping[in_var_lifter_info.static_id]);
-                        op->set_outputs(in_var);
-                        in_var->set_op(std::move(op));
-                    } else {
-                        // change input normaly
-                        in_var = new_mapping[in_var_lifter_info.static_id];
+                        op->set_outputs(casted_in_var);
+                        casted_in_var->set_op(std::move(op));
+                        new_mapping[in_var_lifter_info.static_id] = casted_in_var;
                     }
+                    in_var = new_mapping[in_var_lifter_info.static_id];
                 }
             }
         }
+
+        // add variable to the new BasicBlock
+        new_bb->variables.push_back(std::move(*it));
 
         const auto static_id = std::get<SSAVar::LifterInfo>(var->lifter_info).static_id;
         if (static_id != ZERO_IDX) {
