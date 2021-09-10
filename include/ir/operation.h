@@ -109,6 +109,7 @@ struct CfOp {
         // just a reference for the lifter!
         uint64_t jump_addr;
         uint64_t instr_addr;
+        uint64_t continuation_addr = 0; // used for call
     };
 
     CFCInstruction type = CFCInstruction::unreachable;

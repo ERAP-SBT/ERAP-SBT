@@ -14,6 +14,7 @@ constexpr size_t COUNT_STATIC_VARS = 33;
 class Lifter {
   public:
     IR *ir;
+    std::vector<bool> needs_bb_start;
 
     explicit Lifter(IR *ir) : ir(ir), dummy() {}
 
@@ -126,7 +127,7 @@ class Lifter {
 
     static std::optional<SSAVar *> get_last_static_assignment(size_t idx, BasicBlock *bb);
 
-    void split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_base) const;
+    BasicBlock *split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_base) const;
 
     static void load_input_vars(BasicBlock *bb, Operation *op, std::vector<int64_t> &resolved_vars, std::vector<SSAVar *> &parsed_vars);
 
