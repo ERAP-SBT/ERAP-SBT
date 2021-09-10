@@ -423,7 +423,7 @@ void Generator::compile_vars(const BasicBlock *block) {
                 fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], rax\n", idx);
             } else {
                 // use other loading if the immediate is to big
-                if (((uint64_t)info.val) > UINT32_MAX) {
+                if (info.val > INT32_MAX || info.val < INT32_MIN) {
                     fprintf(out_fd, "mov rax, %ld\n", info.val);
                     fprintf(out_fd, "mov QWORD PTR [rbp - 8 - 8 * %zu], rax\n", idx);
                 } else {
