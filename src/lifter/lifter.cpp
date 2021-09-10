@@ -234,8 +234,8 @@ void Lifter::postprocess() {
                 }
             }
             // TODO: replace with unreachable if jmp_addr = 0?
-            if (cf_op.type == CFCInstruction::call && lifter_info.continuation_addr) {
-                auto *target_bb = get_bb(lifter_info.continuation_addr);
+            if (cf_op.type == CFCInstruction::call && lifter_info.instr_addr) {
+                auto *target_bb = get_bb(lifter_info.instr_addr + 4);
                 if (target_bb) {
                     std::get<CfOp::CallInfo>(cf_op.info).continuation_block = target_bb;
                     bb->successors.push_back(target_bb);
