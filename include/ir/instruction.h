@@ -34,21 +34,19 @@ enum class Instruction {
     fmul,     // floating point multiplication, c = a * b
     fdiv,     // floating point division, c = a / b
     fsqrt,    // floating point square root, c = sqrt(a)
-    fmin,     // floating point minimum, c = min(a, b)
-    fmax,     // floating point maximum, c = max(a, b)
-    ffmadd,   // floating point fused multiply add, d = a * b + c
-    ffmsub,   // floating point fused multiply sub, d = a * b - c
-    ffnmadd,  // floating point fused negative multiply add, d = - (a * b) + c
-    ffnmsub,  // floating point fused negative multiply sub, d = - (a * b) - c
-    convert,  // conversion between integer and floating point or between single and double precision: input = {value, [rounding_mode]}
-    uconvert, // conversion between unsigned integer and floating point: input = {value, [rounding_mode]}
+    fmadd,    // fused multiply add, d = a * b + c
+    fmsub,    // fused multiply sub, d = a * b - c
+    fnmadd,   // fused negative multiply add, d = - (a * b) + c
+    fnmsub,   // fused negative multiply sub, d = - (a * b) - c
+    convert,  // conversion between integer and floating point or between single and double precision (maybe with rounding_mode)
+    uconvert, // conversion between unsigned integer and floating point (maybe with rounding_mode)
 };
 
 enum class RoundingMode {
-    RZERO,    // Round towards zero
-    RNEAREST, // Round to nearest (ties to even)
-    RDOWN,    // Round down, to -inf
-    RUP       // Round up, to +inf
+    ZERO,    // Round towards zero
+    NEAREST, // Round to nearest (ties to even)
+    DOWN,    // Round down, to -inf
+    UP       // Round up, to +inf
 };
 
 std::ostream &operator<<(std::ostream &stream, Instruction instr);

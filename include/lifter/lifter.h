@@ -166,7 +166,7 @@ class Lifter {
     static std::string str_decode_instr(const FrvInst *instr);
 
     /**
-     * Returns the corrosponding value from the mapping: If `is_floating_point_register == true` the slots for the floating points are accessed, if not the slots for the general purpose/integer
+     * Returns the corresponding value from the mapping: If `is_floating_point_register == true` the slots for the floating points are accessed, if not the slots for the general purpose/integer
      * registers are accessed. As identifer the register index as used by the RISC-V manual and frvdec is used. If the x0-Register is specified (`reg_id = 0 && is_floating_point_register == false`) a
      * 0 immediate is created in the current basic block.
      *

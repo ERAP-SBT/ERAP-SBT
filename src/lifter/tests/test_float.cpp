@@ -345,7 +345,7 @@ class TestFloatingPointLifting : public ::testing::Test {
         }
 
         // save variable to prevent overriding in mapping
-        SSAVar *input_var = mapping[instr.instr.rs1 + (type_is_floating_point(expected_from_type) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)];
+        SSAVar *input_var = mapping[instr.instr.rs1 + (is_float(expected_from_type) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)];
 
         lifter->parse_instruction(bb, instr, mapping, virt_start_addr, virt_start_addr + 4);
 
@@ -409,7 +409,7 @@ class TestFloatingPointLifting : public ::testing::Test {
 
         ASSERT_EQ(op->type, expected_instruction) << "The operation doesn't have the expected instruction!";
         ASSERT_EQ(op->out_vars[0], result) << "The output of the operation isn't the result variable!";
-        ASSERT_EQ(result, mapping[instr.instr.rd + (type_is_floating_point(expected_to_type) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)]) << "The result isn't written correctly to the mapping!";
+        ASSERT_EQ(result, mapping[instr.instr.rd + (is_float(expected_to_type) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)]) << "The result isn't written correctly to the mapping!";
         ASSERT_EQ(op->in_vars[0], input_var) << "The input of the operation isn't the expected input!";
         if (respect_rounding_mode) {
             ASSERT_EQ(op->in_vars[1], rounding_mode_imm) << "The rounding mode is the wrong one!";
@@ -658,7 +658,7 @@ class TestFloatingPointLifting : public ::testing::Test {
             break;
         }
 
-        SSAVar *input_var = mapping[instr.instr.rs1 + (type_is_floating_point(expected_from) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)];
+        SSAVar *input_var = mapping[instr.instr.rs1 + (is_float(expected_from) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)];
 
         lifter->parse_instruction(bb, instr, mapping, virt_start_addr, virt_start_addr + 4);
 
@@ -702,7 +702,7 @@ class TestFloatingPointLifting : public ::testing::Test {
             count_scanned_variables++;
         }
 
-        ASSERT_EQ(result, mapping[instr.instr.rd + (type_is_floating_point(expected_to) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)]) << "The result isn't written correctly to the mapping!";
+        ASSERT_EQ(result, mapping[instr.instr.rd + (is_float(expected_to) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)]) << "The result isn't written correctly to the mapping!";
     }
 
     void test_fp_compare_lifting(const RV64Inst &instr) {
