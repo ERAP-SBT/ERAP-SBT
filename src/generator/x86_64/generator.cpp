@@ -634,17 +634,23 @@ void Generator::compile_vars(const BasicBlock *block) {
             break;
         case Instruction::max:
             assert(arg_count == 2);
-            assert(!is_float(var->type));
-            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
-            fprintf(out_fd, "cmovg %s, %s\n", in_regs[0], in_regs[1]);
-            fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
+            if (is_float(var->type)) {
+                fprintf(out_fd, "maxs%s xmm0, xmm1\n", fp_op_size_from_type(var->type));
+            } else {
+                fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
+                fprintf(out_fd, "cmovg %s, %s\n", in_regs[0], in_regs[1]);
+                fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
+            }
             break;
         case Instruction::min:
             assert(arg_count == 2);
-            assert(!is_float(var->type));
-            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
-            fprintf(out_fd, "cmovl %s, %s\n", in_regs[0], in_regs[1]);
-            fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
+            if (is_float(var->type)) {
+                fprintf(out_fd, "mins%s xmm0, xmm1\n", fp_op_size_from_type(var->type));
+            } else {
+                fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
+                fprintf(out_fd, "cmovl %s, %s\n", in_regs[0], in_regs[1]);
+                fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
+            }
             break;
         case Instruction::sle:
             assert(arg_count == 4);

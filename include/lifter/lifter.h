@@ -35,7 +35,7 @@ class Lifter {
     static constexpr size_t ZERO_IDX = 0;
 
     // Index of memory token in <reg_map> register mapping
-    static constexpr size_t MEM_IDX = 64;
+    static constexpr size_t MEM_IDX = 32;
 
     // Index of the first floating point value in <reg_map>
     static constexpr size_t START_IDX_FLOATING_POINT_STATICS = 33;
