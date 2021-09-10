@@ -48,6 +48,7 @@ void Lifter::lift(Program *prog) {
         if (cur_bb) {
             // create jump to new bb
             auto &cf_op = cur_bb->add_cf_op(CFCInstruction::jump, new_bb, prev_addr, virt_addr);
+            std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.reserve(mapping.size());
             for (size_t i = 0; i < mapping.size(); i++) {
                 auto var = mapping[i];
                 if (var != nullptr) {
@@ -57,6 +58,7 @@ void Lifter::lift(Program *prog) {
             }
             assert(cf_op.target_inputs().size() == 32);
             cur_bb->set_virt_end_addr(prev_addr);
+            cur_bb->variables.shrink_to_fit();
         }
 
         // load ssa variables from static vars and fill mapping
@@ -76,6 +78,7 @@ void Lifter::lift(Program *prog) {
         if (!std::holds_alternative<RV64Inst>(prog->data[i])) {
             if (cur_bb) {
                 cur_bb->add_cf_op(CFCInstruction::unreachable, nullptr, virt_addr);
+                cur_bb->variables.shrink_to_fit();
                 cur_bb = nullptr;
             }
             continue;
@@ -95,6 +98,7 @@ void Lifter::lift(Program *prog) {
         }
         if (cur_bb && instr.instr.mnem == FRV_INVALID) {
             cur_bb->add_cf_op(CFCInstruction::unreachable, nullptr, virt_addr);
+            cur_bb->variables.shrink_to_fit();
             cur_bb = nullptr;
             continue;
         }
@@ -147,6 +151,26 @@ void Lifter::lift(Program *prog) {
 
             // when we split a bblock the target_inputs get filled by split_basic_block
             if (cf_op.target_inputs().empty()) {
+                switch (cf_op.type) {
+                case CFCInstruction::jump:
+                    std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.reserve(mapping.size());
+                    break;
+                case CFCInstruction::ijump:
+                    std::get<CfOp::IJumpInfo>(cf_op.info).mapping.reserve(mapping.size());
+                    break;
+                case CFCInstruction::cjump:
+                    std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs.reserve(mapping.size());
+                    break;
+                case CFCInstruction::call:
+                    std::get<CfOp::CallInfo>(cf_op.info).target_inputs.reserve(mapping.size());
+                    break;
+                case CFCInstruction::syscall:
+                    std::get<CfOp::SyscallInfo>(cf_op.info).continuation_mapping.reserve(mapping.size());
+                    break;
+                default:
+                    break;
+                }
+
                 for (size_t i = 0; i < mapping.size(); i++) {
                     auto var = mapping[i];
                     if (var != nullptr) {
@@ -180,6 +204,8 @@ void Lifter::lift(Program *prog) {
                 }
             }
         }
+        cur_bb->variables.shrink_to_fit();
+        cur_bb->control_flow_ops.shrink_to_fit();
         cur_bb = nullptr;
     }
 
@@ -188,21 +214,16 @@ void Lifter::lift(Program *prog) {
 }
 
 void Lifter::postprocess() {
-
-    /* Remove any guessed ijumps */
+    // set all jump targets and remove guessed ijumps
     for (auto &bb : ir->basic_blocks) {
         for (auto &cf_op : bb->control_flow_ops) {
             if (cf_op.type == CFCInstruction::ijump) {
                 cf_op.set_target(nullptr);
+                continue;
             }
-        }
-    }
 
-    // set all jump targets
-    for (auto &bb : ir->basic_blocks) {
-        for (auto &cf_op : bb->control_flow_ops) {
             auto &lifter_info = std::get<CfOp::LifterInfo>(cf_op.lifter_info);
-            if (cf_op.type != CFCInstruction::ijump && cf_op.type != CFCInstruction::icall && cf_op.type != CFCInstruction::unreachable && lifter_info.jump_addr) {
+            if (cf_op.type != CFCInstruction::icall && cf_op.type != CFCInstruction::unreachable && lifter_info.jump_addr) {
                 auto *target_bb = get_bb(lifter_info.jump_addr);
                 if (target_bb) {
                     cf_op.set_target(target_bb);
