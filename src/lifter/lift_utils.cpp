@@ -86,7 +86,7 @@ void Lifter::write_to_mapping(reg_map &mapping, SSAVar *var, uint64_t reg_id, bo
         assert(0 && "Currently not implemented! Please activate lifter floating point support and then remove this assertion!");
     }
 
-    uint64_t actual_reg_id = reg_id + (is_floating_point_register ? START_IDX_FLOATING_POINT_STATICS : 0);
+    const uint64_t actual_reg_id = reg_id + (is_floating_point_register ? START_IDX_FLOATING_POINT_STATICS : 0);
 
     std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = actual_reg_id;
     mapping[actual_reg_id] = var;

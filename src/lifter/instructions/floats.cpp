@@ -391,7 +391,7 @@ void Lifter::lift_float_comparison(BasicBlock *bb, const RV64Inst &instr, reg_ma
     dest->set_op(std::move(op));
 
     // write the integer(!) variable to the mapping
-    write_to_mapping(mapping, dest, instr.instr.rd);
+    write_to_mapping(mapping, dest, instr.instr.rd, false);
 }
 
 void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
