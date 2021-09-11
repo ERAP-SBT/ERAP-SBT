@@ -69,6 +69,6 @@ zip-utility:
     - build
   script:
     - tests/simple_zip/test.sh riscv64-linux-gnu-gcc
-    - tests/simple_zip/test.sh /toolchain/gcc
+    - tests/simple_zip/test.sh /toolchain/bin/riscv64-linux-gnu-gcc
   tags:
     - mem_intensive

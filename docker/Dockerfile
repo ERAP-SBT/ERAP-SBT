@@ -17,6 +17,3 @@ RUN apt-get update \
 
 COPY setup_toolchain.sh downloads.sha256sum /
 RUN /setup_toolchain.sh && rm -f setup_toolchain.sh downloads.sha256sum
-
-# Add link for convinience
-RUN ln -s /toolchain/sysroot/bin/riscv64-linux-gnu-gcc /toolchain/gcc

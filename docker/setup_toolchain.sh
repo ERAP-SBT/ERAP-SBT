@@ -28,7 +28,7 @@ tar -xvf gcc-10.2.0.tar.xz
 tar -xvf musl-1.2.2.tar.gz
 
 SYSROOT="/toolchain"
-PREFIX="/usr"
+PREFIX="/"
 JOBS="-j$(nproc) --output-sync"
 PATH="${SYSROOT}${PREFIX}/bin:$PATH"
 export PATH
