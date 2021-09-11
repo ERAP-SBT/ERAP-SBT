@@ -9,7 +9,7 @@
  */
 enum class Type { imm, i64, i32, i16, i8, f64, f32, mt };
 
-constexpr std::array<Type, 4> i_cast_order = {Type::i8, Type::i16, Type::i32, Type::i64};
+constexpr std::array<Type, 5> i_cast_order = {Type::imm, Type::i8, Type::i16, Type::i32, Type::i64};
 constexpr std::array<Type, 2> f_cast_order = {Type::f32, Type::f64};
 
 /* -1: no simple cast possible (e.g. integer <-> float)

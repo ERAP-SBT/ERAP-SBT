@@ -70,9 +70,7 @@ SSAVar *Lifter::get_from_mapping(BasicBlock *bb, reg_map &mapping, uint64_t reg_
         return bb->add_var_imm(0, ip);
     }
 
-    if (is_floating_point_register) {
-        assert(0 && "Currently not implemented! Please activate lifter floating point support and then remove this assertion!");
-    }
+    assert(floating_point_support ? true : !is_floating_point_register);
 
     return mapping[reg_id + (is_floating_point_register ? START_IDX_FLOATING_POINT_STATICS : 0)];
 }
@@ -82,18 +80,25 @@ void Lifter::write_to_mapping(reg_map &mapping, SSAVar *var, uint64_t reg_id, bo
         return;
     }
 
-    if (is_floating_point_register) {
-        assert(0 && "Currently not implemented! Please activate lifter floating point support and then remove this assertion!");
-    }
+    assert(floating_point_support ? true : !is_floating_point_register);
 
     const uint64_t actual_reg_id = reg_id + (is_floating_point_register ? START_IDX_FLOATING_POINT_STATICS : 0);
+
+    if (var == nullptr) {
+        assert(0 && "nullptr!");
+    } else if (!std::holds_alternative<SSAVar::LifterInfo>(var->lifter_info)) {
+        std::cerr << "var->type = " << var->type << "\n";
+        std::cerr << "var->info.index() = " << var->info.index() << "\n";
+        std::cerr << "var->id = " << var->id << "\n";
+        assert(0 && "lifter info!");
+    }
 
     std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = actual_reg_id;
     mapping[actual_reg_id] = var;
 }
 
-void Lifter::zero_extend_all_f32(BasicBlock *bb, reg_map &mapping, uint64_t ip) {
-    for (unsigned i = 0; i < mapping.size(); i++) {
+void Lifter::zero_extend_all_f32(BasicBlock *bb, reg_map &mapping, uint64_t ip) const {
+    for (size_t i = 0; i < count_used_static_vars; i++) {
         if (i == ZERO_IDX) {
             continue;
         }
@@ -108,4 +113,25 @@ void Lifter::zero_extend_all_f32(BasicBlock *bb, reg_map &mapping, uint64_t ip) 
             mapping[i] = extended_var;
         }
     }
+}
+
+SSAVar *Lifter::get_from_mapping_and_shrink(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, const Type expected_type) {
+    SSAVar *value = get_from_mapping(bb, mapping, reg_id, ip, is_float(expected_type));
+    const int cast_dir_res = cast_dir(expected_type, value->type);
+
+    if (cast_dir_res == -1) {
+        std::cerr << "value->type = " << value->type << "\n";
+        std::cerr << "expected_type = " << expected_type << "\n";
+        assert(0 && "The variable cannot be casted to the expected type!");
+    }
+
+    if (cast_dir_res == 1) {
+        SSAVar *const casted_value = bb->add_var(expected_type, ip);
+        auto op = std::make_unique<Operation>(Instruction::cast);
+        op->set_inputs(value);
+        op->set_outputs(casted_value);
+        casted_value->set_op(std::move(op));
+        value = casted_value;
+    }
+    return value;
 }

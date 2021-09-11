@@ -7,8 +7,6 @@ using namespace lifter::RV64;
 
 using reg_map = Lifter::reg_map;
 
-#if 0
-
 class TestFloatingPointLifting : public ::testing::Test {
   public:
     IR *ir;
@@ -16,26 +14,18 @@ class TestFloatingPointLifting : public ::testing::Test {
     BasicBlock *bb;
     uint64_t virt_start_addr;
     Lifter::reg_map mapping;
+    size_t count_used_static_vars;
 
     TestFloatingPointLifting() {}
 
     void SetUp() {
         // setup ir and lifter
         ir = new IR();
-        lifter = new Lifter(ir);
+        lifter = new Lifter(ir, true);
 
-        // create static mapper
-        for (unsigned i = 0; i < 32; i++) {
-            ir->add_static(Type::i64);
-        }
+        lifter->add_statics();
 
-        for (unsigned i = 0; i < 32; i++) {
-            ir->add_static(Type::f64);
-        }
-
-        ir->add_static(Type::mt);
-
-        ir->add_static(Type::i64);
+        count_used_static_vars = lifter->count_used_static_vars;
 
         // create random start address
         virt_start_addr = random();
@@ -44,7 +34,7 @@ class TestFloatingPointLifting : public ::testing::Test {
 
         // init mapping
         mapping = {};
-        for (size_t i = 0; i < COUNT_STATIC_VARS; i++) {
+        for (size_t i = 0; i < lifter->count_used_static_vars; i++) {
             mapping[i] = bb->add_var_from_static(i, virt_start_addr);
         }
     }
@@ -170,12 +160,11 @@ class TestFloatingPointLifting : public ::testing::Test {
             break;
         }
 
-        unsigned count_scanned_variables = 0;
+        unsigned count_scanned_variables = count_used_static_vars;
 
         // if single precision type expect casts
         if (expected_op_size == Type::f32) {
-            count_scanned_variables++;
-            SSAVar *casted_input_one = bb->variables[COUNT_STATIC_VARS].get();
+            SSAVar *casted_input_one = bb->variables[count_scanned_variables].get();
             {
                 ASSERT_EQ(casted_input_one->type, Type::f32) << "The casted first input has the wrong type!";
                 ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_input_one->info)) << "The casted first input has no operation!";
@@ -184,10 +173,10 @@ class TestFloatingPointLifting : public ::testing::Test {
                 ASSERT_EQ(cast_op->out_vars[0], casted_input_one) << "The result of the first cast isn't the casted first input!";
                 ASSERT_EQ(cast_op->in_vars[0], input_one) << "The input of the first cast operation isn't the first input!";
                 input_one = casted_input_one;
+                count_scanned_variables++;
             }
             if (instr.instr.rs2 != 0) {
-                count_scanned_variables++;
-                SSAVar *casted_input_two = bb->variables[COUNT_STATIC_VARS + 1].get();
+                SSAVar *casted_input_two = bb->variables[count_scanned_variables].get();
                 ASSERT_EQ(casted_input_two->type, Type::f32) << "The casted second input has the wrong type!";
                 ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_input_two->info)) << "The casted second input has no operation!";
                 auto *cast_op = std::get<std::unique_ptr<Operation>>(casted_input_two->info).get();
@@ -195,10 +184,10 @@ class TestFloatingPointLifting : public ::testing::Test {
                 ASSERT_EQ(cast_op->out_vars[0], casted_input_two) << "The result of the second cast isn't the casted second input!";
                 ASSERT_EQ(cast_op->in_vars[0], input_two) << "The input of the second cast operation isn't the second input!";
                 input_two = casted_input_two;
+                count_scanned_variables++;
             }
             if (instr.instr.rs3 != 0) {
-                count_scanned_variables++;
-                SSAVar *casted_input_three = bb->variables[COUNT_STATIC_VARS + 2].get();
+                SSAVar *casted_input_three = bb->variables[count_scanned_variables].get();
                 ASSERT_EQ(casted_input_three->type, Type::f32) << "The casted third input has the wrong type!";
                 ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_input_three->info)) << "The casted third input has no operation!";
                 auto *cast_op = std::get<std::unique_ptr<Operation>>(casted_input_three->info).get();
@@ -206,10 +195,11 @@ class TestFloatingPointLifting : public ::testing::Test {
                 ASSERT_EQ(cast_op->out_vars[0], casted_input_three) << "The result of the third cast isn't the casted third input!";
                 ASSERT_EQ(cast_op->in_vars[0], input_three) << "The input of the third cast operation isn't the third input!";
                 input_three = casted_input_three;
+                count_scanned_variables++;
             }
         }
 
-        auto *result = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        auto *result = bb->variables[count_scanned_variables].get();
 
         ASSERT_EQ(result->type, expected_op_size) << "The result variable has the wrong type!";
         ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(result->info)) << "The result variable has no operation stored!";
@@ -227,8 +217,8 @@ class TestFloatingPointLifting : public ::testing::Test {
 
         count_scanned_variables++;
 
-        ASSERT_LE(bb->variables.size(), COUNT_STATIC_VARS + count_scanned_variables) << "In the basic block are more variables than expected!";
-        ASSERT_GE(bb->variables.size(), COUNT_STATIC_VARS + count_scanned_variables) << "In the basic block are less variables than expected!";
+        ASSERT_LE(bb->variables.size(), count_scanned_variables) << "In the basic block are more variables than expected!";
+        ASSERT_GE(bb->variables.size(), count_scanned_variables) << "In the basic block are less variables than expected!";
     }
 
     void test_conversion_lifting(const RV64Inst &instr) {
@@ -351,11 +341,11 @@ class TestFloatingPointLifting : public ::testing::Test {
 
         verify();
 
-        unsigned count_scanned_variables = 0;
+        unsigned count_scanned_variables = count_used_static_vars;
 
         // test for variable shrinking
         if (expected_from_type == Type::f32 || expected_from_type == Type::i32) {
-            SSAVar *casted_input = bb->variables[COUNT_STATIC_VARS].get();
+            SSAVar *casted_input = bb->variables[count_scanned_variables].get();
 
             ASSERT_EQ(casted_input->type, expected_from_type) << "The casted input has the wrong type!";
             ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_input->info)) << "The casted input has no operation!";
@@ -368,8 +358,16 @@ class TestFloatingPointLifting : public ::testing::Test {
             count_scanned_variables++;
         }
 
-        SSAVar *rounding_mode_imm;
+        auto *result = bb->variables[count_scanned_variables].get();
 
+        ASSERT_EQ(result->type, expected_to_type) << "The type of the result variable doesn't match the 'to' type!";
+        ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(result->info)) << "The result variable doesn't have an operation!";
+        auto *op = std::get<std::unique_ptr<Operation>>(result->info).get();
+
+        ASSERT_EQ(op->type, expected_instruction) << "The operation doesn't have the expected instruction!";
+        ASSERT_EQ(op->out_vars[0], result) << "The output of the operation isn't the result variable!";
+        ASSERT_EQ(result, mapping[instr.instr.rd + (is_float(expected_to_type) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)]) << "The result isn't written correctly to the mapping!";
+        ASSERT_EQ(op->in_vars[0], input_var) << "The input of the operation isn't the expected input!";
         if (respect_rounding_mode) {
             RoundingMode expected_rounding_mode;
             switch (instr.instr.misc) {
@@ -391,34 +389,16 @@ class TestFloatingPointLifting : public ::testing::Test {
                 FAIL() << "The test developer has failed!";
                 break;
             }
-
-            rounding_mode_imm = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
-            ASSERT_EQ(rounding_mode_imm->type, Type::imm) << "The rounding mode immediate is no immediate!";
-            ASSERT_TRUE(std::holds_alternative<SSAVar::ImmInfo>(rounding_mode_imm->info)) << "The rounding mode immediate doesn't hold an ImmInfo!";
-            SSAVar::ImmInfo &imm_info = std::get<SSAVar::ImmInfo>(rounding_mode_imm->info);
-            ASSERT_EQ(imm_info.val, (unsigned long)expected_rounding_mode) << "THis is the wrong rounding mode!";
-            ASSERT_FALSE(imm_info.binary_relative) << "The rounding mode immediate mustn't be binary relative!";
-            count_scanned_variables++;
-        }
-
-        auto *result = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
-
-        ASSERT_EQ(result->type, expected_to_type) << "The type of the result variable doesn't match the 'to' type!";
-        ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(result->info)) << "The result variable doesn't have an operation!";
-        auto *op = std::get<std::unique_ptr<Operation>>(result->info).get();
-
-        ASSERT_EQ(op->type, expected_instruction) << "The operation doesn't have the expected instruction!";
-        ASSERT_EQ(op->out_vars[0], result) << "The output of the operation isn't the result variable!";
-        ASSERT_EQ(result, mapping[instr.instr.rd + (is_float(expected_to_type) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)]) << "The result isn't written correctly to the mapping!";
-        ASSERT_EQ(op->in_vars[0], input_var) << "The input of the operation isn't the expected input!";
-        if (respect_rounding_mode) {
-            ASSERT_EQ(op->in_vars[1], rounding_mode_imm) << "The rounding mode is the wrong one!";
+            ASSERT_TRUE(op->rounding_info.has_value()) << "The conversion operation should have an rounding mode set!";
+            ASSERT_EQ(op->rounding_info.value(), expected_rounding_mode) << "The rounding mode is the wrong one!";
+        } else {
+            ASSERT_FALSE(op->rounding_info.has_value()) << "The conversion opertaion shouldn't have an rounding mode set!";
         }
 
         count_scanned_variables++;
 
-        ASSERT_LE(bb->variables.size(), COUNT_STATIC_VARS + count_scanned_variables) << "In the basic block are more variables than expected!";
-        ASSERT_GE(bb->variables.size(), COUNT_STATIC_VARS + count_scanned_variables) << "In the basic block are less variables than expected!";
+        ASSERT_LE(bb->variables.size(), count_scanned_variables) << "In the basic block are more variables than expected!";
+        ASSERT_GE(bb->variables.size(), count_scanned_variables) << "In the basic block are less variables than expected!";
     }
 
     void test_sign_injection_lifting(const RV64Inst &instr) {
@@ -457,10 +437,10 @@ class TestFloatingPointLifting : public ::testing::Test {
         }
 
         const bool is_single_precision = expected_type == Type::f32;
-        unsigned count_scanned_variables = 0;
+        unsigned count_scanned_variables = count_used_static_vars;
 
         // test the masks
-        SSAVar *sign_bit_extraction_mask = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        SSAVar *sign_bit_extraction_mask = bb->variables[count_scanned_variables].get();
         {
             ASSERT_EQ(sign_bit_extraction_mask->type, Type::imm) << "The sign bit extraction mask should be an immediate!";
             ASSERT_TRUE(std::holds_alternative<SSAVar::ImmInfo>(sign_bit_extraction_mask->info)) << "The sign bit extraction mask should have an ImmInfo!";
@@ -470,7 +450,7 @@ class TestFloatingPointLifting : public ::testing::Test {
             count_scanned_variables++;
         }
 
-        SSAVar *sign_zero_mask = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        SSAVar *sign_zero_mask = bb->variables[count_scanned_variables].get();
         {
             ASSERT_EQ(sign_zero_mask->type, Type::imm) << "The sign bit zero mask should be an immediate!";
             ASSERT_TRUE(std::holds_alternative<SSAVar::ImmInfo>(sign_zero_mask->info)) << "The sign bit zero mask should have an ImmInfo!";
@@ -482,7 +462,7 @@ class TestFloatingPointLifting : public ::testing::Test {
 
         if (is_single_precision) {
             {
-                SSAVar *casted_input_one = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+                SSAVar *casted_input_one = bb->variables[count_scanned_variables].get();
                 ASSERT_EQ(casted_input_one->type, Type::f32) << "The casted first input has the wrong type!";
                 ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_input_one->info)) << "The casted first input variable doesn't have an operation!";
                 auto *cast_op = std::get<std::unique_ptr<Operation>>(casted_input_one->info).get();
@@ -493,7 +473,7 @@ class TestFloatingPointLifting : public ::testing::Test {
                 count_scanned_variables++;
             }
             {
-                SSAVar *casted_input_two = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+                SSAVar *casted_input_two = bb->variables[count_scanned_variables].get();
                 ASSERT_EQ(casted_input_two->type, Type::f32) << "The casted second input has the wrong type!";
                 ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_input_two->info)) << "The casted second input variable doesn't have an operation!";
                 auto *cast_op = std::get<std::unique_ptr<Operation>>(casted_input_two->info).get();
@@ -508,7 +488,7 @@ class TestFloatingPointLifting : public ::testing::Test {
         const Type expected_i_op_size = expected_type == Type::f32 ? Type::i32 : Type::i64;
 
         {
-            SSAVar *i_input_one = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+            SSAVar *i_input_one = bb->variables[count_scanned_variables].get();
             ASSERT_EQ(i_input_one->type, expected_i_op_size) << "The integer representation of the first input has the wrong type!";
             ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(i_input_one->info)) << "The integer respresentation of the first input doesn't have an operation!";
             auto *cast_op = std::get<std::unique_ptr<Operation>>(i_input_one->info).get();
@@ -519,7 +499,7 @@ class TestFloatingPointLifting : public ::testing::Test {
             count_scanned_variables++;
         }
         {
-            SSAVar *i_input_two = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+            SSAVar *i_input_two = bb->variables[count_scanned_variables].get();
             ASSERT_EQ(i_input_two->type, expected_i_op_size) << "The integer representation of the second input has the wrong type!";
             ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(i_input_two->info)) << "The integer respresentation of the second input doesn't have an operation!";
             auto *cast_op = std::get<std::unique_ptr<Operation>>(i_input_two->info).get();
@@ -530,7 +510,7 @@ class TestFloatingPointLifting : public ::testing::Test {
             count_scanned_variables++;
         }
 
-        SSAVar *input_two_sign = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        SSAVar *input_two_sign = bb->variables[count_scanned_variables].get();
         {
             ASSERT_EQ(input_two_sign->type, expected_i_op_size) << "The sign of the second input has the wrong type!";
             ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(input_two_sign->info)) << "The sign of the second input doesn't have an operation!";
@@ -550,7 +530,7 @@ class TestFloatingPointLifting : public ::testing::Test {
             break;
         case FRV_FSGNJNS:
         case FRV_FSGNJND: {
-            SSAVar *negated_sign_bit = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+            SSAVar *negated_sign_bit = bb->variables[count_scanned_variables].get();
             ASSERT_EQ(negated_sign_bit->type, expected_i_op_size) << "The negated sign bit has the wrong type!";
             ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(negated_sign_bit->info)) << "The negated sign bit doesn't have an operation!";
             auto *op = std::get<std::unique_ptr<Operation>>(negated_sign_bit->info).get();
@@ -564,7 +544,7 @@ class TestFloatingPointLifting : public ::testing::Test {
         }
         case FRV_FSGNJXS:
         case FRV_FSGNJXD: {
-            SSAVar *input_one_sign = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+            SSAVar *input_one_sign = bb->variables[count_scanned_variables].get();
             {
                 ASSERT_EQ(input_one_sign->type, expected_i_op_size) << "The first input's sign bit has the wrong type!";
                 ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(input_one_sign->info)) << "The sign bit of the first input doesn't have an operation!";
@@ -577,7 +557,7 @@ class TestFloatingPointLifting : public ::testing::Test {
             }
 
             {
-                expected_new_sign = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+                expected_new_sign = bb->variables[count_scanned_variables].get();
                 ASSERT_EQ(expected_new_sign->type, expected_i_op_size) << "The new sign bit has the wrong type!";
                 ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(expected_new_sign->info)) << "The new sign bit doesn't have an operation!";
                 auto *op = std::get<std::unique_ptr<Operation>>(expected_new_sign->info).get();
@@ -593,7 +573,7 @@ class TestFloatingPointLifting : public ::testing::Test {
             FAIL() << "The developer of the tests failed!";
         }
 
-        SSAVar *input_one_signless = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        SSAVar *input_one_signless = bb->variables[count_scanned_variables].get();
         {
             ASSERT_EQ(input_one_signless->type, expected_i_op_size) << "The first input (signless) has the wrong type!";
             ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(input_one_signless->info)) << "The first input (signless) doesn't have an operation!";
@@ -605,7 +585,7 @@ class TestFloatingPointLifting : public ::testing::Test {
             count_scanned_variables++;
         }
 
-        SSAVar *result = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        SSAVar *result = bb->variables[count_scanned_variables].get();
         {
             ASSERT_EQ(result->type, expected_i_op_size) << "The result has the wrong type!";
             ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(result->info)) << "The result doesn't have an operation!";
@@ -618,7 +598,7 @@ class TestFloatingPointLifting : public ::testing::Test {
         }
 
         {
-            SSAVar *casted_result = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+            SSAVar *casted_result = bb->variables[count_scanned_variables].get();
             ASSERT_EQ(casted_result->type, expected_type) << "The casted result has the wrong type!";
             ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_result->info)) << "The casted result doesn't have an operation!";
             auto *cast_op = std::get<std::unique_ptr<Operation>>(casted_result->info).get();
@@ -630,7 +610,7 @@ class TestFloatingPointLifting : public ::testing::Test {
         }
 
         // assert that the test has tested all variables
-        assert(bb->variables.size() == COUNT_STATIC_VARS + count_scanned_variables);
+        assert(bb->variables.size() == count_scanned_variables);
     }
 
     void test_moves_lifting(const RV64Inst &instr) {
@@ -664,10 +644,10 @@ class TestFloatingPointLifting : public ::testing::Test {
 
         verify();
 
-        unsigned count_scanned_variables = 0;
+        unsigned count_scanned_variables = count_used_static_vars;
 
         if (expected_from == Type::i32 || expected_from == Type::f32) {
-            SSAVar *casted_input = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+            SSAVar *casted_input = bb->variables[count_scanned_variables].get();
             ASSERT_EQ(casted_input->type, expected_from) << "The casted input has the wrong type!";
             ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_input->info)) << "The casted input doesn't have an operation!";
             auto *op = std::get<std::unique_ptr<Operation>>(casted_input->info).get();
@@ -679,7 +659,7 @@ class TestFloatingPointLifting : public ::testing::Test {
         }
 
         // check mov operation
-        SSAVar *result = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        SSAVar *result = bb->variables[count_scanned_variables].get();
         {
             ASSERT_EQ(result->type, expected_to) << "The result variable has the wrong type!";
             ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(result->info)) << "The result variable doesn't have an operation!";
@@ -691,7 +671,7 @@ class TestFloatingPointLifting : public ::testing::Test {
         }
 
         if (expected_to == Type::i32) {
-            SSAVar *casted_result = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+            SSAVar *casted_result = bb->variables[count_scanned_variables].get();
             ASSERT_EQ(casted_result->type, Type::i64) << "The casted result has the wrong type!";
             ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_result->info)) << "The casted result variable doesn't have an operation!";
             auto *op = std::get<std::unique_ptr<Operation>>(casted_result->info).get();
@@ -745,11 +725,11 @@ class TestFloatingPointLifting : public ::testing::Test {
             break;
         }
 
-        unsigned count_scanned_variables = 0;
+        unsigned count_scanned_variables = count_used_static_vars;
 
         if (op_size == Type::f32) {
             {
-                SSAVar *casted_input_one = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+                SSAVar *casted_input_one = bb->variables[count_scanned_variables].get();
                 ASSERT_EQ(casted_input_one->type, Type::f32) << "The casted first input has the wrong type!";
                 ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_input_one->info)) << "The casted first input doesn't have an operation!";
                 auto *cast_op = std::get<std::unique_ptr<Operation>>(casted_input_one->info).get();
@@ -760,7 +740,7 @@ class TestFloatingPointLifting : public ::testing::Test {
                 input_one = casted_input_one;
             }
             {
-                SSAVar *casted_second_two = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+                SSAVar *casted_second_two = bb->variables[count_scanned_variables].get();
                 ASSERT_EQ(casted_second_two->type, Type::f32) << "The casted second input has the wrong type!";
                 ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_second_two->info)) << "The casted second input doesn't have an operation!";
                 auto *cast_op = std::get<std::unique_ptr<Operation>>(casted_second_two->info).get();
@@ -772,7 +752,7 @@ class TestFloatingPointLifting : public ::testing::Test {
             }
         }
 
-        SSAVar *zero_imm = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        SSAVar *zero_imm = bb->variables[count_scanned_variables].get();
         {
             ASSERT_EQ(zero_imm->type, Type::imm) << "The zero immediate isn't an immediate!";
             ASSERT_TRUE(std::holds_alternative<SSAVar::ImmInfo>(zero_imm->info)) << "The zero immediate doesn't have an ImmInfo!";
@@ -781,7 +761,7 @@ class TestFloatingPointLifting : public ::testing::Test {
             count_scanned_variables++;
         }
 
-        SSAVar *one_imm = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        SSAVar *one_imm = bb->variables[count_scanned_variables].get();
         {
             ASSERT_EQ(one_imm->type, Type::imm) << "The one immediate isn't an immediate!";
             ASSERT_TRUE(std::holds_alternative<SSAVar::ImmInfo>(one_imm->info)) << "The one immediate doesn't have an ImmInfo!";
@@ -790,7 +770,7 @@ class TestFloatingPointLifting : public ::testing::Test {
             count_scanned_variables++;
         }
 
-        SSAVar *result = bb->variables[COUNT_STATIC_VARS + count_scanned_variables].get();
+        SSAVar *result = bb->variables[count_scanned_variables].get();
         {
             ASSERT_EQ(result->type, Type::i64) << "The result has to be an integer as the result would be stored to the integer registers!";
             ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(result->info)) << "The result doesn't have an operation!";
@@ -815,17 +795,20 @@ TEST_F(TestFloatingPointLifting, test_fp_load_f) {
 
     verify();
 
+    unsigned count_scanned_variables = count_used_static_vars;
+
     // check offset immediate
-    auto *offset_immediate = bb->variables[COUNT_STATIC_VARS].get();
+    auto *offset_immediate = bb->variables[count_scanned_variables].get();
     {
         ASSERT_TRUE(std::holds_alternative<SSAVar::ImmInfo>(offset_immediate->info));
         auto *imm_info = &std::get<SSAVar::ImmInfo>(offset_immediate->info);
         ASSERT_EQ(imm_info->val, 20) << "The immediate value is wrong!";
         ASSERT_FALSE(imm_info->binary_relative);
+        count_scanned_variables++;
     }
 
     // check the calculation of the address
-    auto *address = bb->variables[COUNT_STATIC_VARS + 1].get();
+    auto *address = bb->variables[count_scanned_variables].get();
     {
         ASSERT_EQ(address->type, Type::i64) << "The address doesn't have the right type!";
         ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(address->info)) << "The variable with the address doesn't contain an operation!";
@@ -834,11 +817,12 @@ TEST_F(TestFloatingPointLifting, test_fp_load_f) {
         ASSERT_EQ(op->out_vars[0], address) << "The address isn't the result of the operation to calculate it!";
         ASSERT_EQ(op->in_vars[0], mapping[2]) << "The first input of the address calculation isn't the base register!";
         ASSERT_EQ(op->in_vars[1], offset_immediate) << "The second input of the address calculation isn't the offset immediate!";
+        count_scanned_variables++;
     }
 
     // check the result variable
     {
-        auto *result_variable = bb->variables[COUNT_STATIC_VARS + 2].get();
+        auto *result_variable = bb->variables[count_scanned_variables].get();
         ASSERT_EQ(result_variable, mapping[3 + Lifter::START_IDX_FLOATING_POINT_STATICS]) << "The result isn't written correctly to the mapping!";
         ASSERT_EQ(result_variable->type, Type::f32) << "The result has the wrong type!";
         ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(result_variable->info)) << "The result variable doesn't contain an operation!";
@@ -847,7 +831,10 @@ TEST_F(TestFloatingPointLifting, test_fp_load_f) {
         ASSERT_EQ(op->out_vars[0], result_variable) << "The result variable isn't the result of it's operation!";
         ASSERT_EQ(op->in_vars[0], address) << "The address isn't the first input for the operation!";
         ASSERT_EQ(op->in_vars[1], mapping[Lifter::MEM_IDX]) << "The second input of the operation isn't the memory token!";
+        count_scanned_variables++;
     }
+
+    assert(bb->variables.size() == count_scanned_variables);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_load_d) {
@@ -858,17 +845,20 @@ TEST_F(TestFloatingPointLifting, test_fp_load_d) {
 
     verify();
 
+    unsigned count_scanned_variables = count_used_static_vars;
+
     // check offset immediate
-    auto *offset_immediate = bb->variables[COUNT_STATIC_VARS].get();
+    auto *offset_immediate = bb->variables[count_scanned_variables].get();
     {
         ASSERT_TRUE(std::holds_alternative<SSAVar::ImmInfo>(offset_immediate->info));
         auto *imm_info = &std::get<SSAVar::ImmInfo>(offset_immediate->info);
         ASSERT_EQ(imm_info->val, 20) << "The immediate value is wrong!";
         ASSERT_FALSE(imm_info->binary_relative);
+        count_scanned_variables++;
     }
 
     // check the calculation of the address
-    auto *address = bb->variables[COUNT_STATIC_VARS + 1].get();
+    auto *address = bb->variables[count_scanned_variables].get();
     {
         ASSERT_EQ(address->type, Type::i64) << "The address doesn't have the right type!";
         ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(address->info)) << "The variable with the address doesn't contain an operation!";
@@ -877,11 +867,12 @@ TEST_F(TestFloatingPointLifting, test_fp_load_d) {
         ASSERT_EQ(op->out_vars[0], address) << "The address isn't the result of the operation to calculate it!";
         ASSERT_EQ(op->in_vars[0], mapping[2]) << "The first input of the address calculation isn't the base register!";
         ASSERT_EQ(op->in_vars[1], offset_immediate) << "The second input of the address calculation isn't the offset immediate!";
+        count_scanned_variables++;
     }
 
     // check the result variable
     {
-        auto *result_variable = bb->variables[COUNT_STATIC_VARS + 2].get();
+        auto *result_variable = bb->variables[count_scanned_variables].get();
         ASSERT_EQ(result_variable, mapping[3 + Lifter::START_IDX_FLOATING_POINT_STATICS]) << "The result isn't written correctly to the mapping!";
         ASSERT_EQ(result_variable->type, Type::f64) << "The result has the wrong type!";
         ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(result_variable->info)) << "The result variable doesn't contain an operation!";
@@ -890,6 +881,7 @@ TEST_F(TestFloatingPointLifting, test_fp_load_d) {
         ASSERT_EQ(op->out_vars[0], result_variable) << "The result variable isn't the result of it's operation!";
         ASSERT_EQ(op->in_vars[0], address) << "The address isn't the first input for the operation!";
         ASSERT_EQ(op->in_vars[1], mapping[Lifter::MEM_IDX]) << "The second input of the operation isn't the memory token!";
+        count_scanned_variables++;
     }
 }
 
@@ -908,17 +900,20 @@ TEST_F(TestFloatingPointLifting, test_fp_store) {
 
     verify();
 
+    unsigned count_scanned_variables = count_used_static_vars;
+
     // check offset immediate
-    auto *offset_immediate = bb->variables[COUNT_STATIC_VARS].get();
+    auto *offset_immediate = bb->variables[count_scanned_variables].get();
     {
         ASSERT_TRUE(std::holds_alternative<SSAVar::ImmInfo>(offset_immediate->info));
         auto *imm_info = &std::get<SSAVar::ImmInfo>(offset_immediate->info);
         ASSERT_EQ(imm_info->val, offset) << "The immediate value is wrong!";
         ASSERT_FALSE(imm_info->binary_relative);
+        count_scanned_variables++;
     }
 
     // check the calculation of the address
-    auto *address = bb->variables[COUNT_STATIC_VARS + 1].get();
+    auto *address = bb->variables[count_scanned_variables].get();
     {
         ASSERT_EQ(address->type, Type::i64) << "The address doesn't have the right type!";
         ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(address->info)) << "The variable with the address doesn't contain an operation!";
@@ -927,10 +922,11 @@ TEST_F(TestFloatingPointLifting, test_fp_store) {
         ASSERT_EQ(op->out_vars[0], address) << "The address isn't the result of the operation to calculate it!";
         ASSERT_EQ(op->in_vars[0], mapping[base_register_id]) << "The first input of the address calculation isn't the base register!";
         ASSERT_EQ(op->in_vars[1], offset_immediate) << "The second input of the address calculation isn't the offset immediate!";
+        count_scanned_variables++;
     }
 
     // check the cast
-    SSAVar *casted_store_var = bb->variables[COUNT_STATIC_VARS + 2].get();
+    SSAVar *casted_store_var = bb->variables[count_scanned_variables].get();
     {
         ASSERT_EQ(casted_store_var->type, Type::f32) << "The casted store variable has the wrong type!";
         ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_store_var->info)) << "The casted store var doesn't have an operation!";
@@ -938,11 +934,12 @@ TEST_F(TestFloatingPointLifting, test_fp_store) {
         ASSERT_EQ(cast_op->type, Instruction::cast) << "The cast operation has the wrong type!";
         ASSERT_EQ(cast_op->out_vars[0], casted_store_var) << "The casted store var isn't the result of it's operation!";
         ASSERT_EQ(cast_op->in_vars[0], mapping[source_register_id + Lifter::START_IDX_FLOATING_POINT_STATICS]) << "The first input of the cast isn't the source variable (original store var)!";
+        count_scanned_variables++;
     }
 
     // check the store operation
     {
-        auto *result_memory_token = bb->variables[COUNT_STATIC_VARS + 3].get();
+        auto *result_memory_token = bb->variables[count_scanned_variables].get();
         ASSERT_EQ(result_memory_token, mapping[Lifter::MEM_IDX]) << "The memory token isn't written to the mapping!";
         ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(result_memory_token->info)) << "The result memory token doesn't contain an operation!";
         auto *op = std::get<std::unique_ptr<Operation>>(result_memory_token->info).get();
@@ -951,6 +948,7 @@ TEST_F(TestFloatingPointLifting, test_fp_store) {
         ASSERT_EQ(op->in_vars[0], address) << "The first input of the operation isn't the store address!";
         ASSERT_EQ(op->in_vars[1], casted_store_var) << "The second input of the operation isn't casted store var!";
         ASSERT_EQ(op->in_vars[2], prev_memory_token) << "The third input of the operation isn't the memory token!";
+        count_scanned_variables++;
     }
 }
 
@@ -1305,5 +1303,3 @@ TEST_F(TestFloatingPointLifting, test_fp_fled) {
     const RV64Inst instr{FrvInst{FRV_FLED, 27, 3, 15, 0, 0, 0}, 4};
     test_fp_compare_lifting(instr);
 }
-
-#endif

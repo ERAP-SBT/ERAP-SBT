@@ -136,7 +136,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
         auto &cf_op = bb->add_cf_op(CFCInstruction::jump, new_bb, bb->virt_end_addr, addr);
 
         // static assignments
-        for (size_t i = 0; i < mapping.size(); i++) {
+        for (size_t i = 0; i < count_used_static_vars; i++) {
             if (mapping[i] != nullptr) {
                 if (i != 0) {
                     cf_op.add_target_input(mapping[i], i);
@@ -160,7 +160,6 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
         // variable is the result of an Operation -> adjust the inputs of the operation
         if (std::holds_alternative<std::unique_ptr<Operation>>(var->info)) {
             auto *operation = std::get<std::unique_ptr<Operation>>(var->info).get();
-            const bool is_single_precision_op = is_float(var->type);
             for (auto &in_var : operation->in_vars) {
                 // skip nullptrs
                 if (in_var == nullptr) {
@@ -171,7 +170,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
 
                 // the input must only be changed if the input variable is in the first BasicBlock
                 if (in_var_lifter_info.assign_addr < addr) {
-                    if (is_single_precision_op && in_var->type == Type::f32) {
+                    if (is_float(var->type) && in_var->type == Type::f32) {
                         // cast f64 static to f32 if necessary
                         SSAVar *casted_in_var = new_bb->add_var(Type::f32, addr);
                         auto op = std::make_unique<Operation>(Instruction::cast);
@@ -225,7 +224,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
         }
 
         cf_op.clear_target_inputs();
-        for (size_t j = 0; j < new_mapping.size(); j++) {
+        for (size_t j = 0; j < count_used_static_vars; j++) {
             auto var = new_mapping[j];
             if (var != nullptr) {
                 cf_op.add_target_input(var, j);

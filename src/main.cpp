@@ -98,7 +98,9 @@ int main(int argc, const char **argv) {
 
     Program prog(std::move(elf_file));
 
-    auto lifter = lifter::RV64::Lifter(&ir);
+    const bool fp_support = !args.has_argument("disable-fp");
+
+    auto lifter = lifter::RV64::Lifter(&ir, fp_support);
     lifter.lift(&prog);
 
     if (args.has_argument("print-ir")) {
@@ -199,6 +201,7 @@ void print_help(bool usage_only) {
         std::cerr << "    --helper-path: Set the path to the runtime helper library\n";
         std::cerr << "    --linkerscript-path: Set the path to the linker script\n";
         std::cerr << "                   (The above two are only required if the translator can't find these by itself)\n";
+        std::cerr << "    --disable-fp:   Disables the support of floating point instructions.\n";
         std::cerr << '\n';
         std::cerr << "Environment variables:\n";
         std::cerr << "    AS: Override the assembler binary (by default, the system `as` is used)\n";

@@ -2,28 +2,17 @@
 
 using namespace lifter::RV64;
 
-void Lifter::lift_float_div(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
+void Lifter::lift_float_two_operands(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
     // check an invariant
-    assert(is_float(op_size) && "This method is for lifting floating point div!");
+    assert(is_float(op_size) && "This method is for lifting floating point instructions with two operands!");
 
-    SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
-    SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, true);
-
-    assert(is_float(rs1->type) && "The first source operand is not a floating point variable!");
-    assert(is_float(rs2->type) && "The second source operand is not a floating point variable!");
-
-    if (rs1->type != op_size) {
-        rs1 = shrink_var(bb, rs1, ip, Type::f32);
-    }
-
-    if (rs2->type != op_size) {
-        rs2 = shrink_var(bb, rs2, ip, Type::f32);
-    }
+    SSAVar *const rs1 = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, op_size);
+    SSAVar *const rs2 = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs2, ip, op_size);
 
     SSAVar *const dest = bb->add_var(op_size, ip);
 
     // create the operation and assign in- and outputs
-    auto op = std::make_unique<Operation>(Instruction::fdiv);
+    auto op = std::make_unique<Operation>(instruction_type);
     op->set_inputs(rs1, rs2);
     op->set_outputs(dest);
     dest->set_op(std::move(op));
@@ -35,13 +24,7 @@ void Lifter::lift_float_sqrt(BasicBlock *bb, const RV64Inst &instr, reg_map &map
     // check an invariant
     assert(is_float(op_size) && "Sqrt only possible with floating points!");
 
-    SSAVar *src = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
-
-    assert(is_float(src->type) && "The source variable is not a floating point variable!");
-
-    if (src->type != op_size) {
-        src = shrink_var(bb, src, ip, Type::f32);
-    }
+    SSAVar *const src = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, op_size);
 
     // create the result variable
     SSAVar *const dest = bb->add_var(op_size, ip);
@@ -55,66 +38,15 @@ void Lifter::lift_float_sqrt(BasicBlock *bb, const RV64Inst &instr, reg_map &map
     write_to_mapping(mapping, dest, instr.instr.rd, true);
 }
 
-void Lifter::lift_float_min_max(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
-    // check some invariants
-    assert(is_float(op_size) && "Min/Max is only possible with floating points!");
-    assert((instruction_type == Instruction::min || instruction_type == Instruction::max) && "Only min and max are allowed here!");
-
-    // get the source variables
-    SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
-    SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, true);
-
-    // more invariants
-    assert(is_float(rs1->type) && "The first source variable is not a floating point variable!");
-    assert(is_float(rs2->type) && "The second source variable is not a floating point variable!");
-
-    if (rs1->type != op_size) {
-        rs1 = shrink_var(bb, rs1, ip, Type::f32);
-    }
-
-    if (rs2->type != op_size) {
-        rs2 = shrink_var(bb, rs2, ip, Type::f32);
-    }
-
-    // create the result variable
-    SSAVar *const dest = bb->add_var(op_size, ip);
-
-    // create the operation and assign in- and outputs
-    auto op = std::make_unique<Operation>(instruction_type);
-    op->set_inputs(rs1, rs2);
-    op->set_outputs(dest);
-    dest->set_op(std::move(op));
-
-    write_to_mapping(mapping, dest, instr.instr.rd, true);
-}
-
 void Lifter::lift_float_fma(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
     // check some invariants
     assert(is_float(op_size) && "FMA only possible with floating points!");
     assert((instruction_type == Instruction::fmadd || instruction_type == Instruction::fmsub || instruction_type == Instruction::fnmadd || instruction_type == Instruction::fnmsub) &&
            "This function is for lifting fma instructions!");
 
-    // get the source variables from the mapping
-    SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
-    SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, true);
-    SSAVar *rs3 = get_from_mapping(bb, mapping, instr.instr.rs3, ip, true);
-
-    // more invariants
-    assert(is_float(rs1->type) && "The first source variable is not a floating point variable!");
-    assert(is_float(rs2->type) && "The second source variable is not a floating point variable!");
-    assert(is_float(rs3->type) && "The third source variable is not a floating point variable!");
-
-    if (rs1->type != op_size) {
-        rs1 = shrink_var(bb, rs1, ip, Type::f32);
-    }
-
-    if (rs2->type != op_size) {
-        rs2 = shrink_var(bb, rs2, ip, Type::f32);
-    }
-
-    if (rs3->type != op_size) {
-        rs3 = shrink_var(bb, rs3, ip, Type::f32);
-    }
+    SSAVar *const rs1 = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, op_size);
+    SSAVar *const rs2 = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs2, ip, op_size);
+    SSAVar *const rs3 = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs3, ip, op_size);
 
     // create the result variable
     SSAVar *const dest = bb->add_var(op_size, ip);
@@ -137,12 +69,7 @@ void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr
     assert((is_from_floating_point || is_to_floating_point) && "For conversion, at least one variable has to be an floating point!");
     assert(((is_from_floating_point && is_to_floating_point) ? _signed : true) && "Conversion between floating points is always signed!");
 
-    // get the source variable from the mapping
-    SSAVar *src = get_from_mapping(bb, mapping, instr.instr.rs1, ip, is_from_floating_point);
-
-    if (src->type != from) {
-        src = shrink_var(bb, src, ip, from);
-    }
+    SSAVar *const src = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, from);
 
     // create the result variable
     SSAVar *const dest = bb->add_var(to, ip);
@@ -193,21 +120,8 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
     SSAVar *const sign_bit_extraction_mask = bb->add_var_imm(is_single_precision ? 0x80000000 : 0x8000000000000000, ip);
     SSAVar *const sign_zero_mask = bb->add_var_imm(is_single_precision ? 0x7FFFFFFF : 0x7FFFFFFFFFFFFFFF, ip);
 
-    // get the source operands
-    SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
-    SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, true);
-
-    // more invariants
-    assert(is_float(rs1->type) && "The first source variable is not a floating point variable!");
-    assert(is_float(rs2->type) && "The second source variable is not a floating point variable!");
-
-    if (rs1->type != op_size) {
-        rs1 = shrink_var(bb, rs1, ip, Type::f32);
-    }
-
-    if (rs2->type != op_size) {
-        rs2 = shrink_var(bb, rs2, ip, Type::f32);
-    }
+    SSAVar *rs1 = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, op_size);
+    SSAVar *rs2 = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs2, ip, op_size);
 
     const Type i_op_size = (op_size == Type::f32 ? Type::i32 : Type::i64);
 
@@ -325,17 +239,7 @@ void Lifter::lift_float_move(BasicBlock *bb, const RV64Inst &instr, reg_map &map
     assert((is_from_floating_point != is_to_floating_point) && "This method does only handle moves between floating point and integer registers!");
 
     // get the source variable from the mapping
-    SSAVar *src = get_from_mapping(bb, mapping, instr.instr.rs1, ip, is_from_floating_point);
-
-    if (from == Type::f32 && src->type == Type::f64) {
-        src = shrink_var(bb, src, ip, Type::f32);
-    } else if (from == Type::i32 && src->type == Type::i64) {
-        src = shrink_var(bb, src, ip, Type::i32);
-    } else if (src->type == Type::imm) {
-        src = shrink_var(bb, src, ip, from);
-    }
-
-    assert(src->type == from && "The source variable has to have the same size as the from parameter");
+    SSAVar *const src = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, from);
 
     // create the result variable
     SSAVar *dest = bb->add_var(to, ip);
@@ -363,19 +267,8 @@ void Lifter::lift_float_comparison(BasicBlock *bb, const RV64Inst &instr, reg_ma
     assert(is_float(op_size) && "This method only handles floating points!");
 
     // get the source variables
-    SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
-    SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, true);
-
-    assert(is_float(rs1->type) && "The first source variable is not a floating point variable!");
-    assert(is_float(rs2->type) && "The second source variable is not a floating point variable!");
-
-    if (rs1->type != op_size) {
-        rs1 = shrink_var(bb, rs1, ip, Type::f32);
-    }
-
-    if (rs2->type != op_size) {
-        rs2 = shrink_var(bb, rs2, ip, Type::f32);
-    }
+    SSAVar *const rs1 = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, op_size);
+    SSAVar *const rs2 = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs2, ip, op_size);
 
     // create the immediates used: 0 and 1
     SSAVar *const zero = bb->add_var_imm(0, ip);
@@ -431,13 +324,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const max_exponent_value = bb->add_var_imm(is_single_precision ? 0xFF : 0x7FF, ip); // bit pattern of exponent with all bits set
 
     // cast the floating point bit pattern to integer bit pattern to use bit manipulation
-    SSAVar *f_src = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
-
-    assert(is_float(f_src->type) && "The source variable is not a floating point variable!");
-
-    if (f_src->type != op_size) {
-        f_src = shrink_var(bb, f_src, ip, Type::f32);
-    }
+    SSAVar *const f_src = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, op_size);
 
     SSAVar *const i_src = bb->add_var(integer_op_size, ip);
     {

@@ -19,12 +19,12 @@ class TestArithmeticalLogicalLifting : public ::testing::Test {
     void SetUp() {
         // ir = IR{};
         ir = new IR();
-        lifter = new Lifter(ir);
+        lifter = new Lifter(ir, false);
         virt_start_addr = random();
         ir->setup_bb_addr_vec(virt_start_addr, virt_start_addr + 100);
         bb = ir->add_basic_block(virt_start_addr);
         mapping = Lifter::reg_map{};
-        for (size_t i = 0; i < mapping.size(); i++) {
+        for (size_t i = 0; i < 32; i++) {
             mapping[i] = bb->add_var(Type::i64, 1, i);
         }
     }

@@ -34,25 +34,7 @@ void Lifter::lift(Program *prog) {
     needs_bb_start.resize(ir->virt_bb_ptrs.size());
     needs_bb_start[(prog->elf_base->header.e_entry - ir->virt_bb_start_addr)] = true;
 
-    // add statics for interger/general purpose registers
-    for (size_t i = 0; i < 32; i++) {
-        ir->add_static(Type::i64);
-    }
-
-#if 0
-    // add statics for floating point regsiters
-    for (size_t i = 0; i < 32; i++) {
-        ir->add_static(Type::f64);
-    }
-#endif
-
-    // add static for the memory token
-    ir->add_static(Type::mt);
-
-#if 0
-    // add static for the fcsr
-    ir->add_static(Type::i64);
-#endif
+    add_statics();
 
     BasicBlock *cur_bb = nullptr;
     reg_map mapping;
@@ -314,7 +296,7 @@ void Lifter::postprocess() {
     auto *program_entry = ir->basic_blocks[ir->entry_block].get();
     auto *entry_block = ir->add_basic_block(0, "___STACK_ENTRY");
     auto &cf_op = entry_block->add_cf_op(CFCInstruction::jump, program_entry);
-    for (size_t i = 1; i <= 32; ++i) {
+    for (size_t i = 1; i <= count_used_static_vars; ++i) {
         if (i == 2) {
             // stack_var
             auto *var = entry_block->add_var(Type::i64, 0, 2);

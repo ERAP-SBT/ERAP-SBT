@@ -3,43 +3,25 @@
 using namespace lifter::RV64;
 
 void Lifter::lift_mul(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instr_type, const Type in_type) {
-    const bool is_floating_point = is_float(in_type);
-    assert((instr_type == Instruction::fmul ? is_floating_point : 1) && "Fmul cannot be used with non floating point inputs!");
     // assign the first input and cast it to the correct size if necessary
-    SSAVar *rs_1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip, is_floating_point);
+    SSAVar *rs_1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
     if (rs_1->type != in_type) {
-        if (is_floating_point) {
-            if (rs_1->type == Type::f64 && in_type == Type::f32) {
-                rs_1 = shrink_var(bb, rs_1, ip, Type::f32);
-            } else {
-                assert(0);
-            }
+        auto cast = convert_type(bb, ip, rs_1, in_type);
+        if (cast.has_value()) {
+            rs_1 = cast.value();
         } else {
-            auto cast = convert_type(bb, ip, rs_1, in_type);
-            if (cast.has_value()) {
-                rs_1 = cast.value();
-            } else {
-                print_invalid_op_size(instr_type, instr);
-            }
+            print_invalid_op_size(instr_type, instr);
         }
     }
 
     // assign the second input and cast if necessary
-    SSAVar *rs_2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip, is_floating_point);
+    SSAVar *rs_2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
     if (rs_2->type != in_type) {
-        if (is_floating_point) {
-            if (rs_2->type == Type::f64 && in_type == Type::f32) {
-                rs_2 = shrink_var(bb, rs_2, ip, Type::f32);
-            } else {
-                assert(0);
-            }
+        auto cast = convert_type(bb, ip, rs_2, in_type);
+        if (cast.has_value()) {
+            rs_2 = cast.value();
         } else {
-            auto cast = convert_type(bb, ip, rs_2, in_type);
-            if (cast.has_value()) {
-                rs_2 = cast.value();
-            } else {
-                print_invalid_op_size(instr_type, instr);
-            }
+            print_invalid_op_size(instr_type, instr);
         }
     }
 
@@ -65,7 +47,7 @@ void Lifter::lift_mul(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
     }
 
     // write SSAVar of the result of the operation back to mapping
-    write_to_mapping(mapping, dest, instr.instr.rd, is_floating_point);
+    write_to_mapping(mapping, dest, instr.instr.rd);
 }
 
 void Lifter::lift_div(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, bool _signed, bool remainder, const Type in_type) {

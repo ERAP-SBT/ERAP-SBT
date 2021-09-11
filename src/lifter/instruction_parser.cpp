@@ -3,6 +3,9 @@
 using namespace lifter::RV64;
 
 void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
+    if (!floating_point_support && instr.instr.mnem >= FRV_FLW && instr.instr.mnem <= FRV_FCVTDLU) {
+        assert(0 && "Please activate the floating point support!");
+    }
     switch (instr.instr.mnem) {
     case FRV_INVALID:
         lift_invalid(bb, ip);
@@ -286,7 +289,7 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_AMOMAXUD:
         lift_amo_binary_op(bb, instr, mapping, ip, Instruction::umax, Type::i64);
         break;
-#if 0
+
     /* ziscr */
     case FRV_CSRRW:
         lift_csr_read_write(bb, instr, mapping, ip, false);
@@ -336,16 +339,16 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         lift_float_fma(bb, instr, mapping, ip, Instruction::fnmsub, Type::f32);
         break;
     case FRV_FADDS:
-        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::add, Type::f32);
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::add, Type::f32);
         break;
     case FRV_FSUBS:
-        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::sub, Type::f32);
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::sub, Type::f32);
         break;
     case FRV_FMULS:
-        lift_mul(bb, instr, mapping, ip, Instruction::fmul, Type::f32);
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::fmul, Type::f32);
         break;
     case FRV_FDIVS:
-        lift_float_div(bb, instr, mapping, ip, Type::f32);
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::fdiv, Type::f32);
         break;
     case FRV_FSQRTS:
         lift_float_sqrt(bb, instr, mapping, ip, Type::f32);
@@ -356,10 +359,10 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         lift_float_sign_injection(bb, instr, mapping, ip, Type::f32);
         break;
     case FRV_FMINS:
-        lift_float_min_max(bb, instr, mapping, ip, Instruction::min, Type::f32);
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::min, Type::f32);
         break;
     case FRV_FMAXS:
-        lift_float_min_max(bb, instr, mapping, ip, Instruction::max, Type::f32);
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::max, Type::f32);
         break;
     case FRV_FLES:
         lift_float_comparison(bb, instr, mapping, ip, Instruction::sle, Type::f32);
@@ -425,16 +428,16 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         lift_float_fma(bb, instr, mapping, ip, Instruction::fnmsub, Type::f64);
         break;
     case FRV_FADDD:
-        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::add, Type::f64);
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::add, Type::f64);
         break;
     case FRV_FSUBD:
-        lift_arithmetical_logical(bb, instr, mapping, ip, Instruction::sub, Type::f64);
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::sub, Type::f64);
         break;
     case FRV_FMULD:
-        lift_mul(bb, instr, mapping, ip, Instruction::fmul, Type::f64);
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::fmul, Type::f64);
         break;
     case FRV_FDIVD:
-        lift_float_div(bb, instr, mapping, ip, Type::f64);
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::fdiv, Type::f64);
         break;
     case FRV_FSQRTD:
         lift_float_sqrt(bb, instr, mapping, ip, Type::f64);
@@ -445,10 +448,10 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         lift_float_sign_injection(bb, instr, mapping, ip, Type::f64);
         break;
     case FRV_FMIND:
-        lift_float_min_max(bb, instr, mapping, ip, Instruction::min, Type::f64);
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::min, Type::f64);
         break;
     case FRV_FMAXD:
-        lift_float_min_max(bb, instr, mapping, ip, Instruction::max, Type::f64);
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::max, Type::f64);
         break;
     case FRV_FLED:
         lift_float_comparison(bb, instr, mapping, ip, Instruction::sle, Type::f64);
@@ -489,7 +492,6 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_FCVTDLU:
         lift_float_integer_conversion(bb, instr, mapping, ip, Type::i64, Type::f64, false);
         break;
-#endif
 
     default:
         char instr_str[16];
