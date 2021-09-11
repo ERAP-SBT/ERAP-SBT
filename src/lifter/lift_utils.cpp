@@ -70,7 +70,7 @@ SSAVar *Lifter::get_from_mapping(BasicBlock *bb, reg_map &mapping, uint64_t reg_
         return bb->add_var_imm(0, ip);
     }
 
-    assert(floating_point_support ? true : !is_floating_point_register);
+    assert(floating_point_support || !is_floating_point_register);
 
     return mapping[reg_id + (is_floating_point_register ? START_IDX_FLOATING_POINT_STATICS : 0)];
 }
@@ -80,7 +80,7 @@ void Lifter::write_to_mapping(reg_map &mapping, SSAVar *var, uint64_t reg_id, bo
         return;
     }
 
-    assert(floating_point_support ? true : !is_floating_point_register);
+    assert(floating_point_support || !is_floating_point_register);
 
     const uint64_t actual_reg_id = reg_id + (is_floating_point_register ? START_IDX_FLOATING_POINT_STATICS : 0);
 

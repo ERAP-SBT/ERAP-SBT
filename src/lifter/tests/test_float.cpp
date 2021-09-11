@@ -160,7 +160,7 @@ class TestFloatingPointLifting : public ::testing::Test {
             break;
         }
 
-        unsigned count_scanned_variables = count_used_static_vars;
+        size_t count_scanned_variables = count_used_static_vars;
 
         // if single precision type expect casts
         if (expected_op_size == Type::f32) {
@@ -341,7 +341,7 @@ class TestFloatingPointLifting : public ::testing::Test {
 
         verify();
 
-        unsigned count_scanned_variables = count_used_static_vars;
+        size_t count_scanned_variables = count_used_static_vars;
 
         // test for variable shrinking
         if (expected_from_type == Type::f32 || expected_from_type == Type::i32) {
@@ -437,7 +437,7 @@ class TestFloatingPointLifting : public ::testing::Test {
         }
 
         const bool is_single_precision = expected_type == Type::f32;
-        unsigned count_scanned_variables = count_used_static_vars;
+        size_t count_scanned_variables = count_used_static_vars;
 
         // test the masks
         SSAVar *sign_bit_extraction_mask = bb->variables[count_scanned_variables].get();
@@ -644,7 +644,7 @@ class TestFloatingPointLifting : public ::testing::Test {
 
         verify();
 
-        unsigned count_scanned_variables = count_used_static_vars;
+        size_t count_scanned_variables = count_used_static_vars;
 
         if (expected_from == Type::i32 || expected_from == Type::f32) {
             SSAVar *casted_input = bb->variables[count_scanned_variables].get();
@@ -725,7 +725,7 @@ class TestFloatingPointLifting : public ::testing::Test {
             break;
         }
 
-        unsigned count_scanned_variables = count_used_static_vars;
+        size_t count_scanned_variables = count_used_static_vars;
 
         if (op_size == Type::f32) {
             {
@@ -795,7 +795,7 @@ TEST_F(TestFloatingPointLifting, test_fp_load_f) {
 
     verify();
 
-    unsigned count_scanned_variables = count_used_static_vars;
+    size_t count_scanned_variables = count_used_static_vars;
 
     // check offset immediate
     auto *offset_immediate = bb->variables[count_scanned_variables].get();
@@ -845,7 +845,7 @@ TEST_F(TestFloatingPointLifting, test_fp_load_d) {
 
     verify();
 
-    unsigned count_scanned_variables = count_used_static_vars;
+    size_t count_scanned_variables = count_used_static_vars;
 
     // check offset immediate
     auto *offset_immediate = bb->variables[count_scanned_variables].get();
@@ -900,7 +900,7 @@ TEST_F(TestFloatingPointLifting, test_fp_store) {
 
     verify();
 
-    unsigned count_scanned_variables = count_used_static_vars;
+    size_t count_scanned_variables = count_used_static_vars;
 
     // check offset immediate
     auto *offset_immediate = bb->variables[count_scanned_variables].get();

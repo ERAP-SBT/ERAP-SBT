@@ -3,8 +3,11 @@
 using namespace lifter::RV64;
 
 void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
-    if (!floating_point_support && instr.instr.mnem >= FRV_FLW && instr.instr.mnem <= FRV_FCVTDLU) {
-        assert(0 && "Please activate the floating point support!");
+    // skip all floating point and ziscr instructions with disabled floating point instructions
+    // this is highly dependent on the ordering the enum in frvdec, but it is an easy and fast test
+    if (!floating_point_support && instr.instr.mnem >= FRV_CSRRW && instr.instr.mnem <= FRV_FCVTDLU) {
+        DEBUG_LOG("Discovered floating point or ziscr instruction with disabled floating point support. Skipping!");
+        return;
     }
     switch (instr.instr.mnem) {
     case FRV_INVALID:

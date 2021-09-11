@@ -296,7 +296,7 @@ void Lifter::postprocess() {
     auto *program_entry = ir->basic_blocks[ir->entry_block].get();
     auto *entry_block = ir->add_basic_block(0, "___STACK_ENTRY");
     auto &cf_op = entry_block->add_cf_op(CFCInstruction::jump, program_entry);
-    for (size_t i = 1; i <= count_used_static_vars; ++i) {
+    for (size_t i = 1; i < count_used_static_vars; ++i) {
         if (i == 2) {
             // stack_var
             auto *var = entry_block->add_var(Type::i64, 0, 2);

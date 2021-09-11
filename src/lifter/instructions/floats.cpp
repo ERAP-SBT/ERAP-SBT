@@ -6,6 +6,10 @@ void Lifter::lift_float_two_operands(BasicBlock *bb, const RV64Inst &instr, reg_
     // check an invariant
     assert(is_float(op_size) && "This method is for lifting floating point instructions with two operands!");
 
+    assert((instruction_type == Instruction::fmul || instruction_type == Instruction::fdiv || instruction_type == Instruction::add || instruction_type == Instruction::sub ||
+            instruction_type == Instruction::min || instruction_type == Instruction::max) &&
+           "This method handles only floating point instructions with two inputs!");
+
     SSAVar *const rs1 = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, op_size);
     SSAVar *const rs2 = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs2, ip, op_size);
 
@@ -67,7 +71,7 @@ void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr
     // check some invariants
     assert(from != to && "A conversion from and to the same type is useless!");
     assert((is_from_floating_point || is_to_floating_point) && "For conversion, at least one variable has to be an floating point!");
-    assert(((is_from_floating_point && is_to_floating_point) ? _signed : true) && "Conversion between floating points is always signed!");
+    assert((!(is_from_floating_point && is_to_floating_point) || _signed) && "Conversion between floating points is always signed!");
 
     SSAVar *const src = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, from);
 
