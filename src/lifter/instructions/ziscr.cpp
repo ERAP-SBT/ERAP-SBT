@@ -18,6 +18,7 @@ SSAVar *Lifter::get_csr(reg_map &mapping, uint32_t csr_identifier) {
     case 1:
     case 2:
     case 3:
+        assert(floating_point_support && "Please activate the floating point support!");
         return mapping[FCSR_IDX];
     default:
         // stop lifting if status register is not implemented
@@ -39,6 +40,7 @@ void Lifter::write_csr(reg_map &mapping, SSAVar *new_csr, uint32_t csr_identifie
     case 1:
     case 2:
     case 3:
+        assert(floating_point_support && "Please activate the floating point support!");
         mapping[FCSR_IDX] = new_csr;
         break;
     default:

@@ -3,8 +3,6 @@
 using namespace lifter::RV64;
 
 void Lifter::lift_mul(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instr_type, const Type in_type) {
-    bool is_floating_point = in_type == Type::f32 || in_type == Type::f64;
-    assert((instr_type == Instruction::fmul ? is_floating_point : 1) && "Fmul cannot be used with non floating point inputs!");
     // assign the first input and cast it to the correct size if necessary
     SSAVar *rs_1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
     if (rs_1->type != in_type) {
@@ -12,12 +10,7 @@ void Lifter::lift_mul(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
         if (cast.has_value()) {
             rs_1 = cast.value();
         } else {
-            auto cast = convert_type(bb, ip, rs_1, in_type);
-            if (cast.has_value()) {
-                rs_1 = cast.value();
-            } else {
-                print_invalid_op_size(instr_type, instr);
-            }
+            print_invalid_op_size(instr_type, instr);
         }
     }
 

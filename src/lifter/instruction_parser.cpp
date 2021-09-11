@@ -292,7 +292,7 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_AMOMAXUD:
         lift_amo_binary_op(bb, instr, mapping, ip, Instruction::umax, Type::i64);
         break;
-#if 0
+
     /* ziscr */
     case FRV_CSRRW:
         lift_csr_read_write(bb, instr, mapping, ip, false);
@@ -495,7 +495,6 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_FCVTDLU:
         lift_float_integer_conversion(bb, instr, mapping, ip, Type::i64, Type::f64, false);
         break;
-#endif
 
     default:
         char instr_str[16];
