@@ -1,38 +1,15 @@
-#include "stddef.h"
-
-#include <cstdint>
-
-// TODO: define these structs ourselves?
 #include "generator/syscall_ids.h"
+#include "generator/x86_64/helper/helper.h"
 #include "generator/x86_64/helper/rv64_syscalls.h"
+
+#include <cstddef>
+#include <cstdint>
 
 #include <linux/errno.h>
 #include <sys/epoll.h>
 #include <sys/stat.h>
 
 namespace helper {
-
-extern "C" {
-extern uint8_t *orig_binary_vaddr;
-extern uint64_t phdr_off;
-extern uint64_t phdr_num;
-extern uint64_t phdr_size;
-}
-
-// from https://github.com/aengelke/ria-jit/blob/master/src/runtime/emulateEcall.c
-[[maybe_unused]] size_t syscall0(AMD64_SYSCALL_ID id);
-[[maybe_unused]] size_t syscall1(AMD64_SYSCALL_ID id, size_t a1);
-[[maybe_unused]] size_t syscall2(AMD64_SYSCALL_ID id, size_t a1, size_t a2);
-[[maybe_unused]] size_t syscall3(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3);
-[[maybe_unused]] size_t syscall4(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4);
-[[maybe_unused]] size_t syscall5(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5);
-[[maybe_unused]] size_t syscall6(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5, size_t a6);
-
-size_t strlen(const char *);
-void memcpy(void *dst, const void *src, size_t count);
-void itoa(char *str_addr, unsigned int num, unsigned int num_digits);
-
-const char panic_str[] = "PANIC: ";
 
 struct auxv_t {
     // see https://fossies.org/dox/Checker-0.9.9.1/gcc-startup_8c_source.html#l00042
@@ -92,8 +69,6 @@ struct rv64_epoll_event_t {
     uint32_t _pad;
     epoll_data_t data;
 };
-
-extern "C" [[noreturn]] void panic(const char *err_msg);
 
 // TODO: make a bitmap which syscalls are passthrough, which are not implemented
 extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
@@ -209,6 +184,8 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
     syscall_str[sizeof(syscall_str) - 1] = '\0';
     panic(syscall_str);
 }
+
+const char panic_str[] = "PANIC: ";
 
 extern "C" [[noreturn]] void panic(const char *err_msg) {
     static_assert(sizeof(size_t) == sizeof(const char *));
