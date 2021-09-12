@@ -146,6 +146,7 @@ int main(int argc, const char **argv) {
     if (!args.has_argument("asm-out")) {
         time_pre_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
         generator::x86_64::Generator generator(&ir, binary_image_file.string(), assembler);
+        generator.optimizations = gen_optimizations;
         generator.compile();
         time_post_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
     } else {
