@@ -175,6 +175,12 @@ void Generator::compile() {
 void Generator::compile_ijump_lookup() {
     compile_section(Section::RODATA);
 
+    fprintf(out_fd, ".global ijump_lookup_base\n");
+    fprintf(out_fd, ".global ijump_lookup\n");
+
+    fprintf(out_fd, "ijump_lookup_base:\n");
+    fprintf(out_fd, ".8byte %zu\n", ir->virt_bb_start_addr);
+
     fprintf(out_fd, "ijump_lookup:\n");
 
     assert(ir->virt_bb_start_addr <= ir->virt_bb_end_addr);
@@ -383,6 +389,7 @@ void Generator::compile_ijump(const BasicBlock *block, const CfOp &op, const siz
 
     assert(op.in_vars[0] != nullptr);
     assert(ijump_info.targets.empty());
+    assert((op.in_vars[0]->type == Type::i64) || (op.in_vars[0]->type == Type::imm)); // TODO: only one should be used
 
     fprintf(out_fd, "# Get IJump Destination\n");
     fprintf(out_fd, "xor rax, rax\n");
@@ -406,8 +413,12 @@ void Generator::compile_ijump(const BasicBlock *block, const CfOp &op, const siz
     fprintf(out_fd, "je 0f\n");
     fprintf(out_fd, "jmp rdi\n");
     fprintf(out_fd, "0:\n");
-    fprintf(out_fd, "lea rdi, [rip + err_unresolved_ijump_b%zu]\n", block->id);
-    fprintf(out_fd, "jmp panic\n");
+
+    /* Slow-path: unresolved IJump, call interpreter */
+    fprintf(out_fd, "add rax, %zu\n", ir->virt_bb_start_addr);
+    fprintf(out_fd, "mov rdi, rax\n");
+    fprintf(out_fd, "lea rsi, [rip + err_unresolved_ijump_b%zu]\n", block->id);
+    fprintf(out_fd, "jmp unresolved_ijump\n");
 }
 
 void Generator::compile_entry() {
