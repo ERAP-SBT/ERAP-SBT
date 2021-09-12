@@ -570,7 +570,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     print_asm("b%zu_%zu_smin:\n", bb->id, var_idx);
                     break;
                 case Instruction::mul_l:
-                    assert(static_cast<uint64_t>(imm_val) <= 0xFFFFFFFF);
+                    assert(std::abs(imm_val) < 0xFFFFFFFF);
                     print_asm("imul %s, %ld\n", in1_reg_name, imm_val);
                     break;
                 case Instruction::ssmul_h: {
@@ -802,7 +802,8 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
             }
 
             if (cmp2->type == Type::imm && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative) {
-                print_asm("cmp %s, %ld\n", reg_name(cmp1_reg, cmp1->type), std::get<SSAVar::ImmInfo>(cmp2->info).val);
+                const auto type = cmp1->type == Type::imm ? Type::i64 : cmp1->type;
+                print_asm("cmp %s, %ld\n", reg_name(cmp1_reg, type), std::get<SSAVar::ImmInfo>(cmp2->info).val);
             } else {
                 const auto cmp2_reg = load_val_in_reg(cur_time, cmp2);
                 auto type = choose_type(cmp1->type, cmp2->type);

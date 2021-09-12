@@ -27,6 +27,7 @@ SSAVar *Lifter::load_rs1_to_rd(BasicBlock *bb, const RV64Inst &instr, Lifter::re
         SSAVar *extended_result = bb->add_var(Type::i64, ip);
         {
             auto extend_operation = std::make_unique<Operation>(Instruction::sign_extend);
+            extend_operation->lifter_info.in_op_size = load_dest->type;
             extend_operation->set_inputs(load_dest);
             extend_operation->set_outputs(extended_result);
             extended_result->set_op(std::move(extend_operation));
@@ -83,7 +84,7 @@ void Lifter::lift_amo_binary_op(BasicBlock *bb, const RV64Inst &instr, reg_map &
     // input1: rd, input2: rs2
     SSAVar *in_1 = load_rs1_to_rd(bb, instr, mapping, ip, op_size);
 
-    if (in_2->type != op_size) {
+    if (in_2->type != Type::imm && in_2->type != op_size) {
         in_2 = shrink_var(bb, in_2, ip, Type::i32);
     }
 
