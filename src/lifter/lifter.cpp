@@ -222,26 +222,54 @@ void Lifter::postprocess() {
                 continue;
             }
 
+            auto *cur_target = cf_op.target();
+            if (cur_target && cur_target != dummy) {
+                continue;
+            }
+
             auto &lifter_info = std::get<CfOp::LifterInfo>(cf_op.lifter_info);
             if (cf_op.type != CFCInstruction::icall && cf_op.type != CFCInstruction::unreachable && lifter_info.jump_addr) {
                 auto *target_bb = get_bb(lifter_info.jump_addr);
                 if (target_bb) {
+                    if (cur_target) {
+                        cur_target->predecessors.erase(std::find(cur_target->predecessors.begin(), cur_target->predecessors.end(), bb.get()));
+                        bb->successors.erase(std::find(bb->successors.begin(), bb->successors.end(), cur_target));
+                    }
+
                     cf_op.set_target(target_bb);
-                    bb->successors.push_back(target_bb);
-                    target_bb->predecessors.push_back(bb.get());
+                    if (std::find(bb->successors.begin(), bb->successors.end(), target_bb) == bb->successors.end()) {
+                        bb->successors.push_back(target_bb);
+                    }
+                    if (std::find(target_bb->predecessors.begin(), target_bb->predecessors.end(), bb.get()) == target_bb->predecessors.end()) {
+                        target_bb->predecessors.push_back(bb.get());
+                    }
                 } else {
                     cf_op.type = CFCInstruction::unreachable;
+                    cf_op.info = std::monostate{};
                 }
+            } else if (!lifter_info.jump_addr) {
+                cf_op.type = CFCInstruction::unreachable;
+                cf_op.info = std::monostate{};
             }
-            // TODO: replace with unreachable if jmp_addr = 0?
+
             if (cf_op.type == CFCInstruction::call && lifter_info.instr_addr) {
                 auto *target_bb = get_bb(lifter_info.instr_addr + 4);
                 if (target_bb) {
+                    if (auto *cont_bb = std::get<CfOp::CallInfo>(cf_op.info).continuation_block; cont_bb) {
+                        cont_bb->predecessors.erase(std::find(cont_bb->predecessors.begin(), cont_bb->predecessors.end(), bb.get()));
+                        bb->successors.erase(std::find(bb->successors.begin(), bb->successors.end(), cont_bb));
+                    }
+
                     std::get<CfOp::CallInfo>(cf_op.info).continuation_block = target_bb;
-                    bb->successors.push_back(target_bb);
-                    target_bb->predecessors.push_back(bb.get());
+                    if (std::find(bb->successors.begin(), bb->successors.end(), target_bb) == bb->successors.end()) {
+                        bb->successors.push_back(target_bb);
+                    }
+                    if (std::find(target_bb->predecessors.begin(), target_bb->predecessors.end(), bb.get()) == target_bb->predecessors.end()) {
+                        target_bb->predecessors.push_back(bb.get());
+                    }
                 } else {
-                    // TODO: add block with unreachable cfop?
+                    cf_op.type = CFCInstruction::unreachable;
+                    cf_op.info = std::monostate{};
                 }
             }
         }
