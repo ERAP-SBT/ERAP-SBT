@@ -84,18 +84,6 @@ void RegAlloc::compile_blocks() {
             continue;
         }
 
-        /*if (!bb->predecessors.empty()) {
-            // only compile top-level bbs or blocks that self reference
-            auto count = bb->predecessors.size();
-            for (auto* pred : bb->predecessors) {
-                if (pred == bb.get()) {
-                    count--;
-                }
-            }
-            if (count > 0) {
-                continue;
-            }
-        }*/
         if (!is_block_top_level(bb.get())) {
             continue;
         }
@@ -175,7 +163,6 @@ constexpr size_t BB_MERGE_TIL_ID = static_cast<size_t>(-1);
 void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max_stack_frame_size) {
     RegMap reg_map = {};
     StackMap stack_map = {};
-    // TODO: use some sort of struct with a destructor to reset these on return?
     cur_bb = bb;
     cur_reg_map = &reg_map;
     cur_stack_map = &stack_map;
@@ -290,7 +277,6 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
 
         // print ir for better readability
         // TODO: add flag for this to reduce useless stuff in asm file
-        // TODO: print ir
         // TODO: when we merge ops, we need to print ir before the merged op
         ir_stream.str("");
         var->print(ir_stream, gen->ir);
@@ -352,9 +338,6 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
             auto *dst = op->out_vars[0];
             // TODO: the imm-branch and not-imm-branch can probably be merged if we use a string as the second operand
             // and just put the imm in there
-            // TODO: with two immediates we could constant evaluate but that should be taken care of by the IR
-            // TODO: when there are two immediates and one of them is binary relative we can optimize that into
-            // one lea reg, [binary + in1 + in2] if it can be assembled
             if (in2->type == Type::imm && !std::get<SSAVar::ImmInfo>(in2->info).binary_relative) {
                 const auto imm_val = std::get<SSAVar::ImmInfo>(in2->info).val;
                 REGISTER in1_reg;
@@ -370,7 +353,6 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     }
                     clear_reg(cur_time, REG_D);
                     if (op->type == Instruction::div || op->type == Instruction::udiv) {
-                        // TODO: theoretically this could go below but having it up here should actually be better for the pipeline, no?
                         print_asm("cqo\n");
                     }
                 }
@@ -438,17 +420,16 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     // check if next instruction is a load
                     auto *next_var = bb->variables[var_idx + 1].get();
                     if (std::holds_alternative<std::unique_ptr<Operation>>(next_var->info)) {
-                        // TODO: dont shadow local var
-                        auto *op = std::get<std::unique_ptr<Operation>>(next_var->info).get();
-                        if (op->type == Instruction::load && op->in_vars[0] == dst) {
-                            auto *load_dst = op->out_vars[0];
+                        auto *next_op = std::get<std::unique_ptr<Operation>>(next_var->info).get();
+                        if (next_op->type == Instruction::load && next_op->in_vars[0] == dst) {
+                            auto *load_dst = next_op->out_vars[0];
                             // check for zero/sign-extend
                             if (load_dst->ref_count == 1 && bb->variables.size() > var_idx + 2) {
                                 auto *nnext_var = bb->variables[var_idx + 2].get();
                                 if (std::holds_alternative<std::unique_ptr<Operation>>(nnext_var->info)) {
-                                    auto *nop = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
-                                    if (nop->type == Instruction::zero_extend) {
-                                        auto *ext_dst = nop->out_vars[0];
+                                    auto *nnext_op = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
+                                    if (nnext_op->type == Instruction::zero_extend) {
+                                        auto *ext_dst = nnext_op->out_vars[0];
                                         if (load_dst->type == Type::i32) {
                                             print_asm("mov %s, [%s + %ld]\n", reg_names[dst_reg][1], in1_reg_name, imm_val);
                                         } else {
@@ -459,8 +440,8 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                                         load_dst->gen_info.already_generated = true;
                                         ext_dst->gen_info.already_generated = true;
                                         did_merge = true;
-                                    } else if (nop->type == Instruction::sign_extend) {
-                                        auto *ext_dst = nop->out_vars[0];
+                                    } else if (nnext_op->type == Instruction::sign_extend) {
+                                        auto *ext_dst = nnext_op->out_vars[0];
                                         if (load_dst->type == Type::i32) {
                                             assert(ext_dst->type == Type::i32 || ext_dst->type == Type::i64);
                                             print_asm("movsxd %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
@@ -484,17 +465,17 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                                 load_dst->gen_info.already_generated = true;
                                 did_merge = true;
                             }
-                        } else if (op->type == Instruction::cast) {
+                        } else if (next_op->type == Instruction::cast) {
                             // detect add/cast/store sequence
-                            auto *cast_var = op->out_vars[0];
+                            auto *cast_var = next_op->out_vars[0];
                             if (cast_var->ref_count == 1 && bb->variables.size() > var_idx + 2) {
                                 auto *nnext_var = bb->variables[var_idx + 2].get();
                                 if (std::holds_alternative<std::unique_ptr<Operation>>(nnext_var->info)) {
-                                    auto *nop = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
-                                    if (nop->type == Instruction::store && nop->in_vars[0] == dst && nop->in_vars[1] == cast_var) {
-                                        auto *store_dst = nop->out_vars[0]; // should be == nnext_var
+                                    auto *nnext_op = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
+                                    if (nnext_op->type == Instruction::store && nnext_op->in_vars[0] == dst && nnext_op->in_vars[1] == cast_var) {
+                                        auto *store_dst = nnext_op->out_vars[0]; // should be == nnext_var
                                         // load source of cast
-                                        const auto cast_reg = load_val_in_reg(cur_time, op->in_vars[0].get());
+                                        const auto cast_reg = load_val_in_reg(cur_time, next_op->in_vars[0].get());
                                         print_asm("mov [%s + %ld], %s\n", in1_reg_name, imm_val, reg_name(cast_reg, cast_var->type));
                                         cast_var->gen_info.already_generated = true;
                                         store_dst->gen_info.already_generated = true;
@@ -502,12 +483,12 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                                     }
                                 }
                             }
-                        } else if (op->type == Instruction::store && op->in_vars[0].get() == dst) {
+                        } else if (next_op->type == Instruction::store && next_op->in_vars[0].get() == dst) {
                             // merge add/store
-                            auto *store_src = op->in_vars[1].get();
+                            auto *store_src = next_op->in_vars[1].get();
                             const auto src_reg = load_val_in_reg(cur_time, store_src);
                             print_asm("mov [%s + %ld], %s\n", in1_reg_name, imm_val, reg_name(src_reg, store_src->type));
-                            op->out_vars[0]->gen_info.already_generated = true;
+                            next_op->out_vars[0]->gen_info.already_generated = true;
                             did_merge = true;
                         }
                     }
@@ -782,24 +763,41 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
             auto *val2 = op->in_vars[3].get();
             auto *dst = op->out_vars[0];
 
-            // TODO: optimize for case where val1 = 1 and val2 = 0
-            // if val1 or val2 are immediates we dont necessarily need registers for them
-            // though we need to use a jmp instead of two cmovs which is slower
-            // so only do that when we dont have free/unused registers?
-            // TODO: we can also reuse the cmp1,cmp2 registers when cmp1 or cmp2 are no longer needed
-            // like so:
-            // cmp reg1, reg2
-            // mov reg1, val1
-            // mov reg2, val2
-            // cmovae reg1, reg2
-
             const auto cmp1_reg = load_val_in_reg(cur_time, cmp1);
-            const auto val1_reg = load_val_in_reg(cur_time, val1);
-            const auto val2_reg = load_val_in_reg(cur_time, val2);
-
             if (cmp1->gen_info.last_use_time > cur_time) {
                 save_reg(cmp1_reg);
             }
+
+            if (val1->type == Type::imm && val2->type == Type::imm) {
+                const auto &val1_info = std::get<SSAVar::ImmInfo>(val1->info);
+                const auto &val2_info = std::get<SSAVar::ImmInfo>(val2->info);
+                if (val1_info.val == 1 && !val1_info.binary_relative && val2_info.val == 0 && !val2_info.binary_relative) {
+                    if (cmp2->type == Type::imm && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative) {
+                        const auto type = cmp1->type == Type::imm ? Type::i64 : cmp1->type;
+                        print_asm("cmp %s, %ld\n", reg_name(cmp1_reg, type), std::get<SSAVar::ImmInfo>(cmp2->info).val);
+                    } else {
+                        const auto cmp2_reg = load_val_in_reg(cur_time, cmp2);
+                        auto type = choose_type(cmp1->type, cmp2->type);
+                        print_asm("cmp %s, %s\n", reg_name(cmp1_reg, type), reg_name(cmp2_reg, type));
+                    }
+
+                    if (cmp1->type != Type::imm || std::get<SSAVar::ImmInfo>(cmp1->info).binary_relative || static_cast<uint64_t>(std::get<SSAVar::ImmInfo>(cmp1->info).val) > 255) {
+                        // dont need to clear if we know the register holds a value that fits into 1 byte
+                        print_asm("mov %s, 0\n", reg_names[cmp1_reg][0]);
+                    }
+                    if (op->type == Instruction::slt) {
+                        print_asm("setl %s\n", reg_names[cmp1_reg][3]);
+                    } else {
+                        print_asm("setb %s\n", reg_names[cmp1_reg][3]);
+                    }
+                    clear_reg(cur_time, cmp1_reg);
+                    set_var_to_reg(cur_time, dst, cmp1_reg);
+                    break;
+                }
+            }
+
+            const auto val1_reg = load_val_in_reg(cur_time, val1);
+            const auto val2_reg = load_val_in_reg(cur_time, val2);
 
             if (cmp2->type == Type::imm && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative) {
                 const auto type = cmp1->type == Type::imm ? Type::i64 : cmp1->type;
@@ -937,8 +935,6 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
     // TODO: when there is one cfop and it's a jump we can already omit the jmp bX_reg_alloc if the block isn't compiled yet
     // since it will get compiled straight after
 
-    // really scuffed
-    // TODO: we already have these one level up
     auto reg_map_bak = reg_map;
     auto stack_map_bak = stack_map;
     std::vector<SSAVar::GeneratorInfoX64> gen_infos;
@@ -979,7 +975,6 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
                 print_asm("cmp %s, %s\n", reg_name(cmp1_reg, type), reg_name(cmp2_reg, type));
             }
 
-            // TODO: this can be done a lot more selectively
             gen_infos.clear();
             reg_map_bak = reg_map;
             stack_map_bak = stack_map;
@@ -1100,11 +1095,8 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             break;
         }
         case CFCInstruction::syscall: {
-            // TODO: the fact that syscalls have a direct continuation mapping is bad and hinders optimization here
-            // should replace with target inputs!!
-            // TODO: also, when we have target inputs, we need to recognize calling convention and save registers!
-            // TODO: also make sure we let the lifter remove inputs somehow so we spare some registers
-            // cause they get clobbered on riscv syscalls as well iirc
+            // TODO: allocate over inlined syscall or syscall helper call
+            // TODO: inline syscalls if they are just passthrough
             const auto &info = std::get<CfOp::SyscallInfo>(cf_op.info);
             write_static_mapping(info.continuation_block, cur_time, info.continuation_mapping);
             // cur_time += 1 + info.continuation_mapping.size();
@@ -1158,30 +1150,6 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
 void RegAlloc::write_assembled_blocks(size_t max_stack_frame_size) {
     for (size_t i = 0; i < assembled_blocks.size(); ++i) {
         auto &block = assembled_blocks[i];
-
-        // reset geninfos since it gets overwritten when the block is compiled
-        /*for (auto& cf_op : block.bb->control_flow_ops) {
-            auto* target = cf_op.target();
-            if (!target) {
-                continue;
-            }
-            for (size_t input_idx = 0; input_idx < target->inputs.size(); ++input_idx) {
-                auto& info = target->gen_info.input_map[input_idx];
-                auto* input = target->inputs[input_idx];
-                input->gen_info.saved_in_stack = false;
-                if (info.location == BasicBlock::GeneratorInfo::InputInfo::STATIC) {
-                    input->gen_info.location = SSAVar::GeneratorInfoX64::STATIC;
-                    input->gen_info.static_idx = info.static_idx;
-                } else if (info.location == BasicBlock::GeneratorInfo::InputInfo::REGISTER) {
-                    input->gen_info.location = SSAVar::GeneratorInfoX64::REGISTER;
-                    input->gen_info.reg_idx = info.reg_idx;
-                } else if (info.location == BasicBlock::GeneratorInfo::InputInfo::STACK) {
-                    input->gen_info.location = SSAVar::GeneratorInfoX64::STACK_FRAME;
-                    input->gen_info.saved_in_stack = true;
-                    input->gen_info.stack_slot = info.stack_slot;
-                }
-            }
-        }*/
 
         fprintf(gen->out_fd, "%s\n", block.assembly.c_str());
         asm_buf.clear();
@@ -1264,8 +1232,6 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
             continue;
         }
         assert(input_var->type == Type::imm);
-        // TODO: when all predecessors of a bb move the same immediate into an input we can tell the next
-        // bb that the input is an immediate and save a register
         load_val_in_reg<false>(cur_time, input_var);
     }
 
@@ -1767,14 +1733,9 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::load_val_in_reg(
             return static_cast<REGISTER>(var->gen_info.reg_idx);
         }
 
-        // TODO: we could also simply xchg the registers if the one in the other register doesn't need to be in there
-        // so save if the reg has been allocated using only_this_reg in the reg_map?
-        // TODO: also this will bug out when you alloc a reg and then alloc one if only_this_reg and they end up in the same register
+        // TODO: add a thing in the regmap that tells the allocater that the var may only be in this register
+        // TODO: this will bug out when you alloc a reg and then alloc one if only_this_reg and they end up in the same register
         if (auto *other_var = reg_map[only_this_reg].cur_var; other_var && other_var->gen_info.last_use_time >= cur_time) {
-            // assert(reg_map[only_this_reg].cur_var->gen_info.last_use_time != cur_time);
-
-            // save_reg(only_this_reg);
-
             print_asm("xchg %s, %s\n", reg_names[only_this_reg][0], reg_names[var->gen_info.reg_idx][0]);
             std::swap(reg_map[only_this_reg], reg_map[var->gen_info.reg_idx]);
             std::swap(var->gen_info.reg_idx, other_var->gen_info.reg_idx);
