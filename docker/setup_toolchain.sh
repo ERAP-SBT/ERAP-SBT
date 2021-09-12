@@ -68,6 +68,7 @@ mkdir -p "${SYSROOT}${PREFIX}"
 
 # checked by make all-gcc
 mkdir -p "${SYSROOT}${PREFIX}/include"
+ln -sv . "${SYSROOT}${PREFIX}/usr" # all-gcc insists on sysroot/usr/include for system headers
 
 # Mostly taken from myunix3 mk/toolchain.mk or gcc --verbose on debian
 # --enable-multilib: build different libgcc to support -march (i think)
@@ -94,6 +95,7 @@ mkdir -p "${SYSROOT}${PREFIX}/include"
     --with-arch=rv64imafdc \
     --with-abi=lp64 \
     --prefix="${SYSROOT}${PREFIX}" \
+    --with-sysroot="${SYSROOT}" \
     --disable-nls \
     --with-system-zlib \
     --disable-threads
