@@ -528,9 +528,7 @@ void Generator::compile_vars(const BasicBlock *block) {
         }
 
         assert(var->info.index() != 2);
-        if (var->type == Type::imm) {
-            assert(var->info.index() == 1);
-
+        if (var->info.index() == 1) {
             const auto &info = std::get<SSAVar::ImmInfo>(var->info);
             if (info.binary_relative) {
                 fprintf(out_fd, "lea rax, [binary + %ld]\n", info.val);
