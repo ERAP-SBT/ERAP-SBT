@@ -449,7 +449,6 @@ void ConstFoldPass::process_block(BasicBlock *block) {
 
                 int64_t result = eval_binary_op(op.type, type, ia.val, ib.val);
                 replace_with_immediate(var, result, bin_rel);
-                continue;
             } else {
                 if (a->is_immediate() && b->is_operation()) {
                     const auto &ai = a->get_immediate();
@@ -585,11 +584,13 @@ void ConstFoldPass::process_block(BasicBlock *block) {
 }
 
 void ConstFoldPass::fixup_block() {
+#if 0
     // Currently, the generator fails if an immediate hasn't type Type::imm
     for (auto &var : current_block->variables) {
         if (var->is_immediate())
             var->type = Type::imm;
     }
+#endif
 }
 
 } // namespace
