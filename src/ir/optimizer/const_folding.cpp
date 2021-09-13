@@ -145,8 +145,6 @@ SSAVar *ConstFoldPass::eval_to_imm(Instruction insn, Type type, uint64_t a, uint
 
 // Note: Prefix notation in comments means IR operation, infix notation means operation on / evaluation of immediates.
 
-// TODO needs thorough tests
-
 std::optional<ConstFoldPass::BinOp> ConstFoldPass::simplify_double_op_comm(Type type, Instruction cins, const SSAVar::ImmInfo &imm, Instruction pins, SSAVar *pa, SSAVar *pb) {
     if (cins == Instruction::add) {
         if (pins == Instruction::add) {
@@ -208,6 +206,22 @@ std::optional<ConstFoldPass::BinOp> ConstFoldPass::simplify_double_op_comm(Type 
                 return BinOp{Instruction::_or, result, pa};
             }
         }
+    } else if (cins == Instruction::_xor) {
+        if (pins == Instruction::_xor) {
+            if (pa->is_immediate()) {
+                // pa: imm, pb: not imm
+                // xor ca, (xor pa, pb)
+                // => xor (pa ^ ca), pb
+                auto *result = eval_to_imm(Instruction::_xor, type, pa->get_immediate().val, imm.val);
+                return BinOp{Instruction::_xor, result, pb};
+            } else if (pb->is_immediate()) {
+                // pa: not imm, pb: imm
+                // xor ca, (xor pa, pb)
+                // => xor (pb ^ ca), pa
+                auto *result = eval_to_imm(Instruction::_xor, type, pb->get_immediate().val, imm.val);
+                return BinOp{Instruction::_xor, result, pa};
+            }
+        }
     }
     return std::nullopt;
 }
@@ -248,7 +262,7 @@ std::optional<ConstFoldPass::BinOp> ConstFoldPass::simplify_double_op_imm_left(T
                 // sub ca, (sub pa, pb)
                 // => sub (pb + ca), pa
                 auto *result = eval_to_imm(Instruction::add, type, pb->get_immediate().val, imm.val);
-                return BinOp{Instruction::add, result, pa};
+                return BinOp{Instruction::sub, result, pa};
             }
         }
     }
@@ -271,7 +285,7 @@ std::optional<ConstFoldPass::BinOp> ConstFoldPass::simplify_double_op_imm_right(
                 // sub (add pa, pb), cb
                 // => add (pa - cb), pb
                 auto *result = eval_to_imm(Instruction::sub, type, pa->get_immediate().val, imm.val);
-                return BinOp{Instruction::sub, result, pb};
+                return BinOp{Instruction::add, result, pb};
             } else if (pb->is_immediate()) {
                 // pa: not imm, pb: imm
                 // sub (add pa, pb), cb
@@ -289,8 +303,8 @@ std::optional<ConstFoldPass::BinOp> ConstFoldPass::simplify_double_op_imm_right(
             } else if (pb->is_immediate()) {
                 // pa: not imm, pb: imm
                 // sub (sub pa, pb), cb
-                // => sub pa, (pb - cb)
-                auto *result = eval_to_imm(Instruction::sub, type, pb->get_immediate().val, imm.val);
+                // => sub pa, (pb + cb)
+                auto *result = eval_to_imm(Instruction::add, type, pb->get_immediate().val, imm.val);
                 return BinOp{Instruction::sub, pa, result};
             }
         }
