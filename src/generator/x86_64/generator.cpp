@@ -830,6 +830,10 @@ void Generator::compile_ret_args(const BasicBlock *block, const CfOp &op) {
     assert(op.info.index() == 2);
     const auto &ret_info = std::get<CfOp::RetInfo>(op.info);
     for (const auto &[var, s_idx] : ret_info.mapping) {
+        if (var->type == Type::mt) {
+            continue;
+        }
+
         if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(var->info)) {
             if (std::get<size_t>(var->info) == s_idx) {
                 fprintf(out_fd, "# Skipped\n");

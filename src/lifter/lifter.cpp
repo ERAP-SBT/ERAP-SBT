@@ -121,6 +121,17 @@ void Lifter::lift(Program *prog) {
                 continue;
             }
 
+            if (cfOp.type == CFCInstruction::_return) {
+                for (size_t i = 0; i < count_used_static_vars; i++) {
+                    auto var = mapping[i];
+                    if (var != nullptr) {
+                        cfOp.add_target_input(var, i);
+                        std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = i;
+                    }
+                }
+                continue;
+            }
+
             uint64_t jmp_addr = std::get<CfOp::LifterInfo>(cf_op.lifter_info).jump_addr;
             BasicBlock *next_bb;
 
@@ -173,6 +184,25 @@ void Lifter::lift(Program *prog) {
                         cf_op.add_target_input(var, i);
                         std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = i;
                     }
+                }
+            }
+
+            if (cfOp.type == CFCInstruction::call) {
+                BasicBlock *cont_block = get_bb(next_addr);
+                if (cont_block == nullptr) {
+                    if (next_addr > prog->addrs.back()) {
+                        cont_block = dummy;
+                    } else {
+                        needs_bb_start[(next_addr - ir->virt_bb_start_addr) / 2] = true;
+                    }
+                } else if (cont_block->virt_start_addr != next_addr) {
+                    split_basic_block(cont_block, next_addr, prog->elf_base.get());
+                }
+                std::get<CfOp::CallInfo>(cfOp.info).continuation_block = cont_block;
+                auto &cont_mapping = std::get<CfOp::CallInfo>(cfOp.info).continuation_mapping;
+                auto &target_inputs = std::get<CfOp::CallInfo>(cfOp.info).target_inputs;
+                for (auto &target_input : target_inputs) {
+                    cont_mapping.emplace_back(target_input, std::get<SSAVar::LifterInfo>(target_input->lifter_info).static_id);
                 }
             }
 

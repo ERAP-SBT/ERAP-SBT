@@ -45,7 +45,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
     new_bb->control_flow_ops.swap(bb->control_flow_ops);
     bb->control_flow_ops.clear();
 
-    // transfer and add predecessors and successors
+    // transfer successors
     new_bb->successors.swap(bb->successors);
     bb->successors.clear();
 
@@ -81,9 +81,14 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
                 old_target = info.target;
                 info.target = new_bb;
             } else if (std::holds_alternative<CfOp::CallInfo>(cf_op.info)) {
-                // TODO: needs more sophisticated logic
-                assert(0);
-                continue;
+                auto &info = std::get<CfOp::CallInfo>(cf_op.info);
+                if (info.continuation_block->id == bb->id) {
+                    old_target = bb;
+                    info.continuation_block = new_bb;
+                } else {
+                    old_target = info.target;
+                    info.target = new_bb;
+                }
             } else if (std::holds_alternative<CfOp::SyscallInfo>(cf_op.info)) {
                 auto &info = std::get<CfOp::SyscallInfo>(cf_op.info);
                 old_target = info.continuation_block;
@@ -214,8 +219,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
             }
         }
 
-        BasicBlock *target;
-        target = cf_op.target();
+        BasicBlock *target = cf_op.target();
         if (target) {
             // remove first BasicBlock from predecessors of the target of the Control-Flow-Operation
             auto it = std::find(target->predecessors.begin(), target->predecessors.end(), bb);
@@ -226,6 +230,19 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
             // add new BasicBlock to predecessors of the target
             target->predecessors.push_back(new_bb);
         }
+        if (cf_op.type == CFCInstruction::call) {
+            BasicBlock *cont_block = std::get<CfOp::CallInfo>(cf_op.info).continuation_block;
+            if (cont_block) {
+                // remove first BasicBlock from predecessors of the target of the Control-Flow-Operation
+                auto it = std::find(cont_block->predecessors.begin(), cont_block->predecessors.end(), bb);
+                if (it != cont_block->predecessors.end()) {
+                    cont_block->predecessors.erase(it);
+                }
+
+                // add new BasicBlock to predecessors of the target
+                cont_block->predecessors.push_back(new_bb);
+            }
+        }
 
         cf_op.clear_target_inputs();
         for (size_t j = 0; j < count_used_static_vars; j++) {
@@ -233,6 +250,19 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
             if (var != nullptr) {
                 cf_op.add_target_input(var, j);
                 std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = j;
+            }
+        }
+
+        if (cf_op.type == CFCInstruction::call) {
+            auto &continuation_mapping = std::get<CfOp::CallInfo>(cf_op.info).continuation_mapping;
+            continuation_mapping.clear();
+
+            for (size_t j = 0; j < new_mapping.size(); j++) {
+                auto var = new_mapping[j];
+                if (var != nullptr) {
+                    continuation_mapping.emplace_back(var, j);
+                    std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = j;
+                }
             }
         }
     }

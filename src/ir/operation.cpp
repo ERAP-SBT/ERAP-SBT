@@ -240,9 +240,11 @@ void CfOp::add_target_input(SSAVar *input, size_t static_idx) {
     case CFCInstruction::syscall:
         std::get<SyscallInfo>(info).continuation_mapping.emplace_back(input, static_idx);
         break;
+    case CFCInstruction::_return:
+        std::get<RetInfo>(info).mapping.emplace_back(input, static_idx);
+        break;
     case CFCInstruction::icall:
     case CFCInstruction::unreachable:
-    case CFCInstruction::_return:
         assert(0);
         break;
     }
@@ -264,6 +266,9 @@ void CfOp::clear_target_inputs() {
         break;
     case CFCInstruction::syscall:
         std::get<CfOp::SyscallInfo>(info).continuation_mapping.clear();
+        break;
+    case CFCInstruction::_return:
+        std::get<CfOp::RetInfo>(info).mapping.clear();
         break;
     default:
         assert(0);

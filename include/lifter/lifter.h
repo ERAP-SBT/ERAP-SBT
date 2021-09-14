@@ -34,6 +34,9 @@ class Lifter {
     // Register index for constant zero "register" (RISC-V default: 0)
     static constexpr size_t ZERO_IDX = 0;
 
+    // Register index for return (or link-) register.
+    static constexpr size_t RET_IDX = 1;
+
     // Index of memory token in <reg_map> register mapping
     static constexpr size_t MEM_IDX = 32;
 
