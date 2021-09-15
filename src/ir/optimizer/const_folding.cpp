@@ -149,6 +149,65 @@ SSAVar *ConstFoldPass::eval_to_imm(Instruction insn, Type type, uint64_t a, uint
 // Note: Prefix notation in comments means IR operation, infix notation means operation on / evaluation of immediates.
 
 std::optional<ConstFoldPass::BinOp> ConstFoldPass::simplify_double_op_comm(Type type, Instruction cins, const SSAVar::ImmInfo &imm, Instruction pins, SSAVar *pa, SSAVar *pb) {
+    if (imm.binary_relative) {
+        if ((pa->is_immediate() && pa->get_immediate().binary_relative) || (pb->is_immediate() && pb->get_immediate().binary_relative))
+            return std::nullopt;
+
+        if (cins == Instruction::add) {
+            if (pins == Instruction::add) {
+                if (pa->is_immediate()) {
+                    // add (add pa:imm, pb:!imm), cb:imm[br]
+                    auto *result = eval_to_imm(Instruction::add, type, pa->get_immediate().val, imm.val, true);
+                    return BinOp{Instruction::add, result, pb};
+                } else if (pb->is_immediate()) {
+                    // add (add pa:!imm, pb:imm), cb:imm[br]
+                    auto *result = eval_to_imm(Instruction::add, type, pb->get_immediate().val, imm.val, true);
+                    return BinOp{Instruction::add, result, pa};
+                }
+            } else if (pins == Instruction::sub) {
+                if (pa->is_immediate()) {
+                    // add (sub pa:imm, pb:!imm), cb:imm[br]
+                    auto *result = eval_to_imm(Instruction::add, type, pa->get_immediate().val, imm.val, true);
+                    return BinOp{Instruction::sub, result, pb};
+                } else if (pb->is_immediate()) {
+                    // add (sub pa:!imm, pb:imm), cb:imm[br]
+                    auto *result = eval_to_imm(Instruction::sub, type, imm.val, pb->get_immediate().val, true);
+                    return BinOp{Instruction::add, result, pa};
+                }
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    if ((pa->is_immediate() && pa->get_immediate().binary_relative) || (pb->is_immediate() && pb->get_immediate().binary_relative)) {
+        if (cins == Instruction::add) {
+            if (pins == Instruction::add) {
+                if (pa->is_immediate()) {
+                    // add (add pa:imm[br], pb:!imm), cb
+                    auto *result = eval_to_imm(Instruction::add, type, pa->get_immediate().val, imm.val, true);
+                    return BinOp{Instruction::add, result, pb};
+                } else if (pb->is_immediate()) {
+                    // add (add pa:!imm, pb:imm[br]), cb
+                    auto *result = eval_to_imm(Instruction::add, type, pb->get_immediate().val, imm.val, true);
+                    return BinOp{Instruction::add, result, pa};
+                }
+            } else if (pins == Instruction::sub) {
+                if (pa->is_immediate()) {
+                    // add (sub pa:imm[br], pb:!imm), cb
+                    auto *result = eval_to_imm(Instruction::add, type, pa->get_immediate().val, imm.val, true);
+                    return BinOp{Instruction::sub, result, pb};
+                } else if (pb->is_immediate()) {
+                    // add (sub pa:!imm, pb:imm[br]), cb
+                    auto *result = eval_to_imm(Instruction::sub, type, pb->get_immediate().val, imm.val, true);
+                    return BinOp{Instruction::sub, pa, result};
+                }
+            }
+        }
+
+        return std::nullopt;
+    }
+
     if (cins == Instruction::add) {
         if (pins == Instruction::add) {
             // add ca, (add pa, pb)
@@ -238,7 +297,57 @@ std::optional<ConstFoldPass::BinOp> ConstFoldPass::simplify_double_op_imm_left(T
 
     if (is_commutative(cins)) {
         return simplify_double_op_comm(type, cins, imm, pins, pa, pb);
-    } else if (cins == Instruction::sub) {
+    }
+
+    if (imm.binary_relative) {
+        if ((pa->is_immediate() && pa->get_immediate().binary_relative) || (pb->is_immediate() && pb->get_immediate().binary_relative))
+            return std::nullopt;
+
+        if (cins == Instruction::sub) {
+            if (pins == Instruction::add) {
+                if (pa->is_immediate()) {
+                    // sub ca:imm[br], (add pa:imm, pb:!imm)
+                    auto *result = eval_to_imm(Instruction::sub, type, imm.val, pa->get_immediate().val, true);
+                    return BinOp{Instruction::sub, result, pb};
+                } else if (pb->is_immediate()) {
+                    // sub ca:imm[br], (add pa:!imm, pb:imm)
+                    auto *result = eval_to_imm(Instruction::sub, type, imm.val, pb->get_immediate().val, true);
+                    return BinOp{Instruction::sub, result, pa};
+                }
+            } else if (pins == Instruction::sub) {
+                if (pa->is_immediate()) {
+                    // sub ca:imm[br], (sub pa:imm, pb:!imm)
+                    auto *result = eval_to_imm(Instruction::sub, type, imm.val, pa->get_immediate().val, true);
+                    return BinOp{Instruction::add, result, pb};
+                } else if (pb->is_immediate()) {
+                    // sub ca:imm[br], (sub pa:!imm, pb:imm)
+                    auto *result = eval_to_imm(Instruction::add, type, pb->get_immediate().val, imm.val, true);
+                    return BinOp{Instruction::sub, result, pa};
+                }
+            }
+        }
+        return std::nullopt;
+    }
+    if ((pa->is_immediate() && pa->get_immediate().binary_relative) || (pb->is_immediate() && pb->get_immediate().binary_relative)) {
+        if (cins == Instruction::sub) {
+            if (pins == Instruction::add) {
+                // sub ca:imm, (add pa, pb)  (not simplifyable)
+                return std::nullopt;
+            } else if (pins == Instruction::sub) {
+                if (pa->is_immediate()) {
+                    // sub ca:imm, (sub pa:imm[br], pb:!imm)  (not simplifyable)
+                    return std::nullopt;
+                } else if (pb->is_immediate()) {
+                    // sub ca:imm, (sub pa:!imm, pb:imm[br])
+                    auto *result = eval_to_imm(Instruction::add, type, pb->get_immediate().val, imm.val, true);
+                    return BinOp{Instruction::sub, pa, result};
+                }
+            }
+        }
+        return std::nullopt;
+    }
+
+    if (cins == Instruction::sub) {
         if (pins == Instruction::add) {
             if (pa->is_immediate()) {
                 // pa: imm, pb: not imm
@@ -281,7 +390,57 @@ std::optional<ConstFoldPass::BinOp> ConstFoldPass::simplify_double_op_imm_right(
 
     if (is_commutative(cins)) {
         return simplify_double_op_comm(type, cins, imm, pins, pa, pb);
-    } else if (cins == Instruction::sub) {
+    }
+
+    if (imm.binary_relative) {
+        if ((pa->is_immediate() && pa->get_immediate().binary_relative) || (pb->is_immediate() && pb->get_immediate().binary_relative))
+            return std::nullopt;
+
+        if (cins == Instruction::sub) {
+            if (pins == Instruction::add) {
+                // sub (add pa, pb), cb:imm[br]  (not simplifyable)
+                return std::nullopt;
+            } else if (pins == Instruction::sub) {
+                if (pa->is_immediate()) {
+                    // sub (sub pa:imm, pb:!imm), cb:imm[br]  (not simplifyable)
+                    return std::nullopt;
+                } else if (pb->is_immediate()) {
+                    // sub (sub pa:!imm, pb:imm), cb:imm[br]
+                    auto *result = eval_to_imm(Instruction::add, type, imm.val, pb->get_immediate().val, true);
+                    return BinOp{Instruction::sub, pa, result};
+                }
+            }
+        }
+        return std::nullopt;
+    }
+    if ((pa->is_immediate() && pa->get_immediate().binary_relative) || (pb->is_immediate() && pb->get_immediate().binary_relative)) {
+        if (cins == Instruction::sub) {
+            if (pins == Instruction::add) {
+                if (pa->is_immediate()) {
+                    // sub (add pa:imm[br], pb:!imm), cb
+                    auto *result = eval_to_imm(Instruction::sub, type, pa->get_immediate().val, imm.val, true);
+                    return BinOp{Instruction::add, pb, result};
+                } else if (pb->is_immediate()) {
+                    // sub (add pa:!imm, pb:imm[br]), cb
+                    auto *result = eval_to_imm(Instruction::sub, type, pb->get_immediate().val, imm.val, true);
+                    return BinOp{Instruction::add, pa, result};
+                }
+            } else if (pins == Instruction::sub) {
+                if (pa->is_immediate()) {
+                    // sub (sub pa:imm[br], pb:!imm), cb
+                    auto *result = eval_to_imm(Instruction::sub, type, pa->get_immediate().val, imm.val, true);
+                    return BinOp{Instruction::sub, result, pb};
+                } else if (pb->is_immediate()) {
+                    // sub (sub pa:!imm, pb:imm[br]), cb
+                    auto *result = eval_to_imm(Instruction::add, type, pb->get_immediate().val, imm.val, true);
+                    return BinOp{Instruction::sub, pa, result};
+                }
+            }
+        }
+        return std::nullopt;
+    }
+
+    if (cins == Instruction::sub) {
         if (pins == Instruction::add) {
             if (pa->is_immediate()) {
                 // pa: imm, pb: not imm
@@ -456,8 +615,6 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                 if (a->is_immediate() && b->is_operation()) {
                     const auto &ai = a->get_immediate();
                     const auto &bo = b->get_operation();
-                    if (ai.binary_relative)
-                        continue; // TODO
                     // op imm, op
                     if (auto nw = simplify_double_op_imm_left(type, op.type, ai, bo.type, bo.in_vars[0].get(), bo.in_vars[1].get())) {
                         op.type = nw->type;
@@ -466,8 +623,6 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                 } else if (b->is_immediate() && a->is_operation()) {
                     const auto &ao = a->get_operation();
                     const auto &bi = b->get_immediate();
-                    if (bi.binary_relative)
-                        continue; // TODO
                     // op op, imm
                     if (auto nw = simplify_double_op_imm_right(type, op.type, bi, ao.type, ao.in_vars[0].get(), ao.in_vars[1].get())) {
                         op.type = nw->type;
