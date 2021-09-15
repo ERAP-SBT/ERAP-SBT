@@ -204,6 +204,9 @@ void Generator::compile_ijump_lookup() {
 void Generator::compile_statics() {
     compile_section(Section::DATA);
 
+    fprintf(out_fd, ".global register_file\n");
+    fprintf(out_fd, "register_file:\n");
+
     for (const auto &var : ir->statics) {
         fprintf(out_fd, ".global s%zu\n", var.id);
         fprintf(out_fd, "s%zu: .quad 0\n", var.id); // for now have all of the statics be 64bit

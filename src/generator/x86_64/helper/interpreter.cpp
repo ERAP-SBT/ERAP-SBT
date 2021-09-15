@@ -10,6 +10,7 @@
 namespace helper::interpreter {
 
 /* from compiled code */
+extern "C" uint64_t register_file[];
 extern "C" uint64_t s0;
 extern "C" uint64_t s1;
 extern "C" uint64_t s2;
@@ -143,6 +144,17 @@ extern "C" uint64_t unresolved_ijump(uint64_t target) {
     print_hex64(s14);
     puts("\n");
     print_hex64(s15);
+    puts("\n");
+
+    trace_dump_state();
+
+    puts("\n");
+
+    if (instr.mnem == FRV_ADDI) {
+        // FIXME: sign extend, handle x0
+        register_file[instr.rd] = register_file[instr.rs1] + instr.imm;
+    }
+
     puts("\n");
 
     trace_dump_state();
