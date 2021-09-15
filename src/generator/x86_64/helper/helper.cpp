@@ -329,14 +329,6 @@ size_t syscall6(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4,
     return retval;
 }
 
-// need to implement ourselves without stdlib
-size_t strlen(const char *str) {
-    size_t c = 0;
-    while (*str++)
-        ++c;
-    return c;
-}
-
 void memcpy(void *dst, const void *src, size_t count) {
     auto *dst_ptr = static_cast<uint8_t *>(dst);
     const auto *src_ptr = static_cast<const uint8_t *>(src);
@@ -352,6 +344,52 @@ void itoa(char *str_addr, unsigned int num, unsigned int num_digits) {
         str_addr[j] = num % 10 + '0';
         num /= 10;
     }
+}
+
+
+constexpr char utoa_lookup[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+void utoa(uint64_t v, char *buf, unsigned int base, unsigned int num_digits) {
+    if ((base > strlen(utoa_lookup)) || (base < 2)) {
+        panic("utoa: invalid base");
+    }
+
+    for (int j = num_digits - 1; j >= 0; j--) {
+        buf[j] = utoa_lookup[v % base];
+        v /= base;
+    }
+}
+
+void print_hex8(uint8_t byte) {
+    char str[2 + 2] = "0x";
+
+    utoa(byte, &str[2], 16, 2);
+
+    syscall3(AMD64_SYSCALL_ID::WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(str), 2 + 2);
+}
+
+void print_hex16(uint16_t byte) {
+    char str[2 + 4] = "0x";
+
+    utoa(byte, &str[2], 16, 4);
+
+    syscall3(AMD64_SYSCALL_ID::WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(str), 2 + 4);
+}
+
+void print_hex32(uint32_t byte) {
+    char str[2 + 8] = "0x";
+
+    utoa(byte, &str[2], 16, 8);
+
+    syscall3(AMD64_SYSCALL_ID::WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(str), 2 + 8);
+}
+
+void print_hex64(uint64_t byte) {
+    char str[2 + 16] = "0x";
+
+    utoa(byte, &str[2], 16, 16);
+
+    syscall3(AMD64_SYSCALL_ID::WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(str), 16);
 }
 
 } // namespace helper

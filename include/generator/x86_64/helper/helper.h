@@ -29,8 +29,21 @@ extern size_t syscall4(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, siz
 extern size_t syscall5(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5);
 extern size_t syscall6(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5, size_t a6);
 
-extern size_t strlen(const char *);
+/* Helpers similiar to stdlib */
+
+constexpr size_t strlen(const char *str) {
+    size_t c = 0;
+    while (*str++)
+        ++c;
+    return c;
+}
+
 void memcpy(void *dst, const void *src, size_t count);
+void utoa(uint64_t v, char *buf, unsigned int base, unsigned int num_digits);
 void itoa(char *str_addr, unsigned int num, unsigned int num_digits);
+void print_hex8(uint8_t byte);
+void print_hex16(uint16_t byte);
+void print_hex32(uint32_t byte);
+void print_hex64(uint64_t byte);
 
 }
