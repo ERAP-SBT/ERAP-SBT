@@ -80,14 +80,14 @@ Type resolve_simple_op_type(const Operation &op, [[maybe_unused]] size_t block_i
 
 class ConstFoldPass {
     VarRewriter rewrite;
-    std::vector<std::unique_ptr<SSAVar>> new_immediates;
     BasicBlock *current_block;
+    size_t var_index;
 
   public:
     void process_block(BasicBlock *block);
 
   private:
-    SSAVar *queue_imm(Type type, uint64_t imm, bool bin_rel = false);
+    SSAVar *new_imm(Type type, uint64_t imm, bool bin_rel = false);
 
     void replace_with_immediate(SSAVar *var, uint64_t immediate, bool bin_rel = false);
     void replace_var(SSAVar *var, SSAVar *new_var);
@@ -97,7 +97,7 @@ class ConstFoldPass {
         SSAVar *a, *b;
     };
 
-    SSAVar *eval_to_imm(Instruction, Type, uint64_t, uint64_t);
+    SSAVar *eval_to_imm(Instruction, Type, uint64_t, uint64_t, bool bin_rel = false);
 
     /** Simplify commutative operation. Used by simplify_bi_imm_{left,right} */
     void simplify_bi_comm(Instruction insn, Type type, uint64_t immediate, SSAVar *cur, SSAVar *in);
@@ -119,11 +119,14 @@ class ConstFoldPass {
     void fixup_block();
 };
 
-SSAVar *ConstFoldPass::queue_imm(Type type, uint64_t imm, bool bin_rel) {
+SSAVar *ConstFoldPass::new_imm(Type type, uint64_t imm, bool bin_rel) {
     size_t new_id = current_block->cur_ssa_id++;
     auto new_var = std::make_unique<SSAVar>(new_id, imm, bin_rel);
     new_var->type = type;
-    return new_immediates.emplace_back(std::move(new_var)).get();
+
+    auto insert_point = std::next(current_block->variables.begin(), var_index);
+    ++var_index;
+    return current_block->variables.insert(insert_point, std::move(new_var))->get();
 }
 
 constexpr bool is_commutative(Instruction insn) {
@@ -138,9 +141,9 @@ constexpr bool is_commutative(Instruction insn) {
     }
 }
 
-SSAVar *ConstFoldPass::eval_to_imm(Instruction insn, Type type, uint64_t a, uint64_t b) {
+SSAVar *ConstFoldPass::eval_to_imm(Instruction insn, Type type, uint64_t a, uint64_t b, bool bin_rel) {
     auto result = eval_binary_op(insn, type, a, b);
-    return queue_imm(type, result);
+    return new_imm(type, result, bin_rel);
 }
 
 // Note: Prefix notation in comments means IR operation, infix notation means operation on / evaluation of immediates.
@@ -412,7 +415,7 @@ void ConstFoldPass::process_block(BasicBlock *block) {
     rewrite = {};
     current_block = block;
 
-    for (size_t var_index = 0; var_index < block->variables.size(); var_index++) {
+    for (var_index = 0; var_index < block->variables.size(); var_index++) {
         auto *var = block->variables[var_index].get();
         if (!var->is_operation())
             continue;
@@ -566,15 +569,6 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                 replace_var(var, cmp < 0 ? val_if_less : val_else);
             }
         }
-
-        // New immediates can't be inserted directly, because that would invalidate the references above.
-        // However, nothing prevents us from not inserting immediates until the end of the iteration.
-        for (auto &new_imm : new_immediates) {
-            auto insert_point = std::next(block->variables.begin(), var_index);
-            block->variables.insert(insert_point, std::move(new_imm));
-            ++var_index;
-        }
-        new_immediates.clear();
     }
 
     // Apply rewrites to control flow ops
