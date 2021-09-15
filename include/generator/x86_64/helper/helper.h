@@ -39,8 +39,11 @@ constexpr size_t strlen(const char *str) {
 }
 
 void memcpy(void *dst, const void *src, size_t count);
+
+size_t write_stderr(const char *buf, size_t buf_len);
+size_t puts(const char *str);
+
 void utoa(uint64_t v, char *buf, unsigned int base, unsigned int num_digits);
-void itoa(char *str_addr, unsigned int num, unsigned int num_digits);
 void print_hex8(uint8_t byte);
 void print_hex16(uint16_t byte);
 void print_hex32(uint32_t byte);

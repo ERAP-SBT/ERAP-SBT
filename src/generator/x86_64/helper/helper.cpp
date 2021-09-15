@@ -178,20 +178,17 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
         }
     }
 
-    char syscall_str[31 + 8 + 1 + 1] = "Couldn't translate syscall ID: ";
-    itoa(syscall_str + 31, id, 8);
-    syscall_str[31 + 8] = '\n';
-    syscall_str[sizeof(syscall_str) - 1] = '\0';
-    panic(syscall_str);
+    puts("Couldn't translate syscall ID: ");
+    print_hex64(id);
+    panic("Couldn't translate syscall ID");
 }
 
-const char panic_str[] = "PANIC: ";
-
 extern "C" [[noreturn]] void panic(const char *err_msg) {
-    static_assert(sizeof(size_t) == sizeof(const char *));
-    syscall3(AMD64_SYSCALL_ID::WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(panic_str), sizeof(panic_str));
+    puts("PANIC: ");
     // in theory string length is known so maybe give it as an arg?
-    syscall3(AMD64_SYSCALL_ID::WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(err_msg), strlen(err_msg));
+    puts(err_msg);
+    puts("\n");
+
     syscall1(AMD64_SYSCALL_ID::EXIT, 1);
     __builtin_unreachable();
 }
@@ -339,13 +336,14 @@ void memcpy(void *dst, const void *src, size_t count) {
     }
 }
 
-void itoa(char *str_addr, unsigned int num, unsigned int num_digits) {
-    for (int j = num_digits - 1; j >= 0; j--) {
-        str_addr[j] = num % 10 + '0';
-        num /= 10;
-    }
+size_t write_stderr(const char *buf, size_t buf_len) {
+    static_assert(sizeof(size_t) == sizeof(const char *));
+    return syscall3(AMD64_SYSCALL_ID::WRITE, 2, reinterpret_cast<size_t>(buf), buf_len);
 }
 
+size_t puts(const char *str) {
+    return write_stderr(str, strlen(str));
+}
 
 constexpr char utoa_lookup[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 
@@ -365,7 +363,7 @@ void print_hex8(uint8_t byte) {
 
     utoa(byte, &str[2], 16, 2);
 
-    syscall3(AMD64_SYSCALL_ID::WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(str), 2 + 2);
+    write_stderr(str, 2 + 2);
 }
 
 void print_hex16(uint16_t byte) {
@@ -373,7 +371,7 @@ void print_hex16(uint16_t byte) {
 
     utoa(byte, &str[2], 16, 4);
 
-    syscall3(AMD64_SYSCALL_ID::WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(str), 2 + 4);
+    write_stderr(str, 2 + 4);
 }
 
 void print_hex32(uint32_t byte) {
@@ -381,7 +379,7 @@ void print_hex32(uint32_t byte) {
 
     utoa(byte, &str[2], 16, 8);
 
-    syscall3(AMD64_SYSCALL_ID::WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(str), 2 + 8);
+    write_stderr(str, 2 + 8);
 }
 
 void print_hex64(uint64_t byte) {
@@ -389,7 +387,7 @@ void print_hex64(uint64_t byte) {
 
     utoa(byte, &str[2], 16, 16);
 
-    syscall3(AMD64_SYSCALL_ID::WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(str), 16);
+    write_stderr(str, 2 + 16);
 }
 
 } // namespace helper
