@@ -112,7 +112,7 @@ const SyscallInfo rv64_syscall_table[static_cast<size_t>(RISCV_SYSCALL_ID::SYSCA
     // RISCV_FCHMOD = 52,
     {SyscallAction::passthrough, 2, AMD64_SYSCALL_ID::FCHMOD},
     // RISCV_FCHMODAT = 53,
-    {SyscallAction::passthrough, 2, AMD64_SYSCALL_ID::FCHMODAT},
+    {SyscallAction::passthrough, 3, AMD64_SYSCALL_ID::FCHMODAT},
     // RISCV_FCHOWNAT = 54,
     {SyscallAction::passthrough, 5, AMD64_SYSCALL_ID::FCHOWNAT},
     // RISCV_FCHOWN = 55,

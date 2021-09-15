@@ -12,7 +12,7 @@ void print_help(const char *file_name);
 int compress_files(const char *file_target, const char **files_to_compress, int count);
 int decompress_files(const char **files_to_decompress, int count);
 
-int main(int argc, char *argv[]) {
+int main(int argc, const char *argv[]) {
     if (argc == 1 || !strcmp(argv[0], "--help")) {
         print_help(argv[0]);
         return 0;
@@ -76,7 +76,7 @@ void print_help(const char *file_name) {
     printf("Simple ZIP-Utility\n");
     printf("Usage: \nTo compress and decompress: %s target.zip file1 file2 -e file_to_extract.zip file2.zip\n", file_name);
     printf("To only compress: %s target.zip file1 file2...\n", file_name);
-    printf("To only decompress: %s -e file_to_extract.zip target_dir file2.zip target_dir2...\n");
+    printf("To only decompress: %s -e file_to_extract.zip target_dir file2.zip target_dir2...\n", file_name);
 }
 
 int compress_files(const char *file_target, const char **files_to_compress, int count) {
@@ -120,7 +120,7 @@ int compress_files(const char *file_target, const char **files_to_compress, int 
 }
 
 // from https://stackoverflow.com/a/9210960
-int mkpath(char *file_path, mode_t mode) {
+int mkpath(const char *file_path, mode_t mode) {
     assert(file_path && *file_path);
     for (char *p = strchr(file_path + 1, '/'); p; p = strchr(p + 1, '/')) {
         *p = '\0';

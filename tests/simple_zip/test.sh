@@ -27,10 +27,10 @@ set -e
 echo -e "${TXT_GREEN}Building...${TXT_CLEAR}"
 set -x
 mkdir build_amd64
-gcc -g -static -o build_amd64/main main.c zip.c
+gcc -g -static -o build_amd64/main main.c zip.c -Wall -Wextra
 
 mkdir build_rv64
-$1 -g -static -o build_rv64/main main.c zip.c
+$1 -g -static -o build_rv64/main main.c zip.c -Wall -Wextra
 
 { set +x; } 2>/dev/null
 echo -e "${TXT_GREEN}Translating...${TXT_CLEAR}"
