@@ -205,7 +205,8 @@ void Generator::compile_statics() {
     compile_section(Section::DATA);
 
     for (const auto &var : ir->statics) {
-        std::fprintf(out_fd, "s%zu: .quad 0\n", var.id); // for now have all of the statics be 64bit
+        fprintf(out_fd, ".global s%zu\n", var.id);
+        fprintf(out_fd, "s%zu: .quad 0\n", var.id); // for now have all of the statics be 64bit
     }
 }
 

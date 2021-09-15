@@ -9,19 +9,6 @@
 
 namespace helper::interpreter {
 
-void trace(uint64_t addr, const FrvInst* instr) {
-    puts("TRACE: 0x");
-
-    print_hex64(addr);
-
-    puts(" : ");
-
-    char buf[16];
-    frv_format(instr, sizeof(buf), buf);
-    puts(buf);
-    puts("\n");
-}
-
 /* from compiled code */
 extern "C" uint64_t s0;
 extern "C" uint64_t s1;
@@ -58,8 +45,60 @@ extern "C" uint64_t s31;
 extern "C" uint64_t ijump_lookup_base;
 extern "C" uint64_t ijump_lookup[];
 
+void trace(uint64_t addr, const FrvInst* instr) {
+    puts("TRACE: 0x");
+
+    print_hex64(addr);
+
+    puts(" : ");
+
+    char buf[16];
+    frv_format(instr, sizeof(buf), buf);
+    puts(buf);
+    puts("\n");
+}
+
 uint64_t ijump_lookup_for_addr(uint64_t addr) {
     return ijump_lookup[(addr - ijump_lookup_base) / 0x2];
+}
+
+void trace_dump_state(void) {
+    puts("TRACE: STATE");
+
+    puts("\ns00: "); print_hex64(s0);
+    puts("\ns01: "); print_hex64(s1);
+    puts("\ns02: "); print_hex64(s2);
+    puts("\ns03: "); print_hex64(s3);
+    puts("\ns04: "); print_hex64(s4);
+    puts("\ns05: "); print_hex64(s5);
+    puts("\ns06: "); print_hex64(s6);
+    puts("\ns07: "); print_hex64(s7);
+    puts("\ns08: "); print_hex64(s8);
+    puts("\ns09: "); print_hex64(s9);
+    puts("\ns10: "); print_hex64(s10);
+    puts("\ns11: "); print_hex64(s11);
+    puts("\ns12: "); print_hex64(s12);
+    puts("\ns13: "); print_hex64(s13);
+    puts("\ns14: "); print_hex64(s14);
+    puts("\ns15: "); print_hex64(s15);
+    puts("\ns16: "); print_hex64(s16);
+    puts("\ns17: "); print_hex64(s17);
+    puts("\ns18: "); print_hex64(s18);
+    puts("\ns19: "); print_hex64(s19);
+    puts("\ns20: "); print_hex64(s20);
+    puts("\ns21: "); print_hex64(s21);
+    puts("\ns22: "); print_hex64(s22);
+    puts("\ns23: "); print_hex64(s23);
+    puts("\ns24: "); print_hex64(s24);
+    puts("\ns25: "); print_hex64(s25);
+    puts("\ns26: "); print_hex64(s26);
+    puts("\ns27: "); print_hex64(s27);
+    puts("\ns28: "); print_hex64(s28);
+    puts("\ns29: "); print_hex64(s29);
+    puts("\ns30: "); print_hex64(s30);
+    puts("\ns31: "); print_hex64(s31);
+
+    puts("\n");
 }
 
 /**
@@ -93,6 +132,20 @@ extern "C" uint64_t unresolved_ijump(uint64_t target) {
     puts("\n");
     print_hex64(ijump_lookup_for_addr(target));
     puts("\n");
+    print_hex64(s10);
+    puts("\n");
+    print_hex64(s11);
+    puts("\n");
+    print_hex64(s12);
+    puts("\n");
+    print_hex64(s13);
+    puts("\n");
+    print_hex64(s14);
+    puts("\n");
+    print_hex64(s15);
+    puts("\n");
+
+    trace_dump_state();
 
     panic("test");
 }
