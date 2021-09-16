@@ -63,7 +63,7 @@ uint64_t ijump_lookup_for_addr(uint64_t addr) {
     return ijump_lookup[(addr - ijump_lookup_base) / 0x2];
 }
 
-void trace_dump_state(void) {
+void trace_dump_state(uint64_t pc) {
     puts("TRACE: STATE");
 
     puts("\ns00: "); print_hex64(s0);
@@ -105,67 +105,57 @@ void trace_dump_state(void) {
 /**
  * @param target unresolved jump target address
  */
-extern "C" uint64_t unresolved_ijump(uint64_t target) {
-    puts("TRACE: enter target: ");
-    print_hex64(target);
-    puts("\n");
+extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
+    puts("TRACE: handler, target: "); print_hex64(target); puts("\n");
 
-    FrvInst instr;
-    (void)frv_decode(0x4, reinterpret_cast<const uint8_t*>(target), FRV_RV64, &instr);
+    uint64_t pc = target;
 
-    trace(target, &instr);
+    do {
+        FrvInst instr;
+        const int r = frv_decode(0x1000, reinterpret_cast<const uint8_t*>(pc), FRV_RV64, &instr);
 
-//    print_hex64(ijump_lookup[]
+        if (r == FRV_UNDEF) {
+            panic("Unable to decode instruction");
+        } else if (r == FRV_PARTIAL) {
+            panic("partial instruction");
+        } else if (r < 0) {
+            panic("undefined");
+        }
 
-    puts("\n");
-    print_hex64(ijump_lookup_base);
-    puts("\n");
-    const uint64_t target_i = target - ijump_lookup_base;
-    print_hex64(target_i);
-    puts("\n");
+        trace(pc, &instr);
 
-#if 0
-    for (uint64_t i = 0; i < 64; i++) {
-        print_hex64(ijump_lookup[i]);
-        puts("\n");
-    }
-#endif
-    puts("\n");
-    print_hex64(ijump_lookup_for_addr(target));
-    puts("\n");
-    print_hex64(s10);
-    puts("\n");
-    print_hex64(s11);
-    puts("\n");
-    print_hex64(s12);
-    puts("\n");
-    print_hex64(s13);
-    puts("\n");
-    print_hex64(s14);
-    puts("\n");
-    print_hex64(s15);
-    puts("\n");
+        trace_dump_state(pc);
 
-    trace_dump_state();
+        if (instr.mnem == FRV_ADDI) {
+            if (instr.rd != 0) {
+                // FIXME: sign extend, handle x0
+                print_hex64(register_file[instr.rs1]); puts(" ");
+                print_hex64(instr.imm); puts(" ");
+                register_file[instr.rd] = register_file[instr.rs1] + instr.imm;
+            }
+        } else if (instr.mnem == FRV_ADD) {
+            if (instr.rd != 0) {
+                print_hex64(register_file[instr.rs1]); puts(" ");
+                print_hex64(register_file[instr.rs2]); puts(" ");
+                register_file[instr.rd] = register_file[instr.rs1] + register_file[instr.rs2];
+            }
+        } else {
+            panic("instruction not implemented");
+        }
 
-    puts("\n");
+        pc += r; // FIXME: is increment PC a pre or post operation ?
+    } while (ijump_lookup_for_addr(pc) == 0);
 
-    if (instr.mnem == FRV_ADDI) {
-        // FIXME: sign extend, handle x0
-        register_file[instr.rd] = register_file[instr.rs1] + instr.imm;
-    }
+    puts("TRACE: found compiled basic block, addr: "); print_hex64(pc); puts("\n");
+
+    trace_dump_state(pc);
 
     puts("\n");
 
-    trace_dump_state();
-
-    panic("test");
+    /* At this point we have found a valid entry point back into
+     * the compiled BasicBlocks
+     */
+    return ijump_lookup_for_addr(pc);
 }
-
-#if 0
-void trace(FrvInst instr) {
-    helper::syscall1
-}
-#endif
 
 }
