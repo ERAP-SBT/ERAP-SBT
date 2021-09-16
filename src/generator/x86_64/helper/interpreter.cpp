@@ -101,6 +101,8 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
 
         trace_dump_state(pc);
 
+
+        // TODO: we might be able to ignore everything with rd=0 as either HINT or NOP instructions
         switch(instr.mnem) {
         /* 2.4 Integer Computational Instructions */
         case FRV_ADDI:
@@ -118,9 +120,15 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             }
             break;
         case FRV_ORI:
-            panic("");
+            if (instr.rd != 0) {
+                register_file[instr.rd] = register_file[instr.rs1] | sign_extend_int64_t(instr.imm);
+            }
+            break;
         case FRV_XORI:
-            panic("");
+            if (instr.rd != 0) {
+                register_file[instr.rd] = register_file[instr.rs1] ^ sign_extend_int64_t(instr.imm);
+            }
+            break;
         case FRV_SLLI:
             panic("");
         case FRV_SRLI:
@@ -132,14 +140,34 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
         case FRV_AUIPC:
             panic("");
         case FRV_ADD:
+            if (instr.rd != 0) {
+                register_file[instr.rd] = register_file[instr.rs1] + register_file[instr.rs2];
+            }
+            break;
         case FRV_SLT:
         case FRV_SLTU:
         case FRV_AND:
+            if (instr.rd != 0) {
+                register_file[instr.rd] = register_file[instr.rs1] & register_file[instr.rs2];
+            }
+            break;
         case FRV_OR:
+            if (instr.rd != 0) {
+                register_file[instr.rd] = register_file[instr.rs1] | register_file[instr.rs2];
+            }
+            break;
         case FRV_XOR:
+            if (instr.rd != 0) {
+                register_file[instr.rd] = register_file[instr.rs1] ^ register_file[instr.rs2];
+            }
+            break;
         case FRV_SLL:
         case FRV_SRL:
         case FRV_SUB:
+            if (instr.rd != 0) {
+                register_file[instr.rd] = register_file[instr.rs1] - register_file[instr.rs2];
+            }
+            break;
         case FRV_SRA:
             panic("");
             break;
