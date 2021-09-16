@@ -25,8 +25,8 @@ mkdir build_rv64
 
 set -x
 
-gcc -g -static -o build_amd64/mandelbrot mandelbrot.c  -Wall -Wextra -Og
-$1 -g -static -o build_rv64/mandelbrot mandelbrot.c -Wall -Wextra -Og
+gcc -g -static -o build_amd64/mandelbrot mandelbrot.c  -Wall -Wextra -O3
+$1 -g -static -o build_rv64/mandelbrot mandelbrot.c -Wall -Wextra -O3
 
 { set +x; } 2>/dev/null
 
@@ -35,7 +35,7 @@ cd build_rv64
 
 set -x
 
-../../../build/src/translate --debug=false --output=translated mandelbrot --print-ir > ir.txt
+../../../build/src/translate --debug=false --output=translated mandelbrot
 
 { set +x; } 2>/dev/null
 
@@ -45,7 +45,7 @@ echo -e "${TXT_BLUE}Testing for the right result...${TXT_CLEAR}"
 set -x
 
 build_amd64/mandelbrot > amd64_mandelbrot.txt
-build_rv64/mandelbrot > rv64_mandelbrot.txt
+build_rv64/translated > rv64_mandelbrot.txt
 cmp amd64_mandelbrot.txt rv64_mandelbrot.txt
 
 { set +x; } 2>/dev/null
