@@ -154,8 +154,6 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
     // store the variables in the new basic block and adjust their inputs (if necessary)
     for (auto it = second_bb_vars.rbegin(); it != second_bb_vars.rend(); it++) {
         SSAVar *var = (*it).get();
-        // set new id according to the new BasicBlocks ids
-        var->id = new_bb->cur_ssa_id++;
 
         // variable is the result of an Operation -> adjust the inputs of the operation
         if (std::holds_alternative<std::unique_ptr<Operation>>(var->info)) {
@@ -170,7 +168,8 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
 
                 // the input must only be changed if the input variable is in the first BasicBlock
                 if (in_var_lifter_info.assign_addr < addr) {
-                    if (is_float(var->type) && in_var->type == Type::f32) {
+                    // the last part of the condition is to prevent issues with operations which uses the same register
+                    if (is_float(var->type) && in_var->type == Type::f32 && std::holds_alternative<size_t>(new_mapping[in_var_lifter_info.static_id]->info)) {
                         // cast f64 static to f32 if necessary
                         SSAVar *casted_in_var = new_bb->add_var(Type::f32, addr);
                         auto op = std::make_unique<Operation>(Instruction::cast);
@@ -183,6 +182,9 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
                 }
             }
         }
+
+        // set new id according to the new BasicBlocks ids
+        var->id = new_bb->cur_ssa_id++;
 
         // add variable to the new BasicBlock
         new_bb->variables.push_back(std::move(*it));

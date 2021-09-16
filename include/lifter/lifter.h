@@ -74,7 +74,7 @@ class Lifter {
                 ir->add_static(Type::f64);
             }
 
-            ir->add_static(Type::i64);
+            ir->add_static(Type::i32);
         }
     }
 
