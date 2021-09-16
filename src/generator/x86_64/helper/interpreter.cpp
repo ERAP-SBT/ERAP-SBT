@@ -27,8 +27,14 @@ void trace(uint64_t addr, const FrvInst* instr) {
     puts("\n");
 }
 
+// TODO: bounds check
 uint64_t ijump_lookup_for_addr(uint64_t addr) {
     return ijump_lookup[(addr - ijump_lookup_base) / 0x2];
+}
+
+/* make the code a bit clearer */
+constexpr uint64_t sign_extend_int64_t(int32_t v) {
+    return static_cast<int64_t>(v);
 }
 
 void trace_dump_state(uint64_t pc) {
@@ -95,21 +101,62 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
 
         trace_dump_state(pc);
 
-        if (instr.mnem == FRV_ADDI) {
+        switch(instr.mnem) {
+        /* 2.4 Integer Computational Instructions */
+        case FRV_ADDI:
             if (instr.rd != 0) {
-                // FIXME: sign extend, handle x0
-                print_hex64(register_file[instr.rs1]); puts(" ");
-                print_hex64(instr.imm); puts(" ");
-                register_file[instr.rd] = register_file[instr.rs1] + instr.imm;
+                register_file[instr.rd] = register_file[instr.rs1] + sign_extend_int64_t(instr.imm);
             }
-        } else if (instr.mnem == FRV_ADD) {
+            break;
+        case FRV_SLTI:
+            panic("");
+        case FRV_SLTIU:
+            panic("");
+        case FRV_ANDI:
             if (instr.rd != 0) {
-                print_hex64(register_file[instr.rs1]); puts(" ");
-                print_hex64(register_file[instr.rs2]); puts(" ");
-                register_file[instr.rd] = register_file[instr.rs1] + register_file[instr.rs2];
+                register_file[instr.rd] = register_file[instr.rs1] & sign_extend_int64_t(instr.imm);
             }
-        } else {
-            panic("instruction not implemented");
+            break;
+        case FRV_ORI:
+            panic("");
+        case FRV_XORI:
+            panic("");
+        case FRV_SLLI:
+            panic("");
+        case FRV_SRLI:
+            panic("");
+        case FRV_SRAI:
+            panic("");
+        case FRV_LUI:
+            panic("");
+        case FRV_AUIPC:
+            panic("");
+        case FRV_ADD:
+        case FRV_SLT:
+        case FRV_SLTU:
+        case FRV_AND:
+        case FRV_OR:
+        case FRV_XOR:
+        case FRV_SLL:
+        case FRV_SRL:
+        case FRV_SUB:
+        case FRV_SRA:
+            panic("");
+            break;
+
+        /* 2.5 Control Transfer Instructions */
+
+        /* 2.6 Load and Store Instructions */
+
+        /* 2.7 Memory Ordering Instructions */
+
+        /* 2.8 Environment Call and Breakpoints */
+
+        /* 2.9 HINT Instructions */
+        default:
+            panic("");
+            panic("instruction not implemented\n");
+            break;
         }
 
         pc += r; // FIXME: is increment PC a pre or post operation ?
