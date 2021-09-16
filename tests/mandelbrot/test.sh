@@ -9,6 +9,8 @@ fi
 TXT_BLUE="\e[36m"
 TXT_CLEAR="\e[0m"
 
+cd "${0%/*}"
+
 echo -e "${TXT_BLUE}Cleaning up leftovers...${TXT_CLEAR}"
 
 set -x
