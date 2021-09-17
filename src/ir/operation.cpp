@@ -328,6 +328,28 @@ BasicBlock *CfOp::target() const {
     return nullptr;
 }
 
+BasicBlock *CfOp::continuation_target() const {
+    switch (type) {
+    case CFCInstruction::jump:
+        return std::get<JumpInfo>(info).target;
+    case CFCInstruction::cjump:
+        return std::get<CJumpInfo>(info).target;
+    case CFCInstruction::call:
+        return std::get<CallInfo>(info).continuation_block;
+    case CFCInstruction::syscall:
+        return std::get<SyscallInfo>(info).continuation_block;
+    case CFCInstruction::ijump:
+        return std::get<IJumpInfo>(info).target;
+    case CFCInstruction::icall:
+    case CFCInstruction::unreachable:
+    case CFCInstruction::_return:
+        return nullptr;
+    }
+
+    assert(0);
+    return nullptr;
+}
+
 const std::vector<SSAVar *> &CfOp::target_inputs() const {
     static std::vector<SSAVar *> vec{};
     vec.clear();
