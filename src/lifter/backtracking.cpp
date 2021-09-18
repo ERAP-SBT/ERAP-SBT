@@ -3,8 +3,8 @@
 using namespace lifter::RV64;
 
 std::optional<uint64_t> Lifter::backtrace_jmp_addr(CfOp *cfop, BasicBlock *bb) {
-    if (cfop->type != CFCInstruction::ijump) {
-        std::cerr << "Jump address backtracking is currently only supported for indirect, JALR jumps." << std::endl;
+    if (cfop->type != CFCInstruction::ijump && cfop->type != CFCInstruction::icall) {
+        std::cerr << "Jump address backtracking is currently only supported for indirect jumps / calls." << std::endl;
         return std::nullopt;
     }
     std::vector<SSAVar *> parsed;

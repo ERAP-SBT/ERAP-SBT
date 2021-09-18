@@ -230,8 +230,8 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
             // add new BasicBlock to predecessors of the target
             target->predecessors.push_back(new_bb);
         }
-        if (cf_op.type == CFCInstruction::call) {
-            BasicBlock *cont_block = std::get<CfOp::CallInfo>(cf_op.info).continuation_block;
+        if (cf_op.type == CFCInstruction::call || cf_op.type == CFCInstruction::icall) {
+            BasicBlock *cont_block = (cf_op.type == CFCInstruction::call ? std::get<CfOp::CallInfo>(cf_op.info).continuation_block : std::get<CfOp::ICallInfo>(cf_op.info).continuation_block);
             if (cont_block) {
                 // remove first BasicBlock from predecessors of the target of the Control-Flow-Operation
                 auto it = std::find(cont_block->predecessors.begin(), cont_block->predecessors.end(), bb);
@@ -253,8 +253,9 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
             }
         }
 
-        if (cf_op.type == CFCInstruction::call) {
-            auto &continuation_mapping = std::get<CfOp::CallInfo>(cf_op.info).continuation_mapping;
+        if (cf_op.type == CFCInstruction::call || cf_op.type == CFCInstruction::icall) {
+            std::vector<std::pair<RefPtr<SSAVar>, size_t>> &continuation_mapping =
+                (cf_op.type == CFCInstruction::call ? std::get<CfOp::CallInfo>(cf_op.info).continuation_mapping : std::get<CfOp::ICallInfo>(cf_op.info).continuation_mapping);
             continuation_mapping.clear();
 
             for (size_t j = 0; j < new_mapping.size(); j++) {

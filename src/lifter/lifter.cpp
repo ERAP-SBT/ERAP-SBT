@@ -187,7 +187,7 @@ void Lifter::lift(Program *prog) {
                 }
             }
 
-            if (cfOp.type == CFCInstruction::call) {
+            if (cfOp.type == CFCInstruction::call || cfOp.type == CFCInstruction::icall) {
                 BasicBlock *cont_block = get_bb(next_addr);
                 if (cont_block == nullptr) {
                     if (next_addr > prog->addrs.back()) {
@@ -198,11 +198,22 @@ void Lifter::lift(Program *prog) {
                 } else if (cont_block->virt_start_addr != next_addr) {
                     split_basic_block(cont_block, next_addr, prog->elf_base.get());
                 }
-                std::get<CfOp::CallInfo>(cfOp.info).continuation_block = cont_block;
-                auto &cont_mapping = std::get<CfOp::CallInfo>(cfOp.info).continuation_mapping;
-                auto &target_inputs = std::get<CfOp::CallInfo>(cfOp.info).target_inputs;
-                for (auto &target_input : target_inputs) {
-                    cont_mapping.emplace_back(target_input, std::get<SSAVar::LifterInfo>(target_input->lifter_info).static_id);
+                if (cfOp.type == CFCInstruction::call) {
+                    auto &call_info = std::get<CfOp::CallInfo>(cfOp.info);
+                    call_info.continuation_block = cont_block;
+                    auto &cont_mapping = call_info.continuation_mapping;
+                    auto &target_inputs = call_info.target_inputs;
+                    for (auto &target_input : target_inputs) {
+                        cont_mapping.emplace_back(target_input, std::get<SSAVar::LifterInfo>(target_input->lifter_info).static_id);
+                    }
+                } else {
+                    auto &call_info = std::get<CfOp::ICallInfo>(cfOp.info);
+                    call_info.continuation_block = cont_block;
+                    auto &cont_mapping = call_info.continuation_mapping;
+                    auto &target_inputs = call_info.mapping;
+                    for (auto &target_input : target_inputs) {
+                        cont_mapping.emplace_back(target_input.first, target_input.second);
+                    }
                 }
             }
 

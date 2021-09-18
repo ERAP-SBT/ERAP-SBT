@@ -94,6 +94,9 @@ struct CfOp {
         BasicBlock *continuation_block = nullptr;
         std::vector<std::pair<RefPtr<SSAVar>, size_t>> continuation_mapping = {}; // TODO: allow non-statics?
         std::vector<std::pair<RefPtr<SSAVar>, size_t>> mapping = {};
+
+        // we are sometimes able to infer the target (normally this means the ijump is a `ret`)
+        BasicBlock *target = nullptr;
     };
 
     struct RetInfo {
