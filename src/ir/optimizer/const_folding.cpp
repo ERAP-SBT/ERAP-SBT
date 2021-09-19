@@ -65,7 +65,9 @@ Type resolve_simple_op_type(const Operation &op, [[maybe_unused]] size_t block_i
         Type largest = Type::i8;
         for (Type t : type_set) {
             std::cerr << " - " << t << '\n';
-            if (cast_dir(largest, t) == 1) {
+            int cmp = cast_dir(largest, t);
+            assert(cmp != -1);
+            if (cmp == 1) {
                 largest = t;
             }
         }
@@ -596,8 +598,6 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                 if (ia.binary_relative && ib.binary_relative)
                     continue;
                 bool bin_rel = ia.binary_relative || ib.binary_relative;
-                if (bin_rel && !(op.type == Instruction::add || op.type == Instruction::sub))
-                    continue;
                 if (bin_rel) {
                     if (op.type == Instruction::sub) {
                         // Evaluating `a - (bin_rel b)` doesn't make sense
@@ -708,12 +708,16 @@ void ConstFoldPass::process_block(BasicBlock *block) {
             }
         } else if (op.type == Instruction::slt || op.type == Instruction::sltu) {
             auto &a = op.in_vars[0], &b = op.in_vars[1], &val_if_less = op.in_vars[2], &val_else = op.in_vars[3];
+            if (!can_handle_types({a->type, b->type}))
+                continue;
             if (a->is_immediate() && b->is_immediate()) {
                 // slt(u) imm, imm, any, any
                 Type type;
                 if (a->type != b->type) {
                     std::cerr << "Warning: Type mismatch on slt(u), using largest\n";
-                    type = cast_dir(a->type, b->type) == 1 ? b->type : a->type;
+                    int cmp = cast_dir(a->type, b->type);
+                    assert(cmp != -1);
+                    type = cmp == 1 ? b->type : a->type;
                 } else if (a->type == Type::imm && op.type == Instruction::slt) {
                     std::cerr << "Warning: slt (signed) with imm values, treating as i64\n";
                     type = Type::i64;
