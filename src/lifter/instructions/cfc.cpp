@@ -168,7 +168,7 @@ void Lifter::lift_jalr(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
     }
 
     // create the jump operation
-    // According to the risc-v manual, direct jumps which write the ip to x1 (or ra) are considered subroutine calls.
+    // According to the risc-v manual, ijumps which write the ip to x1 (or ra) are considered subroutine calls.
     CfOp &cf_operation = bb->add_cf_op(instr.instr.rd == RET_IDX ? CFCInstruction::icall : CFCInstruction::ijump, nullptr, ip, (uint64_t)0);
 
     // set operation in- and outputs

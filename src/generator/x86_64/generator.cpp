@@ -279,10 +279,6 @@ void Generator::compile_call(const BasicBlock *block, const CfOp &op) {
     fprintf(out_fd, "# control flow\n");
     fprintf(out_fd, "call b%zu\n", std::get<CfOp::CallInfo>(op.info).target->id);
 
-    fprintf(out_fd, "# Call Continuation Mapping\n");
-    // Store statics for continuation (jump) after call
-
-    compile_continuation_args(block, std::get<CfOp::CallInfo>(op.info).continuation_mapping);
     fprintf(out_fd, "# destroy stack space\n");
     fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
 
@@ -341,10 +337,6 @@ void Generator::compile_icall(const BasicBlock *block, const CfOp &op) {
     fprintf(out_fd, "1:\n");
     fprintf(out_fd, "call rdi\n");
 
-    fprintf(out_fd, "# ICall Continuation Mapping\n");
-    // Store statics for continuation (jump) after call
-
-    compile_continuation_args(block, std::get<CfOp::ICallInfo>(op.info).continuation_mapping);
     fprintf(out_fd, "# destroy stack space\n");
     fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
 
