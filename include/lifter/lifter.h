@@ -22,7 +22,7 @@ class Lifter {
     // currently used for unresolved jumps
     BasicBlock *dummy;
 
-    bool floating_point_support;
+    const bool floating_point_support;
 
     const size_t count_used_static_vars;
 

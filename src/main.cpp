@@ -97,8 +97,8 @@ int main(int argc, const char **argv) {
     }
 
     Program prog(std::move(elf_file));
-
-    const bool fp_support = !args.has_argument("disable-fp");
+    // support floating points if the flag isn't set or the provided value isn't equal to true
+    const bool fp_support = !args.has_argument("disable-fp") || (args.get_argument("disable-fp") != "" && !args.get_value_as_bool("disable-fp"));
 
     auto lifter = lifter::RV64::Lifter(&ir, fp_support);
     lifter.lift(&prog);

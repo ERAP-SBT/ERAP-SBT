@@ -89,11 +89,7 @@ void Lifter::write_to_mapping(reg_map &mapping, SSAVar *var, uint64_t reg_id, bo
 }
 
 void Lifter::zero_extend_all_f32(BasicBlock *bb, reg_map &mapping, uint64_t ip) const {
-    for (size_t i = 0; i < count_used_static_vars; i++) {
-        if (i == ZERO_IDX) {
-            continue;
-        }
-
+    for (size_t i = START_IDX_FLOATING_POINT_STATICS; i < count_used_static_vars; ++i) {
         if (mapping[i]->type == Type::f32) {
             SSAVar *extended_var = bb->add_var(Type::f64, ip);
             auto op = std::make_unique<Operation>(Instruction::zero_extend);

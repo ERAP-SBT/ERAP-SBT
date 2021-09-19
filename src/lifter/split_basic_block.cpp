@@ -168,7 +168,9 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
 
                 // the input must only be changed if the input variable is in the first BasicBlock
                 if (in_var_lifter_info.assign_addr < addr) {
-                    // the last part of the condition is to prevent issues with operations which uses the same register
+                    // the last part of the condition is to prevent issues with operations which uses the same variable,
+                    // because then the variable is already casted. The casted value is then stored in the new_mapping and
+                    // can therefore easily be used.
                     if (is_float(var->type) && in_var->type == Type::f32 && std::holds_alternative<size_t>(new_mapping[in_var_lifter_info.static_id]->info)) {
                         // cast f64 static to f32 if necessary
                         SSAVar *casted_in_var = new_bb->add_var(Type::f32, addr);
