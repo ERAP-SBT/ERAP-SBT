@@ -1,20 +1,11 @@
 #include "ir/ir.h"
 #include "ir/operation.h"
 #include "ir/optimizer/const_folding.h"
+#include "shared.h"
 
 #include "gtest/gtest.h"
 
 using namespace optimizer;
-
-static void assert_valid(const IR &ir) {
-    std::vector<std::string> messages;
-    if (!ir.verify(messages)) {
-        for (const auto &msg : messages) {
-            std::cerr << msg << '\n';
-        }
-        GTEST_FAIL() << "IR is not valid";
-    }
-}
 
 TEST(TestConstFolding, test_basic_eval) {
     IR ir;
