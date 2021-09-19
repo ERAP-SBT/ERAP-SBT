@@ -41,7 +41,7 @@ void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
         SSAVar *extended_result = bb->add_var(Type::i64, ip);
         {
             auto extend_operation = std::make_unique<Operation>((sign_extend ? Instruction::sign_extend : Instruction::zero_extend));
-            extend_operation->lifter_info.in_op_size = Type::i32;
+            extend_operation->lifter_info.in_op_size = op_size;
             extend_operation->set_inputs(load_dest);
             extend_operation->set_outputs(extended_result);
             extended_result->set_op(std::move(extend_operation));

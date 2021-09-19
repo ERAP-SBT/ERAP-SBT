@@ -223,6 +223,7 @@ void print_help(bool usage_only) {
         std::cerr << "    Optimization Flags:\n";
         std::cerr << "      - generator:\n";
         std::cerr << "          - reg_alloc: Register Allocation\n";
+        std::cerr << "          - merge_ops: Merge multiple IR-Operations into a single native op\n";
         std::cerr << "          - unused_statics: Eliminate unused static-load-stores in the default generator\n";
         std::cerr << "    --helper-path: Set the path to the runtime helper library\n";
         std::cerr << "    --linkerscript-path: Set the path to the linker script\n";
@@ -260,6 +261,8 @@ void parse_opt_flags(const Args &args, uint32_t &gen_optimizations) {
             gen_optimizations |= generator::x86_64::Generator::OPT_MBRA;
         } else if (opt_flag == "unused_statics") {
             gen_optimizations |= generator::x86_64::Generator::OPT_UNUSED_STATIC;
+        } else if (opt_flag == "merge_ops") {
+            gen_optimizations |= generator::x86_64::Generator::OPT_MERGE_OP;
         } else {
             std::cerr << "Warning: Unknown optimization flag: '" << opt_flag << "'\n";
         }

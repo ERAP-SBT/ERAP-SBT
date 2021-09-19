@@ -5,7 +5,6 @@
 using namespace generator::x86_64;
 
 namespace {
-// dupe code
 std::array<std::array<const char *, 4>, REG_COUNT> reg_names = {
     std::array<const char *, 4>{"rax", "eax", "ax", "al"},
     {"rbx", "ebx", "bx", "bl"},
@@ -101,13 +100,11 @@ void RegAlloc::compile_blocks() {
         }
 
         if (!supported) {
-            // TODO: compile the normal way?
+            assert(0);
             continue;
         }
 
-        // only for testing
         if (!bb->gen_info.input_map_setup) {
-            assert(!bb->gen_info.input_map_setup);
             generate_input_map(bb.get());
         }
 
@@ -138,13 +135,12 @@ void RegAlloc::compile_blocks() {
         }
 
         if (!supported) {
-            // TODO: compile the normal way?
+            assert(0);
             continue;
         }
 
         // only for testing
         if (!bb->gen_info.input_map_setup) {
-            assert(!bb->gen_info.input_map_setup);
             generate_input_map(bb.get());
         }
 
@@ -157,7 +153,9 @@ void RegAlloc::compile_blocks() {
     }
 }
 
+// compile all bblocks with an id greater than this with the normal generator
 constexpr size_t BB_OLD_COMPILE_ID_TIL = static_cast<size_t>(-1);
+// only merge bblocks with an id <= BB_MERGE_TIL_ID, otherwise mark them as a top-level block and pass inputs through statics
 constexpr size_t BB_MERGE_TIL_ID = static_cast<size_t>(-1);
 
 void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max_stack_frame_size) {
@@ -352,8 +350,10 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                         save_reg(REG_D);
                     }
                     clear_reg(cur_time, REG_D);
-                    if (op->type == Instruction::div || op->type == Instruction::udiv) {
+                    if (op->type == Instruction::div) {
                         print_asm("cqo\n");
+                    } else if (op->type == Instruction::udiv) {
+                        print_asm("xor edx, edx\n");
                     }
                 }
 
@@ -414,9 +414,8 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     save_reg(dst_reg);
                 }
 
-                // TODO: optimization flag for merging?
                 auto did_merge = false;
-                if (dst && dst->ref_count == 1 && op->type == Instruction::add && bb->variables.size() > var_idx + 1) {
+                if ((gen->optimizations & Generator::OPT_MERGE_OP) && dst && dst->ref_count == 1 && op->type == Instruction::add && bb->variables.size() > var_idx + 1) {
                     // check if next instruction is a load
                     auto *next_var = bb->variables[var_idx + 1].get();
                     if (std::holds_alternative<std::unique_ptr<Operation>>(next_var->info)) {
@@ -497,16 +496,31 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     break;
                 }
 
+                const auto op_with_imm32 = [imm_val, this, in1_reg_name, cur_time, in1](const char *op_str) {
+                    if (std::abs(imm_val) <= 0x7FFF'FFFF) {
+                        print_asm("%s %s, %ld\n", op_str, in1_reg_name, imm_val);
+                    } else {
+                        auto imm_reg = alloc_reg(cur_time);
+                        print_asm("mov %s, %ld\n", reg_names[imm_reg][0], imm_val);
+                        print_asm("%s %s, %s\n", op_str, in1_reg_name, reg_name(imm_reg, choose_type(in1->type, Type::imm)));
+                    }
+                };
                 switch (op->type) {
                 case Instruction::add:
                     if (dst_reg == in1_reg) {
-                        print_asm("add %s, %ld\n", in1_reg_name, imm_val);
+                        op_with_imm32("add");
                     } else {
-                        print_asm("lea %s, [%s + %ld]\n", dst_reg_name, in1_reg_name, imm_val);
+                        if (std::abs(imm_val) <= 0x7FFF'FFFF) {
+                            print_asm("lea %s, [%s + %ld]\n", dst_reg_name, in1_reg_name, imm_val);
+                        } else {
+                            auto imm_reg = alloc_reg(cur_time);
+                            print_asm("mov %s, %ld\n", reg_names[imm_reg][0], imm_val);
+                            print_asm("lea %s, [%s + %s]\n", dst_reg_name, reg_name(imm_reg, choose_type(in1->type, Type::imm)));
+                        }
                     }
                     break;
                 case Instruction::sub:
-                    print_asm("sub %s, %ld\n", in1_reg_name, imm_val);
+                    op_with_imm32("sub");
                     break;
                 case Instruction::shl:
                     print_asm("shl %s, %ld\n", in1_reg_name, imm_val);
@@ -518,41 +532,40 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     print_asm("sar %s, %ld\n", in1_reg_name, imm_val);
                     break;
                 case Instruction::_or:
-                    print_asm("or %s, %ld\n", in1_reg_name, imm_val);
+                    op_with_imm32("or");
                     break;
                 case Instruction::_and:
-                    print_asm("and %s, %ld\n", in1_reg_name, imm_val);
+                    op_with_imm32("and");
                     break;
                 case Instruction::_xor:
-                    print_asm("xor %s, %ld\n", in1_reg_name, imm_val);
+                    op_with_imm32("xor");
                     break;
                 case Instruction::umax:
-                    print_asm("cmp %s, %ld\n", in1_reg_name, imm_val);
+                    op_with_imm32("cmp");
                     print_asm("jae b%zu_%zu_max\n", bb->id, var_idx);
                     print_asm("mov %s, %ld\n", in1_reg_name, imm_val);
                     print_asm("b%zu_%zu_max:\n", bb->id, var_idx);
                     break;
                 case Instruction::umin:
-                    print_asm("cmp %s, %ld\n", in1_reg_name, imm_val);
+                    op_with_imm32("cmp");
                     print_asm("jbe b%zu_%zu_min\n", bb->id, var_idx);
                     print_asm("mov %s, %ld\n", in1_reg_name, imm_val);
                     print_asm("b%zu_%zu_min:\n", bb->id, var_idx);
                     break;
                 case Instruction::max:
-                    print_asm("cmp %s, %ld\n", in1_reg_name, imm_val);
+                    op_with_imm32("cmp");
                     print_asm("jge b%zu_%zu_smax\n", bb->id, var_idx);
                     print_asm("mov %s, %ld\n", in1_reg_name, imm_val);
                     print_asm("b%zu_%zu_smax:\n", bb->id, var_idx);
                     break;
                 case Instruction::min:
-                    print_asm("cmp %s, %ld\n", in1_reg_name, imm_val);
+                    op_with_imm32("cmp");
                     print_asm("jle b%zu_%zu_smin\n", bb->id, var_idx);
                     print_asm("mov %s, %ld\n", in1_reg_name, imm_val);
                     print_asm("b%zu_%zu_smin:\n", bb->id, var_idx);
                     break;
                 case Instruction::mul_l:
-                    assert(std::abs(imm_val) < 0xFFFFFFFF);
-                    print_asm("imul %s, %ld\n", in1_reg_name, imm_val);
+                    op_with_imm32("imul");
                     break;
                 case Instruction::ssmul_h: {
                     const auto imm_reg = load_val_in_reg(cur_time, in2);
@@ -616,7 +629,11 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     save_reg(REG_D);
                 }
                 clear_reg(cur_time, REG_D);
-                print_asm("cqo\n");
+                if (op->type == Instruction::div) {
+                    print_asm("cqo\n");
+                } else {
+                    print_asm("xor edx, edx\n");
+                }
             } else if (op->type == Instruction::shl || op->type == Instruction::shr || op->type == Instruction::sar) {
                 // shift only allows the amount to be in cl
                 in2_reg = load_val_in_reg(cur_time, in2, REG_C);
@@ -1013,24 +1030,25 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
 
             switch (std::get<CfOp::CJumpInfo>(cf_op.info).type) {
             case CfOp::CJumpInfo::CJumpType::eq:
-                print_asm("jne b%zu_reg_alloc_cf%zu\n", bb->id, cf_idx + 1);
+                print_asm("jne");
                 break;
             case CfOp::CJumpInfo::CJumpType::neq:
-                print_asm("je b%zu_reg_alloc_cf%zu\n", bb->id, cf_idx + 1);
+                print_asm("je");
                 break;
             case CfOp::CJumpInfo::CJumpType::lt:
-                print_asm("jae b%zu_reg_alloc_cf%zu\n", bb->id, cf_idx + 1);
+                print_asm("jae");
                 break;
             case CfOp::CJumpInfo::CJumpType::gt:
-                print_asm("jbe b%zu_reg_alloc_cf%zu\n", bb->id, cf_idx + 1);
+                print_asm("jbe");
                 break;
             case CfOp::CJumpInfo::CJumpType::slt:
-                print_asm("jge b%zu_reg_alloc_cf%zu\n", bb->id, cf_idx + 1);
+                print_asm("jge");
                 break;
             case CfOp::CJumpInfo::CJumpType::sgt:
-                print_asm("jle b%zu_reg_alloc_cf%zu\n", bb->id, cf_idx + 1);
+                print_asm("jle");
                 break;
             }
+            print_asm(" b%zu_reg_alloc_cf%zu\n", bb->id, cf_idx + 1);
         }
 
         switch (cf_op.type) {
