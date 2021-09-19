@@ -1,4 +1,4 @@
-ir_tests_src = ['test_ir_helpers.cpp', 'test_eval.cpp', 'test_const_folding.cpp']
+ir_tests_src = ['test_ir_helpers.cpp', 'test_eval.cpp', 'test_const_folding.cpp', 'test_optimization.cpp']
 
 test('ir',
      executable('gtest-ir',
