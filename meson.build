@@ -7,6 +7,9 @@ gmock_dep = gtest.get_variable('gmock_dep')
 libfrvdec = subproject('frvdec')
 frvdec_dep = libfrvdec.get_variable('frvdec')
 
+libfadec = subproject('fadec')
+fadec_dep = libfadec.get_variable('fadec')
+
 if get_option('buildtype').startswith('debug')
   add_project_arguments('-DDEBUG', language : 'cpp')
 endif

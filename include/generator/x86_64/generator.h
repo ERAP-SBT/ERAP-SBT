@@ -1,5 +1,6 @@
 #pragma once
 
+#include "generator/x86_64/assembler.h"
 #include "ir/ir.h"
 
 namespace generator::x86_64 {
@@ -15,25 +16,19 @@ struct Generator {
 
     IR *ir;
     std::vector<std::pair<ErrType, const BasicBlock *>> err_msgs;
-    std::string binary_filepath;
+    std::string binary_filepath, binary_out;
     FILE *out_fd;
     uint32_t optimizations = 0;
+    bool needs_short_jmp_resolve = false;
+    Assembler as;
 
-    Generator(IR *ir, std::string binary_filepath = {}, FILE *out_fd = stdout) : ir(ir), binary_filepath(std::move(binary_filepath)), out_fd(out_fd) {}
+    Generator(IR *ir, std::string binary_filepath = {}, FILE *out_fd = stdout, std::string binary_out = {});
 
     void compile();
 
   protected:
-    enum class Section { DATA, BSS, TEXT, RODATA };
-    void compile_section(Section section);
-
-    void compile_statics();
-    void compile_phdr_info();
     void compile_blocks();
     void compile_block(const BasicBlock *block);
-    void compile_entry();
-    void compile_err_msgs();
-    void compile_ijump_lookup();
 
     void compile_ijump(const BasicBlock *block, const CfOp &op);
     void compile_vars(const BasicBlock *block);

@@ -124,54 +124,8 @@ int main(int argc, const char **argv) {
     }
 
     auto output_object = temp_dir / "translated.o";
-    FILE *assembler = open_assembler(output_object);
-    if (!assembler) {
-        return EXIT_FAILURE;
-    }
-    if (!args.has_argument("asm-out")) {
-        generator::x86_64::Generator generator(&ir, binary_image_file.string(), assembler);
-        generator.compile();
-    } else {
-        const auto asm_file = std::string{args.get_argument("asm-out")};
-        auto asm_out = fopen(asm_file.c_str(), "w");
-        if (!asm_out) {
-            std::cerr << "The assembly output couldn't be opened: " << std::strerror(errno) << "\n";
-            return EXIT_FAILURE;
-        }
-
-        generator::x86_64::Generator generator(&ir, binary_image_file.string(), asm_out);
-        generator.compile();
-        const auto file_size = ftell(asm_out);
-        fclose(asm_out);
-
-        asm_out = fopen(asm_file.c_str(), "r");
-        if (!asm_out) {
-            return EXIT_FAILURE;
-        }
-
-        const auto asm_out_fd = fileno(asm_out);
-        const auto assembler_fd = fileno(assembler);
-        auto bytes_left = file_size;
-        while (true) {
-            const auto res = splice(asm_out_fd, nullptr, assembler_fd, nullptr, bytes_left, 0);
-            if (res < 0) {
-                std::cerr << "Failed to assemble the binary: " << std::strerror(errno) << '\n';
-                return EXIT_FAILURE;
-            }
-            bytes_left -= res;
-            if (res == 0 || bytes_left == 0) {
-                break;
-            }
-        }
-
-        fclose(asm_out);
-    }
-
-    auto asm_status = pclose(assembler);
-    if (asm_status != EXIT_SUCCESS) {
-        std::cerr << "Assembler failed with exit code " << asm_status << '\n';
-        return EXIT_FAILURE;
-    }
+    generator::x86_64::Generator generator{&ir, binary_image_file.string(), stdout, output_object.string()};
+    generator.compile();
 
     path helper_library, linker_script_file;
     if (!find_runtime_dependencies(executable_dir, args, helper_library, linker_script_file))

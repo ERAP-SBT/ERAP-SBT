@@ -15,18 +15,35 @@ SECTIONS {
         . = ABSOLUTE(orig_binary_vaddr) + orig_binary_size;
     }
 
-    /* place our things after the original binary */
-    . = ABSOLUTE(orig_binary_vaddr) + orig_binary_size;
-    .text : {
+    /* use the precalculated addresses for the sections */
+    .tbss ABSOLUTE(tbss_start) : {
+        *(.tbss)
+    }
+
+    .ijumps ABSOLUTE(ijump_table_start) : {
+        *(.ijumps)
+    }
+
+    .ttext ABSOLUTE(ttext_start) : {
+        *(.ttext)
+    }
+
+    .rodata ABSOLUTE(rodata_start) : {
+        *(.rodata)
+    }
+
+    /* place helper things after the precalculated stuff */
+    . = ABSOLUTE(helper_start);
+    .test_sec : {
         *(.text)
     }
     .bss : {
         *(.bss)
     }
-    .rodata : {
-        *(.rodata)
-    }
     .data : {
         *(.data)
+    }
+    .eh_frame : {
+        *(.eh_frame)
     }
 }

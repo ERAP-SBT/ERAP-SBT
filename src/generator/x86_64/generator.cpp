@@ -1,85 +1,15 @@
 #include "generator/x86_64/generator.h"
 
+#include "generator/x86_64/assembler.h"
+
 using namespace generator::x86_64;
 
 // TODO: imm handling is questionable at best here
 
 namespace {
-std::array<const char *, 4> op_reg_mapping_64 = {"rax", "rbx", "rcx", "rdx"};
+std::array<uint64_t, 4> op_reg_mapping = {FE_AX, FE_BX, FE_CX, FE_DX};
 
-std::array<const char *, 4> op_reg_mapping_32 = {"eax", "ebx", "ecx", "edx"};
-
-std::array<const char *, 4> op_reg_mapping_16 = {"ax", "bx", "cx", "dx"};
-
-std::array<const char *, 4> op_reg_mapping_8 = {"al", "bl", "cl", "dl"};
-
-std::array<const char *, 4> &op_reg_map_for_type(const Type type) {
-    switch (type) {
-    case Type::imm:
-    case Type::i64:
-        return op_reg_mapping_64;
-    case Type::i32:
-        return op_reg_mapping_32;
-    case Type::i16:
-        return op_reg_mapping_16;
-    case Type::i8:
-        return op_reg_mapping_8;
-    case Type::f64:
-    case Type::f32:
-    case Type::mt:
-        assert(0);
-        exit(1);
-    }
-
-    assert(0);
-    exit(1);
-}
-
-std::array<const char *, 6> call_reg = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
-
-const char *rax_from_type(const Type type) {
-    switch (type) {
-    case Type::imm:
-    case Type::i64:
-        return "rax";
-    case Type::i32:
-        return "eax";
-    case Type::i16:
-        return "ax";
-    case Type::i8:
-        return "al";
-    case Type::f32:
-    case Type::f64:
-    case Type::mt:
-        assert(0);
-        exit(1);
-    }
-
-    assert(0);
-    exit(1);
-}
-
-const char *ptr_from_type(const Type type) {
-    switch (type) {
-    case Type::imm:
-    case Type::i64:
-        return "QWORD PTR";
-    case Type::i32:
-        return "DWORD PTR";
-    case Type::i16:
-        return "WORD PTR";
-    case Type::i8:
-        return "BYTE PTR";
-    case Type::f32:
-    case Type::f64:
-    case Type::mt:
-        assert(0);
-        exit(1);
-    }
-
-    assert(0);
-    exit(1);
-}
+std::array<uint64_t, 6> call_reg = {FE_DI, FE_SI, FE_DX, FE_CX, FE_R8, FE_R9};
 
 size_t index_for_var(const BasicBlock *block, const SSAVar *var) {
     for (size_t idx = 0; idx < block->variables.size(); ++idx) {
@@ -92,96 +22,28 @@ size_t index_for_var(const BasicBlock *block, const SSAVar *var) {
 }
 } // namespace
 
+Generator::Generator(IR *ir, std::string binary_filepath, FILE *out_fd, std::string binary_out)
+    : ir(ir), binary_filepath(std::move(binary_filepath)), binary_out(std::move(binary_out)), out_fd(out_fd) {
+    auto file = std::ifstream{this->binary_filepath, std::ios::binary};
+    file.seekg(0, std::ios::end);
+    size_t file_size = file.tellg();
+    file.seekg(0, std::ios::beg);
+    auto vec = std::vector<uint8_t>{};
+    vec.resize(file_size);
+    file.seekg(0, std::ios::beg);
+    file.read(reinterpret_cast<char *>(vec.data()), vec.size());
+    as = Assembler{ir, std::move(vec)};
+}
+
 void Generator::compile() {
     assert(err_msgs.empty());
 
-    fprintf(out_fd, ".intel_syntax noprefix\n\n");
-    if (!binary_filepath.empty()) {
-        /* TODO: extract read-write-execute information from source ELF program headers */
-
-        /* Put the original image into a seperate section so we can set the start address */
-        fprintf(out_fd, ".section .orig_binary, \"aw\"\n");
-        fprintf(out_fd, ".incbin \"%s\"\n", binary_filepath.c_str());
-    }
-
-    /* we expect the linker to link the original binary image (if any) at
-     * exactly this address
-     */
-    fprintf(out_fd, ".global orig_binary_vaddr\n");
-    fprintf(out_fd, "orig_binary_vaddr = %#lx\n", ir->base_addr);
-    fprintf(out_fd, ".global orig_binary_size\n");
-    fprintf(out_fd, "orig_binary_size = %#lx\n", ir->load_size);
-    fprintf(out_fd, "binary = orig_binary_vaddr\n");
-
-    compile_statics();
-    compile_phdr_info();
-
-    compile_section(Section::BSS);
-
-    fprintf(out_fd, "param_passing:\n");
-    fprintf(out_fd, ".space 128\n");
-    fprintf(out_fd, ".type param_passing,STT_OBJECT\n");
-    fprintf(out_fd, ".size param_passing,$-param_passing\n");
-
-    fprintf(out_fd, ".align 16\n");
-    fprintf(out_fd, "stack_space:\n");
-    fprintf(out_fd, ".space 1048576\n"); /* 1MiB */
-    fprintf(out_fd, "stack_space_end:\n");
-    fprintf(out_fd, ".type stack_space,STT_OBJECT\n");
-    fprintf(out_fd, ".size stack_space,$-stack_space\n");
-
-    fprintf(out_fd, "init_stack_ptr: .quad 0\n");
-
     compile_blocks();
 
-    compile_entry();
-
-    compile_err_msgs();
-
-    compile_ijump_lookup();
-}
-
-void Generator::compile_ijump_lookup() {
-    compile_section(Section::RODATA);
-
-    fprintf(out_fd, "ijump_lookup:\n");
-
-    assert(ir->virt_bb_start_addr <= ir->virt_bb_end_addr);
-
-    /* Incredibly space inefficient but also O(1) fast */
-    for (uint64_t i = ir->virt_bb_start_addr; i < ir->virt_bb_end_addr; i += 2) {
-        const auto bb = ir->bb_at_addr(i);
-        fprintf(out_fd, "/* 0x%#.8lx: */", i);
-        if (bb != nullptr && bb->virt_start_addr == i) {
-            fprintf(out_fd, ".8byte b%zu\n", bb->id);
-        } else {
-            fprintf(out_fd, ".8byte 0x0\n");
-        }
-    }
-
-    fprintf(out_fd, "ijump_lookup_end:\n");
-    fprintf(out_fd, ".type ijump_lookup,STT_OBJECT\n");
-    fprintf(out_fd, ".size ijump_lookup,ijump_lookup_end-ijump_lookup\n");
-}
-
-void Generator::compile_statics() {
-    compile_section(Section::DATA);
-
-    for (const auto &var : ir->statics) {
-        std::fprintf(out_fd, "s%zu: .quad 0\n", var.id); // for now have all of the statics be 64bit
-    }
-}
-
-void Generator::compile_phdr_info() {
-    std::fprintf(out_fd, "phdr_off: .quad %lu\n", ir->phdr_off);
-    std::fprintf(out_fd, "phdr_num: .quad %lu\n", ir->phdr_num);
-    std::fprintf(out_fd, "phdr_size: .quad %lu\n", ir->phdr_size);
-    std::fprintf(out_fd, ".global phdr_off\n.global phdr_num\n.global phdr_size\n");
+    as.finish(binary_out, this);
 }
 
 void Generator::compile_blocks() {
-    compile_section(Section::TEXT);
-
     for (const auto &block : ir->basic_blocks) {
         compile_block(block.get());
     }
@@ -195,29 +57,35 @@ void Generator::compile_block(const BasicBlock *block) {
     }
 
     const size_t stack_size = block->variables.size() * 8;
-    fprintf(out_fd, "b%zu:\npush rbp\nmov rbp, rsp\nsub rsp, %zu\n", block->id, stack_size);
-    fprintf(out_fd, "# block->virt_start_addr: %#lx\n", block->virt_start_addr);
+    as.start_new_bb(block->id);
+    fe_enc64(as.cur_instr_ptr(), FE_PUSHr, FE_BP);               // push rbp
+    fe_enc64(as.cur_instr_ptr(), FE_MOV64rr, FE_BP, FE_SP);      // mov rbp, rsp
+    fe_enc64(as.cur_instr_ptr(), FE_SUB64ri, FE_SP, stack_size); // sub rsp, stack_size
     compile_vars(block);
 
+    needs_short_jmp_resolve = false;
     for (size_t i = 0; i < block->control_flow_ops.size(); ++i) {
         const auto &cf_op = block->control_flow_ops[i];
         assert(cf_op.source == block);
 
-        fprintf(out_fd, "b%zu_cf%zu:\n", block->id, i);
+        if (needs_short_jmp_resolve) {
+            as.resolve_short_jmp();
+            needs_short_jmp_resolve = false;
+        }
         switch (cf_op.type) {
         case CFCInstruction::jump:
             compile_cf_args(block, cf_op);
-            fprintf(out_fd, "# control flow\n");
-            fprintf(out_fd, "jmp b%zu\n", std::get<CfOp::JumpInfo>(cf_op.info).target->id);
+            as.add_jmp_to_bb(std::get<CfOp::JumpInfo>(cf_op.info).target->id);
             break;
         case CFCInstruction::_return:
             compile_ret_args(block, cf_op);
-            fprintf(out_fd, "# control flow\nret\n");
+            fe_enc64(as.cur_instr_ptr(), FE_RET);
             break;
         case CFCInstruction::cjump:
             compile_cjump(block, cf_op, i);
             break;
         case CFCInstruction::call:
+            assert(0);
             compile_continuation_args(block, std::get<CfOp::CallInfo>(cf_op.info).continuation_mapping);
             compile_cf_args(block, cf_op);
             fprintf(out_fd, "# control flow\n");
@@ -232,9 +100,11 @@ void Generator::compile_block(const BasicBlock *block) {
             compile_ijump(block, cf_op);
             break;
         case CFCInstruction::unreachable:
+            assert(0);
             err_msgs.emplace_back(ErrType::unreachable, block);
-            fprintf(out_fd, "lea rdi, [rip + err_unreachable_b%zu]\n", block->id);
-            fprintf(out_fd, "jmp panic\n");
+            as.add_panic(err_msgs.size() - 1);
+            // fprintf(out_fd, "lea rdi, [rip + err_unreachable_b%zu]\n", block->id);
+            // fprintf(out_fd, "jmp panic\n");
             break;
         case CFCInstruction::icall:
             assert(0);
@@ -242,16 +112,11 @@ void Generator::compile_block(const BasicBlock *block) {
         }
     }
 
-    fprintf(out_fd, ".type b%zu,STT_FUNC\n", block->id);
-    fprintf(out_fd, ".size b%zu,$-b%zu\n", block->id, block->id);
-
-    fprintf(out_fd, "\n");
+    // TODO: as.end_bb()?
 }
 
 void Generator::compile_ijump(const BasicBlock *block, const CfOp &op) {
     assert(op.type == CFCInstruction::ijump);
-
-    fprintf(out_fd, "# IJump Mapping\n");
 
     const auto &ijump_info = std::get<CfOp::IJumpInfo>(op.info);
 
@@ -260,89 +125,56 @@ void Generator::compile_ijump(const BasicBlock *block, const CfOp &op) {
             continue;
         }
 
-        fprintf(out_fd, "# s%zu from var v%zu\n", s_idx, var->id);
-
         if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(var->info)) {
             const auto orig_static_idx = std::get<size_t>(var->info);
             if (orig_static_idx == s_idx) {
-                fprintf(out_fd, "# Skipped\n");
                 continue;
             }
-            fprintf(out_fd, "xor rax, rax\n");
-            fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(var->type), orig_static_idx);
+            fe_enc64(as.cur_instr_ptr(), FE_XOR32rr, FE_AX, FE_AX);
+            as.load_static_in_reg(orig_static_idx, FE_AX, var->type);
         } else {
-            fprintf(out_fd, "xor rax, rax\n");
-            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+            fe_enc64(as.cur_instr_ptr(), FE_XOR32rr, FE_AX, FE_AX);
+            fe_enc64(as.cur_instr_ptr(), opcode(var->type, FE_MOV64rm, FE_MOV32rm, FE_MOV16rm, FE_MOV8rm), FE_AX, FE_MEM(FE_BP, 0, 0, -(8 + 8 * index_for_var(block, var))));
         }
 
-        fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
+        as.save_static_from_reg(s_idx, FE_AX, Type::i64);
     }
 
     assert(op.in_vars[0] != nullptr);
     assert(ijump_info.target == nullptr);
 
-    fprintf(out_fd, "# Get IJump Destination\n");
-    fprintf(out_fd, "xor rax, rax\n");
-    fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(op.in_vars[0]->type), index_for_var(block, op.in_vars[0]));
+    // get ijump destination
+    fe_enc64(as.cur_instr_ptr(), FE_XOR32rr, FE_AX, FE_AX);
+    fe_enc64(as.cur_instr_ptr(), opcode(op.in_vars[0]->type, FE_MOV64rm, FE_MOV32rm, FE_MOV16rm, FE_MOV8rm), FE_AX, FE_MEM(FE_BP, 0, 0, -(8 + 8 * index_for_var(block, op.in_vars[0]))));
 
-    fprintf(out_fd, "# destroy stack space\n");
-    fprintf(out_fd, "mov rsp, rbp\n");
-    fprintf(out_fd, "pop rbp\n");
+    fe_enc64(as.cur_instr_ptr(), FE_MOV64rr, FE_SP, FE_BP);
+    fe_enc64(as.cur_instr_ptr(), FE_POPr, FE_BP);
 
     err_msgs.emplace_back(ErrType::unresolved_ijump, block);
 
     /* we trust the lifter that the ijump destination is already aligned */
 
     /* turn absolute address into relative offset from start of first basicblock */
-    fprintf(out_fd, "sub rax, %zu\n", ir->virt_bb_start_addr);
+    fe_enc64(as.cur_instr_ptr(), FE_SUB64ri, FE_AX, ir->virt_bb_start_addr);
 
-    fprintf(out_fd, "cmp rax, ijump_lookup_end - ijump_lookup\n");
-    fprintf(out_fd, "ja 0f\n");
-    fprintf(out_fd, "lea rdi, [rip + ijump_lookup]\n");
-    fprintf(out_fd, "mov rdi, [rdi + 4 * rax]\n");
-    fprintf(out_fd, "test rdi, rdi\n");
-    fprintf(out_fd, "je 0f\n");
-    fprintf(out_fd, "jmp rdi\n");
-    fprintf(out_fd, "0:\n");
-    fprintf(out_fd, "lea rdi, [rip + err_unresolved_ijump_b%zu]\n", block->id);
-    fprintf(out_fd, "jmp panic\n");
-}
+    fe_enc64(as.cur_instr_ptr(), FE_CMP64ri, FE_AX, as.ijump_table_size); // TODO: this bounds check is wrong
+    auto *cur1 = *as.cur_instr_ptr();
+    fe_enc64(&as.instr_ptr, FE_JA | FE_JMPL, (intptr_t)cur1);
+    fe_enc64(as.cur_instr_ptr(), FE_MOV64ri, FE_DI, as.ijump_table_addr);
+    fe_enc64(as.cur_instr_ptr(), FE_MOV64rm, FE_DI, FE_MEM(FE_DI, 4, FE_AX, 0));
+    fe_enc64(as.cur_instr_ptr(), FE_TEST64rr, FE_DI, FE_DI);
+    auto *cur2 = *as.cur_instr_ptr();
+    fe_enc64(&as.instr_ptr, FE_JZ | FE_JMPL, (intptr_t)cur1);
+    fe_enc64(as.cur_instr_ptr(), FE_JMPr, FE_DI);
 
-void Generator::compile_entry() {
-    compile_section(Section::TEXT);
-    fprintf(out_fd, ".global _start\n");
-    fprintf(out_fd, "_start:\n");
-    fprintf(out_fd, "mov rbx, offset param_passing\n");
-    fprintf(out_fd, "mov rdi, rsp\n");
-    fprintf(out_fd, "mov rsi, offset stack_space_end\n");
-    fprintf(out_fd, "call copy_stack\n");
-    fprintf(out_fd, "mov [init_stack_ptr], rax\n");
-    fprintf(out_fd, "jmp b%zu\n", ir->entry_block);
-    fprintf(out_fd, ".type _start,STT_FUNC\n");
-    fprintf(out_fd, ".size _start,$-_start\n");
-}
-
-void Generator::compile_err_msgs() {
-    compile_section(Section::RODATA);
-
-    for (const auto &[type, block] : err_msgs) {
-        switch (type) {
-        case ErrType::unreachable:
-            fprintf(out_fd, "err_unreachable_b%zu: .ascii \"Reached unreachable code in block %zu\\n\\0\"\n", block->id, block->id);
-            break;
-        case ErrType::unresolved_ijump:
-            fprintf(out_fd, "err_unresolved_ijump_b%zu: .ascii \"Reached unresolved indirect jump in block%zu\\n\\0\"\n", block->id, block->id);
-            break;
-        }
-    }
-
-    err_msgs.clear();
+    fe_enc64(&cur1, FE_JA | FE_JMPL, (intptr_t)as.instr_ptr);
+    fe_enc64(&cur2, FE_JZ | FE_JMPL, (intptr_t)as.instr_ptr);
+    as.add_panic(err_msgs.size() - 1);
 }
 
 void Generator::compile_vars(const BasicBlock *block) {
     for (size_t idx = 0; idx < block->variables.size(); ++idx) {
         const auto *var = block->variables[idx].get();
-        fprintf(out_fd, "# Handling v%zu (v%zu)\n", idx, var->id);
         if (var->info.index() == 0) {
             continue;
         }
@@ -373,14 +205,12 @@ void Generator::compile_vars(const BasicBlock *block) {
                 }
 
                 if (!has_var_ref) {
-                    fprintf(out_fd, "# Skipped\n");
                     continue;
                 }
             }
 
-            const auto *reg_str = rax_from_type(var->type);
-            fprintf(out_fd, "mov rax, [s%zu]\n", std::get<size_t>(var->info));
-            fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", idx, reg_str);
+            as.load_static_in_reg(std::get<size_t>(var->info), FE_AX, var->type);
+            fe_enc64(as.cur_instr_ptr(), opcode(var->type, FE_MOV64mr, FE_MOV32mr, FE_MOV16mr, FE_MOV8mr), FE_MEM(FE_BP, 0, 0, -(8 + 8 * idx)), FE_AX); // mov [rbp - 8 - 8 * idx], rax
             continue;
         }
 
@@ -390,10 +220,11 @@ void Generator::compile_vars(const BasicBlock *block) {
 
             const auto &info = std::get<SSAVar::ImmInfo>(var->info);
             if (info.binary_relative) {
-                fprintf(out_fd, "lea rax, [binary + %ld]\n", info.val);
-                fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], rax\n", idx);
+                as.load_binary_rel_val(FE_AX, info.val);
+                fe_enc64(as.cur_instr_ptr(), FE_MOV64mr, FE_MEM(FE_BP, 0, 0, -(8 + 8 * idx)), FE_AX);
             } else {
-                fprintf(out_fd, "mov %s [rbp - 8 - 8 * %zu], %ld\n", ptr_from_type(var->type), idx, info.val);
+                // TODO: this is 32 bit sign extended
+                fe_enc64(as.cur_instr_ptr(), opcode(var->type, FE_MOV64mi, FE_MOV32mi, FE_MOV16mi, FE_MOV8mi), FE_MEM(FE_BP, 0, 0, -(8 + 8 * idx)), info.val);
             }
 
             continue;
@@ -403,7 +234,7 @@ void Generator::compile_vars(const BasicBlock *block) {
         const auto *op = std::get<3>(var->info).get();
         assert(op != nullptr);
 
-        std::array<const char *, 4> in_regs{};
+        std::array<uint64_t, 4> in_regs{};
         size_t arg_count = 0;
         for (size_t in_idx = 0; in_idx < op->in_vars.size(); ++in_idx) {
             const auto &in_var = op->in_vars[in_idx];
@@ -414,94 +245,101 @@ void Generator::compile_vars(const BasicBlock *block) {
             if (in_var->type == Type::mt)
                 continue;
 
-            const auto *reg_str = op_reg_map_for_type(in_var->type)[in_idx];
-            const auto *full_reg_str = op_reg_map_for_type(Type::i64)[in_idx];
+            const auto reg = op_reg_mapping[in_idx];
 
             // zero the full register so stuff doesn't go broke e.g. in zero-extend
-            fprintf(out_fd, "xor %s, %s\n", full_reg_str, full_reg_str);
-            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", reg_str, index_for_var(block, in_var));
-            in_regs[in_idx] = reg_str;
+            fe_enc64(as.cur_instr_ptr(), FE_XOR32rr, reg, reg);
+            fe_enc64(as.cur_instr_ptr(), opcode(in_var->type, FE_MOV64rm, FE_MOV32rm, FE_MOV16rm, FE_MOV8rm), reg, FE_MEM(FE_BP, 0, 0, -(8 + 8 * index_for_var(block, in_var))));
+            in_regs[in_idx] = reg;
         }
 
         switch (op->type) {
         case Instruction::store:
             assert(op->in_vars[0]->type == Type::i64 || op->in_vars[0]->type == Type::imm);
             assert(arg_count == 3);
-            fprintf(out_fd, "mov %s [%s], %s\n", ptr_from_type(op->in_vars[1]->type), in_regs[0], in_regs[1]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[1]->type, FE_MOV64mr, FE_MOV32mr, FE_MOV16mr, FE_MOV8mr), FE_MEM(in_regs[0], 0, 0, 0), in_regs[1]);
             break;
         case Instruction::load:
             assert(op->in_vars[0]->type == Type::i64 || op->in_vars[0]->type == Type::imm);
             assert(op->out_vars[0] == var);
             assert(arg_count == 2);
-            fprintf(out_fd, "mov %s, %s [%s]\n", op_reg_map_for_type(var->type)[0], ptr_from_type(var->type), in_regs[0]);
+            fe_enc64(as.cur_instr_ptr(), opcode(var->type, FE_MOV64rm, FE_MOV32rm, FE_MOV16rm, FE_MOV8rm), in_regs[0], FE_MEM(in_regs[0], 0, 0, 0));
             break;
         case Instruction::add:
             assert(arg_count == 2);
-            fprintf(out_fd, "add rax, rbx\n");
+            fe_enc64(as.cur_instr_ptr(), FE_ADD64rr, FE_AX, FE_BX);
             break;
         case Instruction::sub:
             assert(arg_count == 2);
-            fprintf(out_fd, "sub rax, rbx\n");
+            fe_enc64(as.cur_instr_ptr(), FE_SUB64rr, FE_AX, FE_BX);
             break;
         case Instruction::mul_l:
             assert(arg_count == 2);
-            fprintf(out_fd, "imul rax, rbx\n");
+            fe_enc64(as.cur_instr_ptr(), FE_IMUL64rr, FE_AX, FE_BX);
             break;
         case Instruction::ssmul_h:
             assert(arg_count == 2);
-            fprintf(out_fd, "imul rbx\nmov rax, rdx\n");
+            fe_enc64(as.cur_instr_ptr(), FE_IMUL64r, FE_BX);
+            fe_enc64(as.cur_instr_ptr(), FE_MOV64rr, FE_AX, FE_DX);
             break;
         case Instruction::uumul_h:
             assert(arg_count == 2);
-            fprintf(out_fd, "mul rbx\nmov rax, rdx\n");
+            fe_enc64(as.cur_instr_ptr(), FE_MUL64r, FE_BX);
+            fe_enc64(as.cur_instr_ptr(), FE_MOV64rr, FE_AX, FE_DX);
             break;
         case Instruction::div:
             assert(arg_count == 2 || arg_count == 3);
-            fprintf(out_fd, "cqo\nidiv rbx\n");
-            fprintf(out_fd, "mov rbx, rdx\n"); // second output is remainder and needs to be in rbx atm
+            fe_enc64(as.cur_instr_ptr(), FE_C_SEP64);
+            fe_enc64(as.cur_instr_ptr(), FE_IDIV64r, FE_BX);
+            fe_enc64(as.cur_instr_ptr(), FE_MOV64rr, FE_BX, FE_DX); // second output is remainder and needs to be in rbx atm
             break;
         case Instruction::udiv:
             assert(arg_count == 2);
-            fprintf(out_fd, "xor rdx, rdx\ndiv rbx\n");
-            fprintf(out_fd, "mov rbx, rdx\n"); // second output is remainder and needs to be in rbx atm
+            fe_enc64(as.cur_instr_ptr(), FE_XOR32rr, FE_DX, FE_DX);
+            fe_enc64(as.cur_instr_ptr(), FE_DIV64r, FE_BX);
+            fe_enc64(as.cur_instr_ptr(), FE_MOV64rr, FE_BX, FE_DX); // second output is remainder and needs to be in rbx atm
             break;
         case Instruction::shl:
             assert(arg_count == 2);
-            fprintf(out_fd, "mov cl, bl\nshl %s, cl\n", rax_from_type(op->in_vars[0]->type));
+            fe_enc64(as.cur_instr_ptr(), FE_MOV8rr, FE_CX, FE_BX);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_SHL64rr, FE_SHL32rr, FE_SHL16rr, FE_SHL8rr), FE_AX, FE_CX);
             break;
         case Instruction::shr:
             assert(arg_count == 2);
-            fprintf(out_fd, "mov cl, bl\nshr %s, cl\n", rax_from_type(op->in_vars[0]->type));
+            fe_enc64(as.cur_instr_ptr(), FE_MOV8rr, FE_CX, FE_BX);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_SHR64rr, FE_SHR32rr, FE_SHR16rr, FE_SHR8rr), FE_AX, FE_CX);
             break;
         case Instruction::sar:
             assert(arg_count == 2);
             // make sure that it uses the bit-width of the input operand for shifting
             // so that the sign-bit is properly recognized
-            // TODO: find out if that is a problem elsewhere
-            fprintf(out_fd, "mov cl, bl\nsar %s, cl\n", rax_from_type(op->in_vars[0]->type));
+            fe_enc64(as.cur_instr_ptr(), FE_MOV8rr, FE_CX, FE_BX);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_SAR64rr, FE_SAR32rr, FE_SAR16rr, FE_SAR8rr), FE_AX, FE_CX);
             break;
         case Instruction::_or:
             assert(arg_count == 2);
-            fprintf(out_fd, "or rax, rbx\n");
+            fe_enc64(as.cur_instr_ptr(), FE_OR64rr, FE_AX, FE_BX);
             break;
         case Instruction::_and:
             assert(arg_count == 2);
-            fprintf(out_fd, "and rax, rbx\n");
+            fe_enc64(as.cur_instr_ptr(), FE_AND64rr, FE_AX, FE_BX);
             break;
         case Instruction::_not:
             assert(arg_count == 1);
-            fprintf(out_fd, "not rax\n");
+            fe_enc64(as.cur_instr_ptr(), FE_NOT64r, FE_AX);
             break;
         case Instruction::_xor:
             assert(arg_count == 2);
-            fprintf(out_fd, "xor rax, rbx\n");
+            fe_enc64(as.cur_instr_ptr(), FE_XOR64rr, FE_AX, FE_BX);
             break;
         case Instruction::cast:
             assert(arg_count == 1);
             break;
         case Instruction::setup_stack:
             assert(arg_count == 0);
-            fprintf(out_fd, "mov rax, [init_stack_ptr]\n");
+            // TODO: the immediate could be too large so put it somewhere in the data section again and use
+            // mov rax, offset64
+            fe_enc64(as.cur_instr_ptr(), FE_MOV64ra, FE_AX, as.init_stack_ptr);
             break;
         case Instruction::zero_extend:
             assert(arg_count == 1);
@@ -510,47 +348,47 @@ void Generator::compile_vars(const BasicBlock *block) {
         case Instruction::sign_extend:
             assert(arg_count == 1);
             if (op->in_vars[0]->type != Type::i64) {
-                fprintf(out_fd, "movsx rax, %s\n", in_regs[0]);
+                fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, 0, FE_MOVSXr64r32, FE_MOVSXr64r16, FE_MOVSXr64r8), FE_AX, in_regs[0]);
             }
             break;
         case Instruction::slt:
             assert(arg_count == 4);
-            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
-            fprintf(out_fd, "cmovl %s, %s\n", in_regs[0], in_regs[2]);
-            fprintf(out_fd, "cmovge %s, %s\n", in_regs[0], in_regs[3]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_CMP64rr, FE_CMP32rr, FE_CMP16rr, FE_CMP8rr), in_regs[0], in_regs[1]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_CMOVL64rr, FE_CMOVL32rr, FE_CMOVL16rr), in_regs[0], in_regs[2]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_CMOVGE64rr, FE_CMOVGE32rr, FE_CMOVGE16rr), in_regs[0], in_regs[3]);
             break;
         case Instruction::sltu:
             assert(arg_count == 4);
-            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
-            fprintf(out_fd, "cmovb %s, %s\n", in_regs[0], in_regs[2]);
-            fprintf(out_fd, "cmovae %s, %s\n", in_regs[0], in_regs[3]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_CMP64rr, FE_CMP32rr, FE_CMP16rr, FE_CMP8rr), in_regs[0], in_regs[1]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_CMOVC64rr, FE_CMOVC32rr, FE_CMOVC16rr), in_regs[0], in_regs[2]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_CMOVNC64rr, FE_CMOVNC32rr, FE_CMOVNC16rr), in_regs[0], in_regs[3]);
             break;
         case Instruction::sumul_h: /* TODO: implement */
             assert(0);
             break;
         case Instruction::umax:
             assert(arg_count == 2);
-            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
-            fprintf(out_fd, "cmova %s, %s\n", in_regs[0], in_regs[1]);
-            fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_CMP64rr, FE_CMP32rr, FE_CMP16rr, FE_CMP8rr), in_regs[0], in_regs[1]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_CMOVA64rr, FE_CMOVA32rr, FE_CMOVA16rr), in_regs[0], in_regs[1]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_MOV64rr, FE_MOV32rr, FE_MOV16rr), FE_AX, in_regs[0]);
             break;
         case Instruction::umin:
             assert(arg_count == 2);
-            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
-            fprintf(out_fd, "cmovb %s, %s\n", in_regs[0], in_regs[1]);
-            fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_CMP64rr, FE_CMP32rr, FE_CMP16rr, FE_CMP8rr), in_regs[0], in_regs[1]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_CMOVC64rr, FE_CMOVC32rr, FE_CMOVC16rr), in_regs[0], in_regs[1]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_MOV64rr, FE_MOV32rr, FE_MOV16rr), FE_AX, in_regs[0]);
             break;
         case Instruction::max:
             assert(arg_count == 2);
-            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
-            fprintf(out_fd, "cmovg %s, %s\n", in_regs[0], in_regs[1]);
-            fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_CMP64rr, FE_CMP32rr, FE_CMP16rr, FE_CMP8rr), in_regs[0], in_regs[1]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_CMOVG64rr, FE_CMOVG32rr, FE_CMOVG16rr), in_regs[0], in_regs[1]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_MOV64rr, FE_MOV32rr, FE_MOV16rr), FE_AX, in_regs[0]);
             break;
         case Instruction::min:
             assert(arg_count == 2);
-            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
-            fprintf(out_fd, "cmovl %s, %s\n", in_regs[0], in_regs[1]);
-            fprintf(out_fd, "mov %s, %s\n", rax_from_type(op->in_vars[0]->type), in_regs[0]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_CMP64rr, FE_CMP32rr, FE_CMP16rr, FE_CMP8rr), in_regs[0], in_regs[1]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_CMOVL64rr, FE_CMOVL32rr, FE_CMOVL16rr), in_regs[0], in_regs[1]);
+            fe_enc64(as.cur_instr_ptr(), opcode(op->in_vars[0]->type, FE_MOV64rr, FE_MOV32rr, FE_MOV16rr), FE_AX, in_regs[0]);
             break;
         }
 
@@ -560,8 +398,8 @@ void Generator::compile_vars(const BasicBlock *block) {
                 if (!out_var)
                     continue;
 
-                const auto *reg_str = op_reg_map_for_type(out_var->type)[out_idx];
-                fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", index_for_var(block, out_var), reg_str);
+                fe_enc64(as.cur_instr_ptr(), opcode(out_var->type, FE_MOV64mr, FE_MOV32mr, FE_MOV16mr, FE_MOV8mr), FE_MEM(FE_BP, 0, 0, -(8 + 8 * index_for_var(block, out_var))),
+                         op_reg_mapping[out_idx]);
             }
         }
     }
@@ -581,113 +419,110 @@ void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
             continue;
         }
 
-        fprintf(out_fd, "# Setting input %zu\n", i);
-
         const auto target_is_static = std::holds_alternative<size_t>(target_var->info);
         if (std::holds_alternative<size_t>(source_var->info)) {
             if (optimizations & OPT_UNUSED_STATIC) {
                 if (target_is_static && std::get<size_t>(source_var->info) == std::get<size_t>(target_var->info)) {
                     // TODO: see this as a different optimization?
-                    fprintf(out_fd, "# Skipped\n");
                     continue;
                 } else {
                     // when using the unused static optimization, the static load might have been optimized out
                     // so we need to get the static directly
-                    fprintf(out_fd, "xor rax, rax\n");
-                    fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(source_var->type), std::get<size_t>(source_var->info));
+                    fe_enc64(as.cur_instr_ptr(), FE_XOR32rr, FE_AX, FE_AX);
+                    as.load_static_in_reg(std::get<size_t>(source_var->info), FE_AX, source_var->type);
                 }
             } else {
-                fprintf(out_fd, "xor rax, rax\n");
-                fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(source_var->type), index_for_var(block, source_var));
+                fe_enc64(as.cur_instr_ptr(), FE_XOR32rr, FE_AX, FE_AX);
+                fe_enc64(as.cur_instr_ptr(), opcode(source_var->type, FE_MOV64rm, FE_MOV32rm, FE_MOV16rm, FE_MOV8rm), FE_AX, FE_MEM(FE_BP, 0, 0, -(8 + 8 * index_for_var(block, source_var))));
             }
         } else {
-            fprintf(out_fd, "xor rax, rax\n");
-            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(source_var->type), index_for_var(block, source_var));
+            fe_enc64(as.cur_instr_ptr(), FE_XOR32rr, FE_AX, FE_AX);
+            fe_enc64(as.cur_instr_ptr(), opcode(source_var->type, FE_MOV64rm, FE_MOV32rm, FE_MOV16rm, FE_MOV8rm), FE_AX, FE_MEM(FE_BP, 0, 0, -(8 + 8 * index_for_var(block, source_var))));
         }
 
         if (target_is_static) {
-            fprintf(out_fd, "mov [s%zu], rax\n", std::get<size_t>(target_var->info));
+            as.save_static_from_reg(std::get<size_t>(target_var->info), FE_AX, target_var->type);
         } else {
-            fprintf(out_fd, "mov qword ptr [rbx], rax\nadd rbx, 8\n");
+            fe_enc64(as.cur_instr_ptr(), FE_MOV64mr, FE_MEM(FE_R12, 0, 0, 0), FE_AX);
+            fe_enc64(as.cur_instr_ptr(), FE_ADD64ri, FE_R12, 8);
         }
     }
 
     // destroy stack space
-    fprintf(out_fd, "# destroy stack space\n");
-    fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
+    fe_enc64(as.cur_instr_ptr(), FE_MOV64rr, FE_SP, FE_BP);
+    fe_enc64(as.cur_instr_ptr(), FE_POPr, FE_BP);
 }
 
 void Generator::compile_ret_args(const BasicBlock *block, const CfOp &op) {
-    fprintf(out_fd, "# Ret Mapping\n");
-
     assert(op.info.index() == 2);
     const auto &ret_info = std::get<CfOp::RetInfo>(op.info);
     for (const auto &[var, s_idx] : ret_info.mapping) {
         if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(var->info)) {
             if (std::get<size_t>(var->info) == s_idx) {
-                fprintf(out_fd, "# Skipped\n");
                 continue;
             }
-            fprintf(out_fd, "xor rax, rax\n");
-            fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(var->type), std::get<size_t>(var->info));
+            fe_enc64(as.cur_instr_ptr(), FE_XOR32rr, FE_AX, FE_AX);
+            as.load_static_in_reg(std::get<size_t>(var->info), FE_AX, var->type);
         } else {
-            fprintf(out_fd, "xor rax, rax\n");
-            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+            fe_enc64(as.cur_instr_ptr(), FE_XOR32rr, FE_AX, FE_AX);
+            fe_enc64(as.cur_instr_ptr(), opcode(var->type, FE_MOV64rm, FE_MOV32rm, FE_MOV16rm, FE_MOV8rm), FE_AX, FE_MEM(FE_BP, 0, 0, -(8 + 8 * index_for_var(block, var))));
         }
 
-        fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
+        as.save_static_from_reg(s_idx, FE_AX, var->type);
     }
 
     // destroy stack space
-    fprintf(out_fd, "# destroy stack space\n");
-    fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
+    fe_enc64(as.cur_instr_ptr(), FE_MOV64rr, FE_SP, FE_BP);
+    fe_enc64(as.cur_instr_ptr(), FE_POPr, FE_BP);
 }
 
-void Generator::compile_cjump(const BasicBlock *block, const CfOp &cf_op, const size_t cond_idx) {
+void Generator::compile_cjump(const BasicBlock *block, const CfOp &cf_op, [[maybe_unused]] const size_t cond_idx) {
     assert(cf_op.in_vars[0] != nullptr && cf_op.in_vars[1] != nullptr);
     assert(cf_op.info.index() == 1);
     // this breaks when the arg mapping is changed
-    fprintf(out_fd, "# Get CJump Args\nxor rax, rax\nxor rbx, rbx\n");
+    fe_enc64(as.cur_instr_ptr(), FE_XOR32rr, FE_AX, FE_AX);
+    fe_enc64(as.cur_instr_ptr(), FE_XOR32rr, FE_BX, FE_BX);
     if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(cf_op.in_vars[0]->info)) {
         // load might be optimized out so get the value directly
-        fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(cf_op.in_vars[0]->type), std::get<size_t>(cf_op.in_vars[0]->info));
+        as.load_static_in_reg(std::get<size_t>(cf_op.in_vars[0]->info), FE_AX, cf_op.in_vars[0]->type);
     } else {
-        fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(cf_op.in_vars[0]->type), index_for_var(block, cf_op.in_vars[0]));
+        fe_enc64(as.cur_instr_ptr(), opcode(cf_op.in_vars[0]->type, FE_MOV64rm, FE_MOV32rm, FE_MOV16rm, FE_MOV8rm), FE_AX, FE_MEM(FE_BP, 0, 0, -(8 + 8 * index_for_var(block, cf_op.in_vars[0]))));
     }
     if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(cf_op.in_vars[1]->info)) {
         // load might be optimized out so get the value directly
-        fprintf(out_fd, "mov %s, [s%zu]\n", op_reg_map_for_type(cf_op.in_vars[1]->type)[1], std::get<size_t>(cf_op.in_vars[1]->info));
+        as.load_static_in_reg(std::get<size_t>(cf_op.in_vars[1]->info), FE_BX, cf_op.in_vars[1]->type);
     } else {
-        fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", op_reg_map_for_type(cf_op.in_vars[1]->type)[1], index_for_var(block, cf_op.in_vars[1]));
+        fe_enc64(as.cur_instr_ptr(), opcode(cf_op.in_vars[1]->type, FE_MOV64rm, FE_MOV32rm, FE_MOV16rm, FE_MOV8rm), FE_BX, FE_MEM(FE_BP, 0, 0, -(8 + 8 * index_for_var(block, cf_op.in_vars[1]))));
     }
-    fprintf(out_fd, "cmp rax, rbx\n");
+    fe_enc64(as.cur_instr_ptr(), FE_CMP64rr, FE_AX, FE_BX);
 
-    fprintf(out_fd, "# Check CJump cond\n");
     const auto &info = std::get<CfOp::CJumpInfo>(cf_op.info);
+    auto op = 0;
     switch (info.type) {
     case CfOp::CJumpInfo::CJumpType::eq:
-        fprintf(out_fd, "jne b%zu_cf%zu\n", block->id, cond_idx + 1);
+        op = FE_JNZ;
         break;
     case CfOp::CJumpInfo::CJumpType::neq:
-        fprintf(out_fd, "je b%zu_cf%zu\n", block->id, cond_idx + 1);
+        op = FE_JZ;
         break;
     case CfOp::CJumpInfo::CJumpType::lt:
-        fprintf(out_fd, "jae b%zu_cf%zu\n", block->id, cond_idx + 1);
+        op = FE_JNC;
         break;
     case CfOp::CJumpInfo::CJumpType::gt:
-        fprintf(out_fd, "jbe b%zu_cf%zu\n", block->id, cond_idx + 1);
+        op = FE_JBE;
         break;
     case CfOp::CJumpInfo::CJumpType::slt:
-        fprintf(out_fd, "jge b%zu_cf%zu\n", block->id, cond_idx + 1);
+        op = FE_JGE;
         break;
     case CfOp::CJumpInfo::CJumpType::sgt:
-        fprintf(out_fd, "jle b%zu_cf%zu\n", block->id, cond_idx + 1);
+        op = FE_JLE;
         break;
     }
+    as.add_short_jmp(op);
+    needs_short_jmp_resolve = true;
 
     compile_cf_args(block, cf_op);
-    fprintf(out_fd, "# control flow\n");
-    fprintf(out_fd, "jmp b%zu\n", info.target->id);
+    as.add_jmp_to_bb(info.target->id);
 }
 
 void Generator::compile_syscall(const BasicBlock *block, const CfOp &cf_op) {
@@ -702,33 +537,26 @@ void Generator::compile_syscall(const BasicBlock *block, const CfOp &cf_op) {
         if (var->type == Type::mt)
             continue;
 
-        fprintf(out_fd, "# syscall argument %lu\n", i);
         if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(var->info)) {
-            fprintf(out_fd, "mov %s, [s%zu]\n", call_reg[i], std::get<size_t>(var->info));
+            as.load_static_in_reg(std::get<size_t>(var->info), call_reg[i], var->type);
         } else {
-            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", call_reg[i], index_for_var(block, var));
+            fe_enc64(as.cur_instr_ptr(), FE_MOV64rm, call_reg[i], FE_MEM(FE_BP, 0, 0, -(8 + 8 * index_for_var(block, var))));
         }
     }
     if (cf_op.in_vars[6] == nullptr) {
-        fprintf(out_fd, "push 0\n");
+        fe_enc64(as.cur_instr_ptr(), FE_PUSHi, 0);
     } else {
-        fprintf(out_fd, "mov rax, [rbp - 8 - 8 * %zu]\n", index_for_var(block, cf_op.in_vars[6]));
-        fprintf(out_fd, "push rax\n");
+        fe_enc64(as.cur_instr_ptr(), FE_MOV64rm, FE_AX, FE_MEM(FE_BP, 0, 0, -(8 + 8 * index_for_var(block, cf_op.in_vars[6]))));
+        fe_enc64(as.cur_instr_ptr(), FE_PUSHr, FE_AX);
     }
 
-    fprintf(out_fd, "call syscall_impl\n");
+    as.add_syscall();
     if (info.static_mapping.size() > 0) {
-        fprintf(out_fd, "mov [s%zu], rax\n", info.static_mapping.at(0));
-        if (info.static_mapping.size() == 2) {
-            fprintf(out_fd, "mov [s%zu], rdx\n", info.static_mapping.at(1));
-        } else {
-            // syscalls only return max 2 values
-            assert(0);
-        }
+        as.save_static_from_reg(info.static_mapping[0], FE_AX, Type::i64);
     }
-    fprintf(out_fd, "# destroy stack space\n");
-    fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
-    fprintf(out_fd, "jmp b%zu\n", info.continuation_block->id);
+    fe_enc64(as.cur_instr_ptr(), FE_MOV64rr, FE_SP, FE_BP);
+    fe_enc64(as.cur_instr_ptr(), FE_POPr, FE_BP);
+    as.add_jmp_to_bb(info.continuation_block->id);
 }
 
 void Generator::compile_continuation_args(const BasicBlock *block, const std::vector<std::pair<RefPtr<SSAVar>, size_t>> &mapping) {
@@ -740,33 +568,15 @@ void Generator::compile_continuation_args(const BasicBlock *block, const std::ve
         if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(var->info)) {
             const auto orig_static_idx = std::get<size_t>(var->info);
             if (orig_static_idx == s_idx) {
-                fprintf(out_fd, "# Skipped\n");
                 continue;
             }
-            fprintf(out_fd, "xor rax, rax\n");
-            fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(var->type), orig_static_idx);
+            fe_enc64(as.cur_instr_ptr(), FE_XOR32rr, FE_AX, FE_AX);
+            as.load_static_in_reg(orig_static_idx, FE_AX, var->type);
         } else {
-            fprintf(out_fd, "xor rax, rax\n");
-            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+            fe_enc64(as.cur_instr_ptr(), FE_XOR32rr, FE_AX, FE_AX);
+            fe_enc64(as.cur_instr_ptr(), opcode(var->type, FE_MOV64rm, FE_MOV32rm, FE_MOV16rm, FE_MOV8rm), FE_AX, FE_MEM(FE_BP, 0, 0, -(8 + 8 * index_for_var(block, var))));
         }
 
-        fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
-    }
-}
-
-void Generator::compile_section(Section section) {
-    switch (section) {
-    case Section::DATA:
-        fprintf(out_fd, ".data\n");
-        break;
-    case Section::BSS:
-        fprintf(out_fd, ".bss\n");
-        break;
-    case Section::TEXT:
-        fprintf(out_fd, ".text\n");
-        break;
-    case Section::RODATA:
-        fprintf(out_fd, ".section .rodata\n");
-        break;
+        as.save_static_from_reg(s_idx, FE_AX, Type::i64);
     }
 }

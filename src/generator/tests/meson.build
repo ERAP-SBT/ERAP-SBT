@@ -6,6 +6,6 @@ test('generator',
      executable('gtest-generator',
                  tests_src,
                  include_directories : inc,
-                 dependencies : [ gtest_dep, gmock_dep ],
+                 dependencies : [ gtest_dep, gmock_dep, fadec_dep ],
                  link_with : [ir, generator]
                 ))
