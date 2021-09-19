@@ -189,7 +189,7 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
     }
 
     if (bb->id > BB_OLD_COMPILE_ID_TIL) {
-        gen->compile_block_reg_alloc(bb);
+        gen->compile_block(bb);
         bb->gen_info.compiled = true;
     } else {
 

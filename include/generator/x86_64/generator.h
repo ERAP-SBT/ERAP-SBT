@@ -115,7 +115,7 @@ struct RegAlloc {
 
 struct Generator {
     enum class ErrType { unreachable, unresolved_ijump };
-    enum Optimization : uint32_t { OPT_UNUSED_STATIC = 1 << 0, OPT_SBRA = 1 << 1, OPT_MBRA = 1 << 2 };
+    enum Optimization : uint32_t { OPT_UNUSED_STATIC = 1 << 0, OPT_MBRA = 1 << 2 };
 
     // Optimization Warnings:
     // OPT_UNUSED_STATIC:
@@ -133,7 +133,7 @@ struct Generator {
     Generator(IR *ir, std::string binary_filepath = {}, FILE *out_fd = stdout) : ir(ir), binary_filepath(std::move(binary_filepath)), out_fd(out_fd) {}
 
     void compile();
-    void compile_block_reg_alloc(const BasicBlock *block);
+    void compile_block(const BasicBlock *block);
 
   protected:
     enum class Section { DATA, BSS, TEXT, RODATA };
@@ -142,7 +142,6 @@ struct Generator {
     void compile_statics();
     void compile_phdr_info();
     void compile_blocks();
-    void compile_block(const BasicBlock *block);
     void compile_entry();
     void compile_err_msgs();
     void compile_ijump_lookup();

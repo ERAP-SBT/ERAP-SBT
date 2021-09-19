@@ -222,8 +222,7 @@ void print_help(bool usage_only) {
         std::cerr << "    --optimize:    Set optimization flags, comma-seperated list. Specifying a group enables all flags in that group.\n";
         std::cerr << "    Optimization Flags:\n";
         std::cerr << "      - generator:\n";
-        std::cerr << "          - sbra: Single-Block Register Allocation\n";
-        std::cerr << "          - mbra: Multi-Block Register Allocation (takes precedent over sbra)\n";
+        std::cerr << "          - reg_alloc: Register Allocation\n";
         std::cerr << "          - unused_statics: Eliminate unused static-load-stores in the default generator\n";
         std::cerr << "    --helper-path: Set the path to the runtime helper library\n";
         std::cerr << "    --linkerscript-path: Set the path to the linker script\n";
@@ -257,9 +256,7 @@ void parse_opt_flags(const Args &args, uint32_t &gen_optimizations) {
             gen_optimizations = 0xFFFFFFFF;
         } else if (opt_flag == "generator") {
             gen_optimizations = 0xFFFFFFFF;
-        } else if (opt_flag == "sbra") {
-            gen_optimizations |= generator::x86_64::Generator::OPT_SBRA;
-        } else if (opt_flag == "mbra") {
+        } else if (opt_flag == "reg_alloc") {
             gen_optimizations |= generator::x86_64::Generator::OPT_MBRA;
         } else if (opt_flag == "unused_statics") {
             gen_optimizations |= generator::x86_64::Generator::OPT_UNUSED_STATIC;

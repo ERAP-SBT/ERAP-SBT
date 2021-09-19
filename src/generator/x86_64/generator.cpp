@@ -218,11 +218,7 @@ void Generator::compile_blocks() {
     }
 
     for (const auto &block : ir->basic_blocks) {
-        if (optimizations & OPT_SBRA) {
-            compile_block_reg_alloc(block.get());
-        } else {
-            compile_block(block.get());
-        }
+        compile_block(block.get());
     }
 }
 
