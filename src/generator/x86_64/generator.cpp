@@ -56,7 +56,8 @@ void Generator::compile_block(const BasicBlock *block) {
             return;
     }
 
-    const size_t stack_size = block->variables.size() * 8;
+    // +8 bc we push rbp
+    const size_t stack_size = (((block->variables.size() * 8) + 15) & 0xFFFFFFFF'FFFFFFF0) + 8;
     as.start_new_bb(block->id);
     fe_enc64(as.cur_instr_ptr(), FE_PUSHr, FE_BP);               // push rbp
     fe_enc64(as.cur_instr_ptr(), FE_MOV64rr, FE_BP, FE_SP);      // mov rbp, rsp
@@ -544,13 +545,16 @@ void Generator::compile_syscall(const BasicBlock *block, const CfOp &cf_op) {
         }
     }
     if (cf_op.in_vars[6] == nullptr) {
-        fe_enc64(as.cur_instr_ptr(), FE_PUSHi, 0);
+        // fe_enc64(as.cur_instr_ptr(), FE_PUSHi, 0);
+        fe_enc64(as.cur_instr_ptr(), FE_SUB64ri, FE_SP, 16);
     } else {
+        fe_enc64(as.cur_instr_ptr(), FE_SUB64ri, FE_SP, 8);
         fe_enc64(as.cur_instr_ptr(), FE_MOV64rm, FE_AX, FE_MEM(FE_BP, 0, 0, -(8 + 8 * index_for_var(block, cf_op.in_vars[6]))));
         fe_enc64(as.cur_instr_ptr(), FE_PUSHr, FE_AX);
     }
 
     as.add_syscall();
+    fe_enc64(as.cur_instr_ptr(), FE_ADD64ri, FE_SP, 16);
     if (info.static_mapping.size() > 0) {
         as.save_static_from_reg(info.static_mapping[0], FE_AX, Type::i64);
     }
