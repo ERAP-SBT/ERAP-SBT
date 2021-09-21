@@ -415,83 +415,144 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                 }
 
                 auto did_merge = false;
-                if ((gen->optimizations & Generator::OPT_MERGE_OP) && dst && dst->ref_count == 1 && op->type == Instruction::add && bb->variables.size() > var_idx + 1) {
-                    // check if next instruction is a load
-                    auto *next_var = bb->variables[var_idx + 1].get();
-                    if (std::holds_alternative<std::unique_ptr<Operation>>(next_var->info)) {
-                        auto *next_op = std::get<std::unique_ptr<Operation>>(next_var->info).get();
-                        if (next_op->type == Instruction::load && next_op->in_vars[0] == dst) {
-                            auto *load_dst = next_op->out_vars[0];
-                            // check for zero/sign-extend
-                            if (load_dst->ref_count == 1 && bb->variables.size() > var_idx + 2) {
-                                auto *nnext_var = bb->variables[var_idx + 2].get();
-                                if (std::holds_alternative<std::unique_ptr<Operation>>(nnext_var->info)) {
-                                    auto *nnext_op = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
-                                    if (nnext_op->type == Instruction::zero_extend) {
-                                        auto *ext_dst = nnext_op->out_vars[0];
-                                        if (load_dst->type == Type::i32) {
-                                            print_asm("mov %s, [%s + %ld]\n", reg_names[dst_reg][1], in1_reg_name, imm_val);
-                                        } else {
-                                            print_asm("movzx %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                if ((gen->optimizations & Generator::OPT_MERGE_OP) && dst && dst->ref_count == 1 && bb->variables.size() > var_idx + 1) {
+                    if (op->type == Instruction::add) {
+                        // check if next instruction is a load
+                        auto *next_var = bb->variables[var_idx + 1].get();
+                        if (std::holds_alternative<std::unique_ptr<Operation>>(next_var->info)) {
+                            auto *next_op = std::get<std::unique_ptr<Operation>>(next_var->info).get();
+                            if (next_op->type == Instruction::load && next_op->in_vars[0] == dst) {
+                                auto *load_dst = next_op->out_vars[0];
+                                // check for zero/sign-extend
+                                if (load_dst->ref_count == 1 && bb->variables.size() > var_idx + 2) {
+                                    auto *nnext_var = bb->variables[var_idx + 2].get();
+                                    if (std::holds_alternative<std::unique_ptr<Operation>>(nnext_var->info)) {
+                                        auto *nnext_op = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
+                                        if (nnext_op->type == Instruction::zero_extend) {
+                                            auto *ext_dst = nnext_op->out_vars[0];
+                                            if (load_dst->type == Type::i32) {
+                                                print_asm("mov %s, [%s + %ld]\n", reg_names[dst_reg][1], in1_reg_name, imm_val);
+                                            } else {
+                                                print_asm("movzx %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                                            }
+                                            clear_reg(cur_time, dst_reg);
+                                            set_var_to_reg(cur_time, ext_dst, dst_reg);
+                                            load_dst->gen_info.already_generated = true;
+                                            ext_dst->gen_info.already_generated = true;
+                                            did_merge = true;
+                                        } else if (nnext_op->type == Instruction::sign_extend) {
+                                            auto *ext_dst = nnext_op->out_vars[0];
+                                            if (load_dst->type == Type::i32) {
+                                                assert(ext_dst->type == Type::i32 || ext_dst->type == Type::i64);
+                                                print_asm("movsxd %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                                            } else {
+                                                print_asm("movsx %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                                            }
+                                            clear_reg(cur_time, dst_reg);
+                                            set_var_to_reg(cur_time, ext_dst, dst_reg);
+                                            load_dst->gen_info.already_generated = true;
+                                            ext_dst->gen_info.already_generated = true;
+                                            did_merge = true;
                                         }
-                                        clear_reg(cur_time, dst_reg);
-                                        set_var_to_reg(cur_time, ext_dst, dst_reg);
-                                        load_dst->gen_info.already_generated = true;
-                                        ext_dst->gen_info.already_generated = true;
-                                        did_merge = true;
-                                    } else if (nnext_op->type == Instruction::sign_extend) {
-                                        auto *ext_dst = nnext_op->out_vars[0];
-                                        if (load_dst->type == Type::i32) {
-                                            assert(ext_dst->type == Type::i32 || ext_dst->type == Type::i64);
-                                            print_asm("movsxd %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
-                                        } else {
-                                            print_asm("movsx %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
-                                        }
-                                        clear_reg(cur_time, dst_reg);
-                                        set_var_to_reg(cur_time, ext_dst, dst_reg);
-                                        load_dst->gen_info.already_generated = true;
-                                        ext_dst->gen_info.already_generated = true;
-                                        did_merge = true;
                                     }
                                 }
-                            }
 
-                            if (!did_merge) {
-                                // merge add and load
-                                print_asm("mov %s, [%s + %ld]\n", reg_name(dst_reg, load_dst->type), in1_reg_name, imm_val);
-                                clear_reg(cur_time, dst_reg);
-                                set_var_to_reg(cur_time, load_dst, dst_reg);
-                                load_dst->gen_info.already_generated = true;
+                                if (!did_merge) {
+                                    // merge add and load
+                                    print_asm("mov %s, [%s + %ld]\n", reg_name(dst_reg, load_dst->type), in1_reg_name, imm_val);
+                                    clear_reg(cur_time, dst_reg);
+                                    set_var_to_reg(cur_time, load_dst, dst_reg);
+                                    load_dst->gen_info.already_generated = true;
+                                    did_merge = true;
+                                }
+                            } else if (next_op->type == Instruction::cast) {
+                                // detect add/cast/store sequence
+                                auto *cast_var = next_op->out_vars[0];
+                                if (cast_var->ref_count == 1 && bb->variables.size() > var_idx + 2) {
+                                    auto *nnext_var = bb->variables[var_idx + 2].get();
+                                    if (std::holds_alternative<std::unique_ptr<Operation>>(nnext_var->info)) {
+                                        auto *nnext_op = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
+                                        if (nnext_op->type == Instruction::store && nnext_op->in_vars[0] == dst && nnext_op->in_vars[1] == cast_var) {
+                                            auto *store_dst = nnext_op->out_vars[0]; // should be == nnext_var
+                                            // load source of cast
+                                            const auto cast_reg = load_val_in_reg(cur_time, next_op->in_vars[0].get());
+                                            print_asm("mov [%s + %ld], %s\n", in1_reg_name, imm_val, reg_name(cast_reg, cast_var->type));
+                                            cast_var->gen_info.already_generated = true;
+                                            store_dst->gen_info.already_generated = true;
+                                            did_merge = true;
+                                        }
+                                    }
+                                }
+                            } else if (next_op->type == Instruction::store && next_op->in_vars[0].get() == dst) {
+                                // merge add/store
+                                auto *store_src = next_op->in_vars[1].get();
+                                const auto src_reg = load_val_in_reg(cur_time, store_src);
+                                print_asm("mov [%s + %ld], %s\n", in1_reg_name, imm_val, reg_name(src_reg, store_src->type));
+                                next_op->out_vars[0]->gen_info.already_generated = true;
                                 did_merge = true;
                             }
-                        } else if (next_op->type == Instruction::cast) {
-                            // detect add/cast/store sequence
-                            auto *cast_var = next_op->out_vars[0];
-                            if (cast_var->ref_count == 1 && bb->variables.size() > var_idx + 2) {
-                                auto *nnext_var = bb->variables[var_idx + 2].get();
-                                if (std::holds_alternative<std::unique_ptr<Operation>>(nnext_var->info)) {
-                                    auto *nnext_op = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
-                                    if (nnext_op->type == Instruction::store && nnext_op->in_vars[0] == dst && nnext_op->in_vars[1] == cast_var) {
-                                        auto *store_dst = nnext_op->out_vars[0]; // should be == nnext_var
-                                        // load source of cast
-                                        const auto cast_reg = load_val_in_reg(cur_time, next_op->in_vars[0].get());
-                                        print_asm("mov [%s + %ld], %s\n", in1_reg_name, imm_val, reg_name(cast_reg, cast_var->type));
-                                        cast_var->gen_info.already_generated = true;
-                                        store_dst->gen_info.already_generated = true;
+                        }
+                    } else if (op->type == Instruction::_and && op->in_vars[1]->type == Type::imm) {
+                        // v2 <- and v0, 31/63
+                        // (cast i32 v3 <- i64 v1)
+                        // shl/shr/sar v3/v1, v2
+                        if (std::get<SSAVar::ImmInfo>(op->in_vars[1]->info).val == 0x1F && bb->variables.size() > var_idx + 2) {
+                            // check for cast
+                            auto *next_var = bb->variables[var_idx + 1].get();
+                            if (next_var->ref_count == 1 && next_var->type == Type::i32 && std::holds_alternative<std::unique_ptr<Operation>>(next_var->info)) {
+                                auto *next_op = std::get<std::unique_ptr<Operation>>(next_var->info).get();
+                                if (next_op->type == Instruction::cast) {
+                                    // check for shift
+                                    auto *nnext_var = bb->variables[var_idx + 2].get();
+                                    if (std::holds_alternative<std::unique_ptr<Operation>>(nnext_var->info)) {
+                                        auto *nnext_op = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
+                                        if ((nnext_op->type == Instruction::shl || nnext_op->type == Instruction::shr || nnext_op->type == Instruction::sar) && nnext_op->in_vars[0] == next_var &&
+                                            nnext_op->in_vars[1] == dst) {
+                                            // this can be merged into a single shift
+                                            const auto cast_reg = load_val_in_reg(cur_time, next_op->in_vars[0].get());
+                                            if (nnext_op->type == Instruction::shl) {
+                                                print_asm("shlx %s, %s, %s\n", reg_names[dst_reg][1], reg_names[cast_reg][1], reg_names[in1_reg][1]);
+                                            } else if (nnext_op->type == Instruction::shr) {
+                                                print_asm("shrx %s, %s, %s\n", reg_names[dst_reg][1], reg_names[cast_reg][1], reg_names[in1_reg][1]);
+                                            } else if (nnext_op->type == Instruction::sar) {
+                                                print_asm("sarx %s, %s, %s\n", reg_names[dst_reg][1], reg_names[cast_reg][1], reg_names[in1_reg][1]);
+                                            }
+
+                                            clear_reg(cur_time, dst_reg);
+                                            set_var_to_reg(cur_time, nnext_var, dst_reg);
+                                            next_var->gen_info.already_generated = true;
+                                            nnext_var->gen_info.already_generated = true;
+                                            did_merge = true;
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (std::get<SSAVar::ImmInfo>(op->in_vars[1]->info).val == 0x3F) {
+                            auto *next_var = bb->variables[var_idx + 1].get();
+                            if (std::holds_alternative<std::unique_ptr<Operation>>(next_var->info)) {
+                                auto *next_op = std::get<std::unique_ptr<Operation>>(next_var->info).get();
+                                if (next_op->type == Instruction::shl || next_op->type == Instruction::shr || next_op->type == Instruction::sar) {
+                                    // check if the shift operand is 64bit and we shift the anded value
+                                    if (next_op->in_vars[0]->type == Type::i64 && next_op->in_vars[1] == dst) {
+                                        const auto shift_reg = load_val_in_reg(cur_time, next_op->in_vars[0].get());
+                                        if (next_op->type == Instruction::shl) {
+                                            print_asm("shlx %s, %s, %s\n", reg_names[dst_reg][0], reg_names[shift_reg][0], reg_names[in1_reg][0]);
+                                        } else if (next_op->type == Instruction::shr) {
+                                            print_asm("shrx %s, %s, %s\n", reg_names[dst_reg][0], reg_names[shift_reg][0], reg_names[in1_reg][0]);
+                                        } else if (next_op->type == Instruction::sar) {
+                                            print_asm("sarx %s, %s, %s\n", reg_names[dst_reg][0], reg_names[shift_reg][0], reg_names[in1_reg][0]);
+                                        }
+                                        next_var->gen_info.already_generated = true;
+                                        clear_reg(cur_time, dst_reg);
+                                        set_var_to_reg(cur_time, next_var, dst_reg);
                                         did_merge = true;
                                     }
                                 }
                             }
-                        } else if (next_op->type == Instruction::store && next_op->in_vars[0].get() == dst) {
-                            // merge add/store
-                            auto *store_src = next_op->in_vars[1].get();
-                            const auto src_reg = load_val_in_reg(cur_time, store_src);
-                            print_asm("mov [%s + %ld], %s\n", in1_reg_name, imm_val, reg_name(src_reg, store_src->type));
-                            next_op->out_vars[0]->gen_info.already_generated = true;
-                            did_merge = true;
                         }
                     }
                 }
+
                 if (did_merge) {
                     break;
                 }
