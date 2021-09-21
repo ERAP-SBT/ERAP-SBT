@@ -92,14 +92,12 @@ void Lifter::lift(Program *prog) {
         }
 
         const auto &instr = std::get<RV64Inst>(prog->data[i]);
-        if (!cur_bb && instr.instr.mnem == FRV_INVALID) {
-            // skip
-            continue;
-        }
-        if (cur_bb && instr.instr.mnem == FRV_INVALID) {
-            cur_bb->add_cf_op(CFCInstruction::unreachable, nullptr, virt_addr);
-            cur_bb->variables.shrink_to_fit();
-            cur_bb = nullptr;
+        if (instr.instr.mnem == FRV_INVALID) {
+            if (cur_bb) {
+                cur_bb->add_cf_op(CFCInstruction::unreachable, nullptr, virt_addr);
+                cur_bb->variables.shrink_to_fit();
+                cur_bb = nullptr;
+            }
             continue;
         }
 
