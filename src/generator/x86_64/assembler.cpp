@@ -165,7 +165,7 @@ void Assembler::finish(std::string output_filename, Generator *gen) {
     for (size_t i = 0; i < bb_offsets.size(); ++i) {
         char buf[32];
         snprintf(buf, sizeof(buf), "bb%zu", i);
-        sym_writer.add_symbol(str_writer, buf, bb_offsets[i], 0, STB_LOCAL, STT_FUNC, 0, text_sec->get_index());
+        sym_writer.add_symbol(str_writer, buf, bb_offsets[i], 0, /*STB_LOCAL*/ STB_GLOBAL, STT_FUNC, 0, text_sec->get_index());
     }
     sym_writer.add_symbol(str_writer, "_start", start_off, 0, STB_GLOBAL, STT_NOTYPE, 0, text_sec->get_index());
 
@@ -240,7 +240,7 @@ void Assembler::finish(std::string output_filename, Generator *gen) {
     sym_writer.add_symbol(str_writer, "ttext_start", text_addr, 0, STB_GLOBAL, STT_NOTYPE, 0, SHN_ABS);
     sym_writer.add_symbol(str_writer, "tbss_start", bss_addr, 0, STB_GLOBAL, STT_NOTYPE, 0, SHN_ABS);
     sym_writer.add_symbol(str_writer, "ijump_table_start", ijump_table_addr, 0, STB_GLOBAL, STT_NOTYPE, 0, SHN_ABS);
-    sym_writer.add_symbol(str_writer, "orig_binary", 0, ir->load_size, STB_LOCAL, STT_OBJECT, 0, orig_binary_sec_idx);
+    sym_writer.add_symbol(str_writer, "orig_binary", 0, ir->load_size, /*STB_LOCAL*/ STB_GLOBAL, STT_OBJECT, 0, orig_binary_sec_idx);
     sym_writer.add_symbol(str_writer, "rodata_start", rodata_addr, 0, STB_GLOBAL, STT_NOTYPE, 0, SHN_ABS);
     sym_writer.add_symbol(str_writer, "helper_start", (rodata_addr + rodata_sec->get_size() + 0x1000 - 1) & 0xFFFFFFFF'FFFFF000, 0, STB_GLOBAL, STT_NOTYPE, 0, SHN_ABS);
     sym_writer.add_symbol(str_writer, "phdr_off", 0, 0, STB_GLOBAL, STT_NOTYPE, 0, rodata_sec->get_index());
@@ -248,13 +248,13 @@ void Assembler::finish(std::string output_filename, Generator *gen) {
     sym_writer.add_symbol(str_writer, "phdr_num", 16, 0, STB_GLOBAL, STT_NOTYPE, 0, rodata_sec->get_index());
 
     // debug info
-    sym_writer.add_symbol(str_writer, "init_stack_ptr", init_stack_ptr - bss_addr, sizeof(uint64_t), STB_LOCAL, STT_OBJECT, bss_sec->get_index());
-    sym_writer.add_symbol(str_writer, "trans_stack", stack_addr - bss_addr, stack_end_addr - stack_addr, STB_LOCAL, STT_OBJECT, 0, bss_sec->get_index());
+    sym_writer.add_symbol(str_writer, "init_stack_ptr", init_stack_ptr - bss_addr, sizeof(uint64_t), /*STB_LOCAL*/ STB_GLOBAL, STT_OBJECT, bss_sec->get_index());
+    sym_writer.add_symbol(str_writer, "trans_stack", stack_addr - bss_addr, stack_end_addr - stack_addr, /*STB_LOCAL*/ STB_GLOBAL, STT_OBJECT, 0, bss_sec->get_index());
 
     for (size_t i = 0; i < ir->statics.size(); ++i) {
         char buf[32];
         snprintf(buf, sizeof(buf), "s%zu", i);
-        sym_writer.add_symbol(str_writer, buf, (statics_addr + i * sizeof(uint64_t)) - bss_addr, sizeof(uint64_t), STB_LOCAL, STT_NOTYPE, 0, bss_sec->get_index());
+        sym_writer.add_symbol(str_writer, buf, (statics_addr + i * sizeof(uint64_t)) - bss_addr, sizeof(uint64_t), /*STB_LOCAL*/ STB_GLOBAL, STT_NOTYPE, 0, bss_sec->get_index());
     }
 
     // fixup symbol order otherwise we can't link properly
