@@ -635,8 +635,12 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     print_asm("xor edx, edx\n");
                 }
             } else if (op->type == Instruction::shl || op->type == Instruction::shr || op->type == Instruction::sar) {
-                // shift only allows the amount to be in cl
-                in2_reg = load_val_in_reg(cur_time, in2, REG_C);
+                if (op->in_vars[0]->type != Type::i64 && op->in_vars[0]->type != Type::i32) {
+                    // when we shift 16/8 bit values we need to use the shl/shr/sar instructions so the shift val needs to be in cl
+                    in2_reg = load_val_in_reg(cur_time, in2, REG_C);
+                } else {
+                    in2_reg = load_val_in_reg(cur_time, in2);
+                }
                 in1_reg = load_val_in_reg(cur_time, in1);
             } else {
                 in1_reg = load_val_in_reg(cur_time, in1);
@@ -650,6 +654,13 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                 save_reg(in1_reg);
             }
 
+            const auto write_shift = [this, in1_reg_name, in2_reg_name, op](const char *instr_name) {
+                if (op->in_vars[0]->type != Type::i64 && op->in_vars[0]->type != Type::i32) {
+                    print_asm("%s %s, cl\n", instr_name, in1_reg_name);
+                } else {
+                    print_asm("%sx %s, %s, %s\n", instr_name, in1_reg_name, in1_reg_name, in2_reg_name);
+                }
+            };
             switch (op->type) {
             case Instruction::add:
                 print_asm("add %s, %s\n", in1_reg_name, in2_reg_name);
@@ -658,13 +669,13 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                 print_asm("sub %s, %s\n", in1_reg_name, in2_reg_name);
                 break;
             case Instruction::shl:
-                print_asm("shl %s, cl\n", in1_reg_name);
+                write_shift("shl");
                 break;
             case Instruction::shr:
-                print_asm("shr %s, cl\n", in1_reg_name);
+                write_shift("shr");
                 break;
             case Instruction::sar:
-                print_asm("sar %s, cl\n", in1_reg_name);
+                write_shift("sar");
                 break;
             case Instruction::_or:
                 print_asm("or %s, %s\n", in1_reg_name, in2_reg_name);
