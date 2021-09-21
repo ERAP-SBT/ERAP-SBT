@@ -77,6 +77,32 @@ TEST(TestConstFolding, test_simplify) {
     ASSERT_EQ(o.target_inputs()[0]->id, a->id);
 }
 
+TEST(TestConstFolding, test_simplify_double_morph) {
+    IR ir;
+    ir.add_static(Type::i32);
+    auto *bb = ir.add_basic_block();
+
+    auto *a = bb->add_var_from_static(0);
+
+    auto *b = bb->add_var(Type::i64, 0);
+    b->set_op(Operation::new_zero_extend(b, a));
+
+    auto *c = bb->add_var(Type::i16, 1);
+    c->set_op(Operation::new_cast(c, b));
+
+    assert_valid(ir);
+
+    const_fold(&ir);
+
+    assert_valid(ir);
+
+    ASSERT_EQ(c->type, Type::i16);
+    ASSERT_TRUE(c->is_operation());
+    auto &op = c->get_operation();
+    ASSERT_EQ(op.in_vars[0].get(), a);
+    ASSERT_EQ(op.type, Instruction::cast);
+}
+
 enum class Side {
     Any,
     Left,
