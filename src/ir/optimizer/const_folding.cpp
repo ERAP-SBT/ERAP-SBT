@@ -687,6 +687,20 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                 int64_t result = eval_morphing_op(op.type, input, output, ii.val);
                 replace_with_immediate(var, result);
             } else {
+                if (in->is_operation()) {
+                    auto &po = in->get_operation();
+                    if (op.type == Instruction::cast && (po.type == Instruction::sign_extend || po.type == Instruction::zero_extend)) {
+                        auto *pin = po.in_vars[0].get();
+                        // in <- extend pin
+                        // var <- cast in
+                        if (pin->type == var->type) {
+                            rewrite.replace(var, pin);
+                            continue;
+                        } else if (cast_dir(pin->type, var->type) == 0) {
+                            op.in_vars[0] = pin;
+                        }
+                    }
+                }
                 // op any
                 simplify_morph(op.type, input, in, output, var);
             }
