@@ -1,10 +1,10 @@
-#include "generator/syscall_ids.h"
 #include "generator/x86_64/helper/helper.h"
+
+#include "generator/syscall_ids.h"
 #include "generator/x86_64/helper/rv64_syscalls.h"
 
 #include <cstddef>
 #include <cstdint>
-
 #include <linux/errno.h>
 #include <sys/epoll.h>
 #include <sys/stat.h>
@@ -341,9 +341,7 @@ size_t write_stderr(const char *buf, size_t buf_len) {
     return syscall3(AMD64_SYSCALL_ID::WRITE, 2, reinterpret_cast<size_t>(buf), buf_len);
 }
 
-size_t puts(const char *str) {
-    return write_stderr(str, strlen(str));
-}
+size_t puts(const char *str) { return write_stderr(str, strlen(str)); }
 
 constexpr char utoa_lookup[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 

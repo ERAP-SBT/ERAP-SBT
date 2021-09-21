@@ -1,23 +1,23 @@
 #pragma once
 
+#include "generator/syscall_ids.h"
+
 #include <cstddef>
 #include <cstdint>
-
-#include "generator/syscall_ids.h"
 
 namespace helper {
 
 extern "C" {
-    /* provided by the compiler */
-    extern uint8_t *orig_binary_vaddr;
-    extern uint64_t phdr_off;
-    extern uint64_t phdr_num;
-    extern uint64_t phdr_size;
+/* provided by the compiler */
+extern uint8_t *orig_binary_vaddr;
+extern uint64_t phdr_off;
+extern uint64_t phdr_num;
+extern uint64_t phdr_size;
 
-    /* provided by the helper library */
-    uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5);
-    [[noreturn]] void panic(const char *err_msg);
-    uint8_t *copy_stack(uint8_t *stack, uint8_t *out_stack);
+/* provided by the helper library */
+uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5);
+[[noreturn]] void panic(const char *err_msg);
+uint8_t *copy_stack(uint8_t *stack, uint8_t *out_stack);
 }
 
 // from https://github.com/aengelke/ria-jit/blob/master/src/runtime/emulateEcall.c
@@ -49,4 +49,4 @@ void print_hex16(uint16_t byte);
 void print_hex32(uint32_t byte);
 void print_hex64(uint64_t byte);
 
-}
+} // namespace helper

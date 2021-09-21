@@ -14,9 +14,7 @@ static uint64_t fib(uint32_t n) {
 #if 1
 /* This NOP causes the lifter to not recognize a basic block correctly, forcing the interpreter to run
  */
-__attribute__((naked)) void f1(void) {
-    __asm__ volatile("nop" : : : "memory");
-}
+__attribute__((naked)) void f1(void) { __asm__ volatile("nop" : : : "memory"); }
 #endif
 
 static void fib_test(uint32_t n) {
