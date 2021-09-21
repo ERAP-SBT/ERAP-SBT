@@ -12,6 +12,8 @@ SSAVar *Lifter::load_immediate(BasicBlock *bb, int64_t imm, uint64_t ip, bool bi
     return input_imm;
 }
 
+bool Lifter::is_link_reg(size_t reg_idx) { return reg_idx == LINK_IDX_1 || reg_idx == LINK_IDX_2; }
+
 std::string Lifter::str_decode_instr(const FrvInst *instr) {
     char str[16];
     frv_format(instr, 16, str);
