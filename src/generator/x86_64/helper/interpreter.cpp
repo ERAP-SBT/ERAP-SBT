@@ -109,13 +109,14 @@ void trace_dump_state(uint64_t pc) {
  * @param target unresolved jump target address
  */
 extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
-    puts("TRACE: handler, target: ");
-    print_hex64(target);
-    puts("\n");
+    // puts("TRACE: handler, target: ");
+    // print_hex64(target);
+    // puts("\n");
 
     uint64_t pc = target;
 
     do {
+        bool jump = false;
         FrvInst instr;
         const int r = frv_decode(0x1000, reinterpret_cast<const uint8_t *>(pc), FRV_RV64, &instr);
 
@@ -127,9 +128,9 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             panic("undefined");
         }
 
-        trace(pc, &instr);
+        // trace(pc, &instr);
 
-        trace_dump_state(pc);
+        // trace_dump_state(pc);
 
         // TODO: we might be able to ignore everything with rd=0 as either HINT or NOP instructions
         switch (instr.mnem) {
@@ -152,42 +153,22 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
 
         case FRV_SLTI:
             if (instr.rd != 0) {
-                __asm__ __volatile__("xor %%rax, %%rax;"
-                                     "cmp %3, %2;"
-                                     "setl %%al"
-                                     : "=a"(register_file[instr.rd])
-                                     : "a"(register_file[instr.rd]), "r"(register_file[instr.rs1]), "r"(sign_extend_int64_t(instr.imm))
-                                     : "cc");
+                register_file[instr.rd] = static_cast<int64_t>(register_file[instr.rs1]) < static_cast<int64_t>(instr.imm);
             }
             break;
         case FRV_SLTIU:
             if (instr.rd != 0) {
-                __asm__ __volatile__("xor %%rax, %%rax;"
-                                     "cmp %3, %2;"
-                                     "setb %%al"
-                                     : "=a"(register_file[instr.rd])
-                                     : "a"(register_file[instr.rd]), "r"(register_file[instr.rs1]), "r"(sign_extend_int64_t(instr.imm))
-                                     : "cc");
+                register_file[instr.rd] = register_file[instr.rs1] < static_cast<uint64_t>(instr.imm);
             }
             break;
         case FRV_SLT:
             if (instr.rd != 0) {
-                __asm__ __volatile__("xor %%rax, %%rax;"
-                                     "cmp %3, %2;"
-                                     "setl %%al"
-                                     : "=a"(register_file[instr.rd])
-                                     : "a"(register_file[instr.rd]), "r"(register_file[instr.rs1]), "r"(register_file[instr.rs2])
-                                     : "cc");
+                register_file[instr.rd] = static_cast<int64_t>(register_file[instr.rs1]) < static_cast<int64_t>(register_file[instr.rs1]);
             }
             break;
         case FRV_SLTU:
             if (instr.rd != 0) {
-                __asm__ __volatile__("xor %%rax, %%rax;"
-                                     "cmp %3, %2;"
-                                     "setb %%al"
-                                     : "=a"(register_file[instr.rd])
-                                     : "a"(register_file[instr.rd]), "r"(register_file[instr.rs1]), "r"(register_file[instr.rs2])
-                                     : "cc");
+                register_file[instr.rd] = register_file[instr.rs1] < register_file[instr.rs2];
             }
             break;
 
@@ -264,40 +245,105 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             }
             break;
 
-        /* 2.5 Control Transfer Instructions */
+            /* 2.5 Control Transfer Instructions */
+
+        case FRV_JAL:
+            if (instr.rd != 0) {
+                register_file[instr.rd] = pc + r;
+            }
+            pc += static_cast<int64_t>(instr.imm);
+            jump = true;
+            break;
+        case FRV_JALR: {
+            uint64_t jmp_addr = register_file[instr.rs1] + static_cast<int64_t>(instr.imm);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = pc + r;
+            }
+            pc = jmp_addr;
+            jump = true;
+            break;
+        }
+        case FRV_BEQ:
+            if (register_file[instr.rs1] == register_file[instr.rs2]) {
+                pc += static_cast<int64_t>(instr.imm);
+                jump = true;
+            }
+            break;
+        case FRV_BNE:
+            if (register_file[instr.rs1] != register_file[instr.rs2]) {
+                pc += static_cast<int64_t>(instr.imm);
+                jump = true;
+            }
+            break;
+        case FRV_BLT:
+            if (static_cast<int64_t>(register_file[instr.rs1]) < static_cast<int64_t>(register_file[instr.rs2])) {
+                pc += static_cast<int64_t>(instr.imm);
+                jump = true;
+            }
+            break;
+        case FRV_BLTU:
+            if (register_file[instr.rs1] < register_file[instr.rs2]) {
+                pc += static_cast<int64_t>(instr.imm);
+                jump = true;
+            }
+            break;
+        case FRV_BGE:
+            if (static_cast<int64_t>(register_file[instr.rs1]) >= static_cast<int64_t>(register_file[instr.rs2])) {
+                pc += static_cast<int64_t>(instr.imm);
+                jump = true;
+            }
+            break;
+        case FRV_BGEU:
+            if (register_file[instr.rs1] >= register_file[instr.rs2]) {
+                pc += static_cast<int64_t>(instr.imm);
+                jump = true;
+            }
+            break;
 
         /* 2.6 Load and Store Instructions */
-        case FRV_SD:
-            __asm__ __volatile__("movq %0, (%1, %2, 1)" : : "r"(register_file[instr.rs2]), "r"(register_file[instr.rs1]), "r"((uint64_t)instr.imm) : "memory");
+        case FRV_SD: {
+            uint64_t *ptr = reinterpret_cast<uint64_t *>(register_file[instr.rs1] + instr.imm);
+            *ptr = register_file[instr.rs2];
             break;
-        case FRV_SW:
-            __asm__ __volatile__("movl %0, (%1, %2, 1)" : : "r"((uint32_t)register_file[instr.rs2]), "r"(register_file[instr.rs1]), "r"((uint64_t)instr.imm) : "memory");
+        }
+        case FRV_SW: {
+            uint32_t *ptr = reinterpret_cast<uint32_t *>(register_file[instr.rs1] + instr.imm);
+            *ptr = static_cast<uint32_t>(register_file[instr.rs2]);
             break;
-        case FRV_SH:
-            __asm__ __volatile__("movw %0, (%1, %2, 1)" : : "r"((uint16_t)register_file[instr.rs2]), "r"(register_file[instr.rs1]), "r"((uint64_t)instr.imm) : "memory");
+        }
+        case FRV_SH: {
+            uint16_t *ptr = reinterpret_cast<uint16_t *>(register_file[instr.rs1] + instr.imm);
+            *ptr = static_cast<uint16_t>(register_file[instr.rs2]);
             break;
-        case FRV_SB:
-            __asm__ __volatile__("movb %0, (%1, %2, 1)" : : "r"((uint8_t)register_file[instr.rs2]), "r"(register_file[instr.rs1]), "r"((uint64_t)instr.imm) : "memory");
+        }
+        case FRV_SB: {
+            uint8_t *ptr = reinterpret_cast<uint8_t *>(register_file[instr.rs1] + instr.imm);
+            *ptr = static_cast<uint8_t>(register_file[instr.rs2]);
             break;
+        }
 
         case FRV_LD:
             if (instr.rd != 0) {
-                __asm__ __volatile__("movq (%1, %2, 1), %0" : "=r"(register_file[instr.rd]) : "r"(register_file[instr.rs1]), "r"((int64_t)instr.imm) : "memory");
+                uint64_t *ptr = reinterpret_cast<uint64_t *>(register_file[instr.rs1] + instr.imm);
+                register_file[instr.rd] = static_cast<int64_t>(*ptr);
             }
             break;
         case FRV_LW:
             if (instr.rd != 0) {
-                __asm__ __volatile__("movslq (%1, %2, 1), %0" : "=r"(register_file[instr.rd]) : "r"(register_file[instr.rs1]), "r"((int64_t)instr.imm) : "memory");
+                uint32_t *ptr = reinterpret_cast<uint32_t *>(register_file[instr.rs1] + instr.imm);
+                register_file[instr.rd] = static_cast<int64_t>(*ptr);
             }
             break;
         case FRV_LH:
             if (instr.rd != 0) {
-                __asm__ __volatile__("movswq (%1, %2, 1), %0" : "=r"(register_file[instr.rd]) : "r"(register_file[instr.rs1]), "r"((int64_t)instr.imm) : "memory");
+                uint16_t *ptr = reinterpret_cast<uint16_t *>(register_file[instr.rs1] + instr.imm);
+                register_file[instr.rd] = static_cast<int64_t>(*ptr);
             }
             break;
         case FRV_LB:
             if (instr.rd != 0) {
-                __asm__ __volatile__("movsbq (%1, %2, 1), %0" : "=r"(register_file[instr.rd]) : "r"(register_file[instr.rs1]), "r"((int64_t)instr.imm) : "memory");
+                uint8_t *ptr = reinterpret_cast<uint8_t *>(register_file[instr.rs1] + instr.imm);
+                register_file[instr.rd] = static_cast<int64_t>(*ptr);
             }
             break;
         /* 2.7 Memory Ordering Instructions */
@@ -310,16 +356,18 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             break;
         }
 
-        pc += r; // FIXME: is increment PC a pre or post operation ?
+        if (!jump) {
+            pc += r; // FIXME: is increment PC a pre or post operation ?
+        }
     } while (ijump_lookup_for_addr(pc) == 0);
 
-    puts("TRACE: found compiled basic block, addr: ");
-    print_hex64(pc);
-    puts("\n");
+    // puts("TRACE: found compiled basic block, addr: ");
+    // print_hex64(pc);
+    // puts("\n");
 
-    trace_dump_state(pc);
+    // trace_dump_state(pc);
 
-    puts("\n");
+    // puts("\n");
 
     /* At this point we have found a valid entry point back into
      * the compiled BasicBlocks

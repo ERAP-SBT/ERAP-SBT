@@ -42,6 +42,6 @@ int main(int argc, char *argv[]) {
     __asm__ volatile("nop" : : : "memory");
 
     a(2);
-
+    a(35);
     return EXIT_SUCCESS;
 }
