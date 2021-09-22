@@ -36,7 +36,7 @@ SSAVar *Lifter::shrink_var(BasicBlock *bb, SSAVar *var, uint64_t ip, const Type 
 
     // create cast operation
     std::unique_ptr<Operation> cast = std::make_unique<Operation>(Instruction::cast);
-
+    cast->lifter_info.in_op_size = var->type;
     // set in- and outputs
     cast->set_inputs(var);
 
@@ -65,6 +65,7 @@ std::optional<SSAVar *> Lifter::convert_type(BasicBlock *bb, uint64_t ip, SSAVar
     } else {
         op = std::make_unique<Operation>(Instruction::sign_extend);
     }
+    op->lifter_info.in_op_size = var->type;
     op->set_inputs(var);
     op->set_outputs(new_var);
     new_var->set_op(std::move(op));
@@ -109,6 +110,7 @@ void Lifter::zero_extend_all_f32(BasicBlock *bb, reg_map &mapping, uint64_t ip) 
         if (mapping[i]->type == Type::f32) {
             SSAVar *extended_var = bb->add_var(Type::f64, ip);
             auto op = std::make_unique<Operation>(Instruction::zero_extend);
+            op->lifter_info.in_op_size = Type::f32;
             op->set_inputs(mapping[i]);
             op->set_outputs(extended_var);
             extended_var->set_op(std::move(op));
@@ -131,6 +133,7 @@ SSAVar *Lifter::get_from_mapping_and_shrink(BasicBlock *bb, reg_map &mapping, ui
     if (cast_dir_res == 1) {
         SSAVar *const casted_value = bb->add_var(expected_type, ip);
         auto op = std::make_unique<Operation>(Instruction::cast);
+        op->lifter_info.in_op_size = value->type;
         op->set_inputs(value);
         op->set_outputs(casted_value);
         casted_value->set_op(std::move(op));

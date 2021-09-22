@@ -266,7 +266,7 @@ void Lifter::postprocess() {
             }
 
             if (cf_op.type == CFCInstruction::ijump || cf_op.type == CFCInstruction::icall) {
-                auto *target = cfOp.target();
+                auto *target = cf_op.target();
                 if (target != nullptr) {
                     auto &pred = target->predecessors;
                     if (auto it = std::find(pred.begin(), pred.end(), bb.get()); it != pred.end()) {

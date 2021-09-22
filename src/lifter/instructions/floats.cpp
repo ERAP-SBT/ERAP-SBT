@@ -17,6 +17,7 @@ void Lifter::lift_float_two_operands(BasicBlock *bb, const RV64Inst &instr, reg_
 
     // create the operation and assign in- and outputs
     auto op = std::make_unique<Operation>(instruction_type);
+    op->lifter_info.in_op_size = op_size;
     op->set_inputs(rs1, rs2);
     op->set_outputs(dest);
     dest->set_op(std::move(op));
@@ -35,6 +36,7 @@ void Lifter::lift_float_sqrt(BasicBlock *bb, const RV64Inst &instr, reg_map &map
 
     // create the operation and assign in- and outputs
     auto op = std::make_unique<Operation>(Instruction::fsqrt);
+    op->lifter_info.in_op_size = op_size;
     op->set_inputs(src);
     op->set_outputs(dest);
     dest->set_op(std::move(op));
@@ -57,6 +59,7 @@ void Lifter::lift_float_fma(BasicBlock *bb, const RV64Inst &instr, reg_map &mapp
 
     // create the operation and assign in- and outputs
     auto op = std::make_unique<Operation>(instruction_type);
+    op->lifter_info.in_op_size = op_size;
     op->set_inputs(rs1, rs2, rs3);
     op->set_outputs(dest);
     dest->set_op(std::move(op));
@@ -80,6 +83,7 @@ void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr
 
     // create the operation and assign in- and outputs
     auto op = std::make_unique<Operation>(_signed ? Instruction::convert : Instruction::uconvert);
+    op->lifter_info.in_op_size = from;
 
     // Only conversions to integers should have an rounding mode
     if (to == Type::i32 || to == Type::i64) {
@@ -133,6 +137,7 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
     {
         SSAVar *const i_rs1 = bb->add_var(i_op_size, ip);
         auto op = std::make_unique<Operation>(Instruction::cast);
+        op->lifter_info.in_op_size = op_size;
         op->set_inputs(rs1);
         op->set_outputs(i_rs1);
         i_rs1->set_op(std::move(op));
@@ -141,6 +146,7 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
     {
         SSAVar *const i_rs2 = bb->add_var(i_op_size, ip);
         auto op = std::make_unique<Operation>(Instruction::cast);
+        op->lifter_info.in_op_size = op_size;
         op->set_inputs(rs2);
         op->set_outputs(i_rs2);
         i_rs2->set_op(std::move(op));
@@ -151,6 +157,7 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
     SSAVar *const sign_rs2 = bb->add_var(i_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::_and);
+        op->lifter_info.in_op_size = i_op_size;
         op->set_inputs(rs2, sign_bit_extraction_mask);
         op->set_outputs(sign_rs2);
         sign_rs2->set_op(std::move(op));
@@ -171,6 +178,7 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
         new_sign = bb->add_var(i_op_size, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::_xor);
+            op->lifter_info.in_op_size = i_op_size;
             op->set_inputs(sign_rs2, sign_bit_extraction_mask);
             op->set_outputs(new_sign);
             new_sign->set_op(std::move(op));
@@ -183,6 +191,7 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
         SSAVar *sign_rs1 = bb->add_var(i_op_size, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::_and);
+            op->lifter_info.in_op_size = i_op_size;
             op->set_inputs(rs1, sign_bit_extraction_mask);
             op->set_outputs(sign_rs1);
             sign_rs1->set_op(std::move(op));
@@ -192,6 +201,7 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
         new_sign = bb->add_var(i_op_size, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::_xor);
+            op->lifter_info.in_op_size = i_op_size;
             op->set_inputs(sign_rs1, sign_rs2);
             op->set_outputs(new_sign);
             new_sign->set_op(std::move(op));
@@ -209,6 +219,7 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
     SSAVar *const zero_signed_rs1 = bb->add_var(i_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::_and);
+        op->lifter_info.in_op_size = i_op_size;
         op->set_inputs(rs1, sign_zero_mask);
         op->set_outputs(zero_signed_rs1);
         zero_signed_rs1->set_op(std::move(op));
@@ -218,6 +229,7 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
     SSAVar *const rs1_res = bb->add_var(i_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::_or);
+        op->lifter_info.in_op_size = i_op_size;
         op->set_inputs(zero_signed_rs1, new_sign);
         op->set_outputs(rs1_res);
         rs1_res->set_op(std::move(op));
@@ -227,6 +239,7 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
     SSAVar *const fp_res = bb->add_var(op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::cast);
+        op->lifter_info.in_op_size = i_op_size;
         op->set_inputs(rs1_res);
         op->set_outputs(fp_res);
         fp_res->set_op(std::move(op));
@@ -250,6 +263,7 @@ void Lifter::lift_float_move(BasicBlock *bb, const RV64Inst &instr, reg_map &map
 
     // create the operation and assign in- and outputs
     auto op = std::make_unique<Operation>(Instruction::cast);
+    op->lifter_info.in_op_size = from;
     op->set_inputs(src);
     op->set_outputs(dest);
     dest->set_op(std::move(op));
@@ -283,6 +297,7 @@ void Lifter::lift_float_comparison(BasicBlock *bb, const RV64Inst &instr, reg_ma
 
     // create the operation and assign in- and outputs
     auto op = std::make_unique<Operation>(instruction_type);
+    op->lifter_info.in_op_size = op_size;
     op->set_inputs(rs1, rs2, one, zero);
     op->set_outputs(dest);
     dest->set_op(std::move(op));
@@ -333,6 +348,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const i_src = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::cast);
+        op->lifter_info.in_op_size = op_size;
         op->set_inputs(f_src);
         op->set_outputs(i_src);
         i_src->set_op(std::move(op));
@@ -342,6 +358,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const sign_bit = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::shr);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(i_src, shift_to_right_amount);
         op->set_outputs(sign_bit);
         sign_bit->set_op(std::move(op));
@@ -351,6 +368,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const negative_sign_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(i_src, zero, zero, combined_mask_1_2);
         op->set_outputs(negative_sign_test);
         negative_sign_test->set_op(std::move(op));
@@ -360,6 +378,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const positive_sign_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(i_src, zero, combined_mask_5_6, zero);
         op->set_outputs(negative_sign_test);
         negative_sign_test->set_op(std::move(op));
@@ -369,6 +388,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const exponent = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::_and);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(i_src, exponent_mask);
         op->set_outputs(exponent);
         exponent->set_op(std::move(op));
@@ -378,6 +398,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const zero_exponent_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(exponent, zero, combined_mask_2_5, zero);
         op->set_outputs(zero_exponent_test);
         zero_exponent_test->set_op(std::move(op));
@@ -387,6 +408,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const non_zero_exponent_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(exponent, zero, zero, combined_mask_1_6);
         op->set_outputs(non_zero_exponent_test);
         non_zero_exponent_test->set_op(std::move(op));
@@ -396,6 +418,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const max_exponent_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(exponent, max_exponent_value, combined_mask_8_9, zero);
         op->set_outputs(max_exponent_test);
         max_exponent_test->set_op(std::move(op));
@@ -405,6 +428,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const mantisse = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::_and);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(i_src, mantisse_mask);
         op->set_outputs(mantisse);
         mantisse->set_op(std::move(op));
@@ -414,6 +438,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const mantisse_msb = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::shr);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(mantisse, mantisse_msb_shift_amount);
         op->set_outputs(mantisse_msb);
         mantisse_msb->set_op(std::move(op));
@@ -423,6 +448,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const mantisse_non_zero_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(mantisse, zero, zero, mask9);
         op->set_outputs(mantisse_non_zero_test);
         mantisse_non_zero_test->set_op(std::move(op));
@@ -432,6 +458,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const mantisse_msb_zero_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(mantisse_msb, zero, mask9, zero);
         op->set_outputs(mantisse_msb_zero_test);
         mantisse_msb_zero_test->set_op(std::move(op));
@@ -441,6 +468,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const mantisse_msb_non_zero_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(mantisse_msb, zero, zero, mask10);
         op->set_outputs(mantisse_msb_non_zero_test);
         mantisse_msb_non_zero_test->set_op(std::move(op));
@@ -450,6 +478,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const negative_inifinty_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(i_src, negative_infinity, mask1, zero);
         op->set_outputs(negative_inifinty_test);
         negative_inifinty_test->set_op(std::move(op));
@@ -459,6 +488,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const negative_normal_number_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::_and);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(non_zero_exponent_test, negative_sign_test);
         op->set_outputs(negative_normal_number_test);
         negative_normal_number_test->set_op(std::move(op));
@@ -468,6 +498,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const negative_subnormal_number_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::_and);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(zero_exponent_test, negative_sign_test);
         op->set_outputs(negative_subnormal_number_test);
         negative_subnormal_number_test->set_op(std::move(op));
@@ -477,6 +508,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const negative_zero_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(i_src, negative_zero, mask4, zero);
         op->set_outputs(negative_zero_test);
         negative_zero_test->set_op(std::move(op));
@@ -486,6 +518,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const positive_zero_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(i_src, zero, mask5, zero);
         op->set_outputs(positive_zero_test);
         positive_zero_test->set_op(std::move(op));
@@ -495,6 +528,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const positive_subnormal_number_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::_and);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(zero_exponent_test, negative_sign_test);
         op->set_outputs(positive_subnormal_number_test);
         positive_subnormal_number_test->set_op(std::move(op));
@@ -504,6 +538,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const positive_normal_number_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::_and);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(non_zero_exponent_test, positive_sign_test);
         op->set_outputs(positive_normal_number_test);
         positive_normal_number_test->set_op(std::move(op));
@@ -513,6 +548,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const positive_inifinty_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(i_src, positive_infinity, mask8, zero);
         op->set_outputs(positive_inifinty_test);
         positive_inifinty_test->set_op(std::move(op));
@@ -525,6 +561,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         SSAVar *const signaling_nan_mantisse_test = bb->add_var(integer_op_size, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::_and);
+            op->lifter_info.in_op_size = integer_op_size;
             op->set_inputs(mantisse_msb_zero_test, mantisse_non_zero_test);
             op->set_outputs(signaling_nan_test);
             signaling_nan_test->set_op(std::move(op));
@@ -533,6 +570,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         // and the exponent is "correct"
         {
             auto op = std::make_unique<Operation>(Instruction::_and);
+            op->lifter_info.in_op_size = integer_op_size;
             op->set_inputs(signaling_nan_mantisse_test, max_exponent_test);
             op->set_outputs(signaling_nan_test);
             signaling_nan_test->set_op(std::move(op));
@@ -543,6 +581,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *const quiet_nan_test = bb->add_var(integer_op_size, ip);
     {
         auto op = std::make_unique<Operation>(Instruction::_and);
+        op->lifter_info.in_op_size = integer_op_size;
         op->set_inputs(max_exponent_test, mantisse_msb_non_zero_test);
         op->set_outputs(quiet_nan_test);
         quiet_nan_test->set_op(std::move(op));
@@ -555,6 +594,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         SSAVar *const test_0_1 = bb->add_var(integer_op_size, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::_or);
+            op->lifter_info.in_op_size = integer_op_size;
             op->set_inputs(negative_inifinty_test, negative_normal_number_test);
             op->set_outputs(test_0_1);
             test_0_1->set_op(std::move(op));
@@ -564,6 +604,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         SSAVar *const test_2_3 = bb->add_var(integer_op_size, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::_or);
+            op->lifter_info.in_op_size = integer_op_size;
             op->set_inputs(negative_subnormal_number_test, negative_zero_test);
             op->set_outputs(test_2_3);
             test_2_3->set_op(std::move(op));
@@ -573,6 +614,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         SSAVar *const test_4_5 = bb->add_var(integer_op_size, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::_or);
+            op->lifter_info.in_op_size = integer_op_size;
             op->set_inputs(positive_zero_test, positive_subnormal_number_test);
             op->set_outputs(test_4_5);
             test_4_5->set_op(std::move(op));
@@ -582,6 +624,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         SSAVar *const test_6_7 = bb->add_var(integer_op_size, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::_or);
+            op->lifter_info.in_op_size = integer_op_size;
             op->set_inputs(positive_normal_number_test, positive_inifinty_test);
             op->set_outputs(test_6_7);
             test_6_7->set_op(std::move(op));
@@ -591,6 +634,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         SSAVar *const test_8_9 = bb->add_var(integer_op_size, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::_or);
+            op->lifter_info.in_op_size = integer_op_size;
             op->set_inputs(signaling_nan_test, quiet_nan_test);
             op->set_outputs(test_8_9);
             test_8_9->set_op(std::move(op));
@@ -600,6 +644,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         SSAVar *const test_0_to_3 = bb->add_var(integer_op_size, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::_or);
+            op->lifter_info.in_op_size = integer_op_size;
             op->set_inputs(test_0_1, test_2_3);
             op->set_outputs(test_0_to_3);
             test_0_to_3->set_op(std::move(op));
@@ -609,6 +654,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         SSAVar *const test_4_to_7 = bb->add_var(integer_op_size, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::_or);
+            op->lifter_info.in_op_size = integer_op_size;
             op->set_inputs(test_4_5, test_6_7);
             op->set_outputs(test_4_to_7);
             test_4_to_7->set_op(std::move(op));
@@ -618,6 +664,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         SSAVar *const test_0_to_7 = bb->add_var(integer_op_size, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::_or);
+            op->lifter_info.in_op_size = integer_op_size;
             op->set_inputs(test_0_to_3, test_4_to_7);
             op->set_outputs(test_0_to_7);
             test_0_to_7->set_op(std::move(op));
@@ -626,6 +673,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         // merge to the test result
         {
             auto op = std::make_unique<Operation>(Instruction::_or);
+            op->lifter_info.in_op_size = integer_op_size;
             op->set_inputs(test_0_to_7, test_8_9);
             op->set_outputs(test_result);
             test_result->set_op(std::move(op));

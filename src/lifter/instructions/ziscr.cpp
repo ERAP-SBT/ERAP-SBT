@@ -6,6 +6,7 @@ using namespace lifter::RV64;
 SSAVar *zero_extend_csr(BasicBlock *bb, SSAVar *csr, uint64_t ip) {
     SSAVar *extended_csr = bb->add_var(Type::i64, ip);
     auto op = std::make_unique<Operation>(Instruction::zero_extend);
+    op->lifter_info.in_op_size = csr->type;
     op->set_inputs(csr);
     op->set_outputs(extended_csr);
     extended_csr->set_op(std::move(op));
