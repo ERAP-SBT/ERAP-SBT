@@ -163,13 +163,17 @@ void Generator::compile() {
 
     fprintf(out_fd, "init_stack_ptr: .quad 0\n");
 
-    compile_blocks();
+    if (interpreter_only) {
+        compile_interpreter_only();
+    } else {
+        compile_blocks();
 
-    compile_entry();
+        compile_entry();
 
-    compile_err_msgs();
+        compile_err_msgs();
 
-    compile_ijump_lookup();
+        compile_ijump_lookup();
+    }
 }
 
 void Generator::compile_ijump_lookup() {
@@ -217,6 +221,48 @@ void Generator::compile_phdr_info() {
     std::fprintf(out_fd, "phdr_num: .quad %lu\n", ir->phdr_num);
     std::fprintf(out_fd, "phdr_size: .quad %lu\n", ir->phdr_size);
     std::fprintf(out_fd, ".global phdr_off\n.global phdr_num\n.global phdr_size\n");
+}
+
+void Generator::compile_interpreter_only() {
+    compile_section(Section::TEXT);
+    fprintf(out_fd, ".global _start\n");
+    fprintf(out_fd, "_start:\n");
+    
+    // setup the RISC-V stack
+    fprintf(out_fd, "mov rbx, offset param_passing\n");
+    fprintf(out_fd, "mov rdi, rsp\n");
+    fprintf(out_fd, "mov rsi, offset stack_space_end\n");
+    fprintf(out_fd, "call copy_stack\n");
+
+    // mov the stack pointer to the register which holds the stack pointer (refering to the calling convention)
+    fprintf(out_fd, "mov [rip + register_file + 16], rax\n");
+
+    // load the entry address of the binary and call the interpreter
+    fprintf(out_fd, "mov rdi, %ld\n", ir->p_entry_addr);
+    fprintf(out_fd, "jmp unresolved_ijump_handler\n");
+
+    fprintf(out_fd, ".type _start,STT_FUNC\n");
+    fprintf(out_fd, ".size _start,$-_start\n");
+    compile_section(Section::RODATA);
+
+    fprintf(out_fd, ".global ijump_lookup_base\n");
+    fprintf(out_fd, ".global ijump_lookup\n");
+
+    fprintf(out_fd, "ijump_lookup_base:\n");
+    fprintf(out_fd, ".8byte %zu\n", ir->virt_bb_start_addr);
+
+    fprintf(out_fd, "ijump_lookup:\n");
+
+    assert(ir->virt_bb_start_addr <= ir->virt_bb_end_addr);
+
+    /* Incredibly space inefficient but also O(1) fast */
+    for (uint64_t i = ir->virt_bb_start_addr; i < ir->virt_bb_end_addr; i += 2) {
+        fprintf(out_fd, ".8byte 0x0\n");
+    }
+
+    fprintf(out_fd, "ijump_lookup_end:\n");
+    fprintf(out_fd, ".type ijump_lookup,STT_OBJECT\n");
+    fprintf(out_fd, ".size ijump_lookup,ijump_lookup_end-ijump_lookup\n");
 }
 
 void Generator::compile_blocks() {

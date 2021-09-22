@@ -10,6 +10,7 @@ void Lifter::lift(Program *prog) {
     ir->phdr_num = prog->elf_base->program_headers.size();
     ir->phdr_off = prog->elf_base->phdr_offset;
     ir->phdr_size = prog->elf_base->phdr_size;
+    ir->p_entry_addr = prog->elf_base->header.e_entry;
     dummy = ir->add_basic_block(0, "Dummy Basic Block");
 
     if (prog->elf_base->section_headers.empty()) {
@@ -35,6 +36,11 @@ void Lifter::lift(Program *prog) {
     needs_bb_start[(prog->elf_base->header.e_entry - ir->virt_bb_start_addr)] = true;
 
     add_statics();
+
+    if (interpreter_only) {
+        return;
+    }
+
     BasicBlock *cur_bb = nullptr;
     reg_map mapping;
     const auto create_new_bb = [this, prog, &cur_bb, &mapping](uint64_t prev_addr, uint64_t virt_addr) {

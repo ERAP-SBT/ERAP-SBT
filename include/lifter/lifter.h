@@ -22,10 +22,13 @@ class Lifter {
 
     const bool floating_point_support;
 
+    const bool interpreter_only;
+
     const size_t count_used_static_vars;
 
-    explicit Lifter(IR *ir, bool floating_point_support)
-        : ir(ir), dummy(), floating_point_support(floating_point_support), count_used_static_vars(COUNT_STATIC_VARS + (floating_point_support ? COUNT_STATIC_FP_VARS : 0)) {}
+    explicit Lifter(IR *ir, bool floating_point_support, bool interpreter_only = false)
+        : ir(ir), dummy(), floating_point_support(floating_point_support), count_used_static_vars(COUNT_STATIC_VARS + (floating_point_support ? COUNT_STATIC_FP_VARS : 0)),
+          interpreter_only(interpreter_only) {}
 
     void lift(Program *prog);
 

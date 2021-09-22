@@ -18,6 +18,7 @@ struct IR {
     uint64_t phdr_off;
     uint64_t phdr_size;
     uint64_t phdr_num;
+    uint64_t p_entry_addr;
     uint64_t virt_bb_start_addr;
     uint64_t virt_bb_end_addr;
 

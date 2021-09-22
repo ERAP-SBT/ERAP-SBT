@@ -128,7 +128,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             panic("undefined");
         }
 
-        // trace(pc, &instr);
+        trace(pc, &instr);
 
         // trace_dump_state(pc);
 
@@ -255,7 +255,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             jump = true;
             break;
         case FRV_JALR: {
-            uint64_t jmp_addr = register_file[instr.rs1] + static_cast<int64_t>(instr.imm);
+            uint64_t jmp_addr = (register_file[instr.rs1] + static_cast<int64_t>(instr.imm)) & 0xFFFF'FFFF'FFFF'FFFE;
             if (instr.rd != 0) {
                 register_file[instr.rd] = pc + r;
             }
@@ -325,7 +325,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
         case FRV_LD:
             if (instr.rd != 0) {
                 uint64_t *ptr = reinterpret_cast<uint64_t *>(register_file[instr.rs1] + instr.imm);
-                register_file[instr.rd] = static_cast<int64_t>(*ptr);
+                register_file[instr.rd] = *ptr;
             }
             break;
         case FRV_LW:
@@ -334,10 +334,22 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
                 register_file[instr.rd] = static_cast<int64_t>(*ptr);
             }
             break;
+        case FRV_LWU:
+            if (instr.rd != 0) {
+                uint32_t *ptr = reinterpret_cast<uint32_t *>(register_file[instr.rs1] + instr.imm);
+                register_file[instr.rd] = static_cast<uint64_t>(*ptr);
+            }
+            break;
         case FRV_LH:
             if (instr.rd != 0) {
                 uint16_t *ptr = reinterpret_cast<uint16_t *>(register_file[instr.rs1] + instr.imm);
                 register_file[instr.rd] = static_cast<int64_t>(*ptr);
+            }
+            break;
+        case FRV_LHU:
+            if (instr.rd != 0) {
+                uint16_t *ptr = reinterpret_cast<uint16_t *>(register_file[instr.rs1] + instr.imm);
+                register_file[instr.rd] = static_cast<uint64_t>(*ptr);
             }
             break;
         case FRV_LB:
@@ -346,10 +358,20 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
                 register_file[instr.rd] = static_cast<int64_t>(*ptr);
             }
             break;
-        /* 2.7 Memory Ordering Instructions */
+        case FRV_LBU:
+            if (instr.rd != 0) {
+                uint8_t *ptr = reinterpret_cast<uint8_t *>(register_file[instr.rs1] + instr.imm);
+                register_file[instr.rd] = static_cast<uint64_t>(*ptr);
+            }
+            break;
 
-        /* 2.8 Environment Call and Breakpoints */
+            /* 2.7 Memory Ordering Instructions */
 
+            /* 2.8 Environment Call and Breakpoints */
+
+        case FRV_ECALL:
+            syscall_impl(register_file[17], register_file[10], register_file[11], register_file[12], register_file[13], register_file[14], register_file[15]);
+            break;
         /* 2.9 HINT Instructions */
         default:
             panic("instruction not implemented\n");
