@@ -252,20 +252,6 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
                 std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = j;
             }
         }
-
-        if (cf_op.type == CFCInstruction::call || cf_op.type == CFCInstruction::icall) {
-            std::vector<std::pair<RefPtr<SSAVar>, size_t>> &continuation_mapping =
-                (cf_op.type == CFCInstruction::call ? std::get<CfOp::CallInfo>(cf_op.info).continuation_mapping : std::get<CfOp::ICallInfo>(cf_op.info).continuation_mapping);
-            continuation_mapping.clear();
-
-            for (size_t j = 0; j < new_mapping.size(); j++) {
-                auto var = new_mapping[j];
-                if (var != nullptr) {
-                    continuation_mapping.emplace_back(var, j);
-                    std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = j;
-                }
-            }
-        }
     }
 
     return new_bb;

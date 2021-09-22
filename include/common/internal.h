@@ -13,3 +13,5 @@ inline bool ENABLE_DEBUG
             std::cout << __FILE__ << " => L." << __LINE__ << ": " << (string) << "\n"; \
         } \
     } while (0)
+
+inline bool ENABLE_CALL_RET_TRANSFORM = true;

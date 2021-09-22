@@ -39,6 +39,10 @@ int main(int argc, const char **argv) {
         ENABLE_DEBUG = args.get_value_as_bool("debug");
     }
 
+    if (args.has_argument("transform-call-ret")) {
+        ENABLE_CALL_RET_TRANSFORM = args.get_value_as_bool("transform-call-ret");
+    }
+
     if (args.positional.empty()) {
         std::cerr << "Missing input file argument!\n";
         print_help(true);
@@ -198,6 +202,7 @@ void print_help(bool usage_only) {
         std::cerr << "    --print-ir:    Prints a textual representation of the IR (if no file is specified, prints to standard out)\n";
         std::cerr << "    --asm-out:     Output the generated Assembly to a file\n";
         std::cerr << "    --dump-elf:    Show information about the input file\n";
+        std::cerr << "    --transform-call-ret: Detect and replace RISC-V `call` and `return` instructions\n";
         std::cerr << "    --helper-path: Set the path to the runtime helper library\n";
         std::cerr << "    --linkerscript-path: Set the path to the linker script\n";
         std::cerr << "                   (The above two are only required if the translator can't find these by itself)\n";
