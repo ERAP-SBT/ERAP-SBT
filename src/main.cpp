@@ -100,8 +100,6 @@ int main(int argc, const char **argv) {
     // support floating points if the flag isn't set or the provided value isn't equal to true
     const bool fp_support = !args.has_argument("disable-fp") || (args.get_argument("disable-fp") != "" && !args.get_value_as_bool("disable-fp"));
 
-    const bool fp_support = !args.has_argument("disable-fp");
-
     auto lifter = lifter::RV64::Lifter(&ir, fp_support);
     lifter.lift(&prog);
 

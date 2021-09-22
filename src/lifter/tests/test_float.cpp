@@ -644,8 +644,11 @@ class TestFloatingPointLifting : public ::testing::Test {
 
         verify();
 
+        size_t count_scanned_variables = count_used_static_vars;
 
+        if (expected_from == Type::i32 || expected_from == Type::f32) {
             SSAVar *casted_input = bb->variables[count_scanned_variables].get();
+            ASSERT_EQ(casted_input->type, expected_from) << "The casted input has the wrong type!";
             ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(casted_input->info)) << "The casted input doesn't have an operation!";
             auto *op = std::get<std::unique_ptr<Operation>>(casted_input->info).get();
             ASSERT_EQ(op->type, Instruction::cast) << "The operation has the wrong type!";
