@@ -219,12 +219,13 @@ void print_help(bool usage_only) {
         std::cerr << "    --print-ir:    Prints a textual representation of the IR (if no file is specified, prints to standard out)\n";
         std::cerr << "    --asm-out:     Output the generated Assembly to a file\n";
         std::cerr << "    --dump-elf:    Show information about the input file\n";
-        std::cerr << "    --optimize:    Set optimization flags, comma-seperated list. Specifying a group enables all flags in that group.\n";
+        std::cerr << "    --optimize:    Set optimization flags, comma-seperated list. Specifying a group enables all flags in that group. Appending '!' before disables a single flag\n";
         std::cerr << "    Optimization Flags:\n";
         std::cerr << "      - generator:\n";
         std::cerr << "          - reg_alloc: Register Allocation\n";
         std::cerr << "          - merge_ops: Merge multiple IR-Operations into a single native op\n";
         std::cerr << "          - unused_statics: Eliminate unused static-load-stores in the default generator\n";
+        std::cerr << "          - bmi2: Allow usage of instructions in the BMI2 instruction set extension (shlx/shrx/sarx)\n";
         std::cerr << "    --helper-path: Set the path to the runtime helper library\n";
         std::cerr << "    --linkerscript-path: Set the path to the linker script\n";
         std::cerr << "                   (The above two are only required if the translator can't find these by itself)\n";
@@ -245,7 +246,7 @@ void parse_opt_flags(const Args &args, uint32_t &gen_optimizations) {
     auto val = args.get_argument("optimize");
     while (true) {
         const auto comma_pos = val.find_first_of(',');
-        const auto opt_flag = val.substr(0, comma_pos);
+        auto opt_flag = val.substr(0, comma_pos);
         if (opt_flag.empty()) {
             if (comma_pos == std::string::npos) {
                 break;
@@ -253,18 +254,32 @@ void parse_opt_flags(const Args &args, uint32_t &gen_optimizations) {
             continue;
         }
 
+        auto disable_flag = false;
+        if (opt_flag[0] == '!') {
+            disable_flag = true;
+            opt_flag.remove_prefix(1);
+        }
+        uint32_t gen_opt_change = 0;
         if (opt_flag == "all") {
-            gen_optimizations = 0xFFFFFFFF;
+            gen_opt_change = 0xFFFFFFFF;
         } else if (opt_flag == "generator") {
-            gen_optimizations = 0xFFFFFFFF;
+            gen_opt_change = 0xFFFFFFFF;
         } else if (opt_flag == "reg_alloc") {
-            gen_optimizations |= generator::x86_64::Generator::OPT_MBRA;
+            gen_opt_change |= generator::x86_64::Generator::OPT_MBRA;
         } else if (opt_flag == "unused_statics") {
-            gen_optimizations |= generator::x86_64::Generator::OPT_UNUSED_STATIC;
+            gen_opt_change |= generator::x86_64::Generator::OPT_UNUSED_STATIC;
         } else if (opt_flag == "merge_ops") {
-            gen_optimizations |= generator::x86_64::Generator::OPT_MERGE_OP;
+            gen_opt_change |= generator::x86_64::Generator::OPT_MERGE_OP;
+        } else if (opt_flag == "bmi2") {
+            gen_opt_change |= generator::x86_64::Generator::OPT_ARCH_BMI2;
         } else {
             std::cerr << "Warning: Unknown optimization flag: '" << opt_flag << "'\n";
+        }
+
+        if (disable_flag) {
+            gen_optimizations &= ~gen_opt_change;
+        } else {
+            gen_optimizations |= gen_opt_change;
         }
 
         if (comma_pos == std::string::npos) {

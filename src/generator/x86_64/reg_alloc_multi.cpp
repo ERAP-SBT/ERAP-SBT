@@ -492,7 +492,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                                 did_merge = true;
                             }
                         }
-                    } else if (op->type == Instruction::_and && op->in_vars[1]->type == Type::imm) {
+                    } else if ((gen->optimizations & Generator::OPT_ARCH_BMI2) && op->type == Instruction::_and && op->in_vars[1]->type == Type::imm) {
                         // v2 <- and v0, 31/63
                         // (cast i32 v3 <- i64 v1)
                         // shl/shr/sar v3/v1, v2
@@ -696,7 +696,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     print_asm("xor edx, edx\n");
                 }
             } else if (op->type == Instruction::shl || op->type == Instruction::shr || op->type == Instruction::sar) {
-                if (op->in_vars[0]->type != Type::i64 && op->in_vars[0]->type != Type::i32) {
+                if (!(gen->optimizations & Generator::OPT_ARCH_BMI2) || (op->in_vars[0]->type != Type::i64 && op->in_vars[0]->type != Type::i32)) {
                     // when we shift 16/8 bit values we need to use the shl/shr/sar instructions so the shift val needs to be in cl
                     in2_reg = load_val_in_reg(cur_time, in2, REG_C);
                 } else {
@@ -716,7 +716,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
             }
 
             const auto write_shift = [this, in1_reg_name, in2_reg_name, op](const char *instr_name) {
-                if (op->in_vars[0]->type != Type::i64 && op->in_vars[0]->type != Type::i32) {
+                if (!(gen->optimizations & Generator::OPT_ARCH_BMI2) || (op->in_vars[0]->type != Type::i64 && op->in_vars[0]->type != Type::i32)) {
                     print_asm("%s %s, cl\n", instr_name, in1_reg_name);
                 } else {
                     print_asm("%sx %s, %s, %s\n", instr_name, in1_reg_name, in1_reg_name, in2_reg_name);
