@@ -150,6 +150,11 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
                 register_file[instr.rd] = register_file[instr.rs1] + register_file[instr.rs2];
             }
             break;
+        case FRV_ADDW:
+            if (instr.rd != 0) {
+                register_file[instr.rd] = sign_extend_int64_t(static_cast<int32_t>(register_file[instr.rs1]) + static_cast<int32_t>(register_file[instr.rs2]));
+            }
+            break;
         case FRV_SUB:
             if (instr.rd != 0) {
                 register_file[instr.rd] = register_file[instr.rs1] - register_file[instr.rs2];
@@ -281,7 +286,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             break;
         case FRV_AUIPC:
             if (instr.rd != 0) {
-                register_file[instr.rd] = pc + sign_extend_int64_t(instr.imm);
+                register_file[instr.rd] = pc + instr.imm;
             }
             break;
 
@@ -342,65 +347,65 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
 
         /* 2.6 Load and Store Instructions */
         case FRV_SD: {
-            uint64_t *ptr = reinterpret_cast<uint64_t *>(register_file[instr.rs1] + instr.imm);
+            uint64_t *ptr = reinterpret_cast<uint64_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
             *ptr = register_file[instr.rs2];
             break;
         }
         case FRV_SW: {
-            uint32_t *ptr = reinterpret_cast<uint32_t *>(register_file[instr.rs1] + instr.imm);
+            uint32_t *ptr = reinterpret_cast<uint32_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
             *ptr = static_cast<uint32_t>(register_file[instr.rs2]);
             break;
         }
         case FRV_SH: {
-            uint16_t *ptr = reinterpret_cast<uint16_t *>(register_file[instr.rs1] + instr.imm);
+            uint16_t *ptr = reinterpret_cast<uint16_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
             *ptr = static_cast<uint16_t>(register_file[instr.rs2]);
             break;
         }
         case FRV_SB: {
-            uint8_t *ptr = reinterpret_cast<uint8_t *>(register_file[instr.rs1] + instr.imm);
+            uint8_t *ptr = reinterpret_cast<uint8_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
             *ptr = static_cast<uint8_t>(register_file[instr.rs2]);
             break;
         }
 
         case FRV_LD:
             if (instr.rd != 0) {
-                uint64_t *ptr = reinterpret_cast<uint64_t *>(register_file[instr.rs1] + instr.imm);
+                uint64_t *ptr = reinterpret_cast<uint64_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
                 register_file[instr.rd] = *ptr;
             }
             break;
         case FRV_LW:
             if (instr.rd != 0) {
-                int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1] + instr.imm);
+                int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
                 register_file[instr.rd] = static_cast<int64_t>(*ptr);
             }
             break;
         case FRV_LWU:
             if (instr.rd != 0) {
-                uint32_t *ptr = reinterpret_cast<uint32_t *>(register_file[instr.rs1] + instr.imm);
+                uint32_t *ptr = reinterpret_cast<uint32_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
                 register_file[instr.rd] = static_cast<uint64_t>(*ptr);
             }
             break;
         case FRV_LH:
             if (instr.rd != 0) {
-                int16_t *ptr = reinterpret_cast<int16_t *>(register_file[instr.rs1] + instr.imm);
+                int16_t *ptr = reinterpret_cast<int16_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
                 register_file[instr.rd] = static_cast<int64_t>(*ptr);
             }
             break;
         case FRV_LHU:
             if (instr.rd != 0) {
-                uint16_t *ptr = reinterpret_cast<uint16_t *>(register_file[instr.rs1] + instr.imm);
+                uint16_t *ptr = reinterpret_cast<uint16_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
                 register_file[instr.rd] = static_cast<uint64_t>(*ptr);
             }
             break;
         case FRV_LB:
             if (instr.rd != 0) {
-                int8_t *ptr = reinterpret_cast<int8_t *>(register_file[instr.rs1] + instr.imm);
+                int8_t *ptr = reinterpret_cast<int8_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
                 register_file[instr.rd] = static_cast<int64_t>(*ptr);
             }
             break;
         case FRV_LBU:
             if (instr.rd != 0) {
-                uint8_t *ptr = reinterpret_cast<uint8_t *>(register_file[instr.rs1] + instr.imm);
+                uint8_t *ptr = reinterpret_cast<uint8_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
                 register_file[instr.rd] = static_cast<uint64_t>(*ptr);
             }
             break;
@@ -409,7 +414,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
 
         /* 2.8 Environment Call and Breakpoints */
         case FRV_ECALL:
-            syscall_impl(register_file[17], register_file[10], register_file[11], register_file[12], register_file[13], register_file[14], register_file[15]);
+            register_file[10] = syscall_impl(register_file[17], register_file[10], register_file[11], register_file[12], register_file[13], register_file[14], register_file[15]);
             break;
 
         /* M extension */
