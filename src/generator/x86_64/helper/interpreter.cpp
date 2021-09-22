@@ -128,7 +128,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             panic("undefined");
         }
 
-        trace(pc, &instr);
+        // trace(pc, &instr);
 
         // trace_dump_state(pc);
 
@@ -670,7 +670,25 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             break;
         }
 
-            /* F extension */
+        /* F extension */
+        case FRV_FLW: {
+            uint32_t *ptr = reinterpret_cast<uint32_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
+            register_file[instr.rd] = static_cast<uint64_t>(*ptr);
+            break;
+        }
+        case FRV_FLD:
+            register_file[instr.rd] = *reinterpret_cast<uint64_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
+            break;
+        case FRV_FSW: {
+            uint32_t *ptr = reinterpret_cast<uint32_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
+            *ptr = static_cast<uint32_t>(register_file[instr.rs2]);
+            break;
+        }
+        case FRV_FSD: {
+            uint64_t *ptr = reinterpret_cast<uint64_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
+            *ptr = register_file[instr.rs2];
+            break;
+        }
 
         default:
             panic("instruction not implemented\n");
