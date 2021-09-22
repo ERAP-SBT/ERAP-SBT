@@ -198,11 +198,6 @@ void Lifter::lift(Program *prog) {
                 } else if (cont_block->virt_start_addr != next_addr) {
                     split_basic_block(cont_block, next_addr, prog->elf_base.get());
                 }
-                //                if (cf_op.type == CFCInstruction::call) {
-                //                    std::get<CfOp::CallInfo>(cf_op.info).continuation_block = cont_block;
-                //                } else {
-                //                    std::get<CfOp::ICallInfo>(cf_op.info).continuation_block = cont_block;
-                //                }
             }
 
             if (next_bb && next_bb != dummy) {
