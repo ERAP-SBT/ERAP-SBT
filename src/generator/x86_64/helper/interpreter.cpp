@@ -128,7 +128,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             panic("undefined");
         }
 
-        trace(pc, &instr);
+        // trace(pc, &instr);
 
         // trace_dump_state(pc);
 
