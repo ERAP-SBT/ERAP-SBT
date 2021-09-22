@@ -467,11 +467,11 @@ void Generator::compile_vars(const BasicBlock *block) {
             break;
         case Instruction::shl:
             assert(arg_count == 2);
-            fprintf(out_fd, "mov cl, bl\nshl rax, cl\n");
+            fprintf(out_fd, "mov cl, bl\nshl %s, cl\n", rax_from_type(op->in_vars[0]->type));
             break;
         case Instruction::shr:
             assert(arg_count == 2);
-            fprintf(out_fd, "mov cl, bl\nshr rax, cl\n");
+            fprintf(out_fd, "mov cl, bl\nshr %s, cl\n", rax_from_type(op->in_vars[0]->type));
             break;
         case Instruction::sar:
             assert(arg_count == 2);
