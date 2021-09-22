@@ -196,17 +196,17 @@ void print_help(bool usage_only) {
     std::cerr << "usage: translate <file> [args...]\n";
     if (!usage_only) {
         std::cerr << "Possible arguments are (--key=value):\n";
-        std::cerr << "    --help:        Shows this help message\n";
-        std::cerr << "    --output:      Set the output file name (by default, the input file path suffixed with `.translated`)\n";
-        std::cerr << "    --debug:       Enables debug logging (use --debug=false to prevent logging in debug builds)\n";
-        std::cerr << "    --print-ir:    Prints a textual representation of the IR (if no file is specified, prints to standard out)\n";
-        std::cerr << "    --asm-out:     Output the generated Assembly to a file\n";
-        std::cerr << "    --dump-elf:    Show information about the input file\n";
-        std::cerr << "    --transform-call-ret: Detect and replace RISC-V `call` and `return` instructions\n";
-        std::cerr << "    --helper-path: Set the path to the runtime helper library\n";
-        std::cerr << "    --linkerscript-path: Set the path to the linker script\n";
-        std::cerr << "                   (The above two are only required if the translator can't find these by itself)\n";
-        std::cerr << "    --disable-fp:   Disables the support of floating point instructions.\n";
+        std::cerr << "    --help:                 Shows this help message\n";
+        std::cerr << "    --output:               Set the output file name (by default, the input file path suffixed with `.translated`)\n";
+        std::cerr << "    --debug:                Enables debug logging (use --debug=false to prevent logging in debug builds)\n";
+        std::cerr << "    --print-ir:             Prints a textual representation of the IR (if no file is specified, prints to standard out)\n";
+        std::cerr << "    --asm-out:              Output the generated Assembly to a file\n";
+        std::cerr << "    --dump-elf:             Show information about the input file\n";
+        std::cerr << "    --disable-fp:           Disables the support of floating point instructions.\n";
+        std::cerr << "    --transform-call-ret:   Detect and replace RISC-V `call` and `return` instructions\n\n";
+        std::cerr << "    --helper-path:          Set the path to the runtime helper library\n";
+        std::cerr << "    --linkerscript-path:    Set the path to the linker script\n";
+        std::cerr << "                            (The above two are only required if the translator can't find these by itself)\n";
         std::cerr << '\n';
         std::cerr << "Environment variables:\n";
         std::cerr << "    AS: Override the assembler binary (by default, the system `as` is used)\n";
