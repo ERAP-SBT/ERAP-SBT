@@ -35,7 +35,6 @@ void Lifter::lift(Program *prog) {
     needs_bb_start[(prog->elf_base->header.e_entry - ir->virt_bb_start_addr)] = true;
 
     add_statics();
-
     BasicBlock *cur_bb = nullptr;
     reg_map mapping;
     const auto create_new_bb = [this, prog, &cur_bb, &mapping](uint64_t prev_addr, uint64_t virt_addr) {

@@ -27,4 +27,6 @@ constexpr int cast_dir(const Type t1, const Type t2) { return cast_table[static_
 
 constexpr bool is_float(const Type type) { return type == Type::f32 || type == Type::f64; }
 
+constexpr bool is_integer(const Type type) { return type == Type::i8 || type == Type::i16 || type == Type::i32 || type == Type::i64; }
+
 std::ostream &operator<<(std::ostream &stream, Type type);

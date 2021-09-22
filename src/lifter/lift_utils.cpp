@@ -84,6 +84,15 @@ void Lifter::write_to_mapping(reg_map &mapping, SSAVar *var, uint64_t reg_id, bo
 
     const uint64_t actual_reg_id = reg_id + (is_floating_point_register ? START_IDX_FLOATING_POINT_STATICS : 0);
 
+    if (var == nullptr) {
+        assert(0 && "nullptr!");
+    } else if (!std::holds_alternative<SSAVar::LifterInfo>(var->lifter_info)) {
+        std::cerr << "var->type = " << var->type << "\n";
+        std::cerr << "var->info.index() = " << var->info.index() << "\n";
+        std::cerr << "var->id = " << var->id << "\n";
+        assert(0 && "lifter info!");
+    }
+
     std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = actual_reg_id;
     mapping[actual_reg_id] = var;
 }
