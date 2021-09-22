@@ -34,11 +34,7 @@ void Lifter::lift(Program *prog) {
     needs_bb_start.resize(ir->virt_bb_ptrs.size());
     needs_bb_start[(prog->elf_base->header.e_entry - ir->virt_bb_start_addr)] = true;
 
-    for (size_t i = 0; i < 32; i++) {
-        ir->add_static(Type::i64);
-    }
-    // add the memory token as the last static slot
-    ir->add_static(Type::mt);
+    add_statics();
 
     BasicBlock *cur_bb = nullptr;
     reg_map mapping;
@@ -48,21 +44,21 @@ void Lifter::lift(Program *prog) {
         if (cur_bb) {
             // create jump to new bb
             auto &cf_op = cur_bb->add_cf_op(CFCInstruction::jump, new_bb, prev_addr, virt_addr);
-            std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.reserve(mapping.size());
-            for (size_t i = 0; i < mapping.size(); i++) {
+            std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.reserve(count_used_static_vars);
+            for (size_t i = 0; i < count_used_static_vars; i++) {
                 auto var = mapping[i];
                 if (var != nullptr) {
                     cf_op.add_target_input(var, i);
                     std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = i;
                 }
             }
-            assert(cf_op.target_inputs().size() == 32);
+            assert(cf_op.target_inputs().size() == count_used_static_vars - 1);
             cur_bb->set_virt_end_addr(prev_addr);
             cur_bb->variables.shrink_to_fit();
         }
 
         // load ssa variables from static vars and fill mapping
-        for (size_t i = 0; i < 33; i++) {
+        for (size_t i = 0; i < count_used_static_vars; i++) {
             if (i != ZERO_IDX) {
                 mapping[i] = new_bb->add_var_from_static(i, virt_addr);
             } else {
@@ -151,25 +147,28 @@ void Lifter::lift(Program *prog) {
             if (cf_op.target_inputs().empty()) {
                 switch (cf_op.type) {
                 case CFCInstruction::jump:
-                    std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.reserve(mapping.size());
+                    std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.reserve(count_used_static_vars);
                     break;
                 case CFCInstruction::ijump:
-                    std::get<CfOp::IJumpInfo>(cf_op.info).mapping.reserve(mapping.size());
+                    std::get<CfOp::IJumpInfo>(cf_op.info).mapping.reserve(count_used_static_vars);
                     break;
                 case CFCInstruction::cjump:
-                    std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs.reserve(mapping.size());
+                    std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs.reserve(count_used_static_vars);
                     break;
                 case CFCInstruction::call:
-                    std::get<CfOp::CallInfo>(cf_op.info).target_inputs.reserve(mapping.size());
+                    std::get<CfOp::CallInfo>(cf_op.info).target_inputs.reserve(count_used_static_vars);
                     break;
                 case CFCInstruction::syscall:
-                    std::get<CfOp::SyscallInfo>(cf_op.info).continuation_mapping.reserve(mapping.size());
+                    std::get<CfOp::SyscallInfo>(cf_op.info).continuation_mapping.reserve(count_used_static_vars);
                     break;
                 default:
                     break;
                 }
 
-                for (size_t i = 0; i < mapping.size(); i++) {
+                // zero extend all f32 to f64 in order to map correctly to the fp statics
+                zero_extend_all_f32(cur_bb, mapping, cur_bb->virt_end_addr);
+
+                for (size_t i = 0; i < count_used_static_vars; i++) {
                     auto var = mapping[i];
                     if (var != nullptr) {
                         cf_op.add_target_input(var, i);
@@ -297,7 +296,7 @@ void Lifter::postprocess() {
     auto *program_entry = ir->basic_blocks[ir->entry_block].get();
     auto *entry_block = ir->add_basic_block(0, "___STACK_ENTRY");
     auto &cf_op = entry_block->add_cf_op(CFCInstruction::jump, program_entry);
-    for (size_t i = 1; i <= 32; ++i) {
+    for (size_t i = 1; i < count_used_static_vars; ++i) {
         if (i == 2) {
             // stack_var
             auto *var = entry_block->add_var(Type::i64, 0, 2);

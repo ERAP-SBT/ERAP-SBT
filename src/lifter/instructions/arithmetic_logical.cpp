@@ -15,6 +15,7 @@ void Lifter::lift_arithmetical_logical(BasicBlock *bb, const RV64Inst &instr, re
             print_invalid_op_size(instruction_type, instr);
         }
     }
+
     if (source_two->type != op_size) {
         auto cast = convert_type(bb, ip, source_two, op_size);
         if (cast.has_value()) {

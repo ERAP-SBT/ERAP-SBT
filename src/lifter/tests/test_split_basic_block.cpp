@@ -31,12 +31,9 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_small) {
     IR ir{};
     ir.setup_bb_addr_vec(prog_start, prog_end);
 
-    // add static mapper
-    for (int i = 0; i < 33; i++) {
-        ir.add_static(Type::i64);
-    }
+    Lifter lifter{&ir, false};
 
-    Lifter lifter{&ir};
+    lifter.add_statics();
 
     // create a basic block which should be splitted
     BasicBlock *block = ir.add_basic_block(bb_start_addr, "test_block_1");
@@ -46,7 +43,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_small) {
     reg_map mapping{};
 
     // add statics
-    for (unsigned long i = 1; i < mapping.size(); i++) {
+    for (unsigned long i = 1; i < lifter.count_used_static_vars; i++) {
         mapping[i] = block->add_var_from_static(i, bb_start_addr);
     }
 
@@ -128,12 +125,9 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
     IR ir{};
     ir.setup_bb_addr_vec(prog_start, prog_end);
 
-    // add static mapper
-    for (unsigned long i = 0; i < 33; i++) {
-        ir.add_static(Type::i64);
-    }
+    Lifter lifter{&ir, false};
 
-    Lifter lifter{&ir};
+    lifter.add_statics();
 
     // create a basic block which should be splitted
     BasicBlock *block = ir.add_basic_block(bb_start_addr, "test_block_1");
@@ -151,7 +145,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
     reg_map mapping{};
 
     // add statics
-    for (unsigned long i = 1; i < mapping.size(); i++) {
+    for (unsigned long i = 1; i < lifter.count_used_static_vars; i++) {
         mapping[i] = block->add_var_from_static(i, bb_start_addr);
     }
 
@@ -234,7 +228,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
         block->successors.push_back(dummy_blocks[i]);
         dummy_blocks[i]->predecessors.push_back(block);
 
-        for (unsigned long i = 0; i < mapping.size(); i++) {
+        for (unsigned long i = 0; i < lifter.count_used_static_vars; i++) {
             SSAVar *var = mapping[i];
             if (var != nullptr) {
                 cfop.add_target_input(var, i);
@@ -314,5 +308,5 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
         ASSERT_EQ(jump.target(), second_block) << "The source of the jump between first and second basic block has to be the second basic block!";
     }
 
-    ir.print(std::cout);
+    // ir.print(std::cout);
 }

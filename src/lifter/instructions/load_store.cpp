@@ -47,7 +47,7 @@ void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
     }
 
     // write SSAVar of the result of the operation and new memory token back to mapping
-    write_to_mapping(mapping, load_dest, instr.instr.rd);
+    write_to_mapping(mapping, load_dest, instr.instr.rd, is_float(op_size));
 }
 
 void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size) {
@@ -70,12 +70,7 @@ void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
     }
 
     // cast variable to store to operand size
-    SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
-
-    // check whether rs2 is "bigger" than the op_size
-    if (cast_dir(op_size, rs2->type) == 1 || rs2->type == Type::imm) {
-        rs2 = shrink_var(bb, rs2, ip, op_size);
-    }
+    SSAVar *const rs2 = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs2, ip, op_size);
 
     // create memory_token
     SSAVar *result_memory_token = bb->add_var(Type::mt, ip, MEM_IDX);

@@ -33,6 +33,9 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
             mapping[static_id] = var;
         }
     }
+    // zero extend all f32 values in order to map them correctly to the f64 statics
+    zero_extend_all_f32(bb, mapping, addr);
+
     mapping[ZERO_IDX] = nullptr;
 
     // create the new BasicBlock
@@ -133,7 +136,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
         auto &cf_op = bb->add_cf_op(CFCInstruction::jump, new_bb, bb->virt_end_addr, addr);
 
         // static assignments
-        for (size_t i = 0; i < mapping.size(); i++) {
+        for (size_t i = 0; i < count_used_static_vars; i++) {
             if (mapping[i] != nullptr) {
                 if (i != 0) {
                     cf_op.add_target_input(mapping[i], i);
@@ -150,12 +153,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
 
     // store the variables in the new basic block and adjust their inputs (if necessary)
     for (auto it = second_bb_vars.rbegin(); it != second_bb_vars.rend(); it++) {
-        // add variable to the new BasicBlock
-        new_bb->variables.push_back(std::move(*it));
-        SSAVar *var = new_bb->variables.back().get();
-
-        // set new id according to the new BasicBlocks ids
-        var->id = new_bb->cur_ssa_id++;
+        SSAVar *var = (*it).get();
 
         // variable is the result of an Operation -> adjust the inputs of the operation
         if (std::holds_alternative<std::unique_ptr<Operation>>(var->info)) {
@@ -170,10 +168,28 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
 
                 // the input must only be changed if the input variable is in the first BasicBlock
                 if (in_var_lifter_info.assign_addr < addr) {
+                    // the last part of the condition is to prevent issues with operations which uses the same variable,
+                    // because then the variable is already casted. The casted value is then stored in the new_mapping and
+                    // can therefore easily be used.
+                    if (is_float(var->type) && in_var->type == Type::f32 && std::holds_alternative<size_t>(new_mapping[in_var_lifter_info.static_id]->info)) {
+                        // cast f64 static to f32 if necessary
+                        SSAVar *casted_in_var = new_bb->add_var(Type::f32, addr);
+                        auto op = std::make_unique<Operation>(Instruction::cast);
+                        op->set_inputs(new_mapping[in_var_lifter_info.static_id]);
+                        op->set_outputs(casted_in_var);
+                        casted_in_var->set_op(std::move(op));
+                        new_mapping[in_var_lifter_info.static_id] = casted_in_var;
+                    }
                     in_var = new_mapping[in_var_lifter_info.static_id];
                 }
             }
         }
+
+        // set new id according to the new BasicBlocks ids
+        var->id = new_bb->cur_ssa_id++;
+
+        // add variable to the new BasicBlock
+        new_bb->variables.push_back(std::move(*it));
 
         const auto static_id = std::get<SSAVar::LifterInfo>(var->lifter_info).static_id;
         if (static_id != ZERO_IDX) {
@@ -212,7 +228,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
         }
 
         cf_op.clear_target_inputs();
-        for (size_t j = 0; j < new_mapping.size(); j++) {
+        for (size_t j = 0; j < count_used_static_vars; j++) {
             auto var = new_mapping[j];
             if (var != nullptr) {
                 cf_op.add_target_input(var, j);

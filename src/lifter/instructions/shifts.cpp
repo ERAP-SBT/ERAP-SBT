@@ -3,16 +3,7 @@
 using namespace lifter::RV64;
 
 void Lifter::lift_shift_shared(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size, SSAVar *shift_val) {
-    auto *source = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
-
-    if (source->type != op_size) {
-        auto *casted_source = bb->add_var(op_size, ip);
-        auto op = std::make_unique<Operation>(Instruction::cast);
-        op->set_inputs(source);
-        op->set_outputs(casted_source);
-        casted_source->set_op(std::move(op));
-        source = casted_source;
-    }
+    SSAVar *const source = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, op_size);
 
     auto *result = bb->add_var(op_size, ip);
     auto op = std::make_unique<Operation>(instruction_type);
@@ -45,7 +36,6 @@ void Lifter::lift_shift(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
         mask = load_immediate(bb, (int64_t)0x3F, ip, false);
     }
 
-    // shift-amount, unmasked
     SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
 
     // create new variable with the result of the masking

@@ -3,6 +3,12 @@
 using namespace lifter::RV64;
 
 void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
+    // skip all floating point and ziscr instructions with disabled floating point instructions
+    // this is highly dependent on the ordering the enum in frvdec, but it is an easy and fast test
+    if (!floating_point_support && instr.instr.mnem >= FRV_CSRRW && instr.instr.mnem <= FRV_FCVTDLU) {
+        DEBUG_LOG("Discovered floating point or ziscr instruction with disabled floating point support. Skipping!");
+        return;
+    }
     switch (instr.instr.mnem) {
     case FRV_INVALID:
         lift_invalid(bb, ip);
@@ -287,8 +293,7 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         lift_amo_binary_op(bb, instr, mapping, ip, Instruction::umax, Type::i64);
         break;
 
-        /* ziscr */
-#if 0
+    /* ziscr */
     case FRV_CSRRW:
         lift_csr_read_write(bb, instr, mapping, ip, false);
         break;
@@ -307,7 +312,189 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_CSRRCI:
         lift_csr_read_clear(bb, instr, mapping, ip, true);
         break;
-#endif
+
+    /* F Extension */
+    case FRV_FLW:
+        lift_load(bb, instr, mapping, ip, Type::f32, false);
+        break;
+    case FRV_FSW:
+        lift_store(bb, instr, mapping, ip, Type::f32);
+        break;
+    case FRV_FMVXW:
+        lift_float_move(bb, instr, mapping, ip, Type::f32, Type::i32);
+        break;
+    case FRV_FMVWX:
+        lift_float_move(bb, instr, mapping, ip, Type::i32, Type::f32);
+        break;
+    case FRV_FCLASSS:
+        lift_fclass(bb, instr, mapping, ip, Type::f32);
+        break;
+    case FRV_FMADDS:
+        lift_float_fma(bb, instr, mapping, ip, Instruction::fmadd, Type::f32);
+        break;
+    case FRV_FMSUBS:
+        lift_float_fma(bb, instr, mapping, ip, Instruction::fmsub, Type::f32);
+        break;
+    case FRV_FNMSUBS:
+        lift_float_fma(bb, instr, mapping, ip, Instruction::fnmadd, Type::f32);
+        break;
+    case FRV_FNMADDS:
+        lift_float_fma(bb, instr, mapping, ip, Instruction::fnmsub, Type::f32);
+        break;
+    case FRV_FADDS:
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::add, Type::f32);
+        break;
+    case FRV_FSUBS:
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::sub, Type::f32);
+        break;
+    case FRV_FMULS:
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::fmul, Type::f32);
+        break;
+    case FRV_FDIVS:
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::fdiv, Type::f32);
+        break;
+    case FRV_FSQRTS:
+        lift_float_sqrt(bb, instr, mapping, ip, Type::f32);
+        break;
+    case FRV_FSGNJS:
+    case FRV_FSGNJNS:
+    case FRV_FSGNJXS:
+        lift_float_sign_injection(bb, instr, mapping, ip, Type::f32);
+        break;
+    case FRV_FMINS:
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::min, Type::f32);
+        break;
+    case FRV_FMAXS:
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::max, Type::f32);
+        break;
+    case FRV_FLES:
+        lift_float_comparison(bb, instr, mapping, ip, Instruction::sle, Type::f32);
+        break;
+    case FRV_FLTS:
+        lift_float_comparison(bb, instr, mapping, ip, Instruction::slt, Type::f32);
+        break;
+    case FRV_FEQS:
+        lift_float_comparison(bb, instr, mapping, ip, Instruction::seq, Type::f32);
+        break;
+    case FRV_FCVTWS:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::f32, Type::i32, true);
+        break;
+    case FRV_FCVTWUS:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::f32, Type::i32, false);
+        break;
+    case FRV_FCVTLS:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::f32, Type::i64, true);
+        break;
+    case FRV_FCVTLUS:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::f32, Type::i64, false);
+        break;
+    case FRV_FCVTSW:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::i32, Type::f32, true);
+        break;
+    case FRV_FCVTSWU:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::i32, Type::f32, false);
+        break;
+    case FRV_FCVTSL:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::i64, Type::f32, true);
+        break;
+    case FRV_FCVTSLU:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::i64, Type::f32, false);
+        break;
+
+        /* D Extension */
+
+    case FRV_FLD:
+        lift_load(bb, instr, mapping, ip, Type::f64, false);
+        break;
+    case FRV_FSD:
+        lift_store(bb, instr, mapping, ip, Type::f64);
+        break;
+    case FRV_FMVXD:
+        lift_float_move(bb, instr, mapping, ip, Type::f64, Type::i64);
+        break;
+    case FRV_FMVDX:
+        lift_float_move(bb, instr, mapping, ip, Type::i64, Type::f64);
+        break;
+    case FRV_FCLASSD:
+        lift_fclass(bb, instr, mapping, ip, Type::f64);
+        break;
+    case FRV_FMADDD:
+        lift_float_fma(bb, instr, mapping, ip, Instruction::fmadd, Type::f64);
+        break;
+    case FRV_FMSUBD:
+        lift_float_fma(bb, instr, mapping, ip, Instruction::fmsub, Type::f64);
+        break;
+    case FRV_FNMSUBD:
+        lift_float_fma(bb, instr, mapping, ip, Instruction::fnmadd, Type::f64);
+        break;
+    case FRV_FNMADDD:
+        lift_float_fma(bb, instr, mapping, ip, Instruction::fnmsub, Type::f64);
+        break;
+    case FRV_FADDD:
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::add, Type::f64);
+        break;
+    case FRV_FSUBD:
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::sub, Type::f64);
+        break;
+    case FRV_FMULD:
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::fmul, Type::f64);
+        break;
+    case FRV_FDIVD:
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::fdiv, Type::f64);
+        break;
+    case FRV_FSQRTD:
+        lift_float_sqrt(bb, instr, mapping, ip, Type::f64);
+        break;
+    case FRV_FSGNJD:
+    case FRV_FSGNJND:
+    case FRV_FSGNJXD:
+        lift_float_sign_injection(bb, instr, mapping, ip, Type::f64);
+        break;
+    case FRV_FMIND:
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::min, Type::f64);
+        break;
+    case FRV_FMAXD:
+        lift_float_two_operands(bb, instr, mapping, ip, Instruction::max, Type::f64);
+        break;
+    case FRV_FLED:
+        lift_float_comparison(bb, instr, mapping, ip, Instruction::sle, Type::f64);
+        break;
+    case FRV_FLTD:
+        lift_float_comparison(bb, instr, mapping, ip, Instruction::slt, Type::f64);
+        break;
+    case FRV_FEQD:
+        lift_float_comparison(bb, instr, mapping, ip, Instruction::seq, Type::f64);
+        break;
+    case FRV_FCVTSD:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::f64, Type::f32, true);
+        break;
+    case FRV_FCVTDS:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::f32, Type::f64, true);
+        break;
+    case FRV_FCVTWD:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::f64, Type::i32, true);
+        break;
+    case FRV_FCVTWUD:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::f64, Type::i32, false);
+        break;
+    case FRV_FCVTLD:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::f64, Type::i64, true);
+        break;
+    case FRV_FCVTLUD:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::f64, Type::i64, false);
+        break;
+    case FRV_FCVTDW:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::i32, Type::f64, true);
+        break;
+    case FRV_FCVTDWU:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::i32, Type::f64, false);
+        break;
+    case FRV_FCVTDL:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::i64, Type::f64, true);
+        break;
+    case FRV_FCVTDLU:
+        lift_float_integer_conversion(bb, instr, mapping, ip, Type::i64, Type::f64, false);
+        break;
 
     default:
         char instr_str[16];

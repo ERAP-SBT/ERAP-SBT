@@ -71,6 +71,12 @@ std::ostream &operator<<(std::ostream &stream, Instruction instr) {
     case Instruction::sltu:
         stream << "sltu";
         break;
+    case Instruction::sle:
+        stream << "sle";
+        break;
+    case Instruction::seq:
+        stream << "seq";
+        break;
     case Instruction::umax:
         stream << "umax";
         break;
@@ -83,8 +89,34 @@ std::ostream &operator<<(std::ostream &stream, Instruction instr) {
     case Instruction::min:
         stream << "min";
         break;
+    case Instruction::fmul:
+        stream << "fmul";
+        break;
+    case Instruction::fdiv:
+        stream << "fdiv";
+        break;
+    case Instruction::fsqrt:
+        stream << "fsqrt";
+        break;
+    case Instruction::fmadd:
+        stream << "fmadd";
+        break;
+    case Instruction::fmsub:
+        stream << "fmsub";
+        break;
+    case Instruction::fnmadd:
+        stream << "fnmadd";
+        break;
+    case Instruction::fnmsub:
+        stream << "fnmsub";
+        break;
+    case Instruction::convert:
+        stream << "convert";
+        break;
+    case Instruction::uconvert:
+        stream << "uconvert";
+        break;
     }
-
     return stream;
 }
 
