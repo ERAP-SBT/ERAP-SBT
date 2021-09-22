@@ -30,4 +30,4 @@ _start_end:
 
 .section .rodata
 helloworld:
-.ascii "RISCV64 Hello World!\n"
+.asciz "RISCV64 Hello World!\n"

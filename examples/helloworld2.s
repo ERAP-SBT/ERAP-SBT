@@ -57,7 +57,7 @@ strlen_end:
 
 .section .rodata
 helloworld:
-.ascii "RISCV64 Hello World2 (strlen)!\n"
+.asciz "RISCV64 Hello World2 (strlen)!\n"
 
 .align 4
 strlen_ptr:
