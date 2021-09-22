@@ -128,7 +128,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             panic("undefined");
         }
 
-        // trace(pc, &instr);
+        trace(pc, &instr);
 
         // trace_dump_state(pc);
 
@@ -410,7 +410,12 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             }
             break;
 
-            /* 2.7 Memory Ordering Instructions */
+        /* 2.7 Memory Ordering Instructions */
+        case FRV_FENCE:
+            [[fallthrough]];
+        case FRV_FENCEI:
+            // ignore
+            break;
 
         /* 2.8 Environment Call and Breakpoints */
         case FRV_ECALL:
@@ -484,6 +489,186 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
                 register_file[instr.rd] = sign_extend_int64_t(static_cast<uint32_t>(register_file[instr.rs1]) % static_cast<uint32_t>(register_file[instr.rs2]));
             }
             break;
+
+        /* A extension */
+        case FRV_LRW:
+            if (instr.rd != 0) {
+                register_file[instr.rd] = sign_extend_int64_t(*reinterpret_cast<int32_t *>(register_file[instr.rs1]));
+            }
+            break;
+        case FRV_LRD:
+            if (instr.rd != 0) {
+                register_file[instr.rd] = *reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            }
+            break;
+        case FRV_SCW:
+            *reinterpret_cast<uint32_t *>(register_file[instr.rs1]) = static_cast<uint32_t>(register_file[instr.rs2]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = 0;
+            }
+            break;
+        case FRV_SCD:
+            *reinterpret_cast<uint64_t *>(register_file[instr.rs1]) = register_file[instr.rs2];
+            if (instr.rd != 0) {
+                register_file[instr.rd] = 0;
+            }
+            break;
+        case FRV_AMOSWAPW: {
+            int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = sign_extend_int64_t(*ptr);
+            }
+            *ptr = static_cast<int32_t>(register_file[instr.rs2]);
+            break;
+        }
+        case FRV_AMOSWAPD: {
+            int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = *ptr;
+            }
+            *ptr = register_file[instr.rs2];
+            break;
+        }
+        case FRV_AMOADDW: {
+            int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = sign_extend_int64_t(*ptr);
+            }
+            *ptr = static_cast<int32_t>(register_file[instr.rd] + static_cast<int32_t>(register_file[instr.rs2]));
+            break;
+        }
+        case FRV_AMOADDD: {
+            int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = *ptr;
+            }
+            *ptr = register_file[instr.rd] + register_file[instr.rs2];
+            break;
+        }
+        case FRV_AMOANDW: {
+            int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = sign_extend_int64_t(*ptr);
+            }
+            *ptr = static_cast<int32_t>(register_file[instr.rd] & static_cast<int32_t>(register_file[instr.rs2]));
+            break;
+        }
+        case FRV_AMOANDD: {
+            int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = *ptr;
+            }
+            *ptr = register_file[instr.rd] & register_file[instr.rs2];
+            break;
+        }
+        case FRV_AMOORW: {
+            int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = sign_extend_int64_t(*ptr);
+            }
+            *ptr = static_cast<int32_t>(register_file[instr.rd] | static_cast<int32_t>(register_file[instr.rs2]));
+            break;
+        }
+        case FRV_AMOORD: {
+            int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = *ptr;
+            }
+            *ptr = register_file[instr.rd] | register_file[instr.rs2];
+            break;
+        }
+        case FRV_AMOXORW: {
+            int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = sign_extend_int64_t(*ptr);
+            }
+            *ptr = static_cast<int32_t>(register_file[instr.rd] ^ static_cast<int32_t>(register_file[instr.rs2]));
+            break;
+        }
+        case FRV_AMOXORD: {
+            int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = *ptr;
+            }
+            *ptr = register_file[instr.rd] ^ register_file[instr.rs2];
+            break;
+        }
+        case FRV_AMOMAXW: {
+            int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = sign_extend_int64_t(*ptr);
+            }
+            int32_t dest_val = static_cast<int32_t>(register_file[instr.rd]);
+            int32_t source_val = static_cast<int32_t>(register_file[instr.rs2]);
+            *ptr = (dest_val > source_val) ? dest_val : source_val;
+            break;
+        }
+        case FRV_AMOMAXD: {
+            int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = *ptr;
+            }
+            int64_t dest_val = static_cast<int64_t>(register_file[instr.rd]);
+            int64_t source_val = static_cast<int64_t>(register_file[instr.rs2]);
+            *ptr = (dest_val > source_val) ? dest_val : source_val;
+            break;
+        }
+        case FRV_AMOMAXUW: {
+            int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = sign_extend_int64_t(*ptr);
+            }
+            uint32_t dest_val = static_cast<uint32_t>(register_file[instr.rd]);
+            uint32_t source_val = static_cast<uint32_t>(register_file[instr.rs2]);
+            *ptr = (dest_val > source_val) ? dest_val : source_val;
+            break;
+        }
+        case FRV_AMOMAXUD: {
+            int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = *ptr;
+            }
+            *ptr = (register_file[instr.rd] > register_file[instr.rs2]) ? register_file[instr.rd] : register_file[instr.rs2];
+            break;
+        }
+        case FRV_AMOMINW: {
+            int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = sign_extend_int64_t(*ptr);
+            }
+            int32_t dest_val = static_cast<int32_t>(register_file[instr.rd]);
+            int32_t source_val = static_cast<int32_t>(register_file[instr.rs2]);
+            *ptr = (dest_val < source_val) ? dest_val : source_val;
+            break;
+        }
+        case FRV_AMOMIND: {
+            int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = *ptr;
+            }
+            int64_t dest_val = static_cast<int64_t>(register_file[instr.rd]);
+            int64_t source_val = static_cast<int64_t>(register_file[instr.rs2]);
+            *ptr = (dest_val < source_val) ? dest_val : source_val;
+            break;
+        }
+        case FRV_AMOMINUW: {
+            int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = sign_extend_int64_t(*ptr);
+            }
+            uint32_t dest_val = static_cast<uint32_t>(register_file[instr.rd]);
+            uint32_t source_val = static_cast<uint32_t>(register_file[instr.rs2]);
+            *ptr = (dest_val < source_val) ? dest_val : source_val;
+            break;
+        }
+        case FRV_AMOMINUD: {
+            int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            if (instr.rd != 0) {
+                register_file[instr.rd] = *ptr;
+            }
+            *ptr = (register_file[instr.rd] < register_file[instr.rs2]) ? register_file[instr.rd] : register_file[instr.rs2];
+            break;
+        }
 
             /* F extension */
 
