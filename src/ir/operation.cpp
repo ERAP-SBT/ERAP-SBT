@@ -336,6 +336,7 @@ BasicBlock *CfOp::continuation_target() const {
     case CFCInstruction::ijump:
         return std::get<IJumpInfo>(info).target;
     case CFCInstruction::icall:
+        return std::get<ICallInfo>(info).continuation_block;
     case CFCInstruction::unreachable:
     case CFCInstruction::_return:
         return nullptr;
