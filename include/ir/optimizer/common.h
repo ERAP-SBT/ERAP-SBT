@@ -24,3 +24,7 @@ class VarRewriter {
         }
     }
 };
+
+[[noreturn]] void panic_internal(const char *file, int line, const char *message);
+#define panic(message) panic_internal(__FILE__, __LINE__, message)
+#define unreachable() panic_internal(__FILE__, __LINE__, "Code path marked as unreachable was reached")
