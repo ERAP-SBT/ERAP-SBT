@@ -125,14 +125,22 @@ void Lifter::lift_jal(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
     }
 
     // 6. jump!
+    // According to the risc-v manual, direct jumps which write the ip to x1 (or ra) are considered subroutine calls.
     // create the jump operation
-    CfOp &cf_operation = bb->add_cf_op(CFCInstruction::jump, nullptr, ip, instr.instr.imm + ip);
+    CfOp &cf_operation = bb->add_cf_op(ENABLE_CALL_RET_TRANSFORM && is_link_reg(instr.instr.rd) ? CFCInstruction::call : CFCInstruction::jump, nullptr, ip, instr.instr.imm + ip);
 
     // set operation in- and outputs
     cf_operation.set_inputs(sum);
 }
 
 void Lifter::lift_jalr(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
+    // detect indirect jumps that are just returns
+    if (ENABLE_CALL_RET_TRANSFORM && instr.instr.imm == 0 && is_link_reg(instr.instr.rs1)) {
+        CfOp &return_op = bb->add_cf_op(CFCInstruction::_return, nullptr, ip, (uint64_t)0);
+        return_op.set_inputs(get_from_mapping(bb, mapping, instr.instr.rs1, ip));
+        return;
+    }
+
     // the address is encoded as an immediate offset....
     // 1. load the immediate offset
     SSAVar *immediate = load_immediate(bb, (int64_t)instr.instr.imm, ip, false);
@@ -161,7 +169,8 @@ void Lifter::lift_jalr(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
     }
 
     // create the jump operation
-    CfOp &cf_operation = bb->add_cf_op(CFCInstruction::ijump, nullptr, ip, (uint64_t)0);
+    // According to the risc-v manual, ijumps which write the ip to x1 (or ra) are considered subroutine calls.
+    CfOp &cf_operation = bb->add_cf_op(ENABLE_CALL_RET_TRANSFORM && is_link_reg(instr.instr.rd) ? CFCInstruction::icall : CFCInstruction::ijump, nullptr, ip, (uint64_t)0);
 
     // set operation in- and outputs
     cf_operation.set_inputs(jump_addr);

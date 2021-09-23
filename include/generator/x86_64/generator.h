@@ -36,6 +36,8 @@ struct Generator {
     void compile_ijump_lookup();
 
     void compile_ijump(const BasicBlock *block, const CfOp &op);
+    void compile_call(const BasicBlock *block, const CfOp &op);
+    void compile_icall(const BasicBlock *block, const CfOp &op);
     void compile_vars(const BasicBlock *block);
     void compile_cf_args(const BasicBlock *block, const CfOp &op);
     void compile_ret_args(const BasicBlock *block, const CfOp &op);

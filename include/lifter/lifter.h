@@ -34,6 +34,10 @@ class Lifter {
     // Register index for constant zero "register" (RISC-V default: 0)
     static constexpr size_t ZERO_IDX = 0;
 
+    // Register index for return (or link-) register.
+    static constexpr size_t LINK_IDX_1 = 1;
+    static constexpr size_t LINK_IDX_2 = 5;
+
     // Index of memory token in <reg_map> register mapping
     static constexpr size_t MEM_IDX = 32;
 
@@ -224,6 +228,9 @@ class Lifter {
     void zero_extend_all_f32(BasicBlock *bb, reg_map &mapping, uint64_t ip) const;
 
     SSAVar *get_from_mapping_and_shrink(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, const Type expected_type);
+
+    // return true if entered number corresponds to a link register
+    static bool is_link_reg(size_t reg_idx);
 
     void postprocess();
 };

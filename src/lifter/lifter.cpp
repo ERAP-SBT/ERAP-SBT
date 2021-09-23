@@ -121,6 +121,17 @@ void Lifter::lift(Program *prog) {
                 continue;
             }
 
+            if (cf_op.type == CFCInstruction::_return) {
+                for (size_t i = 0; i < count_used_static_vars; i++) {
+                    auto var = mapping[i];
+                    if (var != nullptr) {
+                        cf_op.add_target_input(var, i);
+                        std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = i;
+                    }
+                }
+                continue;
+            }
+
             uint64_t jmp_addr = std::get<CfOp::LifterInfo>(cf_op.lifter_info).jump_addr;
             BasicBlock *next_bb;
 
@@ -176,6 +187,19 @@ void Lifter::lift(Program *prog) {
                 }
             }
 
+            if (cf_op.type == CFCInstruction::call || cf_op.type == CFCInstruction::icall) {
+                BasicBlock *cont_block = get_bb(next_addr);
+                if (cont_block == nullptr) {
+                    if (next_addr > prog->addrs.back()) {
+                        cont_block = dummy;
+                    } else {
+                        needs_bb_start[(next_addr - ir->virt_bb_start_addr) / 2] = true;
+                    }
+                } else if (cont_block->virt_start_addr != next_addr) {
+                    split_basic_block(cont_block, next_addr, prog->elf_base.get());
+                }
+            }
+
             if (next_bb && next_bb != dummy) {
                 if (cf_op.target() == nullptr) {
                     cur_bb->successors.push_back(next_bb);
@@ -213,7 +237,35 @@ void Lifter::postprocess() {
     // set all jump targets and remove guessed ijumps
     for (auto &bb : ir->basic_blocks) {
         for (auto &cf_op : bb->control_flow_ops) {
-            if (cf_op.type == CFCInstruction::ijump) {
+            if (cf_op.type == CFCInstruction::unreachable || cf_op.type == CFCInstruction::_return) {
+                continue;
+            }
+
+            auto &lifter_info = std::get<CfOp::LifterInfo>(cf_op.lifter_info);
+            if ((cf_op.type == CFCInstruction::call || cf_op.type == CFCInstruction::icall) && lifter_info.instr_addr) {
+                auto *target_bb = get_bb(lifter_info.instr_addr + 2);
+                if (!target_bb)
+                    target_bb = get_bb(lifter_info.instr_addr + 4);
+                if (target_bb) {
+                    if (cf_op.type == CFCInstruction::call) {
+                        std::get<CfOp::CallInfo>(cf_op.info).continuation_block = target_bb;
+                    } else {
+                        std::get<CfOp::ICallInfo>(cf_op.info).continuation_block = target_bb;
+                    }
+                    if (std::find(bb->successors.begin(), bb->successors.end(), target_bb) == bb->successors.end()) {
+                        bb->successors.push_back(target_bb);
+                    }
+                    if (std::find(target_bb->predecessors.begin(), target_bb->predecessors.end(), bb.get()) == target_bb->predecessors.end()) {
+                        target_bb->predecessors.push_back(bb.get());
+                    }
+                } else {
+                    cf_op.type = CFCInstruction::unreachable;
+                    cf_op.info = std::monostate{};
+                    continue;
+                }
+            }
+
+            if (cf_op.type == CFCInstruction::ijump || cf_op.type == CFCInstruction::icall) {
                 cf_op.set_target(nullptr);
                 continue;
             }
@@ -223,8 +275,7 @@ void Lifter::postprocess() {
                 continue;
             }
 
-            auto &lifter_info = std::get<CfOp::LifterInfo>(cf_op.lifter_info);
-            if (cf_op.type != CFCInstruction::icall && cf_op.type != CFCInstruction::unreachable && lifter_info.jump_addr) {
+            if (lifter_info.jump_addr) {
                 auto *target_bb = get_bb(lifter_info.jump_addr);
                 if (target_bb) {
                     if (cur_target) {
@@ -246,27 +297,6 @@ void Lifter::postprocess() {
             } else if (!lifter_info.jump_addr) {
                 cf_op.type = CFCInstruction::unreachable;
                 cf_op.info = std::monostate{};
-            }
-
-            if (cf_op.type == CFCInstruction::call && lifter_info.instr_addr) {
-                auto *target_bb = get_bb(lifter_info.instr_addr + 4);
-                if (target_bb) {
-                    if (auto *cont_bb = std::get<CfOp::CallInfo>(cf_op.info).continuation_block; cont_bb) {
-                        cont_bb->predecessors.erase(std::find(cont_bb->predecessors.begin(), cont_bb->predecessors.end(), bb.get()));
-                        bb->successors.erase(std::find(bb->successors.begin(), bb->successors.end(), cont_bb));
-                    }
-
-                    std::get<CfOp::CallInfo>(cf_op.info).continuation_block = target_bb;
-                    if (std::find(bb->successors.begin(), bb->successors.end(), target_bb) == bb->successors.end()) {
-                        bb->successors.push_back(target_bb);
-                    }
-                    if (std::find(target_bb->predecessors.begin(), target_bb->predecessors.end(), bb.get()) == target_bb->predecessors.end()) {
-                        target_bb->predecessors.push_back(bb.get());
-                    }
-                } else {
-                    cf_op.type = CFCInstruction::unreachable;
-                    cf_op.info = std::monostate{};
-                }
             }
         }
     }

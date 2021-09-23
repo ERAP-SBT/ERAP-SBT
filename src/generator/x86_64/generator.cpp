@@ -247,12 +247,7 @@ void Generator::compile_block(const BasicBlock *block) {
             compile_cjump(block, cf_op, i);
             break;
         case CFCInstruction::call:
-            compile_continuation_args(block, std::get<CfOp::CallInfo>(cf_op.info).continuation_mapping);
-            compile_cf_args(block, cf_op);
-            fprintf(out_fd, "# control flow\n");
-            fprintf(out_fd, "call b%zu\n", std::get<CfOp::CallInfo>(cf_op.info).target->id);
-            assert(std::get<CfOp::CallInfo>(cf_op.info).continuation_block != nullptr);
-            fprintf(out_fd, "jmp b%zu\n", std::get<CfOp::CallInfo>(cf_op.info).continuation_block->id);
+            compile_call(block, cf_op);
             break;
         case CFCInstruction::syscall:
             compile_syscall(block, cf_op);
@@ -266,8 +261,8 @@ void Generator::compile_block(const BasicBlock *block) {
             fprintf(out_fd, "jmp panic\n");
             break;
         case CFCInstruction::icall:
-            assert(0);
-            exit(1);
+            compile_icall(block, cf_op);
+            break;
         }
     }
 
@@ -275,6 +270,78 @@ void Generator::compile_block(const BasicBlock *block) {
     fprintf(out_fd, ".size b%zu,$-b%zu\n", block->id, block->id);
 
     fprintf(out_fd, "\n");
+}
+
+void Generator::compile_call(const BasicBlock *block, const CfOp &op) {
+    fprintf(out_fd, "# Call Mapping\n");
+    // Store statics for call
+    compile_cf_args(block, op);
+    fprintf(out_fd, "# control flow\n");
+    fprintf(out_fd, "call b%zu\n", std::get<CfOp::CallInfo>(op.info).target->id);
+
+    fprintf(out_fd, "# destroy stack space\n");
+    fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
+
+    assert(std::get<CfOp::CallInfo>(op.info).continuation_block != nullptr);
+    fprintf(out_fd, "jmp b%zu\n", std::get<CfOp::CallInfo>(op.info).continuation_block->id);
+}
+
+void Generator::compile_icall(const BasicBlock *block, const CfOp &op) {
+    fprintf(out_fd, "# ICall Mapping\n");
+
+    const auto &icall_info = std::get<CfOp::ICallInfo>(op.info);
+
+    for (const auto &[var, s_idx] : icall_info.mapping) {
+        if (var->type == Type::mt) {
+            continue;
+        }
+
+        fprintf(out_fd, "# s%zu from var v%zu\n", s_idx, var->id);
+
+        if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(var->info)) {
+            const auto orig_static_idx = std::get<size_t>(var->info);
+            if (orig_static_idx == s_idx) {
+                fprintf(out_fd, "# Skipped\n");
+                continue;
+            }
+            fprintf(out_fd, "xor rax, rax\n");
+            fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(var->type), orig_static_idx);
+        } else {
+            fprintf(out_fd, "xor rax, rax\n");
+            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+        }
+
+        fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
+    }
+    assert(op.in_vars[0] != nullptr);
+
+    fprintf(out_fd, "# Get ICall Destination\n");
+    fprintf(out_fd, "xor rax, rax\n");
+    fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(op.in_vars[0]->type), index_for_var(block, op.in_vars[0]));
+
+    err_msgs.emplace_back(ErrType::unresolved_ijump, block);
+
+    fprintf(out_fd, "sub rax, %zu\n", ir->virt_bb_start_addr);
+
+    fprintf(out_fd, "cmp rax, ijump_lookup_end - ijump_lookup\n");
+    fprintf(out_fd, "ja 0f\n");
+    fprintf(out_fd, "lea rdi, [rip + ijump_lookup]\n");
+    fprintf(out_fd, "mov rdi, [rdi + 4 * rax]\n");
+    fprintf(out_fd, "test rdi, rdi\n");
+    fprintf(out_fd, "jne 1f\n");
+
+    fprintf(out_fd, "0:\n");
+    fprintf(out_fd, "lea rdi, [rip + err_unresolved_ijump_b%zu]\n", block->id);
+    fprintf(out_fd, "jmp panic\n");
+
+    fprintf(out_fd, "1:\n");
+    fprintf(out_fd, "call rdi\n");
+
+    fprintf(out_fd, "# destroy stack space\n");
+    fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
+
+    assert(std::get<CfOp::ICallInfo>(op.info).continuation_block != nullptr);
+    fprintf(out_fd, "jmp b%zu\n", std::get<CfOp::ICallInfo>(op.info).continuation_block->id);
 }
 
 void Generator::compile_ijump(const BasicBlock *block, const CfOp &op) {
@@ -819,9 +886,11 @@ void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
         }
     }
 
-    // destroy stack space
-    fprintf(out_fd, "# destroy stack space\n");
-    fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
+    if (cf_op.type != CFCInstruction::call) {
+        // destroy stack space
+        fprintf(out_fd, "# destroy stack space\n");
+        fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
+    }
 }
 
 void Generator::compile_ret_args(const BasicBlock *block, const CfOp &op) {
@@ -830,6 +899,10 @@ void Generator::compile_ret_args(const BasicBlock *block, const CfOp &op) {
     assert(op.info.index() == 2);
     const auto &ret_info = std::get<CfOp::RetInfo>(op.info);
     for (const auto &[var, s_idx] : ret_info.mapping) {
+        if (var->type == Type::mt) {
+            continue;
+        }
+
         if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(var->info)) {
             if (std::get<size_t>(var->info) == s_idx) {
                 fprintf(out_fd, "# Skipped\n");

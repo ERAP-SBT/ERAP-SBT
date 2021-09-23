@@ -149,8 +149,8 @@ void gen_print_ir(IR &ir) {
         {
             auto *mem_token = entry_strlen->add_var(Type::mt, 0);
             // strlen (get str ptr, call strlen, then continue to write)
-            auto *stack_ptr = entry_strlen->add_var_from_static(static1);
-            auto *argc = entry_strlen->add_var_from_static(static2);
+            entry_strlen->add_var_from_static(static1);
+            entry_strlen->add_var_from_static(static2);
             auto *argv = entry_strlen->add_var_from_static(static3);
             auto *str_ptr = entry_strlen->add_var(Type::i64, 0);
             {
@@ -162,10 +162,6 @@ void gen_print_ir(IR &ir) {
             auto &cf_op = entry_strlen->add_cf_op(CFCInstruction::call, strlen_entry);
             auto &info = std::get<CfOp::CallInfo>(cf_op.info);
             info.target_inputs.emplace_back(str_ptr);
-            info.continuation_mapping.emplace_back(stack_ptr, static1);
-            info.continuation_mapping.emplace_back(argc, static2);
-            info.continuation_mapping.emplace_back(argv, static3);
-            info.continuation_mapping.emplace_back(str_ptr, static4);
             info.continuation_block = entry_write;
         }
         {
