@@ -1,5 +1,7 @@
 #include "ir/eval.h"
 
+#include "ir/optimizer/common.h"
+
 // Type helpers
 
 #pragma GCC diagnostic push
@@ -31,13 +33,6 @@ template <typename T> using SignedIntT = typename Int<T>::SignedType;
 template <typename T> using UnsignedIntT = typename Int<T>::UnsignedType;
 template <typename T> using NextLargerT = typename Int<T>::NextLarger;
 template <typename T> constexpr size_t bit_count = sizeof(T) * 8;
-
-[[noreturn]] static void panic_internal(const char *file, int line, const char *message) {
-    fprintf(stderr, "Panicked at %s:%d: %s", file, line, message != nullptr ? message : "(no reason given)");
-    std::abort();
-}
-#define panic(message) panic_internal(__FILE__, __LINE__, message)
-#define unreachable() panic_internal(__FILE__, __LINE__, "Code path marked as unreachable was reached")
 
 #define switch_int_types(tpy) \
     switch (tpy) { \
