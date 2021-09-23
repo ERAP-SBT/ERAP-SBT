@@ -8,6 +8,10 @@
 
 namespace helper::interpreter {
 
+constexpr inline size_t START_FP_STATICS = 33;
+
+constexpr inline size_t FCSR_IDX = 65;
+
 typedef union converter {
     uint32_t d32;
     int32_t i32;
@@ -16,6 +20,17 @@ typedef union converter {
     float f32;
     double f64;
 } converter;
+
+#define CSR_OP(source, operation) \
+    { \
+        size_t csr_idx = evaluate_csr_index(instr.imm); \
+        uint64_t src = source; \
+        if (instr.rd != 0) { \
+            register_file[instr.rd] = static_cast<uint64_t>(register_file[csr_idx]); \
+        } \
+        register_file[csr_idx] operation static_cast<uint32_t>(src); \
+        break; \
+    }
 
 #define FP_THREE_OP_FLOAT() \
     { \
@@ -88,6 +103,20 @@ uint64_t ijump_lookup_for_addr(uint64_t addr) { return ijump_lookup[(addr - ijum
 
 /* make the code a bit clearer */
 constexpr uint64_t sign_extend_int64_t(int32_t v) { return static_cast<int64_t>(v); }
+
+size_t evaluate_csr_index(uint32_t csr_id) {
+    switch (csr_id) {
+    case 1:
+    case 2:
+    case 3:
+        return FCSR_IDX;
+    default:
+        panic("Not known csr register!");
+        break;
+    }
+    panic("Not known csr register!");
+    return -1;
+}
 
 void trace_dump_state(uint64_t pc) {
     puts("TRACE: STATE");
@@ -162,8 +191,6 @@ void trace_dump_state(uint64_t pc) {
     puts("\n");
 }
 
-constexpr inline size_t START_FP_STATICS = 33;
-
 /**
  * @param target unresolved jump target address
  */
@@ -180,16 +207,15 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
         const int r = frv_decode(0x1000, reinterpret_cast<const uint8_t *>(pc), FRV_RV64, &instr);
 
         if (r == FRV_UNDEF) {
+            trace_dump_state(pc);
             panic("Unable to decode instruction");
         } else if (r == FRV_PARTIAL) {
+            trace_dump_state(pc);
             panic("partial instruction");
         } else if (r < 0) {
+            trace_dump_state(pc);
             panic("undefined");
         }
-
-        trace(pc, &instr);
-
-        // trace_dump_state(pc);
 
         // TODO: we might be able to ignore everything with rd=0 as either HINT or NOP instructions
         switch (instr.mnem) {
@@ -762,6 +788,20 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             break;
         }
 
+        /* Ziscr extension */
+        case FRV_CSRRW:
+            CSR_OP(register_file[instr.rs1], =);
+        case FRV_CSRRS:
+            CSR_OP(register_file[instr.rs1], |=);
+        case FRV_CSRRC:
+            CSR_OP(register_file[instr.rs1], &= ~);
+        case FRV_CSRRWI:
+            CSR_OP(instr.rs1, =);
+        case FRV_CSRRSI:
+            CSR_OP(instr.rs1, |=);
+        case FRV_CSRRCI:
+            CSR_OP(instr.rs1, &= ~);
+
         /* F extension */
         case FRV_FLW: {
             uint32_t *ptr = reinterpret_cast<uint32_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
@@ -1111,6 +1151,8 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             break;
 
         default:
+            trace(pc, &instr);
+            trace_dump_state(pc);
             panic("instruction not implemented\n");
             break;
         }
