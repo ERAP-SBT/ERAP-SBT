@@ -58,3 +58,8 @@ void VarRewriter::apply_to(CfOp &cf) {
         },
         cf.info);
 }
+
+[[noreturn]] void panic_internal(const char *file, int line, const char *message) {
+    fprintf(stderr, "Panicked at %s:%d: %s\n", file, line, message != nullptr ? message : "(no reason given)");
+    std::abort();
+}
