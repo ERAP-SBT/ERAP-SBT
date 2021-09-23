@@ -137,6 +137,11 @@ int main(int argc, const char **argv) {
             for (const auto &message : verification_messages) {
                 std::cerr << "  " << message << '\n';
             }
+            if (args.get_value_as_bool("allow-inconsistency")) {
+                std::cerr << "Ignoring inconsistencies as told, but this might lead to errors later on\n";
+            } else {
+                return EXIT_FAILURE;
+            }
         }
     }
 
@@ -232,7 +237,7 @@ void print_help(bool usage_only) {
         std::cerr << "    --debug:                  Enables debug logging (use --debug=false to prevent logging in debug builds)\n";
         std::cerr << "    --disable-fp:             Disables the support of floating point instructions.\n";
         std::cerr << "    --dump-elf:               Show information about the input file\n";
-        std::cerr << "    --full-backtracking:   Evaluates every possible input combination for indirect jump address backtracking.\n";
+        std::cerr << "    --full-backtracking:      Evaluates every possible input combination for indirect jump address backtracking.\n";
         std::cerr << "    --help:                   Shows this help message\n";
         std::cerr << "    --interpreter-only:       Only uses the interpreter to translate the binary (dynamic binary translation). (default: false)\n";
         std::cerr << "    --optimize:               Set optimization flags, comma-seperated list. Specifying a group enables all flags in that group. Appending '!' before disables a single flag\n";
@@ -250,6 +255,7 @@ void print_help(bool usage_only) {
         std::cerr << "    --helper-path:            Set the path to the runtime helper library\n";
         std::cerr << "    --linkerscript-path:      Set the path to the linker script\n";
         std::cerr << "                              (The above two are only required if the translator can't find these by itself)\n\n";
+        std::cerr << "    --allow-inconsistency:    Allow inconsistencies in the IR (not recommended).\n";
         std::cerr << '\n';
         std::cerr << "Environment variables:\n";
         std::cerr << "    AS: Override the assembler binary (by default, the system `as` is used)\n";
