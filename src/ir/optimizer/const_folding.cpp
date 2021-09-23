@@ -42,6 +42,14 @@ constexpr bool is_binary_op(Instruction insn) {
 }
 constexpr bool is_morphing_op(Instruction insn) { return insn == Instruction::sign_extend || insn == Instruction::zero_extend || insn == Instruction::cast; }
 
+constexpr bool can_handle_types(std::initializer_list<Type> types) {
+    for (auto type : types) {
+        if (!is_integer(type) && type != Type::imm)
+            return false;
+    }
+    return true;
+}
+
 Type resolve_simple_op_type(const Operation &op, [[maybe_unused]] size_t block_id, [[maybe_unused]] size_t var_id) {
 #ifndef NDEBUG
     // TODO This set is only here to help find possible errors and should be removed.
@@ -295,6 +303,8 @@ std::optional<ConstFoldPass::BinOp> ConstFoldPass::simplify_double_op_imm_left(T
         return std::nullopt;
     if (!pa->is_immediate() && !pb->is_immediate())
         return std::nullopt;
+    if (!can_handle_types({pa->type, pb->type}))
+        return std::nullopt;
     assert(!(pa->is_immediate() && pb->is_immediate())); // Ops with imm/imm should be folded by now
 
     if (is_commutative(cins)) {
@@ -387,6 +397,8 @@ std::optional<ConstFoldPass::BinOp> ConstFoldPass::simplify_double_op_imm_right(
     if (!is_binary_op(pins))
         return std::nullopt;
     if (!pa->is_immediate() && !pb->is_immediate())
+        return std::nullopt;
+    if (!can_handle_types({pa->type, pb->type}))
         return std::nullopt;
     assert(!(pa->is_immediate() && pb->is_immediate()));
 
@@ -564,14 +576,6 @@ void ConstFoldPass::simplify_morph(Instruction insn, Type in_type, SSAVar *in_va
     }
 }
 
-constexpr bool can_handle_types(std::initializer_list<Type> types) {
-    for (auto type : types) {
-        if (!is_integer(type) && type != Type::imm)
-            return false;
-    }
-    return true;
-}
-
 void ConstFoldPass::process_block(BasicBlock *block) {
     rewrite = {};
     current_block = block;
@@ -671,10 +675,10 @@ void ConstFoldPass::process_block(BasicBlock *block) {
             }
         } else if (is_morphing_op(op.type)) {
             auto &in = op.in_vars[0];
-            if (!can_handle_types({in->type}))
-                continue;
             assert(op.out_vars[0] == var);
             Type input = in->type, output = var->type;
+            if (!can_handle_types({input, output}))
+                continue;
             if (in->is_immediate()) {
                 // op imm
                 auto &ii = in->get_immediate();
