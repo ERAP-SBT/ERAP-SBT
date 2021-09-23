@@ -137,6 +137,11 @@ int main(int argc, const char **argv) {
             for (const auto &message : verification_messages) {
                 std::cerr << "  " << message << '\n';
             }
+            if (args.get_value_as_bool("allow-inconsistency")) {
+                std::cerr << "Ignoring inconsistencies as told, but this might lead to errors later on\n";
+            } else {
+                return EXIT_FAILURE;
+            }
         }
     }
 
@@ -256,6 +261,7 @@ void print_help(bool usage_only) {
         std::cerr << "    --helper-path:            Set the path to the runtime helper library\n";
         std::cerr << "    --linkerscript-path:      Set the path to the linker script\n";
         std::cerr << "                              (The above two are only required if the translator can't find these by itself)\n\n";
+        std::cerr << "    --allow-inconsistency:    Allow inconsistencies in the IR (not recommended).\n";
         std::cerr << '\n';
         std::cerr << "Environment variables:\n";
         std::cerr << "    AS: Override the assembler binary (by default, the system `as` is used)\n";
