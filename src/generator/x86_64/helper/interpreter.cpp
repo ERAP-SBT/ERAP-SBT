@@ -8,6 +8,63 @@
 
 namespace helper::interpreter {
 
+typedef union converter {
+    uint32_t d32;
+    int32_t i32;
+    uint64_t d64;
+    int64_t i64;
+    float f32;
+    double f64;
+} converter;
+
+#define FP_THREE_OP_FLOAT() \
+    { \
+        converter conv1; \
+        converter conv2; \
+        converter conv3; \
+        conv1.d32 = static_cast<uint32_t>(register_file[instr.rs1 + START_FP_STATICS]); \
+        conv2.d32 = static_cast<uint32_t>(register_file[instr.rs2 + START_FP_STATICS]); \
+        conv3.d32 = static_cast<uint32_t>(register_file[instr.rs3 + START_FP_STATICS]); \
+        conv1.f32 = operation(conv1.f32, conv2.f32, conv3.f32); \
+        register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>(conv1.d32); \
+        break; \
+    }
+
+#define FP_THREE_OP_DOUBLE() \
+    { \
+        converter conv1; \
+        converter conv2; \
+        converter conv3; \
+        conv1.d64 = register_file[instr.rs1 + START_FP_STATICS]; \
+        conv2.d64 = register_file[instr.rs2 + START_FP_STATICS]; \
+        conv3.d64 = register_file[instr.rs3 + START_FP_STATICS]; \
+        conv1.f64 = operation(conv1.f64, conv2.f64, conv3.f64); \
+        register_file[instr.rd + START_FP_STATICS] = conv1.d64; \
+        break; \
+    }
+
+#define FP_TWO_OP_FLOAT(fp_dest_reg) \
+    if (fp_dest_reg || instr.rd != 0) { \
+        converter conv1; \
+        converter conv2; \
+        converter conv3; \
+        conv1.d32 = static_cast<uint32_t>(register_file[instr.rs1 + START_FP_STATICS]); \
+        conv2.d32 = static_cast<uint32_t>(register_file[instr.rs2 + START_FP_STATICS]); \
+        conv3.f32 = operation(conv1.f32, conv2.f32); \
+        register_file[instr.rd + (fp_dest_reg ? START_FP_STATICS : 0)] = static_cast<uint64_t>(conv3.d32); \
+    }
+
+#define FP_TWO_OP_DOUBLE(fp_dest_reg) \
+    if (fp_dest_reg || instr.rd != 0) { \
+        converter conv1; \
+        converter conv2; \
+        converter conv3; \
+        conv1.d64 = register_file[instr.rs1 + START_FP_STATICS]; \
+        conv2.d64 = register_file[instr.rs2 + START_FP_STATICS]; \
+        conv3.f64 = operation(conv1.f64, conv2.f64); \
+        register_file[instr.rd + (fp_dest_reg ? START_FP_STATICS : 0)] = conv3.d64; \
+    }
+
 /* from compiled code */
 extern "C" uint64_t register_file[];
 extern "C" uint64_t ijump_lookup_base;
@@ -105,6 +162,8 @@ void trace_dump_state(uint64_t pc) {
     puts("\n");
 }
 
+constexpr inline size_t START_FP_STATICS = 33;
+
 /**
  * @param target unresolved jump target address
  */
@@ -128,7 +187,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             panic("undefined");
         }
 
-        // trace(pc, &instr);
+        trace(pc, &instr);
 
         // trace_dump_state(pc);
 
@@ -706,22 +765,350 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
         /* F extension */
         case FRV_FLW: {
             uint32_t *ptr = reinterpret_cast<uint32_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
-            register_file[instr.rd] = static_cast<uint64_t>(*ptr);
+            register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>(*ptr);
             break;
         }
         case FRV_FLD:
-            register_file[instr.rd] = *reinterpret_cast<uint64_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
+            register_file[instr.rd + START_FP_STATICS] = *reinterpret_cast<uint64_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
             break;
         case FRV_FSW: {
             uint32_t *ptr = reinterpret_cast<uint32_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
-            *ptr = static_cast<uint32_t>(register_file[instr.rs2]);
+            *ptr = static_cast<uint32_t>(register_file[instr.rs2 + START_FP_STATICS]);
             break;
         }
         case FRV_FSD: {
             uint64_t *ptr = reinterpret_cast<uint64_t *>(register_file[instr.rs1] + sign_extend_int64_t(instr.imm));
-            *ptr = register_file[instr.rs2];
+            *ptr = register_file[instr.rs2 + START_FP_STATICS];
             break;
         }
+
+        case FRV_FADDS:
+#define operation(val1, val2) val1 + val2
+            FP_TWO_OP_FLOAT(true);
+#undef operation
+            break;
+        case FRV_FADDD:
+#define operation(val1, val2) val1 + val2
+            FP_TWO_OP_DOUBLE(true);
+#undef operation
+            break;
+        case FRV_FSUBS:
+#define operation(val1, val2) val1 - val2
+            FP_TWO_OP_FLOAT(true);
+#undef operation
+            break;
+        case FRV_FSUBD:
+#define operation(val1, val2) val1 - val2
+            FP_TWO_OP_DOUBLE(true);
+#undef operation
+            break;
+        case FRV_FMULS:
+#define operation(val1, val2) val1 *val2
+            FP_TWO_OP_FLOAT(true);
+#undef operation
+            break;
+        case FRV_FMULD:
+#define operation(val1, val2) val1 *val2
+            FP_TWO_OP_DOUBLE(true);
+#undef operation
+            break;
+        case FRV_FDIVS:
+#define operation(val1, val2) val1 / val2
+            FP_TWO_OP_FLOAT(true);
+#undef operation
+            break;
+        case FRV_FDIVD:
+#define operation(val1, val2) val1 / val2
+            FP_TWO_OP_DOUBLE(true);
+#undef operation
+            break;
+        case FRV_FMINS:
+#define operation(val1, val2) (val1 < val2) ? val1 : val2
+            FP_TWO_OP_FLOAT(true);
+#undef operation
+            break;
+        case FRV_FMIND:
+#define operation(val1, val2) (val1 < val2) ? val1 : val2
+            FP_TWO_OP_DOUBLE(true);
+#undef operation
+            break;
+        case FRV_FMAXS:
+#define operation(val1, val2) (val1 > val2) ? val1 : val2
+            FP_TWO_OP_FLOAT(true);
+#undef operation
+            break;
+        case FRV_FMAXD:
+#define operation(val1, val2) (val1 > val2) ? val1 : val2
+            FP_TWO_OP_DOUBLE(true);
+#undef operation
+            break;
+        case FRV_FSQRTS: {
+            float *src_ptr = reinterpret_cast<float *>(&register_file[instr.rs1 + START_FP_STATICS]);
+            float res;
+            __asm__ __volatile__("sqrtss %1, %0" : "=x"(res) : "x"(*src_ptr));
+            uint32_t *res_ptr = reinterpret_cast<uint32_t *>(&res);
+            register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>(*res_ptr);
+            break;
+        }
+        case FRV_FSQRTD: {
+            double *src_ptr = reinterpret_cast<double *>(&register_file[instr.rs1 + START_FP_STATICS]);
+            double res;
+            __asm__ __volatile__("sqrtss %1, %0" : "=x"(res) : "x"(*src_ptr));
+            uint64_t *res_ptr = reinterpret_cast<uint64_t *>(&res);
+            register_file[instr.rd + START_FP_STATICS] = *res_ptr;
+            break;
+        }
+
+        case FRV_FMADDS:
+#define operation(val1, val2, val3) val1 *val2 + val3
+            FP_THREE_OP_FLOAT();
+#undef operation
+        case FRV_FMSUBS:
+#define operation(val1, val2, val3) val1 *val2 - val3
+            FP_THREE_OP_FLOAT();
+#undef operation
+        case FRV_FNMADDS:
+#define operation(val1, val2, val3) -(val1 * val2 + val3)
+            FP_THREE_OP_FLOAT();
+#undef operation
+        case FRV_FNMSUBS:
+#define operation(val1, val2, val3) -val1 *val2 + val3
+            FP_THREE_OP_FLOAT();
+#undef operation
+
+        case FRV_FMADDD:
+#define operation(val1, val2, val3) val1 *val2 + val3
+            FP_THREE_OP_DOUBLE();
+#undef operation
+        case FRV_FMSUBD:
+#define operation(val1, val2, val3) val1 *val2 - val3
+            FP_THREE_OP_DOUBLE();
+#undef operation
+        case FRV_FNMADDD:
+#define operation(val1, val2, val3) -(val1 * val2 + val3)
+            FP_THREE_OP_DOUBLE();
+#undef operation
+        case FRV_FNMSUBD:
+#define operation(val1, val2, val3) -val1 *val2 + val3
+            FP_THREE_OP_DOUBLE();
+#undef operation
+
+        case FRV_FCVTWS:
+            if (instr.rd != 0) {
+                float *src_ptr = reinterpret_cast<float *>(register_file[instr.rs1 + START_FP_STATICS]);
+                register_file[instr.rd] = static_cast<int64_t>(static_cast<int32_t>(*src_ptr));
+            }
+            break;
+        case FRV_FCVTWUS:
+            if (instr.rd != 0) {
+                float *src_ptr = reinterpret_cast<float *>(register_file[instr.rs1 + START_FP_STATICS]);
+                register_file[instr.rd] = static_cast<uint64_t>(static_cast<uint32_t>(*src_ptr));
+            }
+            break;
+        case FRV_FCVTLS:
+            if (instr.rd != 0) {
+                float *src_ptr = reinterpret_cast<float *>(register_file[instr.rs1 + START_FP_STATICS]);
+                register_file[instr.rd] = static_cast<int64_t>(*src_ptr);
+            }
+            break;
+        case FRV_FCVTLUS:
+            if (instr.rd != 0) {
+                float *src_ptr = reinterpret_cast<float *>(register_file[instr.rs1 + START_FP_STATICS]);
+                register_file[instr.rd] = static_cast<uint64_t>(*src_ptr);
+            }
+            break;
+
+        case FRV_FCVTSW: {
+            float res = static_cast<float>(static_cast<int32_t>(register_file[instr.rs1]));
+            uint32_t *res_ptr = reinterpret_cast<uint32_t *>(&res);
+            register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>(*res_ptr);
+            break;
+        }
+        case FRV_FCVTSWU: {
+            float res = static_cast<float>(static_cast<uint32_t>(register_file[instr.rs1]));
+            uint32_t *res_ptr = reinterpret_cast<uint32_t *>(&res);
+            register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>(*res_ptr);
+            break;
+        }
+        case FRV_FCVTSL: {
+            float res = static_cast<float>(static_cast<int64_t>(register_file[instr.rs1]));
+            uint32_t *res_ptr = reinterpret_cast<uint32_t *>(&res);
+            register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>(*res_ptr);
+            break;
+        }
+        case FRV_FCVTSLU: {
+            float res = static_cast<float>(register_file[instr.rs1]);
+            uint32_t *res_ptr = reinterpret_cast<uint32_t *>(&res);
+            register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>(*res_ptr);
+            break;
+        }
+
+        case FRV_FCVTWD:
+            if (instr.rd != 0) {
+                double *src_ptr = reinterpret_cast<double *>(register_file[instr.rs1 + START_FP_STATICS]);
+                register_file[instr.rd] = static_cast<int64_t>(static_cast<int32_t>(*src_ptr));
+            }
+            break;
+        case FRV_FCVTWUD:
+            if (instr.rd != 0) {
+                double *src_ptr = reinterpret_cast<double *>(register_file[instr.rs1 + START_FP_STATICS]);
+                register_file[instr.rd] = static_cast<uint64_t>(static_cast<uint32_t>(*src_ptr));
+            }
+            break;
+        case FRV_FCVTLD:
+            if (instr.rd != 0) {
+                double *src_ptr = reinterpret_cast<double *>(register_file[instr.rs1 + START_FP_STATICS]);
+                register_file[instr.rd] = static_cast<int64_t>(*src_ptr);
+            }
+            break;
+        case FRV_FCVTLUD:
+            if (instr.rd != 0) {
+                double *src_ptr = reinterpret_cast<double *>(register_file[instr.rs1 + START_FP_STATICS]);
+                register_file[instr.rd] = static_cast<uint64_t>(*src_ptr);
+            }
+            break;
+
+        case FRV_FCVTDW: {
+            double res = static_cast<double>(static_cast<int32_t>(register_file[instr.rs1]));
+            uint64_t *res_ptr = reinterpret_cast<uint64_t *>(&res);
+            register_file[instr.rd + START_FP_STATICS] = *res_ptr;
+            break;
+        }
+        case FRV_FCVTDWU: {
+            double res = static_cast<double>(static_cast<uint32_t>(register_file[instr.rs1]));
+            uint64_t *res_ptr = reinterpret_cast<uint64_t *>(&res);
+            register_file[instr.rd + START_FP_STATICS] = *res_ptr;
+            break;
+        }
+        case FRV_FCVTDL: {
+            double res = static_cast<double>(static_cast<int64_t>(register_file[instr.rs1]));
+            uint64_t *res_ptr = reinterpret_cast<uint64_t *>(&res);
+            register_file[instr.rd + START_FP_STATICS] = *res_ptr;
+            break;
+        }
+        case FRV_FCVTDLU: {
+            double res = static_cast<double>(register_file[instr.rs1]);
+            uint64_t *res_ptr = reinterpret_cast<uint64_t *>(&res);
+            register_file[instr.rd + START_FP_STATICS] = *res_ptr;
+            break;
+        }
+        case FRV_FCVTDS: {
+            converter conv;
+            conv.d32 = static_cast<uint32_t>(register_file[instr.rs1 + START_FP_STATICS]);
+            conv.f64 = static_cast<double>(conv.f32);
+            register_file[instr.rd + START_FP_STATICS] = conv.f64;
+            break;
+        }
+        case FRV_FCVTSD: {
+            converter conv;
+            conv.d64 = register_file[instr.rs1 + START_FP_STATICS];
+            conv.f32 = static_cast<double>(conv.f64);
+            register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>(conv.d32);
+            break;
+        }
+
+        case FRV_FMVXW:
+            if (instr.rd != 0) {
+                register_file[instr.rd] = static_cast<int64_t>(static_cast<int32_t>(register_file[instr.rs1 + START_FP_STATICS]));
+            }
+            break;
+        case FRV_FMVWX:
+            register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>(static_cast<uint32_t>(register_file[instr.rs1]));
+            break;
+        case FRV_FMVXD:
+            if (instr.rd != 0) {
+                register_file[instr.rd] = register_file[instr.rs1 + START_FP_STATICS];
+            }
+            break;
+        case FRV_FMVDX:
+            register_file[instr.rd + START_FP_STATICS] = register_file[instr.rs1];
+            break;
+
+        case FRV_FSGNJS:
+            if (instr.rs1 == instr.rs2) {
+                register_file[instr.rd + START_FP_STATICS] = register_file[instr.rs1];
+            } else {
+                register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>((static_cast<uint32_t>(register_file[instr.rs1 + START_FP_STATICS]) & 0x7FFF'FFFF) |
+                                                                                   (static_cast<uint32_t>(register_file[instr.rs2 + START_FP_STATICS]) & 0x8000'0000));
+            }
+            break;
+        case FRV_FSGNJD:
+            if (instr.rs1 == instr.rs2) {
+                register_file[instr.rd + START_FP_STATICS] = register_file[instr.rs1];
+            } else {
+                register_file[instr.rd + START_FP_STATICS] =
+                    (register_file[instr.rs1 + START_FP_STATICS] & 0x7FFF'FFFF'FFFF'FFFF) | (register_file[instr.rs2 + START_FP_STATICS] & 0x8000'0000'0000'0000);
+            }
+            break;
+        case FRV_FSGNJNS:
+            if (instr.rs1 == instr.rs2) {
+                // negate the floating point value (change sign bit)
+                register_file[instr.rd + START_FP_STATICS] = register_file[instr.rs1] ^ 0x8000'0000;
+            } else {
+                register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>((static_cast<uint32_t>(register_file[instr.rs1 + START_FP_STATICS]) & 0x7FFF'FFFF) |
+                                                                                   (~static_cast<uint32_t>(register_file[instr.rs2 + START_FP_STATICS]) & 0x8000'0000));
+            }
+            break;
+        case FRV_FSGNJND:
+            if (instr.rs1 == instr.rs2) {
+                // negate the floating point value (change sign bit)
+                register_file[instr.rd + START_FP_STATICS] = register_file[instr.rs1] ^ 0x8000'0000'0000'0000;
+            } else {
+                register_file[instr.rd + START_FP_STATICS] =
+                    (register_file[instr.rs1 + START_FP_STATICS] & 0x7FFF'FFFF'FFFF'FFFF) | (~register_file[instr.rs2 + START_FP_STATICS] & 0x8000'0000'0000'0000);
+            }
+            break;
+        case FRV_FSGNJXS: {
+            if (instr.rs1 == instr.rs2) {
+                // calculate the absulate value (set sign bit to zero)
+                register_file[instr.rd + START_FP_STATICS] = register_file[instr.rs1] & 0x7FFF'FFFF;
+            } else {
+                uint32_t new_sign =
+                    (static_cast<uint32_t>(register_file[instr.rs1 + START_FP_STATICS]) & 0x8000'0000) ^ (static_cast<uint32_t>(register_file[instr.rs2 + START_FP_STATICS]) & 0x8000'0000);
+                register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>((static_cast<uint32_t>(register_file[instr.rs1 + START_FP_STATICS]) & 0x7FFF'FFFF) | new_sign);
+            }
+            break;
+        }
+        case FRV_FSGNJXD:
+            if (instr.rs1 == instr.rs2) {
+                // calculate the absulate value (set sign bit to zero)
+                register_file[instr.rd + START_FP_STATICS] = register_file[instr.rs1] & 0x7FFF'FFFF'FFFF'FFFF;
+            } else {
+                uint32_t new_sign = (register_file[instr.rs1 + START_FP_STATICS] & 0x8000'0000'0000'0000) ^ (register_file[instr.rs2 + START_FP_STATICS] & 0x8000'0000'0000'0000);
+                register_file[instr.rd + START_FP_STATICS] = (register_file[instr.rs1 + START_FP_STATICS] & 0x7FFF'FFFF'FFFF'FFFF) | new_sign;
+            }
+            break;
+
+        case FRV_FLTS:
+#define operation(val1, val2) val1 < val2 ? 1 : 0
+            FP_TWO_OP_FLOAT(false);
+#undef operation
+            break;
+        case FRV_FLTD:
+#define operation(val1, val2) val1 < val2 ? 1 : 0
+            FP_TWO_OP_DOUBLE(false);
+#undef operation
+            break;
+        case FRV_FLES:
+#define operation(val1, val2) val1 <= val2 ? 1 : 0
+            FP_TWO_OP_FLOAT(false);
+#undef operation
+            break;
+        case FRV_FLED:
+#define operation(val1, val2) val1 <= val2 ? 1 : 0
+            FP_TWO_OP_DOUBLE(false);
+#undef operation
+            break;
+        case FRV_FEQS:
+#define operation(val1, val2) val1 == val2 ? 1 : 0
+            FP_TWO_OP_FLOAT(false);
+#undef operation
+            break;
+        case FRV_FEQD:
+#define operation(val1, val2) val1 == val2 ? 1 : 0
+            FP_TWO_OP_DOUBLE(false);
+#undef operation
+            break;
 
         default:
             panic("instruction not implemented\n");

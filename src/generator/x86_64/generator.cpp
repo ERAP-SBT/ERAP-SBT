@@ -227,7 +227,7 @@ void Generator::compile_interpreter_only() {
     compile_section(Section::TEXT);
     fprintf(out_fd, ".global _start\n");
     fprintf(out_fd, "_start:\n");
-    
+
     // setup the RISC-V stack
     fprintf(out_fd, "mov rbx, offset param_passing\n");
     fprintf(out_fd, "mov rdi, rsp\n");
