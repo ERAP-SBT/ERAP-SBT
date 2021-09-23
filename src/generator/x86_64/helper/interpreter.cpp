@@ -20,7 +20,7 @@ void trace(uint64_t addr, const FrvInst *instr) {
 
     puts(" : ");
 
-    char buf[16];
+    char buf[32];
     frv_format(instr, sizeof(buf), buf);
     puts(buf);
     puts("\n");
@@ -515,158 +515,191 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             break;
         case FRV_AMOSWAPW: {
             int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            uint32_t store_val = static_cast<uint32_t>(register_file[instr.rs2]);
             if (instr.rd != 0) {
                 register_file[instr.rd] = sign_extend_int64_t(*ptr);
             }
-            *ptr = static_cast<int32_t>(register_file[instr.rs2]);
+            *ptr = store_val;
             break;
         }
         case FRV_AMOSWAPD: {
             int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            uint64_t store_val = register_file[instr.rs2];
             if (instr.rd != 0) {
                 register_file[instr.rd] = *ptr;
             }
-            *ptr = register_file[instr.rs2];
+            *ptr = store_val;
             break;
         }
         case FRV_AMOADDW: {
             int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            uint32_t rs2_val = static_cast<uint32_t>(register_file[instr.rs2]);
             if (instr.rd != 0) {
                 register_file[instr.rd] = sign_extend_int64_t(*ptr);
             }
-            *ptr = static_cast<int32_t>(register_file[instr.rd] + static_cast<int32_t>(register_file[instr.rs2]));
+            *ptr = static_cast<int32_t>(register_file[instr.rd]) + rs2_val;
             break;
         }
         case FRV_AMOADDD: {
             int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            uint64_t rs2_val = register_file[instr.rs2];
             if (instr.rd != 0) {
                 register_file[instr.rd] = *ptr;
             }
-            *ptr = register_file[instr.rd] + register_file[instr.rs2];
+            *ptr = register_file[instr.rd] + rs2_val;
             break;
         }
         case FRV_AMOANDW: {
             int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            uint32_t rs2_val = static_cast<uint32_t>(register_file[instr.rs2]);
             if (instr.rd != 0) {
                 register_file[instr.rd] = sign_extend_int64_t(*ptr);
             }
-            *ptr = static_cast<int32_t>(register_file[instr.rd] & static_cast<int32_t>(register_file[instr.rs2]));
+            *ptr = static_cast<int32_t>(register_file[instr.rd]) & rs2_val;
             break;
         }
         case FRV_AMOANDD: {
             int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            uint64_t rs2_val = register_file[instr.rs2];
             if (instr.rd != 0) {
                 register_file[instr.rd] = *ptr;
             }
-            *ptr = register_file[instr.rd] & register_file[instr.rs2];
+            *ptr = register_file[instr.rd] & rs2_val;
+            ;
             break;
         }
         case FRV_AMOORW: {
             int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            uint32_t rs2_val = static_cast<uint32_t>(register_file[instr.rs2]);
             if (instr.rd != 0) {
                 register_file[instr.rd] = sign_extend_int64_t(*ptr);
             }
-            *ptr = static_cast<int32_t>(register_file[instr.rd] | static_cast<int32_t>(register_file[instr.rs2]));
+            *ptr = static_cast<int32_t>(register_file[instr.rd]) | rs2_val;
             break;
         }
         case FRV_AMOORD: {
             int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            uint64_t rs2_val = register_file[instr.rs2];
             if (instr.rd != 0) {
                 register_file[instr.rd] = *ptr;
             }
-            *ptr = register_file[instr.rd] | register_file[instr.rs2];
+            *ptr = register_file[instr.rd] | rs2_val;
             break;
         }
         case FRV_AMOXORW: {
             int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            uint32_t rs2_val = static_cast<uint32_t>(register_file[instr.rs2]);
             if (instr.rd != 0) {
                 register_file[instr.rd] = sign_extend_int64_t(*ptr);
             }
-            *ptr = static_cast<int32_t>(register_file[instr.rd] ^ static_cast<int32_t>(register_file[instr.rs2]));
+            *ptr = static_cast<int32_t>(register_file[instr.rd]) ^ rs2_val;
             break;
         }
         case FRV_AMOXORD: {
             int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            uint64_t rs2_val = register_file[instr.rs2];
             if (instr.rd != 0) {
                 register_file[instr.rd] = *ptr;
             }
-            *ptr = register_file[instr.rd] ^ register_file[instr.rs2];
+            *ptr = register_file[instr.rd] ^ rs2_val;
             break;
         }
         case FRV_AMOMAXW: {
             int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            int32_t rs2_val = static_cast<int32_t>(register_file[instr.rs2]);
             if (instr.rd != 0) {
                 register_file[instr.rd] = sign_extend_int64_t(*ptr);
             }
             int32_t dest_val = static_cast<int32_t>(register_file[instr.rd]);
-            int32_t source_val = static_cast<int32_t>(register_file[instr.rs2]);
-            *ptr = (dest_val > source_val) ? dest_val : source_val;
+            *ptr = (dest_val > rs2_val) ? dest_val : rs2_val;
             break;
         }
         case FRV_AMOMAXD: {
             int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            int64_t rs2_val = static_cast<int64_t>(register_file[instr.rs2]);
             if (instr.rd != 0) {
                 register_file[instr.rd] = *ptr;
             }
             int64_t dest_val = static_cast<int64_t>(register_file[instr.rd]);
-            int64_t source_val = static_cast<int64_t>(register_file[instr.rs2]);
-            *ptr = (dest_val > source_val) ? dest_val : source_val;
+            *ptr = (dest_val > rs2_val) ? dest_val : rs2_val;
             break;
         }
         case FRV_AMOMAXUW: {
             int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            uint32_t rs2_val = static_cast<uint32_t>(register_file[instr.rs2]);
             if (instr.rd != 0) {
                 register_file[instr.rd] = sign_extend_int64_t(*ptr);
             }
             uint32_t dest_val = static_cast<uint32_t>(register_file[instr.rd]);
-            uint32_t source_val = static_cast<uint32_t>(register_file[instr.rs2]);
-            *ptr = (dest_val > source_val) ? dest_val : source_val;
+            *ptr = (dest_val > rs2_val) ? dest_val : rs2_val;
             break;
         }
         case FRV_AMOMAXUD: {
             int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            uint64_t rs2_val = register_file[instr.rs2];
             if (instr.rd != 0) {
                 register_file[instr.rd] = *ptr;
             }
-            *ptr = (register_file[instr.rd] > register_file[instr.rs2]) ? register_file[instr.rd] : register_file[instr.rs2];
+            uint64_t dest_val = register_file[instr.rd];
+            *ptr = (dest_val > rs2_val) ? dest_val : rs2_val;
             break;
         }
         case FRV_AMOMINW: {
             int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            int32_t rs2_val = static_cast<int32_t>(register_file[instr.rs2]);
             if (instr.rd != 0) {
                 register_file[instr.rd] = sign_extend_int64_t(*ptr);
             }
             int32_t dest_val = static_cast<int32_t>(register_file[instr.rd]);
-            int32_t source_val = static_cast<int32_t>(register_file[instr.rs2]);
-            *ptr = (dest_val < source_val) ? dest_val : source_val;
+            *ptr = (dest_val < rs2_val) ? dest_val : rs2_val;
             break;
         }
         case FRV_AMOMIND: {
             int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            int64_t rs2_val = static_cast<int64_t>(register_file[instr.rs2]);
             if (instr.rd != 0) {
                 register_file[instr.rd] = *ptr;
             }
             int64_t dest_val = static_cast<int64_t>(register_file[instr.rd]);
-            int64_t source_val = static_cast<int64_t>(register_file[instr.rs2]);
-            *ptr = (dest_val < source_val) ? dest_val : source_val;
+            *ptr = (dest_val < rs2_val) ? dest_val : rs2_val;
             break;
         }
         case FRV_AMOMINUW: {
             int32_t *ptr = reinterpret_cast<int32_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            uint32_t rs2_val = static_cast<uint32_t>(register_file[instr.rs2]);
             if (instr.rd != 0) {
                 register_file[instr.rd] = sign_extend_int64_t(*ptr);
             }
             uint32_t dest_val = static_cast<uint32_t>(register_file[instr.rd]);
-            uint32_t source_val = static_cast<uint32_t>(register_file[instr.rs2]);
-            *ptr = (dest_val < source_val) ? dest_val : source_val;
+            *ptr = (dest_val < rs2_val) ? dest_val : rs2_val;
             break;
         }
         case FRV_AMOMINUD: {
             int64_t *ptr = reinterpret_cast<int64_t *>(register_file[instr.rs1]);
+            // prevent value from been overwritten trough rd == rs2
+            uint64_t rs2_val = register_file[instr.rs2];
             if (instr.rd != 0) {
                 register_file[instr.rd] = *ptr;
             }
-            *ptr = (register_file[instr.rd] < register_file[instr.rs2]) ? register_file[instr.rd] : register_file[instr.rs2];
+            uint64_t dest_val = static_cast<uint64_t>(register_file[instr.rd]);
+            *ptr = (dest_val < rs2_val) ? dest_val : rs2_val;
             break;
         }
 
