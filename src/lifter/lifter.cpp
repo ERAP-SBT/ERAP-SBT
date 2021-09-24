@@ -255,6 +255,7 @@ void Lifter::postprocess(Program *prog) {
                     if (std::find(target_bb->predecessors.begin(), target_bb->predecessors.end(), bb.get()) == target_bb->predecessors.end()) {
                         target_bb->predecessors.push_back(bb.get());
                     }
+                    target_bb->gen_info.call_cont_block = true;
                 } else {
                     cf_op.type = CFCInstruction::unreachable;
                     cf_op.info = std::monostate{};
@@ -284,6 +285,9 @@ void Lifter::postprocess(Program *prog) {
 
             auto *cur_target = cf_op.target();
             if (cur_target && cur_target != dummy) {
+                if (cf_op.type == CFCInstruction::call) {
+                    cur_target->gen_info.call_target = true;
+                }
                 continue;
             }
 
@@ -301,6 +305,10 @@ void Lifter::postprocess(Program *prog) {
                     }
                     if (std::find(target_bb->predecessors.begin(), target_bb->predecessors.end(), bb.get()) == target_bb->predecessors.end()) {
                         target_bb->predecessors.push_back(bb.get());
+                    }
+
+                    if (cf_op.type == CFCInstruction::call) {
+                        target_bb->gen_info.call_target = true;
                     }
                 } else {
                     cf_op.type = CFCInstruction::unreachable;

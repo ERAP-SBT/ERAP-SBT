@@ -162,6 +162,7 @@ void Generator::compile() {
     fprintf(out_fd, ".size stack_space,$-stack_space\n");
 
     fprintf(out_fd, "init_stack_ptr: .quad 0\n");
+    fprintf(out_fd, "init_ret_stack_ptr: .quad 0\n");
 
     if (interpreter_only) {
         compile_interpreter_only_entry();
@@ -460,6 +461,8 @@ void Generator::compile_entry() {
     fprintf(out_fd, "mov rsi, offset stack_space_end\n");
     fprintf(out_fd, "call copy_stack\n");
     fprintf(out_fd, "mov [init_stack_ptr], rax\n");
+    fprintf(out_fd, "push 0\npush 0\n");
+    fprintf(out_fd, "mov [init_ret_stack_ptr], rsp\n");
     fprintf(out_fd, "jmp b%zu\n", ir->entry_block);
     fprintf(out_fd, ".type _start,STT_FUNC\n");
     fprintf(out_fd, ".size _start,$-_start\n");
