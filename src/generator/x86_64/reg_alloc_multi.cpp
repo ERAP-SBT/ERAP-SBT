@@ -238,25 +238,30 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
         // TODO: prioritize jumps so we can omit the jmp bX_reg_alloc
         for (const auto &cf_op : bb->control_flow_ops) {
             auto *target = cf_op.target();
-            if (target && !target->gen_info.compiled && target->id <= BB_MERGE_TIL_ID) {
+            if (target && !target->gen_info.compiled && target->id <= BB_MERGE_TIL_ID && !is_block_top_level(target) && !target->gen_info.call_cont_block) {
                 compile_block(target, false, max_stack_frame_size);
+            }
+            if (cf_op.type == CFCInstruction::call) {
+                compile_block(std::get<CfOp::CallInfo>(cf_op.info).continuation_block, false, max_stack_frame_size);
+            } else if (cf_op.type == CFCInstruction::icall) {
+                compile_block(std::get<CfOp::ICallInfo>(cf_op.info).continuation_block, false, max_stack_frame_size);
             }
         }
 
         if (first_block) {
             // need to add a bit of space to the stack since the cfops might need to spill to the stack
             max_stack_frame_size += gen->ir->statics.size();
-            // align to 16 bytes
-            max_stack_frame_size = ((max_stack_frame_size + 15) & 0xFFFFFFFF'FFFFFFF0);
+            // align to 16 bytes + 8 so we dont need to push extra stuff, e.g. when we do calls as we already push an 8 byte value before
+            max_stack_frame_size = (((max_stack_frame_size * 8) + 15) & 0xFFFFFFFF'FFFFFFF0) + 8;
 
-            fprintf(gen->out_fd, "b%zu:\nsub rsp, %zu\n", bb->id, max_stack_frame_size * 8);
+            fprintf(gen->out_fd, "b%zu:\nsub rsp, %zu\n", bb->id, max_stack_frame_size);
             fprintf(gen->out_fd, "# MBRA\n"); // multi-block register allocation
             fprintf(gen->out_fd, "# Virt Start: %#lx\n# Virt End:  %#lx\n", bb->virt_start_addr, bb->virt_end_addr);
             write_assembled_blocks(max_stack_frame_size);
 
             fprintf(gen->out_fd, "\n# Translation Blocks\n");
             for (const auto &pair : translation_blocks) {
-                fprintf(gen->out_fd, "b%zu:\nsub rsp, %zu\n", pair.first, max_stack_frame_size * 8);
+                fprintf(gen->out_fd, "b%zu:\nsub rsp, %zu\n", pair.first, max_stack_frame_size);
                 fprintf(gen->out_fd, "# MBRATB\n"); // multi-block register allocation translation block
                 fprintf(gen->out_fd, "%s\n", pair.second.c_str());
             }
@@ -1128,6 +1133,11 @@ void RegAlloc::prepare_cf_ops(BasicBlock *bb) {
         if (!target || target->gen_info.input_map_setup) {
             continue;
         }
+        if (target->gen_info.call_cont_block) {
+            set_bb_inputs_from_static(target);
+            continue;
+        }
+
         switch (cf_op.type) {
         case CFCInstruction::jump:
             set_bb_inputs(target, std::get<CfOp::JumpInfo>(cf_op.info).target_inputs);
@@ -1139,13 +1149,21 @@ void RegAlloc::prepare_cf_ops(BasicBlock *bb) {
             // TODO: we don't need this, just need to respect the clobbered registers from a syscall
             set_bb_inputs_from_static(target);
             break;
+        case CFCInstruction::call: {
+            set_bb_inputs_from_static(target);
+            auto *cont_block = std::get<CfOp::CallInfo>(cf_op.info).continuation_block;
+            if (!cont_block->gen_info.input_map_setup) {
+                set_bb_inputs_from_static(cont_block);
+            }
+            break;
+        }
         default:
             break;
         }
     }
 }
 
-void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map, size_t max_stack_frame_size) {
+void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map, size_t max_stack_frame_size, BasicBlock *next_bb) {
     // TODO: when there is one cfop and it's a jump we can already omit the jmp bX_reg_alloc if the block isn't compiled yet
     // since it will get compiled straight after
 
@@ -1250,13 +1268,16 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
 
         switch (cf_op.type) {
         case CFCInstruction::jump: {
-            write_target_inputs(cf_op.target(), cur_time, std::get<CfOp::JumpInfo>(cf_op.info).target_inputs);
+            auto *target = std::get<CfOp::JumpInfo>(cf_op.info).target;
+            write_target_inputs(target, cur_time, std::get<CfOp::JumpInfo>(cf_op.info).target_inputs);
             if (target_top_level) {
                 print_asm("# destroy stack space\n");
-                print_asm("add rsp, %zu\n", max_stack_frame_size * 8);
-                print_asm("jmp b%zu\n", cf_op.target()->id);
+                print_asm("add rsp, %zu\n", max_stack_frame_size);
+                print_asm("jmp b%zu\n", target->id);
             } else {
-                print_asm("jmp b%zu_reg_alloc\n", cf_op.target()->id);
+                if (cf_idx != bb->control_flow_ops.size() - 1 || target != next_bb) {
+                    print_asm("jmp b%zu_reg_alloc\n", target->id);
+                }
             }
             break;
         }
@@ -1264,7 +1285,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             asm_buf += cjump_asm;
             if (target_top_level) {
                 print_asm("# destroy stack space\n");
-                print_asm("add rsp, %zu\n", max_stack_frame_size * 8);
+                print_asm("add rsp, %zu\n", max_stack_frame_size);
                 print_asm("jmp b%zu\n", cf_op.target()->id);
             } else {
                 print_asm("jmp b%zu_reg_alloc\n", cf_op.target()->id);
@@ -1288,7 +1309,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             const auto tmp_reg_name = reg_names[tmp_reg][0];
             assert(dst->type == Type::imm || dst->type == Type::i64);
             print_asm("# destroy stack space\n");
-            print_asm("add rsp, %zu\n", max_stack_frame_size * 8);
+            print_asm("add rsp, %zu\n", max_stack_frame_size);
 
             gen->err_msgs.emplace_back(Generator::ErrType::unresolved_ijump, bb);
 
@@ -1333,14 +1354,13 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
                 load_val_in_reg(cur_time, var, call_reg[i]);
             }
             if (cf_op.in_vars[6] == nullptr) {
-                print_asm("sub rsp, 16\n");
+                print_asm("sub rsp, 8\n");
             } else {
                 // TODO: clear rax before when we have inputs < 64 bit
                 if (reg_map[REG_A].cur_var && reg_map[REG_A].cur_var->gen_info.last_use_time >= cur_time) {
                     save_reg(REG_A);
                 }
                 load_val_in_reg(cur_time, cf_op.in_vars[6].get(), REG_A);
-                print_asm("sub rsp, 8\n");
                 print_asm("push rax\n");
             }
 
@@ -1349,11 +1369,96 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
                 print_asm("mov [s%zu], rax\n", info.static_mapping.at(0));
             }
             print_asm("# destroy stack space\n");
-            print_asm("add rsp, %zu\n", max_stack_frame_size * 8 + 16);
+            print_asm("add rsp, %zu\n", max_stack_frame_size + 8);
             // need to jump to translation block
             // TODO: technically we don't need to if the block didn't have a input mapping before
             // so only do that when the next block does have an input mapping or more than one predecessor?
             print_asm("jmp b%zu\n", info.continuation_block->id);
+            break;
+        }
+        case CFCInstruction::call: {
+            auto &info = std::get<CfOp::CallInfo>(cf_op.info);
+            write_target_inputs(info.target, cur_time, info.target_inputs);
+
+            if (info.target->virt_start_addr <= 0x7FFFFFFF) {
+                print_asm("push %lu\n", info.target->virt_start_addr);
+            } else {
+                print_asm("mov rax, %lu\n", info.target->virt_start_addr);
+                print_asm("push rax\n");
+            }
+            print_asm("call b%zu\nadd rsp, 8\n", info.target->id);
+            if (bb->control_flow_ops.size() != 1 || info.continuation_block != next_bb) {
+                print_asm("jmp b%zu_reg_alloc\n", info.continuation_block->id);
+            }
+            break;
+        }
+        case CFCInstruction::_return: {
+            write_static_mapping(nullptr, cur_time, std::get<CfOp::RetInfo>(cf_op.info).mapping);
+            // TODO: write out ret addr last and keep it in reg
+            const auto ret_reg = load_val_in_reg(cur_time + std::get<CfOp::RetInfo>(cf_op.info).mapping.size(), cf_op.in_vars[0]);
+            print_asm("# destroy stack space\n");
+            print_asm("add rsp, %zu\n", max_stack_frame_size);
+            print_asm("cmp [rsp + 8], %s\n", reg_names[ret_reg][0]);
+            print_asm("jnz 0f\n");
+            print_asm("ret\n");
+            print_asm("0:\n");
+            // reset ret stack
+            print_asm("mov rsp, [init_ret_stack_ptr]\n");
+
+            // do ijump
+            const auto dst_reg_name = reg_names[ret_reg][0];
+            const auto tmp_reg = alloc_reg(cur_time + std::get<CfOp::RetInfo>(cf_op.info).mapping.size(), REG_NONE, ret_reg);
+            const auto tmp_reg_name = reg_names[tmp_reg][0];
+            gen->err_msgs.emplace_back(Generator::ErrType::unresolved_ijump, bb);
+
+            /* we trust the lifter that the ijump destination is already aligned */
+
+            /* turn absolute address into relative offset from start of first basicblock */
+            print_asm("sub %s, %zu\n", dst_reg_name, gen->ir->virt_bb_start_addr);
+
+            print_asm("cmp %s, ijump_lookup_end - ijump_lookup\n", dst_reg_name);
+            print_asm("ja 0f\n");
+            print_asm("lea %s, [rip + ijump_lookup]\n", tmp_reg_name);
+            print_asm("mov %s, [%s + 4 * %s]\n", tmp_reg_name, tmp_reg_name, dst_reg_name);
+            print_asm("test %s, %s\n", tmp_reg_name, tmp_reg_name);
+            print_asm("je 0f\n");
+            print_asm("jmp %s\n", tmp_reg_name);
+            print_asm("0:\n");
+            print_asm("lea rdi, [rip + err_unresolved_ijump_b%zu]\n", bb->id);
+            print_asm("jmp panic\n");
+            break;
+        }
+        case CFCInstruction::icall: {
+            const auto &info = std::get<CfOp::ICallInfo>(cf_op.info);
+            write_static_mapping(info.target, cur_time, info.mapping);
+            // TODO: we get a problem if the dst is in a static that has already been written out (so overwritten)
+            auto *dst = cf_op.in_vars[0].get();
+            const auto dst_reg = load_val_in_reg(cur_time + 1 + info.mapping.size(), dst);
+            const auto tmp_reg = alloc_reg(cur_time + 1 + info.mapping.size(), REG_NONE, dst_reg);
+            const auto dst_reg_name = reg_names[dst_reg][0];
+            const auto tmp_reg_name = reg_names[tmp_reg][0];
+            assert(dst->type == Type::imm || dst->type == Type::i64);
+            // print_asm("# destroy stack space\n");
+            // print_asm("add rsp, %zu\n", max_stack_frame_size);
+
+            gen->err_msgs.emplace_back(Generator::ErrType::unresolved_ijump, bb);
+
+            /* we trust the lifter that the ijump destination is already aligned */
+
+            /* turn absolute address into relative offset from start of first basicblock */
+            print_asm("sub %s, %zu\n", dst_reg_name, gen->ir->virt_bb_start_addr);
+
+            print_asm("cmp %s, ijump_lookup_end - ijump_lookup\n", dst_reg_name);
+            print_asm("ja 0f\n");
+            print_asm("lea %s, [rip + ijump_lookup]\n", tmp_reg_name);
+            print_asm("mov %s, [%s + 4 * %s]\n", tmp_reg_name, tmp_reg_name, dst_reg_name);
+            print_asm("test %s, %s\n", tmp_reg_name, tmp_reg_name);
+            print_asm("je 0f\n");
+            print_asm("call %s\n", tmp_reg_name);
+            print_asm("jmp b%zu_reg_alloc\n", info.continuation_block->id);
+            print_asm("0:\n");
+            print_asm("lea rdi, [rip + err_unresolved_ijump_b%zu]\n", bb->id);
+            print_asm("jmp panic\n");
             break;
         }
         default: {
@@ -1373,7 +1478,8 @@ void RegAlloc::write_assembled_blocks(size_t max_stack_frame_size) {
         cur_bb = block.bb;
         cur_reg_map = &block.reg_map;
         cur_stack_map = &block.stack_map;
-        compile_cf_ops(block.bb, block.reg_map, block.stack_map, max_stack_frame_size);
+        auto *next_bb = (i + 1 >= assembled_blocks.size()) ? nullptr : assembled_blocks[i + 1].bb;
+        compile_cf_ops(block.bb, block.reg_map, block.stack_map, max_stack_frame_size, next_bb);
         fprintf(gen->out_fd, "%s\n", asm_buf.c_str());
     }
     cur_bb = nullptr;
@@ -2140,7 +2246,7 @@ void RegAlloc::clear_after_alloc_time(size_t alloc_time) {
 }
 
 bool RegAlloc::is_block_top_level(BasicBlock *bb) {
-    if (bb->id > BB_OLD_COMPILE_ID_TIL || bb->id > BB_MERGE_TIL_ID || bb->gen_info.manual_top_level) {
+    if (bb->id > BB_OLD_COMPILE_ID_TIL || bb->id > BB_MERGE_TIL_ID || bb->gen_info.manual_top_level || bb->gen_info.call_target) {
         return true;
     }
 
