@@ -69,6 +69,7 @@ struct RegAlloc {
     void compile_blocks();
     void compile_block(BasicBlock *bb, bool first_block, size_t &max_stack_frame_size);
     void compile_vars(BasicBlock *bb);
+    bool merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg);
     void prepare_cf_ops(BasicBlock *bb);
     void compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map, size_t max_stack_frame_size);
     void write_assembled_blocks(size_t max_stack_frame_size);
