@@ -428,7 +428,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                                     auto *nnext_var = bb->variables[var_idx + 2].get();
                                     if (std::holds_alternative<std::unique_ptr<Operation>>(nnext_var->info)) {
                                         auto *nnext_op = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
-                                        if (nnext_op->type == Instruction::zero_extend) {
+                                        if (nnext_op->in_vars[0] == load_dst && nnext_op->type == Instruction::zero_extend) {
                                             auto *ext_dst = nnext_op->out_vars[0];
                                             if (load_dst->type == Type::i32) {
                                                 print_asm("mov %s, [%s + %ld]\n", reg_names[dst_reg][1], in1_reg_name, imm_val);
@@ -440,7 +440,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                                             load_dst->gen_info.already_generated = true;
                                             ext_dst->gen_info.already_generated = true;
                                             did_merge = true;
-                                        } else if (nnext_op->type == Instruction::sign_extend) {
+                                        } else if (nnext_op->in_vars[0] == load_dst && nnext_op->type == Instruction::sign_extend) {
                                             auto *ext_dst = nnext_op->out_vars[0];
                                             if (load_dst->type == Type::i32) {
                                                 assert(ext_dst->type == Type::i32 || ext_dst->type == Type::i64);
@@ -576,7 +576,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                         } else {
                             auto imm_reg = alloc_reg(cur_time);
                             print_asm("mov %s, %ld\n", reg_names[imm_reg][0], imm_val);
-                            print_asm("lea %s, [%s + %s]\n", dst_reg_name, reg_name(imm_reg, choose_type(in1->type, Type::imm)));
+                            print_asm("lea %s, [%s + %s]\n", dst_reg_name, reg_name(imm_reg, choose_type(in1->type, Type::imm)), reg_names[imm_reg][0]);
                         }
                     }
                     break;
@@ -888,7 +888,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
             const auto val1_reg = load_val_in_reg(cur_time, val1);
             const auto val2_reg = load_val_in_reg(cur_time, val2);
 
-            if (cmp2->type == Type::imm && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative) {
+            if (cmp2->type == Type::imm && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative && std::abs(std::get<SSAVar::ImmInfo>(cmp2->info).val) <= 0x7FFFFFFF) {
                 const auto type = cmp1->type == Type::imm ? Type::i64 : cmp1->type;
                 print_asm("cmp %s, %ld\n", reg_name(cmp1_reg, type), std::get<SSAVar::ImmInfo>(cmp2->info).val);
             } else {
@@ -1354,7 +1354,7 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
 
                 // move var to stack slot
                 if (input_var->gen_info.location == SSAVar::GeneratorInfoX64::REGISTER) {
-                    print_asm("mov [rsp + %zu], %s\n", stack_slot, reg_names[input_var->gen_info.reg_idx][0]);
+                    print_asm("mov [rsp + 8 * %zu], %s\n", stack_slot, reg_names[input_var->gen_info.reg_idx][0]);
                 } else {
                     auto reg = REG_NONE;
                     // find free/unused register
@@ -1373,7 +1373,7 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
                         }
                         load_val_in_reg(cur_time, input_var, REG_A);
                     }
-                    print_asm("mov [rsp + %zu], %s\n", stack_slot, reg_names[reg][0]);
+                    print_asm("mov [rsp + 8 * %zu], %s\n", stack_slot, reg_names[reg][0]);
                 }
                 continue;
             }
@@ -1536,6 +1536,32 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
         stack_map[stack_slot].free = false;
     }
 
+    // fixup time calculation
+    // TODO: do this at the start
+    for (auto &input : inputs) {
+        input->gen_info.last_use_time = 0;
+        input->gen_info.uses.clear();
+    }
+
+    size_t cur_write_time = cur_time + 1;
+    const auto set_use_times = [&cur_write_time, &input_map, &inputs](BasicBlock::GeneratorInfo::InputInfo::LOCATION loc) {
+        for (size_t i = 0; i < inputs.size(); ++i) {
+            if (input_map[i].location != loc) {
+                continue;
+            }
+
+            inputs[i]->gen_info.last_use_time = cur_write_time;
+            inputs[i]->gen_info.uses.emplace_back(cur_write_time);
+            cur_write_time++;
+        }
+    };
+    // we write out statics first
+    set_use_times(BasicBlock::GeneratorInfo::InputInfo::STATIC);
+    // stack second
+    set_use_times(BasicBlock::GeneratorInfo::InputInfo::STACK);
+    // registers last
+    set_use_times(BasicBlock::GeneratorInfo::InputInfo::REGISTER);
+
     // figure out static conflicts
     for (size_t i = 0; i < inputs.size(); ++i) {
         if (inputs[i]->gen_info.location != SSAVar::GeneratorInfoX64::STATIC) {
@@ -1591,20 +1617,24 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
         save_reg(reg);
     }
 
+    cur_write_time = cur_time + 1;
     // write out statics
     for (size_t var_idx = 0; var_idx < inputs.size(); ++var_idx) {
         if (input_map[var_idx].location != BasicBlock::GeneratorInfo::InputInfo::STATIC) {
             continue;
         }
         if (inputs[var_idx]->type == Type::mt) {
+            cur_write_time++;
             continue;
         }
         if (inputs[var_idx]->gen_info.location == SSAVar::GeneratorInfoX64::STATIC && inputs[var_idx]->gen_info.static_idx == input_map[var_idx].static_idx) {
+            cur_write_time++;
             continue;
         }
 
-        const auto reg = load_val_in_reg(cur_time, inputs[var_idx].get());
+        const auto reg = load_val_in_reg(cur_write_time, inputs[var_idx].get());
         print_asm("mov [s%zu], %s\n", input_map[var_idx].static_idx, reg_names[reg][0]);
+        cur_write_time++;
     }
 
     // write out stack
@@ -1615,14 +1645,17 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
         }
         auto *input = inputs[var_idx].get();
         if (input->gen_info.saved_in_stack && input->gen_info.stack_slot == info.stack_slot) {
+            cur_write_time++;
             continue;
         }
 
-        const auto reg = load_val_in_reg(cur_time, input);
+        const auto reg = load_val_in_reg(cur_write_time, input);
         print_asm("mov [rsp + 8 * %zu], %s\n", info.stack_slot, reg_names[reg][0]);
+        cur_write_time++;
     }
 
     // write out registers
+    auto &reg_map = *cur_reg_map;
     for (size_t var_idx = 0; var_idx < inputs.size(); ++var_idx) {
         if (input_map[var_idx].location != BasicBlock::GeneratorInfo::InputInfo::REGISTER) {
             continue;
@@ -1631,7 +1664,24 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
         const auto reg = static_cast<REGISTER>(input_map[var_idx].reg_idx);
         auto *input = inputs[var_idx].get();
 
-        load_val_in_reg(cur_time, input, reg);
+        if (input->gen_info.location == SSAVar::GeneratorInfoX64::REGISTER) {
+            if (input->gen_info.reg_idx == reg) {
+                cur_write_time++;
+                continue;
+            }
+
+            // just emit a mov and evict the other var
+            if (reg_map[reg].cur_var && reg_map[reg].cur_var->gen_info.last_use_time > cur_write_time) {
+                save_reg(reg);
+            }
+            clear_reg(cur_write_time, reg);
+            print_asm("mov %s, %s\n", reg_names[reg][0], reg_names[input->gen_info.reg_idx][0]);
+            reg_map[reg].cur_var = input;
+            reg_map[reg].alloc_time = cur_write_time;
+        } else {
+            load_val_in_reg(cur_write_time, input, reg);
+        }
+        cur_write_time++;
     }
 }
 
