@@ -1861,14 +1861,12 @@ void RegAlloc::init_time_of_use(BasicBlock *bb) {
             auto &info = std::get<CfOp::CallInfo>(cf_op.info);
             set_time_inputs(time_off, info.target_inputs);
             time_off += info.target_inputs.size();
-            set_time_cont_mapping(time_off, info.continuation_mapping);
             break;
         }
         case CFCInstruction::icall: {
             auto &info = std::get<CfOp::ICallInfo>(cf_op.info);
             set_time_cont_mapping(time_off, info.mapping);
             time_off += info.mapping.size();
-            set_time_cont_mapping(time_off, info.continuation_mapping);
             break;
         }
         case CFCInstruction::_return:

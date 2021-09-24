@@ -126,6 +126,17 @@ bool BasicBlock::verify(std::vector<std::string> &messages_out) const {
                 has_target = true;
                 break;
             }
+            if (cf_op.type == CFCInstruction::call) {
+                if (std::get<CfOp::CallInfo>(cf_op.info).continuation_block == this) {
+                    has_target = true;
+                    break;
+                }
+            } else if (cf_op.type == CFCInstruction::icall) {
+                if (std::get<CfOp::ICallInfo>(cf_op.info).continuation_block == this) {
+                    has_target = true;
+                    break;
+                }
+            }
         }
         if (!has_target) {
             std::stringstream s;
@@ -143,6 +154,17 @@ bool BasicBlock::verify(std::vector<std::string> &messages_out) const {
             if (cf_op.target() == successor) {
                 has_target = true;
                 break;
+            }
+            if (cf_op.type == CFCInstruction::call) {
+                if (std::get<CfOp::CallInfo>(cf_op.info).continuation_block == successor) {
+                    has_target = true;
+                    break;
+                }
+            } else if (cf_op.type == CFCInstruction::icall) {
+                if (std::get<CfOp::ICallInfo>(cf_op.info).continuation_block == successor) {
+                    has_target = true;
+                    break;
+                }
             }
         }
         if (!has_target) {

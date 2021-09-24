@@ -268,7 +268,7 @@ void Generator::compile_block(const BasicBlock *block) {
             fprintf(out_fd, "jmp panic\n");
             break;
         case CFCInstruction::icall:
-            compile_icall(block, cf_op);
+            compile_icall(block, cf_op, stack_size);
             break;
         }
     }
@@ -282,7 +282,7 @@ void Generator::compile_block(const BasicBlock *block) {
 void Generator::compile_call(const BasicBlock *block, const CfOp &op, const size_t stack_size) {
     fprintf(out_fd, "# Call Mapping\n");
     // Store statics for call
-    compile_cf_args(block, op);
+    compile_cf_args(block, op, stack_size);
 
     fprintf(out_fd, "# control flow\n");
     fprintf(out_fd, "call b%zu\n", std::get<CfOp::CallInfo>(op.info).target->id);
@@ -349,7 +349,7 @@ void Generator::compile_icall(const BasicBlock *block, const CfOp &op, const siz
     fprintf(out_fd, "jmp b%zu\n", std::get<CfOp::ICallInfo>(op.info).continuation_block->id);
 }
 
-void Generator::compile_ijump(const BasicBlock *block, const CfOp &op) {
+void Generator::compile_ijump(const BasicBlock *block, const CfOp &op, const size_t stack_size) {
     assert(op.type == CFCInstruction::ijump);
 
     fprintf(out_fd, "# IJump Mapping\n");
