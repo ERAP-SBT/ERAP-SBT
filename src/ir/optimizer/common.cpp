@@ -1,5 +1,7 @@
 #include "ir/optimizer/common.h"
 
+namespace optimizer {
+
 void VarRewriter::replace(SSAVar *old_var, SSAVar *new_var) { rewrites[old_var->id] = new_var; }
 
 void VarRewriter::visit_refptr(RefPtr<SSAVar> &ref) {
@@ -63,3 +65,5 @@ void VarRewriter::apply_to(CfOp &cf) {
     fprintf(stderr, "Panicked at %s:%d: %s\n", file, line, message != nullptr ? message : "(no reason given)");
     std::abort();
 }
+
+} // namespace optimizer
