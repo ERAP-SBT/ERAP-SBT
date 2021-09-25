@@ -29,6 +29,7 @@ void Lifter::lift_mul(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
     SSAVar *dest = bb->add_var(in_type, ip);
     {
         auto op = std::make_unique<Operation>(instr_type);
+        op->lifter_info.in_op_size = in_type;
         op->set_inputs(rs_1, rs_2);
         op->set_outputs(dest);
         dest->set_op(std::move(op));
@@ -39,6 +40,7 @@ void Lifter::lift_mul(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
         SSAVar *new_dest = bb->add_var(Type::i64, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::sign_extend);
+            op->lifter_info.in_op_size = Type::i32;
             op->set_inputs(dest);
             op->set_outputs(new_dest);
             new_dest->set_op(std::move(op));
@@ -77,6 +79,7 @@ void Lifter::lift_div(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
     SSAVar *dest = bb->add_var(in_type, ip);
     {
         auto op = std::make_unique<Operation>(_signed ? Instruction::div : Instruction::udiv);
+        op->lifter_info.in_op_size = in_type;
         op->set_inputs(rs_1, rs_2);
         op->set_outputs(remainder ? nullptr : dest, remainder ? dest : nullptr);
         dest->set_op(std::move(op));
@@ -87,6 +90,7 @@ void Lifter::lift_div(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
         SSAVar *new_dest = bb->add_var(Type::i64, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::sign_extend);
+            op->lifter_info.in_op_size = Type::i32;
             op->set_inputs(dest);
             op->set_outputs(new_dest);
             new_dest->set_op(std::move(op));

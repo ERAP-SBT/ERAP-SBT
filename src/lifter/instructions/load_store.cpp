@@ -14,6 +14,7 @@ void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
         load_addr = bb->add_var(Type::i64, ip);
         {
             auto add_op = std::make_unique<Operation>(Instruction::add);
+            add_op->lifter_info.in_op_size = Type::i64;
             add_op->set_inputs(rs1, offset);
             add_op->set_outputs(load_addr);
             load_addr->set_op(std::move(add_op));
@@ -27,6 +28,7 @@ void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
 
     // create the load operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(Instruction::load);
+    operation->lifter_info.in_op_size = Type::i64;
 
     operation->set_inputs(load_addr, mapping[MEM_IDX]);
     operation->set_outputs(load_dest);
@@ -39,6 +41,7 @@ void Lifter::lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
         SSAVar *extended_result = bb->add_var(Type::i64, ip);
         {
             auto extend_operation = std::make_unique<Operation>((sign_extend ? Instruction::sign_extend : Instruction::zero_extend));
+            extend_operation->lifter_info.in_op_size = op_size;
             extend_operation->set_inputs(load_dest);
             extend_operation->set_outputs(extended_result);
             extended_result->set_op(std::move(extend_operation));
@@ -61,6 +64,7 @@ void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
         store_addr = bb->add_var(Type::i64, ip);
         {
             auto add_op = std::make_unique<Operation>(Instruction::add);
+            add_op->lifter_info.in_op_size = Type::i64;
             add_op->set_inputs(rs1, offset);
             add_op->set_outputs(store_addr);
             store_addr->set_op(std::move(add_op));
@@ -77,6 +81,7 @@ void Lifter::lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
 
     // create the store operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(Instruction::store);
+    operation->lifter_info.in_op_size = op_size;
 
     // set in- and outputs
     operation->set_inputs(store_addr, rs2, mapping[MEM_IDX]);

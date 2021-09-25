@@ -30,6 +30,27 @@ struct SSAVar : Refable {
         size_t static_id = SIZE_MAX;
     };
 
+    struct GeneratorInfoX64 {
+        // TODO: add ability to alias var which includes immediates
+        // so that for example downcasts dont need extra space in registers and stack
+        union {
+            size_t reg_idx = 0;
+            size_t static_idx;
+            size_t loc_info;
+        };
+        size_t stack_slot = 0;
+
+        // TODO: allow a variable to be in a register and static and don't save it to the stack if it is?
+        enum LOCATION : uint8_t { NOT_CALCULATED, STACK_FRAME, STATIC, REGISTER };
+        LOCATION location = NOT_CALCULATED;
+        bool saved_in_stack = false; // a variable can be in a register and saved in the stack frame
+        bool already_generated = false;
+        bool allocated_to_input = false;
+
+        size_t last_use_time = 0;
+        std::vector<size_t> uses = {};
+    };
+
     size_t id;
     Type type;
     bool const_evaluable = false;
@@ -38,6 +59,8 @@ struct SSAVar : Refable {
 
     // Lifter-specific information which can be cleared afterwards
     std::variant<std::monostate, LifterInfo> lifter_info;
+    // TODO: merge with lifter_info
+    GeneratorInfoX64 gen_info;
 
     SSAVar(const size_t id, const Type type) : id(id), type(type), info(std::monostate{}) {}
     SSAVar(const size_t id, const Type type, const size_t static_idx) : id(id), type(type), info(static_idx), lifter_info(LifterInfo{0, static_idx}) {}

@@ -43,15 +43,11 @@ template <typename T> struct RefPtr {
         return *this;
     }
 
-    T *operator->() { return _ptr; }
+    T *operator->() const { return _ptr; }
 
-    const T *operator->() const { return _ptr; }
+    T *get() const { return _ptr; }
 
-    T *get() { return _ptr; }
-
-    operator T *() { return _ptr; }
-
-    operator const T *() const { return _ptr; }
+    operator T *() const { return _ptr; }
 
     operator bool() const { return _ptr != nullptr; }
 

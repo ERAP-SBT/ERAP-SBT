@@ -6,6 +6,7 @@ using namespace lifter::RV64;
 SSAVar *zero_extend_csr(BasicBlock *bb, SSAVar *csr, uint64_t ip) {
     SSAVar *extended_csr = bb->add_var(Type::i64, ip);
     auto op = std::make_unique<Operation>(Instruction::zero_extend);
+    op->lifter_info.in_op_size = csr->type;
     op->set_inputs(csr);
     op->set_outputs(extended_csr);
     extended_csr->set_op(std::move(op));
@@ -91,6 +92,7 @@ void Lifter::lift_csr_read_set(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         SSAVar *new_csr = bb->add_var(Type::i32, ip);
 
         auto op = std::make_unique<Operation>(Instruction::_or);
+        op->lifter_info.in_op_size = Type::i64;
         op->set_inputs(csr, rs1);
         op->set_outputs(new_csr);
         new_csr->set_op(std::move(op));
@@ -121,6 +123,7 @@ void Lifter::lift_csr_read_clear(BasicBlock *bb, const RV64Inst &instr, reg_map 
             negated_rs1 = bb->add_var(Type::i32, ip);
             SSAVar *rs1 = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, Type::i32);
             auto op = std::make_unique<Operation>(Instruction::_not);
+            op->lifter_info.in_op_size = Type::i64;
             op->set_inputs(rs1);
             op->set_outputs(negated_rs1);
             negated_rs1->set_op(std::move(op));
@@ -130,6 +133,7 @@ void Lifter::lift_csr_read_clear(BasicBlock *bb, const RV64Inst &instr, reg_map 
         SSAVar *new_csr = bb->add_var(Type::i32, ip);
         {
             auto op = std::make_unique<Operation>(Instruction::_and);
+            op->lifter_info.in_op_size = Type::i64;
             op->set_inputs(csr, negated_rs1);
             op->set_outputs(new_csr);
             new_csr->set_op(std::move(op));

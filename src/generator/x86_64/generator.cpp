@@ -211,6 +211,12 @@ void Generator::compile_phdr_info() {
 void Generator::compile_blocks() {
     compile_section(Section::TEXT);
 
+    if (optimizations & OPT_MBRA) {
+        reg_alloc = std::make_unique<RegAlloc>(this);
+        reg_alloc->compile_blocks();
+        return;
+    }
+
     for (const auto &block : ir->basic_blocks) {
         compile_block(block.get());
     }
@@ -223,8 +229,9 @@ void Generator::compile_block(const BasicBlock *block) {
             return;
     }
 
-    const size_t stack_size = block->variables.size() * 8;
-    fprintf(out_fd, "b%zu:\npush rbp\nmov rbp, rsp\nsub rsp, %zu\n", block->id, stack_size);
+    // align to size to 16 bytes
+    const size_t stack_size = (((block->variables.size() * 8) + 15) & 0xFFFFFFFF'FFFFFFF0);
+    fprintf(out_fd, "b%zu:\nsub rsp, %zu\n", block->id, stack_size);
     fprintf(out_fd, "# block->virt_start_addr: %#lx\n", block->virt_start_addr);
     compile_vars(block);
 
@@ -235,25 +242,25 @@ void Generator::compile_block(const BasicBlock *block) {
         fprintf(out_fd, "b%zu_cf%zu:\n", block->id, i);
         switch (cf_op.type) {
         case CFCInstruction::jump:
-            compile_cf_args(block, cf_op);
+            compile_cf_args(block, cf_op, stack_size);
             fprintf(out_fd, "# control flow\n");
             fprintf(out_fd, "jmp b%zu\n", std::get<CfOp::JumpInfo>(cf_op.info).target->id);
             break;
         case CFCInstruction::_return:
-            compile_ret_args(block, cf_op);
+            compile_ret_args(block, cf_op, stack_size);
             fprintf(out_fd, "# control flow\nret\n");
             break;
         case CFCInstruction::cjump:
-            compile_cjump(block, cf_op, i);
+            compile_cjump(block, cf_op, i, stack_size);
             break;
         case CFCInstruction::call:
-            compile_call(block, cf_op);
+            compile_call(block, cf_op, stack_size);
             break;
         case CFCInstruction::syscall:
-            compile_syscall(block, cf_op);
+            compile_syscall(block, cf_op, stack_size);
             break;
         case CFCInstruction::ijump:
-            compile_ijump(block, cf_op);
+            compile_ijump(block, cf_op, stack_size);
             break;
         case CFCInstruction::unreachable:
             err_msgs.emplace_back(ErrType::unreachable, block);
@@ -261,7 +268,7 @@ void Generator::compile_block(const BasicBlock *block) {
             fprintf(out_fd, "jmp panic\n");
             break;
         case CFCInstruction::icall:
-            compile_icall(block, cf_op);
+            compile_icall(block, cf_op, stack_size);
             break;
         }
     }
@@ -272,21 +279,19 @@ void Generator::compile_block(const BasicBlock *block) {
     fprintf(out_fd, "\n");
 }
 
-void Generator::compile_call(const BasicBlock *block, const CfOp &op) {
+void Generator::compile_call(const BasicBlock *block, const CfOp &op, const size_t stack_size) {
     fprintf(out_fd, "# Call Mapping\n");
     // Store statics for call
-    compile_cf_args(block, op);
+    compile_cf_args(block, op, stack_size);
+
     fprintf(out_fd, "# control flow\n");
     fprintf(out_fd, "call b%zu\n", std::get<CfOp::CallInfo>(op.info).target->id);
-
-    fprintf(out_fd, "# destroy stack space\n");
-    fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
 
     assert(std::get<CfOp::CallInfo>(op.info).continuation_block != nullptr);
     fprintf(out_fd, "jmp b%zu\n", std::get<CfOp::CallInfo>(op.info).continuation_block->id);
 }
 
-void Generator::compile_icall(const BasicBlock *block, const CfOp &op) {
+void Generator::compile_icall(const BasicBlock *block, const CfOp &op, const size_t stack_size) {
     fprintf(out_fd, "# ICall Mapping\n");
 
     const auto &icall_info = std::get<CfOp::ICallInfo>(op.info);
@@ -308,7 +313,7 @@ void Generator::compile_icall(const BasicBlock *block, const CfOp &op) {
             fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(var->type), orig_static_idx);
         } else {
             fprintf(out_fd, "xor rax, rax\n");
-            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+            fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
         }
 
         fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
@@ -317,7 +322,7 @@ void Generator::compile_icall(const BasicBlock *block, const CfOp &op) {
 
     fprintf(out_fd, "# Get ICall Destination\n");
     fprintf(out_fd, "xor rax, rax\n");
-    fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(op.in_vars[0]->type), index_for_var(block, op.in_vars[0]));
+    fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", rax_from_type(op.in_vars[0]->type), index_for_var(block, op.in_vars[0]));
 
     err_msgs.emplace_back(ErrType::unresolved_ijump, block);
 
@@ -338,13 +343,13 @@ void Generator::compile_icall(const BasicBlock *block, const CfOp &op) {
     fprintf(out_fd, "call rdi\n");
 
     fprintf(out_fd, "# destroy stack space\n");
-    fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
+    fprintf(out_fd, "add rsp, %zu\n", stack_size);
 
     assert(std::get<CfOp::ICallInfo>(op.info).continuation_block != nullptr);
     fprintf(out_fd, "jmp b%zu\n", std::get<CfOp::ICallInfo>(op.info).continuation_block->id);
 }
 
-void Generator::compile_ijump(const BasicBlock *block, const CfOp &op) {
+void Generator::compile_ijump(const BasicBlock *block, const CfOp &op, const size_t stack_size) {
     assert(op.type == CFCInstruction::ijump);
 
     fprintf(out_fd, "# IJump Mapping\n");
@@ -368,7 +373,7 @@ void Generator::compile_ijump(const BasicBlock *block, const CfOp &op) {
             fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(var->type), orig_static_idx);
         } else {
             fprintf(out_fd, "xor rax, rax\n");
-            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+            fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
         }
 
         fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
@@ -379,11 +384,10 @@ void Generator::compile_ijump(const BasicBlock *block, const CfOp &op) {
 
     fprintf(out_fd, "# Get IJump Destination\n");
     fprintf(out_fd, "xor rax, rax\n");
-    fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(op.in_vars[0]->type), index_for_var(block, op.in_vars[0]));
+    fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", rax_from_type(op.in_vars[0]->type), index_for_var(block, op.in_vars[0]));
 
     fprintf(out_fd, "# destroy stack space\n");
-    fprintf(out_fd, "mov rsp, rbp\n");
-    fprintf(out_fd, "pop rbp\n");
+    fprintf(out_fd, "add rsp, %zu\n", stack_size);
 
     err_msgs.emplace_back(ErrType::unresolved_ijump, block);
 
@@ -476,7 +480,7 @@ void Generator::compile_vars(const BasicBlock *block) {
 
             const auto *reg_str = rax_from_type(var->type);
             fprintf(out_fd, "mov rax, [s%zu]\n", std::get<size_t>(var->info));
-            fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", idx, reg_str);
+            fprintf(out_fd, "mov [rsp + 8 * %zu], %s\n", idx, reg_str);
             continue;
         }
 
@@ -487,14 +491,14 @@ void Generator::compile_vars(const BasicBlock *block) {
             const auto &info = std::get<SSAVar::ImmInfo>(var->info);
             if (info.binary_relative) {
                 fprintf(out_fd, "lea rax, [binary + %ld]\n", info.val);
-                fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], rax\n", idx);
+                fprintf(out_fd, "mov [rsp + 8 * %zu], rax\n", idx);
             } else {
                 // use other loading if the immediate is to big
                 if (info.val > INT32_MAX || info.val < INT32_MIN) {
                     fprintf(out_fd, "mov rax, %ld\n", info.val);
-                    fprintf(out_fd, "mov QWORD PTR [rbp - 8 - 8 * %zu], rax\n", idx);
+                    fprintf(out_fd, "mov QWORD PTR [rsp + 8 * %zu], rax\n", idx);
                 } else {
-                    fprintf(out_fd, "mov %s [rbp - 8 - 8 * %zu], %ld\n", ptr_from_type(var->type), idx, info.val);
+                    fprintf(out_fd, "mov %s [rsp + 8 * %zu], %ld\n", ptr_from_type(var->type), idx, info.val);
                 }
             }
 
@@ -521,11 +525,11 @@ void Generator::compile_vars(const BasicBlock *block) {
             // zero the full register so stuff doesn't go broke e.g. in zero-extend, cast
             if (is_float(in_var->type)) {
                 fprintf(out_fd, "pxor %s, %s\n", reg_str, reg_str);
-                fprintf(out_fd, "mov%s %s, [rbp - 8 - 8 * %zu]\n", (in_var->type == Type::f32 ? "d" : "q"), reg_str, index_for_var(block, in_var));
+                fprintf(out_fd, "mov%s %s, [rsp + 8 * %zu]\n", (in_var->type == Type::f32 ? "d" : "q"), reg_str, index_for_var(block, in_var));
             } else {
                 const auto *full_reg_str = op_reg_map_for_type(Type::i64)[in_idx];
                 fprintf(out_fd, "xor %s, %s\n", full_reg_str, full_reg_str);
-                fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", reg_str, index_for_var(block, in_var));
+                fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", reg_str, index_for_var(block, in_var));
             }
             in_regs[in_idx] = reg_str;
         }
@@ -822,7 +826,7 @@ void Generator::compile_vars(const BasicBlock *block) {
 
         if (var->type != Type::mt) {
             if (is_float(var->type)) {
-                fprintf(out_fd, "mov%s [rbp - 8 - 8 * %zu], xmm0\n", (var->type == Type::f32 ? "d" : "q"), index_for_var(block, var));
+                fprintf(out_fd, "mov%s [rsp + 8 * %zu], xmm0\n", (var->type == Type::f32 ? "d" : "q"), index_for_var(block, var));
             } else {
                 for (size_t out_idx = 0; out_idx < op->out_vars.size(); ++out_idx) {
                     const auto &out_var = op->out_vars[out_idx];
@@ -830,14 +834,14 @@ void Generator::compile_vars(const BasicBlock *block) {
                         continue;
 
                     const auto *reg_str = op_reg_map_for_type(out_var->type)[out_idx];
-                    fprintf(out_fd, "mov [rbp - 8 - 8 * %zu], %s\n", index_for_var(block, out_var), reg_str);
+                    fprintf(out_fd, "mov [rsp + 8 * %zu], %s\n", index_for_var(block, out_var), reg_str);
                 }
             }
         }
     }
 }
 
-void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
+void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op, const size_t stack_size) {
     const auto *target = cf_op.target();
     if (target->inputs.size() != cf_op.target_inputs().size()) {
         std::cout << "target->inputs.size() = " << target->inputs.size() << "\n";
@@ -872,11 +876,11 @@ void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
                 }
             } else {
                 fprintf(out_fd, "xor rax, rax\n");
-                fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(source_var->type), index_for_var(block, source_var));
+                fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", rax_from_type(source_var->type), index_for_var(block, source_var));
             }
         } else {
             fprintf(out_fd, "xor rax, rax\n");
-            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(source_var->type), index_for_var(block, source_var));
+            fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", rax_from_type(source_var->type), index_for_var(block, source_var));
         }
 
         if (target_is_static) {
@@ -886,14 +890,12 @@ void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op) {
         }
     }
 
-    if (cf_op.type != CFCInstruction::call) {
-        // destroy stack space
-        fprintf(out_fd, "# destroy stack space\n");
-        fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
-    }
+    // destroy stack space
+    fprintf(out_fd, "# destroy stack space\n");
+    fprintf(out_fd, "add rsp, %zu\n", stack_size);
 }
 
-void Generator::compile_ret_args(const BasicBlock *block, const CfOp &op) {
+void Generator::compile_ret_args(const BasicBlock *block, const CfOp &op, const size_t stack_size) {
     fprintf(out_fd, "# Ret Mapping\n");
 
     assert(op.info.index() == 2);
@@ -912,7 +914,7 @@ void Generator::compile_ret_args(const BasicBlock *block, const CfOp &op) {
             fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(var->type), std::get<size_t>(var->info));
         } else {
             fprintf(out_fd, "xor rax, rax\n");
-            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+            fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
         }
 
         fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
@@ -920,10 +922,10 @@ void Generator::compile_ret_args(const BasicBlock *block, const CfOp &op) {
 
     // destroy stack space
     fprintf(out_fd, "# destroy stack space\n");
-    fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
+    fprintf(out_fd, "add rsp, %zu\n", stack_size);
 }
 
-void Generator::compile_cjump(const BasicBlock *block, const CfOp &cf_op, const size_t cond_idx) {
+void Generator::compile_cjump(const BasicBlock *block, const CfOp &cf_op, const size_t cond_idx, const size_t stack_size) {
     assert(cf_op.in_vars[0] != nullptr && cf_op.in_vars[1] != nullptr);
     assert(cf_op.info.index() == 1);
     // this breaks when the arg mapping is changed
@@ -932,13 +934,13 @@ void Generator::compile_cjump(const BasicBlock *block, const CfOp &cf_op, const 
         // load might be optimized out so get the value directly
         fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(cf_op.in_vars[0]->type), std::get<size_t>(cf_op.in_vars[0]->info));
     } else {
-        fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(cf_op.in_vars[0]->type), index_for_var(block, cf_op.in_vars[0]));
+        fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", rax_from_type(cf_op.in_vars[0]->type), index_for_var(block, cf_op.in_vars[0]));
     }
     if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(cf_op.in_vars[1]->info)) {
         // load might be optimized out so get the value directly
         fprintf(out_fd, "mov %s, [s%zu]\n", op_reg_map_for_type(cf_op.in_vars[1]->type)[1], std::get<size_t>(cf_op.in_vars[1]->info));
     } else {
-        fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", op_reg_map_for_type(cf_op.in_vars[1]->type)[1], index_for_var(block, cf_op.in_vars[1]));
+        fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", op_reg_map_for_type(cf_op.in_vars[1]->type)[1], index_for_var(block, cf_op.in_vars[1]));
     }
     fprintf(out_fd, "cmp rax, rbx\n");
 
@@ -965,12 +967,12 @@ void Generator::compile_cjump(const BasicBlock *block, const CfOp &cf_op, const 
         break;
     }
 
-    compile_cf_args(block, cf_op);
+    compile_cf_args(block, cf_op, stack_size);
     fprintf(out_fd, "# control flow\n");
     fprintf(out_fd, "jmp b%zu\n", info.target->id);
 }
 
-void Generator::compile_syscall(const BasicBlock *block, const CfOp &cf_op) {
+void Generator::compile_syscall(const BasicBlock *block, const CfOp &cf_op, const size_t stack_size) {
     const auto &info = std::get<CfOp::SyscallInfo>(cf_op.info);
     compile_continuation_args(block, info.continuation_mapping);
 
@@ -986,28 +988,24 @@ void Generator::compile_syscall(const BasicBlock *block, const CfOp &cf_op) {
         if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(var->info)) {
             fprintf(out_fd, "mov %s, [s%zu]\n", call_reg[i], std::get<size_t>(var->info));
         } else {
-            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", call_reg[i], index_for_var(block, var));
+            fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", call_reg[i], index_for_var(block, var));
         }
     }
     if (cf_op.in_vars[6] == nullptr) {
-        fprintf(out_fd, "push 0\n");
+        // since the function can theoretically change the value on the stack we do want to add some space here
+        fprintf(out_fd, "sub rsp, 16\n");
     } else {
-        fprintf(out_fd, "mov rax, [rbp - 8 - 8 * %zu]\n", index_for_var(block, cf_op.in_vars[6]));
+        fprintf(out_fd, "mov rax, [rsp + 8 * %zu]\n", index_for_var(block, cf_op.in_vars[6]));
+        fprintf(out_fd, "sub rsp, 8\n");
         fprintf(out_fd, "push rax\n");
     }
 
-    fprintf(out_fd, "call syscall_impl\n");
+    fprintf(out_fd, "call syscall_impl\nadd rsp, 16\n");
     if (info.static_mapping.size() > 0) {
         fprintf(out_fd, "mov [s%zu], rax\n", info.static_mapping.at(0));
-        if (info.static_mapping.size() == 2) {
-            fprintf(out_fd, "mov [s%zu], rdx\n", info.static_mapping.at(1));
-        } else {
-            // syscalls only return max 2 values
-            assert(0);
-        }
     }
     fprintf(out_fd, "# destroy stack space\n");
-    fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
+    fprintf(out_fd, "add rsp, %zu\n", stack_size);
     fprintf(out_fd, "jmp b%zu\n", info.continuation_block->id);
 }
 
@@ -1027,7 +1025,7 @@ void Generator::compile_continuation_args(const BasicBlock *block, const std::ve
             fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(var->type), orig_static_idx);
         } else {
             fprintf(out_fd, "xor rax, rax\n");
-            fprintf(out_fd, "mov %s, [rbp - 8 - 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+            fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
         }
 
         fprintf(out_fd, "mov [s%zu], rax\n", s_idx);

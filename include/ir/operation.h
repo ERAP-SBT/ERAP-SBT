@@ -20,6 +20,11 @@ struct Operation {
     // TODO: do we need that here?
     bool const_evaluable = false;
 
+    struct LifterInfo {
+        Type in_op_size;
+    };
+    LifterInfo lifter_info;
+
     explicit Operation(const Instruction type) : type(type) {}
 
     void set_inputs(SSAVar *in1 = nullptr, SSAVar *in2 = nullptr, SSAVar *in3 = nullptr, SSAVar *in4 = nullptr);

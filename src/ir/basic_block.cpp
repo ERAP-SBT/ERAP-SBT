@@ -95,6 +95,85 @@ bool BasicBlock::verify(std::vector<std::string> &messages_out) const {
                 ok = false;
             }
         }
+
+        auto *target = cf_op.target();
+        if (target) {
+            // targets needs this bb in its predecessor list
+            if (std::find(target->predecessors.begin(), target->predecessors.end(), this) == target->predecessors.end()) {
+                std::stringstream s;
+                verify_print_bb_name(*this, s);
+                s << "Target " << target->id << " of CfOp with type " << cf_op.type << " does not have this BB in its predecessor list.";
+                messages_out.push_back(s.str());
+                ok = false;
+            }
+
+            // target needs to be in successor list
+            if (std::find(successors.begin(), successors.end(), target) == successors.end()) {
+                std::stringstream s;
+                verify_print_bb_name(*this, s);
+                s << "Target " << target->id << " of CfOp with type " << cf_op.type << " is not in Successor-List of this BB.";
+                messages_out.push_back(s.str());
+                ok = false;
+            }
+        }
+    }
+
+    // each predecessor needs to have a cfop with this block as its target
+    for (auto *predecessor : predecessors) {
+        auto has_target = false;
+        for (const auto &cf_op : predecessor->control_flow_ops) {
+            if (cf_op.target() == this) {
+                has_target = true;
+                break;
+            }
+            if (cf_op.type == CFCInstruction::call) {
+                if (std::get<CfOp::CallInfo>(cf_op.info).continuation_block == this) {
+                    has_target = true;
+                    break;
+                }
+            } else if (cf_op.type == CFCInstruction::icall) {
+                if (std::get<CfOp::ICallInfo>(cf_op.info).continuation_block == this) {
+                    has_target = true;
+                    break;
+                }
+            }
+        }
+        if (!has_target) {
+            std::stringstream s;
+            verify_print_bb_name(*this, s);
+            s << "BB " << predecessor->id << " is marked as a predecessor of this BB but has no CfOp with this block as its target.";
+            messages_out.push_back(s.str());
+            ok = false;
+        }
+    }
+
+    // each successor needs to have a cfop in this block with it as a target
+    for (auto *successor : successors) {
+        auto has_target = false;
+        for (const auto &cf_op : control_flow_ops) {
+            if (cf_op.target() == successor) {
+                has_target = true;
+                break;
+            }
+            if (cf_op.type == CFCInstruction::call) {
+                if (std::get<CfOp::CallInfo>(cf_op.info).continuation_block == successor) {
+                    has_target = true;
+                    break;
+                }
+            } else if (cf_op.type == CFCInstruction::icall) {
+                if (std::get<CfOp::ICallInfo>(cf_op.info).continuation_block == successor) {
+                    has_target = true;
+                    break;
+                }
+            }
+        }
+        if (!has_target) {
+            std::stringstream s;
+            verify_print_bb_name(*this, s);
+            s << "BB " << successor->id << " is marked as a successor of this BB but there is no CfOp with it as its target.";
+            messages_out.push_back(s.str());
+            ok = false;
+        }
     }
 
     return ok;

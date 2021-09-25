@@ -27,6 +27,26 @@ struct BasicBlock {
     std::vector<std::unique_ptr<SSAVar>> variables;
     const std::string dbg_name;
 
+    struct GeneratorInfo {
+        bool compiled = false;
+        bool input_map_setup = false;
+        // for circular-reference-chain
+        bool manual_top_level = false;
+
+        struct InputInfo {
+            enum LOCATION { STATIC, REGISTER, STACK };
+
+            LOCATION location;
+            union {
+                size_t reg_idx = 0;
+                size_t stack_slot;
+                size_t static_idx;
+            };
+        };
+        std::vector<InputInfo> input_map;
+    };
+    GeneratorInfo gen_info;
+
     BasicBlock(IR *ir, const size_t id, const size_t virt_start_addr, std::string dbg_name = {}) : ir(ir), id(id), virt_start_addr{virt_start_addr}, dbg_name(std::move(dbg_name)) {}
     ~BasicBlock();
 

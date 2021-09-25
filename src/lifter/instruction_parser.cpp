@@ -536,6 +536,15 @@ void Lifter::lift_slt(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
 
     // create slt operation
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(is_unsigned ? Instruction::sltu : Instruction::slt);
+    if (first_operand->type == Type::imm) {
+        if (second_operand->type == Type::imm) {
+            operation->lifter_info.in_op_size = Type::i64;
+        } else {
+            operation->lifter_info.in_op_size = second_operand->type;
+        }
+    } else {
+        operation->lifter_info.in_op_size = first_operand->type;
+    }
 
     // set in- and outputs
     operation->set_inputs(first_operand, second_operand, one, zero);
@@ -559,6 +568,7 @@ void Lifter::lift_auipc(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
     SSAVar *result = bb->add_var(Type::i64, ip, instr.instr.rd);
     {
         auto add_op = std::make_unique<Operation>(Instruction::add);
+        add_op->lifter_info.in_op_size = Type::i64;
         add_op->set_inputs(ip_immediate, immediate);
         add_op->set_outputs(result);
         result->set_op(std::move(add_op));

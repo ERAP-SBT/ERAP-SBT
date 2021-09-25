@@ -36,7 +36,7 @@ $1 -g -static -o build_rv64/main main.c zip.c -Wall -Wextra
 echo -e "${TXT_GREEN}Translating...${TXT_CLEAR}"
 set -x
 cd build_rv64
-../../../build/src/translate --debug=false --output=translated main --disable-fp
+../../../build/src/translate --debug=false --output=translated main --disable-fp --optimize=all
 
 { set +x; } 2>/dev/null
 cd ..

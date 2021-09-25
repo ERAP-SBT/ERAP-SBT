@@ -106,7 +106,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
                 block->successors.erase(std::remove_if(block->successors.begin(), block->successors.end(), [old_target](const auto *b) { return old_target == b; }), block->successors.end());
 
                 if (old_target) {
-                    old_target->predecessors.erase(std::remove_if(old_target->predecessors.begin(), old_target->predecessors.end(), [old_target](const auto *b) { return old_target == b; }),
+                    old_target->predecessors.erase(std::remove_if(old_target->predecessors.begin(), old_target->predecessors.end(), [block](const auto *b) { return block == b; }),
                                                    old_target->predecessors.end());
                 }
             }
@@ -127,11 +127,47 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
             continue;
         }
 
+        if (jmp_addr >= bb->virt_start_addr && jmp_addr <= bb->virt_end_addr) {
+            // the old block jumped to itself so we need to make the new bb a predecessor of it
+            if (auto it = std::find(bb->predecessors.begin(), bb->predecessors.end(), bb); it != bb->predecessors.end()) {
+                bb->predecessors.erase(it);
+                bb->predecessors.emplace_back(new_bb);
+            }
+            continue;
+        }
+
         if (jmp_addr < new_virt_start_addr || jmp_addr > new_virt_end_addr) {
             continue;
         }
 
+        // should be bb
+        auto *old_target = cf_op.target();
         cf_op.set_target(new_bb);
+        auto target_still_present = false;
+        for (const auto &cf_op : new_bb->control_flow_ops) {
+            if (cf_op.target() == old_target) {
+                target_still_present = true;
+                break;
+            }
+        }
+        if (!target_still_present) {
+            new_bb->successors.erase(std::remove_if(new_bb->successors.begin(), new_bb->successors.end(), [old_target](const auto *b) { return old_target == b; }), new_bb->successors.end());
+
+            if (old_target) {
+                old_target->predecessors.erase(std::remove_if(old_target->predecessors.begin(), old_target->predecessors.end(), [old_target](const auto *b) { return old_target == b; }),
+                                               old_target->predecessors.end());
+            }
+        }
+
+        // make self-referencing
+        if (std::find(new_bb->predecessors.begin(), new_bb->predecessors.end(), new_bb) == new_bb->predecessors.end()) {
+            new_bb->predecessors.emplace_back(new_bb);
+            // successor add should be able to go here
+            // TODO: assert this
+        }
+        if (std::find(new_bb->successors.begin(), new_bb->successors.end(), new_bb) == new_bb->successors.end()) {
+            new_bb->successors.emplace_back(new_bb);
+        }
     }
 
     // the register mapping in the BasicBlock
@@ -139,6 +175,10 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
     {
         // add a jump from the first to the second BasicBlock
         auto &cf_op = bb->add_cf_op(CFCInstruction::jump, new_bb, bb->virt_end_addr, addr);
+        if (std::find(new_bb->predecessors.begin(), new_bb->predecessors.end(), bb) == new_bb->predecessors.end()) {
+            // TODO: is this if necessary? need to check if the code above can push bb into new_bb->predecessors
+            new_bb->predecessors.emplace_back(bb);
+        }
 
         // static assignments
         for (size_t i = 0; i < count_used_static_vars; i++) {
@@ -173,19 +213,42 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
 
                 // the input must only be changed if the input variable is in the first BasicBlock
                 if (in_var_lifter_info.assign_addr < addr) {
-                    // the last part of the condition is to prevent issues with operations which uses the same variable,
-                    // because then the variable is already casted. The casted value is then stored in the new_mapping and
-                    // can therefore easily be used.
-                    if (is_float(var->type) && in_var->type == Type::f32 && std::holds_alternative<size_t>(new_mapping[in_var_lifter_info.static_id]->info)) {
-                        // cast f64 static to f32 if necessary
-                        SSAVar *casted_in_var = new_bb->add_var(Type::f32, addr);
-                        auto op = std::make_unique<Operation>(Instruction::cast);
-                        op->set_inputs(new_mapping[in_var_lifter_info.static_id]);
-                        op->set_outputs(casted_in_var);
-                        casted_in_var->set_op(std::move(op));
-                        new_mapping[in_var_lifter_info.static_id] = casted_in_var;
+                    if (in_var->type == Type::imm && operation->type != Instruction::cast) {
+                        auto *var_to_cast = new_mapping[in_var_lifter_info.static_id];
+
+                        if (var_to_cast->type != operation->lifter_info.in_op_size) {
+                            // create cast
+                            SSAVar *new_in;
+                            {
+                                auto var = std::make_unique<SSAVar>(new_bb->cur_ssa_id++, operation->lifter_info.in_op_size);
+                                var->lifter_info = SSAVar::LifterInfo{in_var_lifter_info.assign_addr, 0};
+                                new_in = var.get();
+                                new_bb->variables.insert(new_bb->variables.end() - 1, std::move(var));
+                            }
+                            auto op = std::make_unique<Operation>(Instruction::cast);
+                            op->lifter_info.in_op_size = var_to_cast->type;
+                            op->set_inputs(var_to_cast);
+                            op->set_outputs(new_in);
+                            new_in->set_op(std::move(op));
+                            in_var = new_in;
+                        } else {
+                            in_var = var_to_cast;
+                        }
+                    } else {
+                        // the last part of the condition is to prevent issues with operations which uses the same variable,
+                        // because then the variable is already casted. The casted value is then stored in the new_mapping and
+                        // can therefore easily be used.
+                        if (is_float(var->type) && in_var->type == Type::f32 && std::holds_alternative<size_t>(new_mapping[in_var_lifter_info.static_id]->info)) {
+                            // cast f64 static to f32 if necessary
+                            SSAVar *casted_in_var = new_bb->add_var(Type::f32, addr);
+                            auto op = std::make_unique<Operation>(Instruction::cast);
+                            op->set_inputs(new_mapping[in_var_lifter_info.static_id]);
+                            op->set_outputs(casted_in_var);
+                            casted_in_var->set_op(std::move(op));
+                            new_mapping[in_var_lifter_info.static_id] = casted_in_var;
+                        }
+                        in_var = new_mapping[in_var_lifter_info.static_id];
                     }
-                    in_var = new_mapping[in_var_lifter_info.static_id];
                 }
             }
         }
@@ -220,7 +283,8 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
         }
 
         BasicBlock *target = cf_op.target();
-        if (target) {
+        if (target && target != bb && target != new_bb) {
+            // we already fixed up self-references
             // remove first BasicBlock from predecessors of the target of the Control-Flow-Operation
             auto it = std::find(target->predecessors.begin(), target->predecessors.end(), bb);
             if (it != target->predecessors.end()) {

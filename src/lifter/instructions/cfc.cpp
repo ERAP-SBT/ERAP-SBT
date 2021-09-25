@@ -34,6 +34,7 @@ void Lifter::lift_branch(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     SSAVar *jmp_addr = bb->add_var(Type::i64, ip);
     {
         auto addition = std::make_unique<Operation>(Instruction::add);
+        addition->lifter_info.in_op_size = Type::i64;
         addition->set_inputs(ip_imm, jmp_imm);
         addition->set_outputs(jmp_addr);
         jmp_addr->set_op(std::move(addition));
@@ -111,6 +112,7 @@ void Lifter::lift_jal(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
     SSAVar *sum = bb->add_var(Type::i64, ip);
     {
         auto addition = std::make_unique<Operation>(Instruction::add);
+        addition->lifter_info.in_op_size = Type::i64;
         addition->set_inputs(ip_imm, jmp_imm);
         addition->set_outputs(sum);
         sum->set_op(std::move(addition));
@@ -151,6 +153,7 @@ void Lifter::lift_jalr(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
     SSAVar *sum = bb->add_var(Type::i64, ip);
     {
         auto addition = std::make_unique<Operation>(Instruction::add);
+        addition->lifter_info.in_op_size = Type::i64;
         addition->set_inputs(offset_register, immediate);
         addition->set_outputs(sum);
         sum->set_op(std::move(addition));
@@ -163,6 +166,7 @@ void Lifter::lift_jalr(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
     SSAVar *jump_addr = bb->add_var(Type::i64, ip);
     {
         auto and_op = std::make_unique<Operation>(Instruction::_and);
+        and_op->lifter_info.in_op_size = Type::i64;
         and_op->set_inputs(sum, bit_mask);
         and_op->set_outputs(jump_addr);
         jump_addr->set_op(std::move(and_op));
