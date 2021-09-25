@@ -10,13 +10,17 @@
 #define SA_RESTORER 0x04000000
 #endif
 
-constexpr size_t REGISTER_COUNT = 66;
+extern "C" uint64_t register_file[helper::REGISTER_FILE_SIZE];
 
-extern "C" uint64_t register_file[REGISTER_COUNT];
+/** For getting the value of a symbol, only the "address" of the symbol matters, not the content. This struct prevents
+ *  reading (and thus dereferencing) these symbols.
+ */
+struct Symbol {
+    __attribute__((always_inline)) uint64_t get_value() const { return reinterpret_cast<uint64_t>(this); }
+};
 
-// Symbol defined in compiled code - do not read.
-extern "C" uint64_t signal_trampoline_vaddr;
-#define SIGNAL_TRAMPOLINE_VADDR reinterpret_cast<uint64_t>(&::signal_trampoline_vaddr)
+// Symbol defined in compiled code
+extern "C" const Symbol signal_trampoline_vaddr;
 
 // Defined in wrapper.S
 extern "C" void sh_signal_proxy_1(int sig);
@@ -37,7 +41,7 @@ struct HandlerContext {
 static struct {
     HandlerContext sig_context[NSIG];
 
-    uint64_t register_file[REGISTER_COUNT];
+    uint64_t register_file[helper::REGISTER_FILE_SIZE];
 
     uint64_t alternate_stack_ptr;
     uint64_t alternate_stack_size;
@@ -56,13 +60,13 @@ extern "C" uint64_t sh_enter_signal(int sig, void *siginfo, void *ucontext, uint
         panic("Concurrent signals not supported");
     }
 
-    memcpy8(g_signal_state.register_file, register_file, REGISTER_COUNT);
+    memcpy8(g_signal_state.register_file, register_file, helper::REGISTER_FILE_SIZE);
     g_signal_state.current_signal = sig;
     g_signal_state.is_in_signal = true;
     g_signal_state.rsp = sp;
 
     // Set x1/ra (return address) to signal trampoline
-    register_file[1] = SIGNAL_TRAMPOLINE_VADDR;
+    register_file[1] = signal_trampoline_vaddr.get_value();
 
     // Set x10/a0 (first argument) to signal id
     register_file[10] = static_cast<uint64_t>(sig);
@@ -97,7 +101,7 @@ extern "C" uint64_t sh_exit_signal(uint64_t sp) {
         panic("sh_exit_signal called, but not currently in a signal");
     }
 
-    memcpy8(register_file, g_signal_state.register_file, REGISTER_COUNT);
+    memcpy8(register_file, g_signal_state.register_file, helper::REGISTER_FILE_SIZE);
     g_signal_state.current_signal = -1;
     g_signal_state.is_in_signal = false;
     if (sp == g_signal_state.rsp + 8) {

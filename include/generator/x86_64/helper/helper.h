@@ -7,6 +7,9 @@
 
 namespace helper {
 
+/// The maximum register_file size when compiled with floating point support
+constexpr size_t REGISTER_FILE_SIZE = 32 + 1 + 32 + 1;
+
 extern "C" {
 /* provided by the compiler */
 extern uint8_t *orig_binary_vaddr;

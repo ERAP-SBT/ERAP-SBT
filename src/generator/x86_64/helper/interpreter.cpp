@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <immintrin.h>
+
 namespace helper::interpreter {
 
 constexpr inline size_t START_FP_STATICS = 33;
@@ -114,12 +115,12 @@ void interpreter_dump_perf_stats() {
     }
 
 /* from compiled code */
-extern "C" uint64_t register_file[32 + 1 + 32 + 1]; /* size is the maximum register_file size when compiled with floating point support */
+extern "C" uint64_t register_file[helper::REGISTER_FILE_SIZE];
 extern "C" const uint64_t ijump_lookup_base;
 extern "C" const uint64_t ijump_lookup[];
 extern "C" const uint64_t ijump_lookup_end;
 
-void trace(uint64_t addr, const FrvInst *instr) {
+[[maybe_unused]] static void trace(uint64_t addr, const FrvInst *instr) {
     puts("TRACE: ");
     print_hex64(addr);
     puts(" : ");
@@ -144,7 +145,7 @@ extern "C" uint64_t ijump_lookup_for_addr(uint64_t addr) {
 /* make the code a bit clearer */
 constexpr uint64_t sign_extend_int64_t(int32_t v) { return static_cast<int64_t>(v); }
 
-size_t evaluate_csr_index(uint32_t csr_id) {
+static size_t evaluate_csr_index(uint32_t csr_id) {
     switch (csr_id) {
     case 1:
     case 2:
@@ -192,7 +193,7 @@ uint32_t evaluate_rounding_mode(uint32_t riscv_rounding_mode, const bool is_rm_f
     panic("");
 }
 
-void trace_dump_state(uint64_t pc) {
+[[maybe_unused]] static void trace_dump_state(uint64_t pc) {
     puts("TRACE: STATE");
 
     puts("\npc:  ");
