@@ -2,8 +2,10 @@
 #include "common/internal.h"
 #include "generator/x86_64/generator.h"
 #include "ir/ir.h"
+#include "ir/optimizer/common.h"
 #include "ir/optimizer/const_folding.h"
 #include "ir/optimizer/dce.h"
+#include "ir/optimizer/dedup_imm.h"
 #include "lifter/elf_file.h"
 #include "lifter/lifter.h"
 
@@ -20,7 +22,7 @@ namespace {
 using std::filesystem::path;
 
 void print_help(bool usage_only);
-bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &lifter_optimizations);
+bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &lifter_optimizations, uint32_t& ir_optimizations);
 void dump_elf(const ELF64File *);
 std::optional<path> create_temp_directory();
 bool find_runtime_dependencies(const path &exec_dir, const Args &args, path &out_helper_lib, path &out_linker_script);
@@ -55,9 +57,8 @@ int main(int argc, const char **argv) {
         return EXIT_FAILURE;
     }
 
-    uint32_t gen_optimizations = 0;
-    uint32_t lifter_optimizations = 0;
-    if (!parse_opt_flags(args, gen_optimizations, lifter_optimizations)) {
+    uint32_t gen_optimizations = 0, lifter_optimizations = 0, ir_optimizations = 0;
+    if (!parse_opt_flags(args, gen_optimizations, lifter_optimizations, ir_optimizations)) {
         return EXIT_FAILURE;
     }
 
@@ -125,9 +126,16 @@ int main(int argc, const char **argv) {
 
     signal(SIGPIPE, SIG_IGN);
 
-    if (args.has_argument("optimize")) {
-        optimizer::const_fold(&ir);
-        optimizer::dce(&ir);
+    {
+        if (ir_optimizations & optimizer::OPT_CONST_FOLDING) {
+            optimizer::const_fold(&ir);
+        }
+        if (ir_optimizations & optimizer::OPT_DCE) {
+            optimizer::dce(&ir);
+        }
+        if (ir_optimizations & optimizer::OPT_DEDUP_IMMEDIATES) {
+            optimizer::dedup_imm(&ir);
+        }
     }
 
     {
@@ -242,6 +250,10 @@ void print_help(bool usage_only) {
         std::cerr << "    --interpreter-only:       Only uses the interpreter to translate the binary (dynamic binary translation). (default: false)\n";
         std::cerr << "    --optimize:               Set optimization flags, comma-seperated list. Specifying a group enables all flags in that group. Appending '!' before disables a single flag\n";
         std::cerr << "    Optimization Flags:\n";
+        std::cerr << "      - ir:\n";
+        std::cerr << "          - dce: Dead Code Elimination\n";
+        std::cerr << "          - const_folding: Fold and propagage constant values\n";
+        std::cerr << "          - dedup_imm: Deduplicate immediates\n";
         std::cerr << "      - generator:\n";
         std::cerr << "          - reg_alloc:            Register Allocation\n";
         std::cerr << "          - merge_ops:            Merge multiple IR-Operations into a single native op\n";
@@ -263,7 +275,7 @@ void print_help(bool usage_only) {
     }
 }
 
-bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &lifter_optimizations) {
+bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &lifter_optimizations, uint32_t &ir_optimizations) {
     if (!args.has_argument("optimize")) {
         // TODO: turn on flags by default?
         return true;
@@ -280,40 +292,50 @@ bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &li
         }
 
         auto disable_flag = false;
-        if (opt_flag[0] == '!') {
+        if (opt_flag[0] == '!' || opt_flag[0] == '-') {
             disable_flag = true;
             opt_flag.remove_prefix(1);
         }
-        uint32_t gen_opt_change = 0;
-        uint32_t lifter_opt_change = 0;
+        uint32_t gen_opt_change = 0, lifter_opt_change = 0, ir_opt_change = 0;
         if (opt_flag == "all") {
             gen_opt_change = 0xFFFFFFFF;
             lifter_opt_change = 0xFFFFFFFF;
+            ir_opt_change = 0xFFFFFFFF;
         } else if (opt_flag == "generator") {
             gen_opt_change = 0xFFFFFFFF;
         } else if (opt_flag == "lifter") {
             lifter_opt_change = 0xFFFFFFFF;
+        } else if (opt_flag == "ir") {
+            ir_opt_change = 0xFFFFFFFF;
         } else if (opt_flag == "reg_alloc") {
-            gen_opt_change |= generator::x86_64::Generator::OPT_MBRA;
+            gen_opt_change = generator::x86_64::Generator::OPT_MBRA;
         } else if (opt_flag == "unused_statics") {
-            gen_opt_change |= generator::x86_64::Generator::OPT_UNUSED_STATIC;
+            gen_opt_change = generator::x86_64::Generator::OPT_UNUSED_STATIC;
         } else if (opt_flag == "merge_ops") {
-            gen_opt_change |= generator::x86_64::Generator::OPT_MERGE_OP;
+            gen_opt_change = generator::x86_64::Generator::OPT_MERGE_OP;
         } else if (opt_flag == "bmi2") {
-            gen_opt_change |= generator::x86_64::Generator::OPT_ARCH_BMI2;
+            gen_opt_change = generator::x86_64::Generator::OPT_ARCH_BMI2;
         } else if (opt_flag == "no_trans_bbs") {
             gen_opt_change = generator::x86_64::Generator::OPT_NO_TRANS_BBS;
         } else if (opt_flag == "call_ret") {
             lifter_opt_change = lifter::RV64::Lifter::OPT_CALL_RET;
+        } else if (opt_flag == "dce") {
+            ir_opt_change = optimizer::OPT_DCE;
+        } else if (opt_flag == "const_folding") {
+            ir_opt_change = optimizer::OPT_CONST_FOLDING | optimizer::OPT_DCE; // Constant folding requires DCE
+        } else if (opt_flag == "dedup_imm") {
+            ir_opt_change = optimizer::OPT_DEDUP_IMMEDIATES;
         } else {
             std::cerr << "Warning: Unknown optimization flag: '" << opt_flag << "'\n";
             return false;
         }
 
         if (disable_flag) {
+            ir_optimizations &= ~ir_opt_change;
             gen_optimizations &= ~gen_opt_change;
             lifter_optimizations &= ~lifter_opt_change;
         } else {
+            ir_optimizations |= ir_opt_change;
             gen_optimizations |= gen_opt_change;
             lifter_optimizations |= lifter_opt_change;
         }
