@@ -5,6 +5,7 @@
 
 #include <map>
 
+namespace optimizer {
 class VarRewriter {
   private:
     // old id -> new var
@@ -25,6 +26,16 @@ class VarRewriter {
     }
 };
 
+enum Optimization : uint32_t {
+    OPT_DCE = 1 << 0,
+    OPT_CONST_FOLDING = 1 << 1,
+    OPT_DEDUP_IMMEDIATES = 1 << 2,
+};
+
+constexpr uint32_t OPT_FLAGS_ALL = 0xFFFFFFFF;
+
 [[noreturn]] void panic_internal(const char *file, int line, const char *message);
-#define panic(message) panic_internal(__FILE__, __LINE__, message)
-#define unreachable() panic_internal(__FILE__, __LINE__, "Code path marked as unreachable was reached")
+#define panic(message) ::optimizer::panic_internal(__FILE__, __LINE__, message)
+#define unreachable() ::optimizer::panic_internal(__FILE__, __LINE__, "Code path marked as unreachable was reached")
+
+} // namespace optimizer
