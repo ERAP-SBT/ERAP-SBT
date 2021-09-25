@@ -16,31 +16,17 @@ namespace optimizer {
 
 namespace {
 
-constexpr bool is_unary_op(Instruction insn) { return insn == Instruction::_not; }
+constexpr bool one_of_rec(Instruction) { return false; }
+template <typename... Set> constexpr bool one_of_rec(Instruction insn, Instruction next, Set &&...in) { return insn == next || one_of_rec(insn, in...); }
+template <typename... Set> constexpr bool one_of(Instruction insn, Set &&...in) { return one_of_rec(insn, in...); }
+
+constexpr bool is_unary_op(Instruction insn) { return one_of(insn, Instruction::_not); }
 constexpr bool is_binary_op(Instruction insn) {
-    switch (insn) {
-    case Instruction::add:
-    case Instruction::sub:
-    case Instruction::mul_l:
-    case Instruction::ssmul_h:
-    case Instruction::uumul_h:
-    case Instruction::sumul_h:
-    case Instruction::shl:
-    case Instruction::shr:
-    case Instruction::sar:
-    case Instruction::_or:
-    case Instruction::_and:
-    case Instruction::_xor:
-    case Instruction::max:
-    case Instruction::umax:
-    case Instruction::min:
-    case Instruction::umin:
-        return true;
-    default:
-        return false;
-    }
+    return one_of(insn, Instruction::add, Instruction::sub, Instruction::mul_l, Instruction::ssmul_h, Instruction::uumul_h, Instruction::sumul_h, Instruction::shl, Instruction::shr, Instruction::sar,
+                  Instruction::_or, Instruction::_and, Instruction::_xor, Instruction::max, Instruction::umax, Instruction::min, Instruction::umin);
 }
-constexpr bool is_morphing_op(Instruction insn) { return insn == Instruction::sign_extend || insn == Instruction::zero_extend || insn == Instruction::cast; }
+constexpr bool is_morphing_op(Instruction insn) { return one_of(insn, Instruction::sign_extend, Instruction::zero_extend, Instruction::cast); }
+constexpr bool is_conditional_set(Instruction insn) { return one_of(insn, Instruction::slt, Instruction::sltu, Instruction::sle, Instruction::seq); }
 
 constexpr bool can_handle_types(std::initializer_list<Type> types) {
     for (auto type : types) {
@@ -724,26 +710,42 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                 int64_t result = op.out_vars[0] ? div_result : rem_result;
                 replace_with_immediate(var, result);
             }
-        } else if (op.type == Instruction::slt || op.type == Instruction::sltu) {
-            auto &a = op.in_vars[0], &b = op.in_vars[1], &val_if_less = op.in_vars[2], &val_else = op.in_vars[3];
+        } else if (is_conditional_set(op.type)) {
+            auto &a = op.in_vars[0], &b = op.in_vars[1], &val_if_true = op.in_vars[2], &val_if_false = op.in_vars[3];
             if (!can_handle_types({a->type, b->type}))
                 continue;
             if (a->is_immediate() && b->is_immediate()) {
-                // slt(u) imm, imm, any, any
+                // setcond imm, imm, any, any
+                bool is_signed = op.type == Instruction::slt || op.type == Instruction::sle;
                 Type type;
                 if (a->type != b->type) {
-                    std::cerr << "Warning: Type mismatch on slt(u), using largest\n";
+                    std::cerr << "Warning: Type mismatch on conditional set operation, using largest\n";
                     int cmp = cast_dir(a->type, b->type);
                     assert(cmp != -1);
                     type = cmp == 1 ? b->type : a->type;
-                } else if (a->type == Type::imm && op.type == Instruction::slt) {
-                    std::cerr << "Warning: slt (signed) with imm values, treating as i64\n";
+                } else if (a->type == Type::imm && is_signed) {
+                    std::cerr << "Warning: signed conditional set operation with imm values, treating as i64\n";
                     type = Type::i64;
                 } else {
                     type = a->type;
                 }
-                int cmp = typed_compare(type, a->get_immediate().val, b->get_immediate().val, op.type == Instruction::slt);
-                replace_var(var, cmp < 0 ? val_if_less : val_else);
+                int cmp = typed_compare(type, a->get_immediate().val, b->get_immediate().val, is_signed);
+                bool is_true;
+                switch (op.type) {
+                case Instruction::slt:
+                case Instruction::sltu:
+                    is_true = cmp < 0;
+                    break;
+                case Instruction::seq:
+                    is_true = cmp == 0;
+                    break;
+                case Instruction::sle:
+                    is_true = cmp <= 0;
+                    break;
+                default:
+                    unreachable();
+                }
+                replace_var(var, is_true ? val_if_true : val_if_false);
             }
         }
     }
