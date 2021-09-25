@@ -39,6 +39,7 @@ constexpr size_t strlen(const char *str) {
 }
 
 void memcpy(void *dst, const void *src, size_t count);
+void memcpy8(uint64_t *dst, const uint64_t *src, size_t count);
 
 size_t write_stderr(const char *buf, size_t buf_len);
 size_t puts(const char *str);

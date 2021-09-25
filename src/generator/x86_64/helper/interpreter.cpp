@@ -130,7 +130,9 @@ void trace(uint64_t addr, const FrvInst *instr) {
     puts("\n");
 }
 
-uint64_t ijump_lookup_for_addr(uint64_t addr) {
+extern "C" uint64_t ijump_lookup_for_addr(uint64_t addr) {
+    if (addr < ijump_lookup_base)
+        return 0x0;
     const uint64_t *const entry = &ijump_lookup[(addr - ijump_lookup_base) / 0x2];
     if (entry >= &ijump_lookup_end) {
         return 0x0;

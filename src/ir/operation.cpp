@@ -213,6 +213,8 @@ CfOp::CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target) : 
         info = SyscallInfo{};
         std::get<SyscallInfo>(info).continuation_block = target;
         break;
+    case CFCInstruction::signal_return:
+        break;
     }
 }
 
@@ -251,6 +253,7 @@ void CfOp::add_target_input(SSAVar *input, size_t static_idx) {
         std::get<IJumpInfo>(info).mapping.emplace_back(input, static_idx);
         break;
     case CFCInstruction::unreachable:
+    case CFCInstruction::signal_return:
         assert(0);
         break;
     }
@@ -307,6 +310,7 @@ void CfOp::set_target(BasicBlock *target) {
     case CFCInstruction::unreachable:
     case CFCInstruction::_return:
     case CFCInstruction::ijump:
+    case CFCInstruction::signal_return:
         assert(0);
         break;
     }
@@ -326,6 +330,7 @@ BasicBlock *CfOp::target() const {
     case CFCInstruction::ijump:
     case CFCInstruction::unreachable:
     case CFCInstruction::_return:
+    case CFCInstruction::signal_return:
         return nullptr;
     }
 
@@ -358,6 +363,8 @@ const std::vector<RefPtr<SSAVar>> &CfOp::target_inputs() const {
         for (auto &var : std::get<IJumpInfo>(info).mapping) {
             vec.emplace_back(var.first);
         }
+        return vec;
+    case CFCInstruction::signal_return:
         return vec;
     default:
         assert(0);

@@ -121,6 +121,23 @@ constexpr const char *convert_name_from_type(const Type type) {
 
 constexpr bool compatible_types(const Type t1, const Type t2) { return (t1 == t2) || ((t1 == Type::imm || t2 == Type::imm) && (is_integer(t1) || is_integer(t2))); }
 
+/**
+ * Inserts a signal trampoline block whose only purpose is to jump to the signal_restorer code.
+ */
+uint64_t inject_signal_trampoline(IR *ir) {
+    // This block needs a valid virtual address, since it must be able to be jumped to by ijump code.
+    uint64_t fake_addr = (ir->virt_bb_end_addr + 1) & ~1; // Align at two byte boundary
+    auto *bb = ir->add_basic_block(fake_addr, "_egp_sbt_signal_trampoline");
+    ir->virt_bb_end_addr = fake_addr + 1;
+
+    bb->add_cf_op(CFCInstruction::signal_return, nullptr);
+
+    std::vector<std::string> d;
+    assert(bb->verify(d));
+
+    return fake_addr;
+}
+
 } // namespace
 
 void Generator::compile() {
@@ -135,6 +152,8 @@ void Generator::compile() {
         fprintf(out_fd, ".incbin \"%s\"\n", binary_filepath.c_str());
     }
 
+    uint64_t signal_trampoline_vaddr = inject_signal_trampoline(ir);
+
     /* we expect the linker to link the original binary image (if any) at
      * exactly this address
      */
@@ -143,6 +162,8 @@ void Generator::compile() {
     fprintf(out_fd, ".global orig_binary_size\n");
     fprintf(out_fd, "orig_binary_size = %#lx\n", ir->load_size);
     fprintf(out_fd, "binary = orig_binary_vaddr\n");
+    fprintf(out_fd, ".global signal_trampoline_vaddr\n");
+    fprintf(out_fd, "signal_trampoline_vaddr = %#lx\n", signal_trampoline_vaddr);
 
     compile_statics();
     compile_phdr_info();
@@ -307,6 +328,12 @@ void Generator::compile_block(const BasicBlock *block) {
             break;
         case CFCInstruction::icall:
             compile_icall(block, cf_op, stack_size);
+            break;
+        case CFCInstruction::signal_return:
+            fprintf(out_fd, "# destroy stack space\n");
+            fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
+            fprintf(out_fd, "# return from signal\n");
+            fprintf(out_fd, "jmp sh_signal_restorer\n");
             break;
         }
     }

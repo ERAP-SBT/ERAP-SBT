@@ -2,6 +2,7 @@ helper_sources = [
     'helper.cpp',
     'interpreter.cpp',
     'rv64_syscalls.cpp',
+    'signal.cpp',
     'wrappers.S',
     'frvdec' / 'frvdec.c',
     ]

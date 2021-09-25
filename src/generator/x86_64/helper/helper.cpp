@@ -2,12 +2,14 @@
 
 #include "generator/syscall_ids.h"
 #include "generator/x86_64/helper/rv64_syscalls.h"
+#include "generator/x86_64/helper/signal.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <elf.h>
 #include <linux/errno.h>
 #include <sys/epoll.h>
+#include <sys/signal.h>
 #include <sys/stat.h>
 
 namespace helper {
@@ -183,6 +185,22 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                 rv64_event->events = event.events;
                 return res;
             }
+            case RISCV_SYSCALL_ID::RT_SIGACTION: {
+                int sig = static_cast<int>(arg0);
+                const auto *act = reinterpret_cast<const signal::kernel_sigaction_rv64 *>(arg1);
+                auto *oact = reinterpret_cast<signal::kernel_sigaction_rv64 *>(arg2);
+
+                return signal::handle_sigaction(sig, act, oact, arg3);
+            }
+            case RISCV_SYSCALL_ID::RT_SIGRETURN: {
+                // sigreturn is handled by the signal emulation code, and should not be invoked from RISC-V code.
+                // Returning an error doesn't make sense, since sigreturn isn't supposed to return at all.
+                panic("sigreturn not supported");
+            }
+            case RISCV_SYSCALL_ID::SIGALTSTACK: {
+                // TODO
+                return -ENOSYS;
+            }
             default:
                 break;
             }
@@ -347,6 +365,13 @@ void memcpy(void *dst, const void *src, size_t count) {
 
     while (count > 0) {
         *dst_ptr++ = *src_ptr++;
+        count--;
+    }
+}
+
+void memcpy8(uint64_t *dst, const uint64_t *src, size_t count) {
+    while (count > 0) {
+        *dst++ = *src++;
         count--;
     }
 }

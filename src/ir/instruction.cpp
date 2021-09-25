@@ -146,6 +146,9 @@ std::ostream &operator<<(std::ostream &stream, CFCInstruction instr) {
     case CFCInstruction::syscall:
         stream << "syscall";
         break;
+    case CFCInstruction::signal_return:
+        stream << "signal_return";
+        break;
     }
 
     return stream;

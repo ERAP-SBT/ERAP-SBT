@@ -61,6 +61,7 @@ enum class CFCInstruction {
     _return,
     unreachable,
     syscall,
+    signal_return,
 };
 
 std::ostream &operator<<(std::ostream &stream, CFCInstruction instr);
