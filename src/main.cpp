@@ -1,5 +1,6 @@
 #include "argument_parser.h"
 #include "common/internal.h"
+#include "config.h"
 #include "generator/x86_64/generator.h"
 #include "ir/ir.h"
 #include "lifter/elf_file.h"
@@ -13,6 +14,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 
 namespace {
 using std::filesystem::path;
@@ -31,7 +33,6 @@ int main(int argc, const char **argv) {
     // Parse arguments, excluding the first entry (executable name)
     Args args(argv + 1, argv + argc);
 
-    // TODO This might not work in certain scenarios (symlinks, etc.)
     auto executable_dir = std::filesystem::canonical(argv[0]).parent_path();
 
     if (args.has_argument("help")) {
@@ -345,17 +346,72 @@ std::optional<path> create_temp_directory() {
     return full_path;
 }
 
+std::optional<path> try_get_runtime_dependency_directory(const path &exec_dir) {
+    path binary_dir = path(BINARY_DIRECTORY).lexically_normal();
+    if (!binary_dir.is_relative())
+        return {};
+
+    // Remove common prefix of the current executable directory and the specified binary directory.
+    path install_root(exec_dir);
+    while (!binary_dir.empty()) {
+        if (binary_dir.filename() != install_root.filename())
+            return {};
+
+        binary_dir = binary_dir.parent_path();
+        install_root = install_root.parent_path();
+    }
+
+    path runtime_dep_dir(RUNTIME_DEPENDENCY_DIRECTORY);
+    if (!runtime_dep_dir.is_relative())
+        return {};
+
+    auto dep_dir_abs = (install_root / runtime_dep_dir).lexically_normal();
+    if (!std::filesystem::is_directory(dep_dir_abs))
+        return {};
+
+    return dep_dir_abs;
+}
+
 bool find_runtime_dependencies(const path &exec_dir, const Args &args, path &out_helper_lib, path &out_linker_script) {
+    bool helper_set = false, linker_script_set = false;
+
     if (args.has_argument("helper-path")) {
         out_helper_lib = path(args.get_argument("helper-path"));
+        helper_set = true;
+    }
+
+    if (args.has_argument("linkerscript-path")) {
+        out_linker_script = path(args.get_argument("linkerscript-path"));
+        linker_script_set = true;
+    }
+
+    if (helper_set && linker_script_set)
+        return true;
+
+    if (auto runtime_dep_dir = try_get_runtime_dependency_directory(exec_dir)) {
+        if (ENABLE_DEBUG) {
+            std::stringstream ss;
+            ss << "Detected install environment, using runtime dependency directory " << *runtime_dep_dir;
+            DEBUG_LOG(ss.str());
+        }
+
+        if (!helper_set) {
+            // If the translator is in a install environment ("meson install"),
+            // the helper library is at <PREFIX>/<RUNTIME_DEPENDENCY_DIRECTORY>/libhelper-x86_64.a
+            out_helper_lib = *runtime_dep_dir / "libhelper-x86_64.a";
+        }
+
+        if (!linker_script_set) {
+            // Install environment: link.ld is at <PREFIX>/<RUNTIME_DEPENDENCY_DIRECTORY>/link.ld
+            out_linker_script = *runtime_dep_dir / "link.ld";
+        }
     } else {
-        // If the translator is in a build environment, the helper library is at <bin_dir>/generator/x86_64/helper/libhelper-x86_64.a
-        auto hlp_path = exec_dir / "generator/x86_64/helper/libhelper-x86_64.a";
-        if (std::filesystem::exists(hlp_path)) {
-            out_helper_lib = hlp_path;
-        } else {
-            // If the translator is in a install environment ("meson install"), the helper library is at <PREFIX>/share/eragp-sbt-2021/libhelper-x86_64.a
-            hlp_path = std::filesystem::weakly_canonical(exec_dir / "../share/eragp-sbt-2021/libhelper-x86_64.a");
+        DEBUG_LOG("Assuming this is a build environment");
+
+        // If the translator is in a build environment, the helper library is
+        // at <bin_dir>/generator/x86_64/helper/libhelper-x86_64.a
+        if (!helper_set) {
+            auto hlp_path = exec_dir / "generator/x86_64/helper/libhelper-x86_64.a";
             if (std::filesystem::exists(hlp_path)) {
                 out_helper_lib = hlp_path;
             } else {
@@ -364,18 +420,10 @@ bool find_runtime_dependencies(const path &exec_dir, const Args &args, path &out
                 return false;
             }
         }
-    }
 
-    if (args.has_argument("linkerscript-path")) {
-        out_linker_script = path(args.get_argument("linkerscript-path"));
-    } else {
         // Build environment: Assume that the build directory is a subdirectory of the source root
-        auto lds_path = std::filesystem::weakly_canonical(exec_dir / "../../src/generator/x86_64/helper/link.ld");
-        if (std::filesystem::exists(lds_path)) {
-            out_linker_script = lds_path;
-        } else {
-            // Install environment: link.ld is at <PREFIX>/share/eragp-sbt-2021/link.ld
-            lds_path = std::filesystem::weakly_canonical(exec_dir / "../share/eragp-sbt-2021/link.ld");
+        if (!linker_script_set) {
+            auto lds_path = std::filesystem::weakly_canonical(exec_dir / "../../src/generator/x86_64/helper/link.ld");
             if (std::filesystem::exists(lds_path)) {
                 out_linker_script = lds_path;
             } else {

@@ -6,8 +6,6 @@ helper_sources = [
     'frvdec' / 'frvdec.c',
     ]
 
-runtime_dep_dir = get_option('datadir') / meson.project_name()
-
 install_data('link.ld', install_dir: runtime_dep_dir)
 
 if host_machine.system() == 'linux' and host_machine.cpu_family() == 'x86_64'
