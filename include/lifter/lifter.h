@@ -196,7 +196,7 @@ class Lifter {
      * @param is_floating_point_register Defines from which slots should be read: either general purpose/integer register or floating point slots. The default value is false.
      * @return SSAVar * A pointer to the variable stored at the given position in the mapping.
      */
-    SSAVar *get_from_mapping(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, bool is_floating_point_register = false);
+    SSAVar *get_from_mapping(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, bool is_floating_point_register = false) const;
 
     /**
      * Writes the given {@link SSAVar variable} to the {@link reg_map mapping}. Calls with `reg_id = 0 && is_floating_point_register == false` are ignored due to this are writes the unused slot in the
@@ -220,7 +220,7 @@ class Lifter {
      */
     void zero_extend_all_f32(BasicBlock *bb, reg_map &mapping, uint64_t ip) const;
 
-    SSAVar *get_from_mapping_and_shrink(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, const Type expected_type);
+    SSAVar *get_from_mapping_and_shrink(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, const Type expected_type) const;
 
     // return true if entered number corresponds to a link register
     static bool is_link_reg(size_t reg_idx);
