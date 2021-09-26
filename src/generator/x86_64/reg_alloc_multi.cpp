@@ -241,17 +241,25 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
                 compile_block(target, false, max_stack_frame_size);
             }
             if (cf_op.type == CFCInstruction::call) {
-                compile_block(std::get<CfOp::CallInfo>(cf_op.info).continuation_block, false, max_stack_frame_size);
+                // sometimes there are cases where a block is a call target and continuation block,
+                // e.g. with noreturn calls the next block will be recognized as a continuation block
+                auto *cont_block = std::get<CfOp::CallInfo>(cf_op.info).continuation_block;
+                if (!cont_block->gen_info.compiled && !is_block_top_level(cont_block)) {
+                    compile_block(cont_block, false, max_stack_frame_size);
+                }
             } else if (cf_op.type == CFCInstruction::icall) {
-                compile_block(std::get<CfOp::ICallInfo>(cf_op.info).continuation_block, false, max_stack_frame_size);
+                auto *cont_block = std::get<CfOp::ICallInfo>(cf_op.info).continuation_block;
+                if (!cont_block->gen_info.compiled && !is_block_top_level(cont_block)) {
+                    compile_block(cont_block, false, max_stack_frame_size);
+                }
             }
         }
 
         if (first_block) {
             // need to add a bit of space to the stack since the cfops might need to spill to the stack
             max_stack_frame_size += gen->ir->statics.size();
-            // align to 16 bytes + 8 so we dont need to push extra stuff, e.g. when we do calls as we already push an 8 byte value before
-            max_stack_frame_size = (((max_stack_frame_size * 8) + 15) & 0xFFFFFFFF'FFFFFFF0) + 8;
+            // align to 16 bytes
+            max_stack_frame_size = (((max_stack_frame_size * 8) + 15) & 0xFFFFFFFF'FFFFFFF0);
 
             fprintf(gen->out_fd, "b%zu:\nsub rsp, %zu\n", bb->id, max_stack_frame_size);
             fprintf(gen->out_fd, "# MBRA\n"); // multi-block register allocation
@@ -1353,13 +1361,14 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
                 load_val_in_reg(cur_time, var, call_reg[i]);
             }
             if (cf_op.in_vars[6] == nullptr) {
-                print_asm("sub rsp, 8\n");
+                print_asm("sub rsp, 16\n");
             } else {
                 // TODO: clear rax before when we have inputs < 64 bit
                 if (reg_map[REG_A].cur_var && reg_map[REG_A].cur_var->gen_info.last_use_time >= cur_time) {
                     save_reg(REG_A);
                 }
                 load_val_in_reg(cur_time, cf_op.in_vars[6].get(), REG_A);
+                print_asm("sub rsp, 8\n");
                 print_asm("push rax\n");
             }
 
@@ -1368,7 +1377,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
                 print_asm("mov [s%zu], rax\n", info.static_mapping.at(0));
             }
             print_asm("# destroy stack space\n");
-            print_asm("add rsp, %zu\n", max_stack_frame_size + 8);
+            print_asm("add rsp, %zu\n", max_stack_frame_size + 16);
             // need to jump to translation block
             // TODO: technically we don't need to if the block didn't have a input mapping before
             // so only do that when the next block does have an input mapping or more than one predecessor?
@@ -1379,15 +1388,15 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             auto &info = std::get<CfOp::CallInfo>(cf_op.info);
             write_target_inputs(info.target, cur_time, info.target_inputs);
 
-            if (info.target->virt_start_addr <= 0x7FFFFFFF) {
-                print_asm("push %lu\n", info.target->virt_start_addr);
+            if (info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
+                print_asm("push %lu\n", info.continuation_block->virt_start_addr);
             } else {
-                print_asm("mov rax, %lu\n", info.target->virt_start_addr);
+                print_asm("mov rax, %lu\n", info.continuation_block->virt_start_addr);
                 print_asm("push rax\n");
             }
             print_asm("call b%zu\nadd rsp, 8\n", info.target->id);
             if (bb->control_flow_ops.size() != 1 || info.continuation_block != next_bb) {
-                print_asm("jmp b%zu_reg_alloc\n", info.continuation_block->id);
+                print_asm("jmp b%zu%s\n", info.continuation_block->id, is_block_top_level(info.continuation_block) ? "" : "_reg_alloc");
             }
             break;
         }
@@ -1453,8 +1462,15 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             print_asm("mov %s, [%s + 4 * %s]\n", tmp_reg_name, tmp_reg_name, dst_reg_name);
             print_asm("test %s, %s\n", tmp_reg_name, tmp_reg_name);
             print_asm("je 0f\n");
+            if (info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
+                print_asm("push %lu\n", info.continuation_block->virt_start_addr);
+            } else {
+                const auto tmp_reg = alloc_reg(cur_time + 1 + info.mapping.size());
+                print_asm("mov %s, %lu\n", reg_names[tmp_reg][0], info.continuation_block->virt_start_addr);
+                print_asm("push %s\n", reg_names[tmp_reg][0]);
+            }
             print_asm("call %s\n", tmp_reg_name);
-            print_asm("jmp b%zu_reg_alloc\n", info.continuation_block->id);
+            print_asm("jmp b%zu%s\n", info.continuation_block->id, is_block_top_level(info.continuation_block) ? "" : "_reg_alloc");
             print_asm("0:\n");
             print_asm("lea rdi, [rip + err_unresolved_ijump_b%zu]\n", bb->id);
             print_asm("jmp panic\n");
