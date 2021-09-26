@@ -257,8 +257,12 @@ void Lifter::postprocess(Program *prog) {
                     }
                     target_bb->gen_info.call_cont_block = true;
                 } else {
-                    cf_op.type = CFCInstruction::unreachable;
-                    cf_op.info = std::monostate{};
+                    auto *cont_bb = ir->add_basic_block(lifter_info.instr_addr + 2);
+                    cont_bb->set_virt_end_addr(lifter_info.instr_addr + 2);
+                    cont_bb->add_cf_op(CFCInstruction::unreachable, nullptr);
+                    cont_bb->predecessors.emplace_back(bb.get());
+                    bb->successors.emplace_back(cont_bb);
+                    std::get<CfOp::CallInfo>(cf_op.info).continuation_block = cont_bb;
                     continue;
                 }
             }
