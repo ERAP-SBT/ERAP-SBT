@@ -181,7 +181,7 @@ class Lifter {
     std::unordered_set<int64_t> get_var_values(const std::vector<SSAVar *> &start_vars, BasicBlock *bb, std::vector<SSAVar *> &parsed_vars);
     std::unordered_set<SSAVar *> get_last_static_assignments(size_t idx, BasicBlock *bb);
     std::vector<std::array<int64_t, 4>> load_input_vars(BasicBlock *bb, Operation *op, std::vector<SSAVar *> &parsed_vars);
-    void register_jump_address(BasicBlock *jump_bb, std::vector<std::pair<uint64_t, BasicBlock *>> &to_split, uint64_t jmp_addr);
+    void register_jump_address(BasicBlock *jump_bb, uint64_t jmp_addr, ELF64File *elf_base);
     void process_ijumps(std::vector<CfOp *> &unprocessed_ijumps, ELF64File *elf_base);
 
     /**

@@ -2,11 +2,9 @@
 
 using namespace lifter::RV64;
 
-void Lifter::register_jump_address(BasicBlock *jump_bb, std::vector<std::pair<uint64_t, BasicBlock *>> &to_split, uint64_t jmp_addr) {
+void Lifter::register_jump_address(BasicBlock *jump_bb, uint64_t jmp_addr, ELF64File *elf_base) {
     if (jump_bb->virt_start_addr != jmp_addr) {
-        // the jump address is inside a parsed basic block -> split the block
-        // the split basic block function needs the cfOps fully initialized.
-        to_split.emplace_back(jmp_addr, jump_bb);
+        split_basic_block(jump_bb, jmp_addr, elf_base);
     }
 }
 
@@ -45,14 +43,7 @@ void Lifter::process_ijumps(std::vector<CfOp *> &unprocessed_ijumps, ELF64File *
                 DEBUG_LOG("Couldn't find a basic block at an indirect jump location, skipping.");
                 continue;
             }
-            register_jump_address(jump_bb, to_split, jmp_addr);
+            register_jump_address(jump_bb, jmp_addr, elf_base);
         }
     }
-
-    std::for_each(to_split.begin(), to_split.end(), [this, elf_base](const auto &split_tuple) {
-        std::stringstream str;
-        str << "Splitting basic block #0x" << std::hex << split_tuple.second->id;
-        DEBUG_LOG(str.str());
-        split_basic_block(split_tuple.second, split_tuple.first, elf_base);
-    });
 }
