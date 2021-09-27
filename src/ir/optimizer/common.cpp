@@ -37,16 +37,10 @@ void VarRewriter::apply_to(CfOp &cf) {
                     visit_refptr(var.first);
                 }
             } else if constexpr (std::is_same_v<T, CfOp::CallInfo>) {
-                for (auto &var : info.continuation_mapping) {
-                    visit_refptr(var.first);
-                }
                 for (auto &var : info.target_inputs) {
                     visit_refptr(var);
                 }
             } else if constexpr (std::is_same_v<T, CfOp::ICallInfo>) {
-                for (auto &var : info.continuation_mapping) {
-                    visit_refptr(var.first);
-                }
                 for (auto &var : info.mapping) {
                     visit_refptr(var.first);
                 }
