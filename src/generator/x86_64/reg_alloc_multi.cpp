@@ -1345,6 +1345,12 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             print_asm("jmp b%zu\n", info.continuation_block->id);
             break;
         }
+        case CFCInstruction::signal_return: {
+            print_asm("# destroy stack space\n");
+            print_asm("add rsp, %zu\n", max_stack_frame_size * 8);
+            print_asm("jmp sh_signal_restorer\n");
+            break;
+        }
         default: {
             assert(0);
             exit(1);
@@ -1873,6 +1879,7 @@ void RegAlloc::init_time_of_use(BasicBlock *bb) {
             set_time_cont_mapping(time_off, std::get<CfOp::RetInfo>(cf_op.info).mapping);
             break;
         case CFCInstruction::unreachable:
+        case CFCInstruction::signal_return:
             break;
         case CFCInstruction::syscall:
             set_time_cont_mapping(time_off, std::get<CfOp::SyscallInfo>(cf_op.info).continuation_mapping);
