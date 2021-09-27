@@ -24,57 +24,110 @@ template <typename Container> void remove_indices_sorted(Container &container, c
     }
 }
 
+bool check_target_input_removable(const BasicBlock *block, const BasicBlock *target) {
+    assert(block && target);
+
+    bool found_cf = false;
+    for (const auto &cf : block->control_flow_ops) {
+        switch (cf.type) {
+        case CFCInstruction::jump:
+        case CFCInstruction::cjump:
+        case CFCInstruction::call:
+        case CFCInstruction::syscall:
+            if (cf.target() == target)
+                found_cf = true;
+            break;
+        case CFCInstruction::ijump: {
+            const auto &info = std::get<CfOp::IJumpInfo>(cf.info);
+            if (info.targets.size() > 1) {
+                // Ignore ijumps with multiple targets for now
+                return false;
+            } else if (info.targets.size() == 1 && info.targets[0] == target) {
+                found_cf = true;
+            }
+            break;
+        }
+        case CFCInstruction::icall: {
+            const auto &info = std::get<CfOp::ICallInfo>(cf.info);
+            if (info.target == target)
+                found_cf = true;
+            break;
+        }
+        case CFCInstruction::_return:
+        case CFCInstruction::unreachable:
+            break;
+        }
+    }
+    return found_cf;
+}
+
 bool remove_target_inputs(BasicBlock *block, const BasicBlock *target, const std::vector<size_t> &indices) {
     assert(block && target);
 
     bool found_cf = false;
     for (auto &cf : block->control_flow_ops) {
-        if (cf.continuation_target() != target)
-            continue;
-        found_cf = true;
-
         switch (cf.type) {
         case CFCInstruction::jump: {
             auto &info = std::get<CfOp::JumpInfo>(cf.info);
+            if (info.target != target)
+                continue;
             assert(info.target_inputs.size() == target->inputs.size());
             remove_indices_sorted(info.target_inputs, indices);
             break;
         }
         case CFCInstruction::cjump: {
             auto &info = std::get<CfOp::CJumpInfo>(cf.info);
+            if (info.target != target)
+                continue;
             assert(info.target_inputs.size() == target->inputs.size());
             remove_indices_sorted(info.target_inputs, indices);
             break;
         }
-        case CFCInstruction::call: {
-            auto &info = std::get<CfOp::CallInfo>(cf.info);
-            assert(info.target_inputs.size() == target->inputs.size());
-            remove_indices_sorted(info.continuation_mapping, indices);
-            break;
-        }
         case CFCInstruction::syscall: {
             auto &info = std::get<CfOp::SyscallInfo>(cf.info);
+            if (info.continuation_block != target)
+                continue;
             assert(info.continuation_mapping.size() == target->inputs.size());
             remove_indices_sorted(info.continuation_mapping, indices);
             break;
         }
         case CFCInstruction::ijump: {
-            // TODO
             auto &info = std::get<CfOp::IJumpInfo>(cf.info);
+            bool ijump_has_target = false;
+            for (auto *ijump_target : info.targets) {
+                if (ijump_target == target) {
+                    ijump_has_target = true;
+                    break;
+                }
+            }
+            if (!ijump_has_target)
+                continue;
             assert(info.mapping.size() == target->inputs.size());
             remove_indices_sorted(info.mapping, indices);
             break;
         }
+        case CFCInstruction::call: {
+            auto &info = std::get<CfOp::CallInfo>(cf.info);
+            if (info.target != target)
+                continue;
+            assert(info.target_inputs.size() == target->inputs.size());
+            remove_indices_sorted(info.target_inputs, indices);
+            break;
+        }
         case CFCInstruction::icall: {
             auto &info = std::get<CfOp::ICallInfo>(cf.info);
-            assert(info.continuation_mapping.size() == target->inputs.size());
-            remove_indices_sorted(info.continuation_mapping, indices);
+            if (info.target != target)
+                continue;
+            assert(info.mapping.size() == target->inputs.size());
+            remove_indices_sorted(info.mapping, indices);
             break;
         }
-        default:
-            assert(false);
-            break;
+        case CFCInstruction::_return:
+        case CFCInstruction::unreachable:
+            continue;
         }
+
+        found_cf = true;
     }
 
     return found_cf;
@@ -99,13 +152,11 @@ bool propagate_from_successor(const BasicBlock *successor, const std::vector<boo
 
     bool found_cf = false;
     for (auto &cf : current->control_flow_ops) {
-        if (cf.continuation_target() != successor)
-            continue;
-        found_cf = true;
-
         switch (cf.type) {
         case CFCInstruction::jump: {
             auto &info = std::get<CfOp::JumpInfo>(cf.info);
+            if (info.target != successor)
+                continue;
             assert(info.target_inputs.size() == successor->inputs.size());
             for (size_t i = 0; i < info.target_inputs.size(); i++) {
                 if (successor_marks[successor->inputs[i]->id]) {
@@ -116,6 +167,8 @@ bool propagate_from_successor(const BasicBlock *successor, const std::vector<boo
         }
         case CFCInstruction::cjump: {
             auto &info = std::get<CfOp::CJumpInfo>(cf.info);
+            if (info.target != successor)
+                continue;
             assert(info.target_inputs.size() == successor->inputs.size());
             for (size_t i = 0; i < info.target_inputs.size(); i++) {
                 if (successor_marks[successor->inputs[i]->id]) {
@@ -124,18 +177,10 @@ bool propagate_from_successor(const BasicBlock *successor, const std::vector<boo
             }
             break;
         }
-        case CFCInstruction::call: {
-            auto &info = std::get<CfOp::CallInfo>(cf.info);
-            assert(info.target_inputs.size() == successor->inputs.size());
-            for (size_t i = 0; i < info.continuation_mapping.size(); i++) {
-                if (successor_marks[successor->inputs[i]->id]) {
-                    has_changed |= mark(info.continuation_mapping[i].first.get(), current_marks, visit_queue);
-                }
-            }
-            break;
-        }
         case CFCInstruction::syscall: {
             auto &info = std::get<CfOp::SyscallInfo>(cf.info);
+            if (info.continuation_block != successor)
+                continue;
             assert(info.continuation_mapping.size() == successor->inputs.size());
             for (size_t i = 0; i < info.continuation_mapping.size(); i++) {
                 if (successor_marks[successor->inputs[i]->id]) {
@@ -145,8 +190,9 @@ bool propagate_from_successor(const BasicBlock *successor, const std::vector<boo
             break;
         }
         case CFCInstruction::ijump: {
-            // TODO
             auto &info = std::get<CfOp::IJumpInfo>(cf.info);
+            if (info.targets.size() != 1 || info.targets[0] != successor)
+                continue;
             assert(info.mapping.size() == successor->inputs.size());
             for (size_t i = 0; i < info.mapping.size(); i++) {
                 if (successor_marks[successor->inputs[i]->id]) {
@@ -155,20 +201,36 @@ bool propagate_from_successor(const BasicBlock *successor, const std::vector<boo
             }
             break;
         }
-        case CFCInstruction::icall: {
-            auto &info = std::get<CfOp::ICallInfo>(cf.info);
-            assert(info.continuation_mapping.size() == successor->inputs.size());
-            for (size_t i = 0; i < info.mapping.size(); i++) {
+        case CFCInstruction::call: {
+            auto &info = std::get<CfOp::CallInfo>(cf.info);
+            if (info.target != successor)
+                continue;
+            assert(info.target_inputs.size() == successor->inputs.size());
+            for (size_t i = 0; i < info.target_inputs.size(); i++) {
                 if (successor_marks[successor->inputs[i]->id]) {
-                    has_changed |= mark(info.continuation_mapping[i].first.get(), current_marks, visit_queue);
+                    has_changed |= mark(info.target_inputs[i].get(), current_marks, visit_queue);
                 }
             }
             break;
         }
-        default:
-            assert(false);
+        case CFCInstruction::icall: {
+            auto &info = std::get<CfOp::ICallInfo>(cf.info);
+            if (info.target != successor)
+                continue;
+            assert(info.mapping.size() == successor->inputs.size());
+            for (size_t i = 0; i < info.mapping.size(); i++) {
+                if (successor_marks[successor->inputs[i]->id]) {
+                    has_changed |= mark(info.mapping[i].first.get(), current_marks, visit_queue);
+                }
+            }
             break;
         }
+        case CFCInstruction::_return:
+        case CFCInstruction::unreachable:
+            continue;
+        }
+
+        found_cf = true;
     }
     assert(found_cf);
 
@@ -199,13 +261,6 @@ bool visit_cf_and_mark_side_effects(const BasicBlock *block, std::vector<bool> &
             }
             break;
         }
-        case CFCInstruction::call: {
-            auto &info = std::get<CfOp::CallInfo>(cf.info);
-            for (auto &m : info.target_inputs) {
-                has_changed |= mark(m.get(), track_buf, visit_queue);
-            }
-            break;
-        }
         case CFCInstruction::_return: {
             auto &info = std::get<CfOp::RetInfo>(cf.info);
             for (auto &m : info.mapping) {
@@ -221,18 +276,13 @@ bool visit_cf_and_mark_side_effects(const BasicBlock *block, std::vector<bool> &
 }
 
 void fixup_block_predecessors(std::vector<BasicBlock *> &predecessors, size_t bb_id) {
-    // TODO something generates duplicate predecessors (might be fixed in new lifter?)
+    // TODO this should be fixed in the lifter
     std::set<BasicBlock *> preds_dedup;
     for (auto *pred : predecessors) {
         preds_dedup.insert(pred);
     }
     if (preds_dedup.size() != predecessors.size()) {
         std::cerr << "Warning: Duplicate predecessor in block b" << bb_id << '\n';
-        // fix up predecessors here for now
-        predecessors.clear();
-        for (auto *pred : preds_dedup) {
-            predecessors.push_back(pred);
-        }
     }
 }
 
@@ -284,15 +334,25 @@ void dce(IR *ir) {
 
         bool queue_preds = false;
         if (!unused_indices.empty()) {
+            bool can_remove = true;
             for (auto *pred : bb->predecessors) {
-                if (!remove_target_inputs(pred, bb.get(), unused_indices)) {
-                    panic("Could not find cfop with this block as target");
+                if (!check_target_input_removable(pred, bb.get())) {
+                    can_remove = false;
+                    break;
                 }
             }
 
-            remove_indices_sorted(bb->inputs, unused_indices);
+            if (can_remove) {
+                for (auto *pred : bb->predecessors) {
+                    if (!remove_target_inputs(pred, bb.get(), unused_indices)) {
+                        panic("Target input removal failed, even though it shouldn't");
+                    }
+                }
 
-            queue_preds = true;
+                remove_indices_sorted(bb->inputs, unused_indices);
+
+                queue_preds = true;
+            }
         }
 
         if (!queue_preds) {
@@ -332,7 +392,7 @@ void dce(IR *ir) {
 
             // `store`s have already been marked
             if (var->is_operation()) {
-                if (!side_effects[var->id]) // TODO assert
+                if (!side_effects[var->id])
                     continue;
 
                 for (auto &in : var->get_operation().in_vars) {
@@ -369,13 +429,24 @@ void dce(IR *ir) {
         }
 
         if (!unused_indices.empty()) {
+            bool can_remove = true;
+
             for (auto *pred : block->predecessors) {
-                if (!remove_target_inputs(pred, block.get(), unused_indices)) {
-                    panic("Could not find cfop with this block as target");
+                if (!check_target_input_removable(pred, block.get())) {
+                    can_remove = false;
+                    break;
                 }
             }
 
-            remove_indices_sorted(block->inputs, unused_indices);
+            if (can_remove) {
+                for (auto *pred : block->predecessors) {
+                    if (!remove_target_inputs(pred, block.get(), unused_indices)) {
+                        panic("Could not find cfop with this block as target");
+                    }
+                }
+
+                remove_indices_sorted(block->inputs, unused_indices);
+            }
         }
     }
 
