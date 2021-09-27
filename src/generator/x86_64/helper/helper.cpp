@@ -198,8 +198,10 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                 panic("sigreturn not supported");
             }
             case RISCV_SYSCALL_ID::SIGALTSTACK: {
-                // TODO
-                return -ENOSYS;
+                const auto *ss = reinterpret_cast<const signal::kernel_sigaltstack *>(arg0);
+                auto *oss = reinterpret_cast<signal::kernel_sigaltstack *>(arg1);
+
+                return signal::handle_sigaltstack(ss, oss);
             }
             default:
                 break;

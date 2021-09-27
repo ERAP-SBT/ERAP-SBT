@@ -331,8 +331,7 @@ void Generator::compile_block(const BasicBlock *block) {
             break;
         case CFCInstruction::signal_return:
             fprintf(out_fd, "# destroy stack space\n");
-            fprintf(out_fd, "mov rsp, rbp\npop rbp\n");
-            fprintf(out_fd, "# return from signal\n");
+            fprintf(out_fd, "add rsp, %zu\n", stack_size);
             fprintf(out_fd, "jmp sh_signal_restorer\n");
             break;
         }
