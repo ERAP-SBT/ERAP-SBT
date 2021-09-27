@@ -2,11 +2,9 @@
 
 #include <ir/ir.h>
 #include <lifter/program.h>
+#include <unordered_set>
 
 namespace lifter::RV64 {
-
-/* maximum number of riscv64 instructions a basicblock can have while lifting */
-constexpr size_t BASIC_BLOCK_MAX_INSTRUCTIONS = 10000;
 
 /* amount of "normal" static variables: zero register (x0) + 31 general purpose registers (x1-x31) + memory token */
 constexpr size_t COUNT_STATIC_VARS = 33;
@@ -48,10 +46,7 @@ class Lifter {
     static constexpr size_t FCSR_IDX = 65;
 
     // Depth of jump address backtracking
-    static constexpr int MAX_ADDRESS_SEARCH_DEPTH = 10;
-
-    // lift all data points from the load program header
-    static constexpr bool LIFT_ALL_LOAD = true;
+    static constexpr int MAX_ADDRESS_SEARCH_DEPTH = 3;
 
     // {0}: not used
     // {1, ..., 31}: RV-Registers
@@ -64,9 +59,7 @@ class Lifter {
 
     [[nodiscard]] BasicBlock *get_bb(uint64_t addr) const;
 
-    void lift_rec(Program *prog, Function *func, uint64_t start_addr, std::optional<size_t> addr_idx, BasicBlock *curr_bb);
-
-    void add_statics() {
+    void add_statics() const {
         for (unsigned i = 0; i < 32; i++) {
             ir->add_static(Type::i64);
         }
@@ -175,21 +168,21 @@ class Lifter {
 
     SSAVar *shrink_var(BasicBlock *bb, SSAVar *var, uint64_t ip, const Type target_size);
 
-    std::optional<uint64_t> backtrace_jmp_addr(CfOp *cfop, BasicBlock *bb);
-
-    std::optional<int64_t> get_var_value(SSAVar *var, BasicBlock *bb, std::vector<SSAVar *> &parsed_vars);
-
-    std::optional<SSAVar *> get_last_static_assignment(size_t idx, BasicBlock *bb);
-
     BasicBlock *split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *elf_base) const;
-
-    void load_input_vars(BasicBlock *bb, Operation *op, std::vector<int64_t> &resolved_vars, std::vector<SSAVar *> &parsed_vars);
 
     std::optional<SSAVar *> convert_type(BasicBlock *bb, uint64_t ip, SSAVar *var, const Type desired_type);
 
     void print_invalid_op_size(const Instruction instructionType, const RV64Inst &instr);
 
     std::string str_decode_instr(const FrvInst *instr);
+
+    // helpers for backtracking
+    std::unordered_set<int64_t> backtrace_jmp_addrs(CfOp *cfop, BasicBlock *bb);
+    std::unordered_set<int64_t> get_var_values(const std::vector<SSAVar *> &start_vars, BasicBlock *bb, std::vector<SSAVar *> &parsed_vars);
+    std::unordered_set<SSAVar *> get_last_static_assignments(size_t idx, BasicBlock *bb);
+    std::vector<std::array<int64_t, 4>> load_input_vars(BasicBlock *bb, Operation *op, std::vector<SSAVar *> &parsed_vars);
+    void register_jump_address(BasicBlock *jump_bb, uint64_t jmp_addr, ELF64File *elf_base);
+    void process_ijumps(std::vector<CfOp *> &unprocessed_ijumps, ELF64File *elf_base);
 
     /**
      * Returns the corresponding value from the mapping: If `is_floating_point_register == true` the slots for the floating points are accessed, if not the slots for the general purpose/integer
@@ -203,7 +196,7 @@ class Lifter {
      * @param is_floating_point_register Defines from which slots should be read: either general purpose/integer register or floating point slots. The default value is false.
      * @return SSAVar * A pointer to the variable stored at the given position in the mapping.
      */
-    SSAVar *get_from_mapping(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, bool is_floating_point_register = false);
+    SSAVar *get_from_mapping(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, bool is_floating_point_register = false) const;
 
     /**
      * Writes the given {@link SSAVar variable} to the {@link reg_map mapping}. Calls with `reg_id = 0 && is_floating_point_register == false` are ignored due to this are writes the unused slot in the
@@ -227,11 +220,11 @@ class Lifter {
      */
     void zero_extend_all_f32(BasicBlock *bb, reg_map &mapping, uint64_t ip) const;
 
-    SSAVar *get_from_mapping_and_shrink(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, const Type expected_type);
+    SSAVar *get_from_mapping_and_shrink(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, const Type expected_type) const;
 
     // return true if entered number corresponds to a link register
     static bool is_link_reg(size_t reg_idx);
 
-    void postprocess();
+    void postprocess(Program *prog);
 };
 } // namespace lifter::RV64

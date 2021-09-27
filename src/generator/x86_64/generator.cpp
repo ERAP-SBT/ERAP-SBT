@@ -380,7 +380,7 @@ void Generator::compile_ijump(const BasicBlock *block, const CfOp &op, const siz
     }
 
     assert(op.in_vars[0] != nullptr);
-    assert(ijump_info.target == nullptr);
+    assert(ijump_info.targets.empty());
 
     fprintf(out_fd, "# Get IJump Destination\n");
     fprintf(out_fd, "xor rax, rax\n");

@@ -50,7 +50,7 @@ struct BasicBlock {
     BasicBlock(IR *ir, const size_t id, const size_t virt_start_addr, std::string dbg_name = {}) : ir(ir), id(id), virt_start_addr{virt_start_addr}, dbg_name(std::move(dbg_name)) {}
     ~BasicBlock();
 
-    SSAVar *add_var(const Type type, uint64_t assign_addr, size_t reg = 0) {
+    SSAVar *add_var(const Type type, uint64_t assign_addr, size_t reg = SIZE_MAX) {
         auto var = std::make_unique<SSAVar>(cur_ssa_id++, type);
         var->lifter_info = SSAVar::LifterInfo{assign_addr, reg};
         const auto ptr = var.get();
@@ -58,10 +58,7 @@ struct BasicBlock {
         return ptr;
     }
 
-    SSAVar *add_var_imm(const int64_t imm, uint64_t assign_addr, const bool binary_relative = false, size_t reg = 0) {
-        if (!assign_addr) {
-            reg += 1;
-        }
+    SSAVar *add_var_imm(const int64_t imm, uint64_t assign_addr, const bool binary_relative = false, size_t reg = SIZE_MAX) {
         auto var = std::make_unique<SSAVar>(cur_ssa_id++, imm, binary_relative);
         var->lifter_info = SSAVar::LifterInfo{assign_addr, reg};
         const auto ptr = var.get();

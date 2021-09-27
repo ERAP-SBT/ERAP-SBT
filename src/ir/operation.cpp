@@ -187,7 +187,11 @@ CfOp::CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target) : 
         break;
     case CFCInstruction::ijump:
         info = IJumpInfo{};
-        std::get<IJumpInfo>(info).target = target;
+        if (target != nullptr) {
+            assert(0); // <- only enable this if you are sure about what you are doing.
+            // this is dangerous because one has to remember to also emplace the corresponding target mapping in mappings!
+            std::get<IJumpInfo>(info).targets.emplace_back(target);
+        }
         break;
     case CFCInstruction::cjump:
         info = CJumpInfo{};
@@ -228,9 +232,6 @@ void CfOp::add_target_input(SSAVar *input, size_t static_idx) {
     case CFCInstruction::jump:
         std::get<JumpInfo>(info).target_inputs.emplace_back(input);
         break;
-    case CFCInstruction::ijump:
-        std::get<IJumpInfo>(info).mapping.emplace_back(input, static_idx);
-        break;
     case CFCInstruction::cjump:
         std::get<CJumpInfo>(info).target_inputs.emplace_back(input);
         break;
@@ -245,6 +246,9 @@ void CfOp::add_target_input(SSAVar *input, size_t static_idx) {
         break;
     case CFCInstruction::_return:
         std::get<RetInfo>(info).mapping.emplace_back(input, static_idx);
+        break;
+    case CFCInstruction::ijump:
+        std::get<IJumpInfo>(info).mapping.emplace_back(input, static_idx);
         break;
     case CFCInstruction::unreachable:
         assert(0);
@@ -263,9 +267,6 @@ void CfOp::clear_target_inputs() {
     case CFCInstruction::call:
         std::get<CfOp::CallInfo>(info).target_inputs.clear();
         break;
-    case CFCInstruction::ijump:
-        std::get<CfOp::IJumpInfo>(info).mapping.clear();
-        break;
     case CFCInstruction::syscall:
         std::get<CfOp::SyscallInfo>(info).continuation_mapping.clear();
         break;
@@ -274,6 +275,9 @@ void CfOp::clear_target_inputs() {
         break;
     case CFCInstruction::icall:
         std::get<CfOp::ICallInfo>(info).mapping.clear();
+        break;
+    case CFCInstruction::ijump:
+        std::get<CfOp::IJumpInfo>(info).mapping.clear();
         break;
     default:
         assert(0);
@@ -291,9 +295,6 @@ void CfOp::set_target(BasicBlock *target) {
     case CFCInstruction::cjump:
         std::get<CJumpInfo>(info).target = target;
         break;
-    case CFCInstruction::ijump:
-        std::get<IJumpInfo>(info).target = target;
-        break;
     case CFCInstruction::call:
         std::get<CallInfo>(info).target = target;
         break;
@@ -305,6 +306,7 @@ void CfOp::set_target(BasicBlock *target) {
         break;
     case CFCInstruction::unreachable:
     case CFCInstruction::_return:
+    case CFCInstruction::ijump:
         assert(0);
         break;
     }
@@ -320,9 +322,8 @@ BasicBlock *CfOp::target() const {
         return std::get<CallInfo>(info).target;
     case CFCInstruction::syscall:
         return std::get<SyscallInfo>(info).continuation_block;
-    case CFCInstruction::ijump:
-        return std::get<IJumpInfo>(info).target;
     case CFCInstruction::icall:
+    case CFCInstruction::ijump:
     case CFCInstruction::unreachable:
     case CFCInstruction::_return:
         return nullptr;
@@ -348,13 +349,13 @@ const std::vector<RefPtr<SSAVar>> &CfOp::target_inputs() const {
             vec.emplace_back(var.first);
         }
         return vec;
-    case CFCInstruction::ijump:
-        for (auto &var : std::get<IJumpInfo>(info).mapping) {
+    case CFCInstruction::icall:
+        for (auto &var : std::get<ICallInfo>(info).mapping) {
             vec.emplace_back(var.first);
         }
         return vec;
-    case CFCInstruction::icall:
-        for (auto &var : std::get<ICallInfo>(info).mapping) {
+    case CFCInstruction::ijump:
+        for (auto &var : std::get<IJumpInfo>(info).mapping) {
             vec.emplace_back(var.first);
         }
         return vec;
@@ -383,14 +384,16 @@ void CfOp::print(std::ostream &stream, const IR *ir) const {
         return;
     }
 
-    const auto *target = this->target();
-    if (target) {
-        target->print_name(stream, ir);
+    if (type != CFCInstruction::ijump) {
+        const auto *target = this->target();
+        if (target) {
+            target->print_name(stream, ir);
 
-        if (type != CFCInstruction::syscall) {
-            for (const auto &var : target_inputs()) {
-                stream << ", ";
-                var->print_type_name(stream, ir);
+            if (type != CFCInstruction::syscall) {
+                for (const auto &var : target_inputs()) {
+                    stream << ", ";
+                    var->print_type_name(stream, ir);
+                }
             }
         }
     }
@@ -399,7 +402,6 @@ void CfOp::print(std::ostream &stream, const IR *ir) const {
     for (const auto &var : in_vars) {
         if (!var)
             continue;
-
         stream << ", ";
         var->print_type_name(stream, ir);
     }

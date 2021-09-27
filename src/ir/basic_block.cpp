@@ -84,15 +84,29 @@ bool BasicBlock::verify(std::vector<std::string> &messages_out) const {
             continue;
         }
 
-        for (const auto &input : cf_op.target_inputs()) {
-            // Control flow operations must only reference variables in the current basic block
-            if (variable_ids.find(input->id) == variable_ids.end()) {
-                std::stringstream s;
-                verify_print_bb_name(*this, s);
-                s << "Control flow operation with type " << cf_op.type << " references variable " << input->id;
-                s << ", which is not declared in this basic block.";
-                messages_out.push_back(s.str());
-                ok = false;
+        if (cf_op.type != CFCInstruction::ijump) {
+            for (const auto &input : cf_op.target_inputs()) {
+                // Control flow operations must only reference variables in the current basic block
+                if (variable_ids.find(input->id) == variable_ids.end()) {
+                    std::stringstream s;
+                    verify_print_bb_name(*this, s);
+                    s << "Control flow operation with type " << cf_op.type << " references variable " << input->id;
+                    s << ", which is not declared in this basic block.";
+                    messages_out.push_back(s.str());
+                    ok = false;
+                }
+            }
+        } else {
+            for (const auto &input : std::get<CfOp::IJumpInfo>(cf_op.info).mapping) {
+                // Control flow operations must only reference variables in the current basic block
+                if (variable_ids.find(input.first->id) == variable_ids.end()) {
+                    std::stringstream s;
+                    verify_print_bb_name(*this, s);
+                    s << "Control flow operation with type " << cf_op.type << " references variable " << input.first->id;
+                    s << ", which is not declared in this basic block.";
+                    messages_out.push_back(s.str());
+                    ok = false;
+                }
             }
         }
 

@@ -44,7 +44,6 @@ SSAVar *Lifter::shrink_var(BasicBlock *bb, SSAVar *var, uint64_t ip, const Type 
     SSAVar *destination = bb->add_var(target_size, ip);
     cast->set_outputs(destination);
     destination->set_op(std::move(cast));
-
     return destination;
 }
 
@@ -72,7 +71,7 @@ std::optional<SSAVar *> Lifter::convert_type(BasicBlock *bb, uint64_t ip, SSAVar
     return new_var;
 }
 
-SSAVar *Lifter::get_from_mapping(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, bool is_floating_point_register) {
+SSAVar *Lifter::get_from_mapping(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, bool is_floating_point_register) const {
     if (!is_floating_point_register && reg_id == ZERO_IDX) {
         // return constant zero
         return bb->add_var_imm(0, ip);
@@ -92,22 +91,13 @@ void Lifter::write_to_mapping(reg_map &mapping, SSAVar *var, uint64_t reg_id, bo
 
     const uint64_t actual_reg_id = reg_id + (is_floating_point_register ? START_IDX_FLOATING_POINT_STATICS : 0);
 
-    if (var == nullptr) {
-        assert(0 && "nullptr!");
-    } else if (!std::holds_alternative<SSAVar::LifterInfo>(var->lifter_info)) {
-        std::cerr << "var->type = " << var->type << "\n";
-        std::cerr << "var->info.index() = " << var->info.index() << "\n";
-        std::cerr << "var->id = " << var->id << "\n";
-        assert(0 && "lifter info!");
-    }
-
     std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = actual_reg_id;
     mapping[actual_reg_id] = var;
 }
 
 void Lifter::zero_extend_all_f32(BasicBlock *bb, reg_map &mapping, uint64_t ip) const {
     for (size_t i = START_IDX_FLOATING_POINT_STATICS; i < count_used_static_vars; ++i) {
-        if (mapping[i]->type == Type::f32) {
+        if (mapping[i] != nullptr && mapping[i]->type == Type::f32) {
             SSAVar *extended_var = bb->add_var(Type::f64, ip);
             auto op = std::make_unique<Operation>(Instruction::zero_extend);
             op->lifter_info.in_op_size = Type::f32;
@@ -120,7 +110,7 @@ void Lifter::zero_extend_all_f32(BasicBlock *bb, reg_map &mapping, uint64_t ip) 
     }
 }
 
-SSAVar *Lifter::get_from_mapping_and_shrink(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, const Type expected_type) {
+SSAVar *Lifter::get_from_mapping_and_shrink(BasicBlock *bb, reg_map &mapping, uint64_t reg_id, uint64_t ip, const Type expected_type) const {
     SSAVar *value = get_from_mapping(bb, mapping, reg_id, ip, is_float(expected_type));
     const int cast_dir_res = cast_dir(expected_type, value->type);
 

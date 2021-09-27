@@ -136,19 +136,7 @@ void Lifter::lift(Program *prog) {
             BasicBlock *next_bb;
 
             if (jmp_addr == 0) {
-                DEBUG_LOG("Encountered indirect jump / unknown jump target. Trying to guess the correct jump address...");
-                auto addr = backtrace_jmp_addr(&cf_op, cur_bb);
-                if (!addr.has_value()) {
-                    DEBUG_LOG("-> Address backtracking failed, skipping branch.");
-                    next_bb = dummy;
-                } else {
-                    std::stringstream str;
-                    str << " -> Found a possible address: 0x" << std::hex << addr.value();
-                    DEBUG_LOG(str.str());
-
-                    jmp_addr = addr.value();
-                    next_bb = get_bb(jmp_addr);
-                }
+                next_bb = dummy;
             } else {
                 next_bb = get_bb(jmp_addr);
             }
@@ -230,10 +218,13 @@ void Lifter::lift(Program *prog) {
     }
 
     ir->entry_block = get_bb(prog->elf_base->header.e_entry)->id;
-    postprocess();
+    postprocess(prog);
 }
 
-void Lifter::postprocess() {
+void Lifter::postprocess(Program *prog) {
+    // store ijumps for later target backtracking
+    std::vector<CfOp *> unprocessed_ijumps;
+
     // set all jump targets and remove guessed ijumps
     for (auto &bb : ir->basic_blocks) {
         for (auto &cf_op : bb->control_flow_ops) {
@@ -266,6 +257,7 @@ void Lifter::postprocess() {
             }
 
             if (cf_op.type == CFCInstruction::ijump || cf_op.type == CFCInstruction::icall) {
+                unprocessed_ijumps.emplace_back(&cf_op);
                 auto *target = cf_op.target();
                 if (target != nullptr) {
                     auto &pred = target->predecessors;
@@ -276,7 +268,11 @@ void Lifter::postprocess() {
                         bb->successors.erase(it);
                     }
                 }
-                cf_op.set_target(nullptr);
+                if (cf_op.type == CFCInstruction::ijump) {
+                    std::get<CfOp::IJumpInfo>(cf_op.info).targets.clear();
+                } else {
+                    cf_op.set_target(nullptr);
+                }
                 continue;
             }
 
@@ -332,6 +328,9 @@ void Lifter::postprocess() {
             }
         }
     }
+
+    // find more basic block entrypoints from ijumps
+    process_ijumps(unprocessed_ijumps, prog->elf_base.get());
 
     // add setup_stack block
     auto *program_entry = ir->basic_blocks[ir->entry_block].get();
