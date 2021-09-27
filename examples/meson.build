@@ -15,4 +15,32 @@ if riscv64_gcc.found()
         output: [ 'helloworld3' ],
         command: [ riscv64_gcc, '-g', '-static', '@INPUT@', '-o', '@OUTPUT@']
     )
+
+    signals_rv64 = custom_target('signals',
+        input: [ 'signals.c' ],
+        output: [ 'signals' ],
+        command: [ riscv64_gcc, '-static', '@INPUT@', '-o', '@OUTPUT@']
+    )
+
+    custom_target('signals_naive',
+        build_by_default: false,
+        input: [ signals_rv64 ],
+        output: [ 'signals_naive' ],
+        command: [ translate, '--debug=false', '@INPUT@', '--output=@OUTPUT@' ]
+    )
+
+    custom_target('signals_interp_only',
+        build_by_default: false,
+        input: [ signals_rv64 ],
+        output: [ 'signals_interp_only' ],
+        command: [ translate, '--debug=false', '@INPUT@', '--output=@OUTPUT@', '--interpreter-only' ]
+    )
+
+    custom_target('signals_reg_alloc',
+        build_by_default: false,
+        input: [ signals_rv64 ],
+        output: [ 'signals_reg_alloc' ],
+        command: [ translate, '--debug=false', '@INPUT@', '--output=@OUTPUT@', '--disable-fp', '--optimize=generator' ]
+    )
+
 endif
