@@ -144,7 +144,6 @@ struct CfOp {
     void set_target(BasicBlock *target);
 
     BasicBlock *target() const;
-    BasicBlock *continuation_target() const;
 
     /**
      * @brief Returns a list of target inputs, depending on the type.
