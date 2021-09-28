@@ -76,10 +76,8 @@ struct BasicBlock {
         return var;
     }
 
-    CfOp &add_cf_op(CFCInstruction type, BasicBlock *target, uint64_t instr_addr = 0, uint64_t jump_addr = 0) { return add_cf_op(type, this, target, instr_addr, jump_addr); }
-
-    CfOp &add_cf_op(CFCInstruction type, BasicBlock *source, BasicBlock *target, uint64_t instr_addr = 0, uint64_t jump_addr = 0) {
-        CfOp &cf_op = control_flow_ops.emplace_back(type, source, target);
+    CfOp &add_cf_op(CFCInstruction type, BasicBlock *target, uint64_t instr_addr = 0, uint64_t jump_addr = 0) {
+        CfOp &cf_op = control_flow_ops.emplace_back(type, this, target);
         cf_op.lifter_info = CfOp::LifterInfo{jump_addr, instr_addr};
         return control_flow_ops.back();
     }
