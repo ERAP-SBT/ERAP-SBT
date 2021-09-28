@@ -4,7 +4,7 @@ namespace optimizer {
 
 void VarRewriter::replace(SSAVar *old_var, SSAVar *new_var) { rewrites[old_var->id] = new_var; }
 
-void VarRewriter::visit_refptr(RefPtr<SSAVar> &ref) {
+void VarRewriter::visit_refptr(RefPtr<SSAVar> &ref) const {
     if (!ref)
         return;
     auto it = rewrites.find(ref->id);
@@ -13,7 +13,7 @@ void VarRewriter::visit_refptr(RefPtr<SSAVar> &ref) {
     }
 }
 
-void VarRewriter::apply_to(Operation &op) {
+void VarRewriter::apply_to(Operation &op) const {
     for (auto &in_var : op.in_vars) {
         visit_refptr(in_var);
     }
@@ -21,7 +21,7 @@ void VarRewriter::apply_to(Operation &op) {
 
 template <typename> [[maybe_unused]] inline constexpr bool always_false_v = false;
 
-void VarRewriter::apply_to(CfOp &cf) {
+void VarRewriter::apply_to(CfOp &cf) const {
     for (auto &in : cf.in_vars) {
         visit_refptr(in);
     }
