@@ -180,6 +180,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
 
     // the register mapping in the BasicBlock
     reg_map new_mapping{};
+    reg_map static_inputs{};
     {
         // add a jump from the first to the second BasicBlock
         auto &cf_op = bb->add_cf_op(CFCInstruction::jump, new_bb, bb->virt_end_addr, addr);
@@ -198,8 +199,10 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
             }
             if (i != ZERO_IDX) {
                 new_mapping[i] = new_bb->add_var_from_static(i, addr);
+                static_inputs[i] = new_mapping[i];
             } else {
                 new_mapping[i] = nullptr;
+                static_inputs[i] = nullptr;
             }
         }
     }
@@ -221,7 +224,12 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
 
                 // the input must only be changed if the input variable is in the first BasicBlock
                 if (in_var_lifter_info.assign_addr < addr) {
-                    auto *new_var = new_mapping[in_var_lifter_info.static_id];
+                    SSAVar *new_var;
+                    if (std::holds_alternative<size_t>(in_var->info)) {
+                        new_var = static_inputs[in_var_lifter_info.static_id];
+                    } else {
+                        new_var = new_mapping[in_var_lifter_info.static_id];
+                    }
                     if ((in_var->type == Type::imm && operation->type != Instruction::cast && new_var->type != operation->lifter_info.in_op_size) || cast_dir(in_var->type, new_var->type) == 1) {
                         SSAVar *const casted_value = new_bb->add_var(operation->lifter_info.in_op_size, std::get<SSAVar::LifterInfo>(var->lifter_info).assign_addr);
                         auto op = std::make_unique<Operation>(Instruction::cast);
