@@ -405,6 +405,17 @@ void CfOp::print(std::ostream &stream, const IR *ir) const {
                 }
             }
         }
+    } else {
+        auto first = true;
+        for (auto &[var, idx] : std::get<CfOp::IJumpInfo>(info).mapping) {
+            if (!first) {
+                stream << ", ";
+            } else {
+                first = false;
+            }
+            stream << "s" << idx << " <- ";
+            var->print_type_name(stream, ir);
+        }
     }
     stream << "]";
 

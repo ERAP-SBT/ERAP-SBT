@@ -221,7 +221,9 @@ void BasicBlock::print(std::ostream &stream, const IR *ir) const {
     }
     stream << "] {";
     if (!dbg_name.empty()) {
-        stream << " // " << dbg_name;
+        stream << " // " << dbg_name << " at 0x" << std::hex << virt_start_addr << "-0x" << virt_end_addr << std::dec;
+    } else {
+        stream << " // at 0x" << std::hex << virt_start_addr << "-0x" << virt_end_addr << std::dec;
     }
     stream << '\n';
 
