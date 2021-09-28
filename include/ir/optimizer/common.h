@@ -11,19 +11,21 @@ class VarRewriter {
     // old id -> new var
     std::map<size_t, SSAVar *> rewrites;
 
-    void visit_refptr(RefPtr<SSAVar> &);
+    void visit_refptr(RefPtr<SSAVar> &) const;
 
   public:
     void replace(SSAVar *old_var, SSAVar *new_var);
 
-    void apply_to(Operation &);
-    void apply_to(CfOp &);
+    void apply_to(Operation &) const;
+    void apply_to(CfOp &) const;
 
-    void apply_to(std::vector<CfOp> &ops) {
+    void apply_to(std::vector<CfOp> &ops) const {
         for (auto &op : ops) {
             apply_to(op);
         }
     }
+
+    void clear() { rewrites.clear(); }
 };
 
 enum Optimization : uint32_t {
