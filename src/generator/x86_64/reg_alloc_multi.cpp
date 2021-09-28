@@ -29,6 +29,7 @@ const char *reg_name(const REGISTER reg, const Type type) {
     const auto &arr = reg_names[reg];
     switch (type) {
     case Type::i64:
+    case Type::imm:
         return arr[0];
     case Type::i32:
         return arr[1];
@@ -64,14 +65,14 @@ const char *mem_size(const Type type) {
     exit(1);
 }
 
-Type choose_type(Type typ1, Type typ2) {
-    assert(typ1 == typ2 || typ1 == Type::imm || typ2 == Type::imm);
-    if (typ1 == Type::imm && typ2 == Type::imm) {
+Type choose_type(SSAVar *typ1, SSAVar *typ2) {
+    assert(typ1->type == typ2->type || typ1->is_immediate() || typ2->is_immediate());
+    if (typ1->is_immediate() && typ2->is_immediate()) {
         return Type::i64;
-    } else if (typ1 == Type::imm) {
-        return typ2;
+    } else if (typ1->is_immediate()) {
+        return typ2->type;
     } else {
-        return typ1;
+        return typ1->type;
     }
 }
 } // namespace
@@ -286,7 +287,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
 
         // TODO: this essentially skips input vars but we should have a seperate if for that
         // since the location of the input vars is supplied by the previous block
-        if (var->type == Type::imm || std::holds_alternative<size_t>(var->info)) {
+        if (var->is_immediate() || std::holds_alternative<size_t>(var->info)) {
             // skip immediates and statics, we load them on-demand
             continue;
         }
@@ -336,7 +337,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
             auto *dst = op->out_vars[0];
             // TODO: the imm-branch and not-imm-branch can probably be merged if we use a string as the second operand
             // and just put the imm in there
-            if (in2->type == Type::imm && !std::get<SSAVar::ImmInfo>(in2->info).binary_relative) {
+            if (in2->is_immediate() && !std::get<SSAVar::ImmInfo>(in2->info).binary_relative) {
                 const auto imm_val = std::get<SSAVar::ImmInfo>(in2->info).val;
                 REGISTER in1_reg;
                 if (op->type != Instruction::ssmul_h && op->type != Instruction::uumul_h && op->type != Instruction::div && op->type != Instruction::udiv) {
@@ -361,7 +362,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     }
                 }
 
-                const auto in1_reg_name = reg_name(in1_reg, choose_type(in1->type, Type::imm));
+                const auto in1_reg_name = reg_name(in1_reg, choose_type(in1, in2));
                 REGISTER dst_reg = REG_NONE;
                 if (op->type != Instruction::add || in1->gen_info.last_use_time == cur_time) {
                     dst_reg = in1_reg;
@@ -412,7 +413,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                         }
                     }
                 }
-                const auto dst_reg_name = reg_name(dst_reg, choose_type(in1->type, Type::imm));
+                const auto dst_reg_name = reg_name(dst_reg, choose_type(in1, in2));
 
                 if (reg_map[dst_reg].cur_var && reg_map[dst_reg].cur_var->gen_info.last_use_time > cur_time) {
                     save_reg(dst_reg);
@@ -491,12 +492,12 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                                 // merge add/store
                                 auto *store_src = next_op->in_vars[1].get();
                                 const auto src_reg = load_val_in_reg(cur_time, store_src);
-                                print_asm("mov [%s + %ld], %s\n", in1_reg_name, imm_val, reg_name(src_reg, store_src->type));
+                                print_asm("mov [%s + %ld], %s\n", in1_reg_name, imm_val, reg_name(src_reg, next_op->lifter_info.in_op_size));
                                 next_op->out_vars[0]->gen_info.already_generated = true;
                                 did_merge = true;
                             }
                         }
-                    } else if ((gen->optimizations & Generator::OPT_ARCH_BMI2) && op->type == Instruction::_and && op->in_vars[1]->type == Type::imm) {
+                    } else if ((gen->optimizations & Generator::OPT_ARCH_BMI2) && op->type == Instruction::_and && op->in_vars[1]->is_immediate()) {
                         // v2 <- and v0, 31/63
                         // (cast i32 v3 <- i64 v1)
                         // shl/shr/sar v3/v1, v2
@@ -561,13 +562,13 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     break;
                 }
 
-                const auto op_with_imm32 = [imm_val, this, in1_reg_name, cur_time, in1](const char *op_str) {
-                    if (std::abs(imm_val) <= 0x7FFF'FFFF) {
+                const auto op_with_imm32 = [imm_val, this, in1_reg_name, cur_time, in1, in2](const char *op_str) {
+                    if (static_cast<uint64_t>(imm_val) != 0x80000000'00000000 && std::abs(imm_val) <= 0x7FFF'FFFF) {
                         print_asm("%s %s, %ld\n", op_str, in1_reg_name, imm_val);
                     } else {
                         auto imm_reg = alloc_reg(cur_time);
                         print_asm("mov %s, %ld\n", reg_names[imm_reg][0], imm_val);
-                        print_asm("%s %s, %s\n", op_str, in1_reg_name, reg_name(imm_reg, choose_type(in1->type, Type::imm)));
+                        print_asm("%s %s, %s\n", op_str, in1_reg_name, reg_name(imm_reg, choose_type(in1, in2)));
                     }
                 };
                 switch (op->type) {
@@ -575,12 +576,12 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     if (dst_reg == in1_reg) {
                         op_with_imm32("add");
                     } else {
-                        if (std::abs(imm_val) <= 0x7FFF'FFFF) {
+                        if (static_cast<uint64_t>(imm_val) != 0x80000000'00000000 && std::abs(imm_val) <= 0x7FFF'FFFF) {
                             print_asm("lea %s, [%s + %ld]\n", dst_reg_name, in1_reg_name, imm_val);
                         } else {
                             auto imm_reg = alloc_reg(cur_time);
                             print_asm("mov %s, %ld\n", reg_names[imm_reg][0], imm_val);
-                            print_asm("lea %s, [%s + %s]\n", dst_reg_name, reg_name(imm_reg, choose_type(in1->type, Type::imm)), reg_names[imm_reg][0]);
+                            print_asm("lea %s, [%s + %s]\n", dst_reg_name, reg_name(imm_reg, choose_type(in1, in2)), reg_names[imm_reg][0]);
                         }
                     }
                     break;
@@ -715,7 +716,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                 in1_reg = load_val_in_reg(cur_time, in1);
                 in2_reg = load_val_in_reg(cur_time, in2);
             }
-            const auto type = choose_type(in1->type, in2->type);
+            const auto type = choose_type(in1, in2);
             const auto in1_reg_name = reg_name(in1_reg, type);
             const auto in2_reg_name = reg_name(in2_reg, type);
 
@@ -831,26 +832,26 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
         case Instruction::store: {
             auto *addr = op->in_vars[0].get();
             auto *val = op->in_vars[1].get();
-            assert(addr->type == Type::imm || addr->type == Type::i64);
+            assert(addr->is_immediate() || addr->type == Type::i64);
 
             // TODO: when addr is a (binary-relative) immediate this can be omitted sometimes
             const auto addr_reg = load_val_in_reg(cur_time, addr);
             // TODO: when val is a non-binary-relative immediate this can be omitted sometimes (if val <= 0xFFFFFFFF)
             const auto val_reg = load_val_in_reg(cur_time, val);
-            print_asm("mov [%s], %s\n", reg_names[addr_reg][0], reg_name(val_reg, val->type == Type::imm ? Type::i64 : val->type));
+            print_asm("mov [%s], %s\n", reg_names[addr_reg][0], reg_name(val_reg, op->lifter_info.in_op_size));
             break;
         }
         case Instruction::_not: {
             auto *val = op->in_vars[0].get();
             auto *dst = op->out_vars[0];
-            assert(val->type == dst->type || val->type == Type::imm);
+            assert(val->type == dst->type || val->is_immediate());
             const auto val_reg = load_val_in_reg(cur_time, val);
 
             if (val->gen_info.last_use_time > cur_time) {
                 save_reg(val_reg);
             }
 
-            print_asm("not %s\n", reg_name(val_reg, val->type == Type::imm ? Type::i64 : val->type));
+            print_asm("not %s\n", reg_name(val_reg, val->is_immediate() ? Type::i64 : val->type));
             clear_reg(cur_time, val_reg);
             set_var_to_reg(cur_time, dst, val_reg);
             break;
@@ -869,20 +870,20 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                 save_reg(cmp1_reg);
             }
 
-            if (val1->type == Type::imm && val2->type == Type::imm) {
+            if (val1->is_immediate() && val2->is_immediate()) {
                 const auto &val1_info = std::get<SSAVar::ImmInfo>(val1->info);
                 const auto &val2_info = std::get<SSAVar::ImmInfo>(val2->info);
                 if (val1_info.val == 1 && !val1_info.binary_relative && val2_info.val == 0 && !val2_info.binary_relative) {
-                    if (cmp2->type == Type::imm && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative) {
-                        const auto type = cmp1->type == Type::imm ? Type::i64 : cmp1->type;
+                    if (cmp2->is_immediate() && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative) {
+                        const auto type = cmp1->is_immediate() ? Type::i64 : cmp1->type;
                         print_asm("cmp %s, %ld\n", reg_name(cmp1_reg, type), std::get<SSAVar::ImmInfo>(cmp2->info).val);
                     } else {
                         const auto cmp2_reg = load_val_in_reg(cur_time, cmp2);
-                        auto type = choose_type(cmp1->type, cmp2->type);
+                        auto type = choose_type(cmp1, cmp2);
                         print_asm("cmp %s, %s\n", reg_name(cmp1_reg, type), reg_name(cmp2_reg, type));
                     }
 
-                    if (cmp1->type != Type::imm || std::get<SSAVar::ImmInfo>(cmp1->info).binary_relative || static_cast<uint64_t>(std::get<SSAVar::ImmInfo>(cmp1->info).val) > 255) {
+                    if (!cmp1->is_immediate() || std::get<SSAVar::ImmInfo>(cmp1->info).binary_relative || static_cast<uint64_t>(std::get<SSAVar::ImmInfo>(cmp1->info).val) > 255) {
                         // dont need to clear if we know the register holds a value that fits into 1 byte
                         print_asm("mov %s, 0\n", reg_names[cmp1_reg][0]);
                     }
@@ -900,12 +901,13 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
             const auto val1_reg = load_val_in_reg(cur_time, val1);
             const auto val2_reg = load_val_in_reg(cur_time, val2);
 
-            if (cmp2->type == Type::imm && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative && std::abs(std::get<SSAVar::ImmInfo>(cmp2->info).val) <= 0x7FFFFFFF) {
-                const auto type = cmp1->type == Type::imm ? Type::i64 : cmp1->type;
+            if (cmp2->is_immediate() && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative && static_cast<uint64_t>(cmp2->get_immediate().val) != 0x80000000'00000000 &&
+                std::abs(std::get<SSAVar::ImmInfo>(cmp2->info).val) <= 0x7FFFFFFF) {
+                const auto type = cmp1->is_immediate() ? Type::i64 : cmp1->type;
                 print_asm("cmp %s, %ld\n", reg_name(cmp1_reg, type), std::get<SSAVar::ImmInfo>(cmp2->info).val);
             } else {
                 const auto cmp2_reg = load_val_in_reg(cur_time, cmp2);
-                auto type = choose_type(cmp1->type, cmp2->type);
+                auto type = choose_type(cmp1, cmp2);
                 print_asm("cmp %s, %s\n", reg_name(cmp1_reg, type), reg_name(cmp2_reg, type));
             }
 
@@ -936,7 +938,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
         case Instruction::zero_extend: {
             auto *input = op->in_vars[0].get();
             auto *output = op->out_vars[0];
-            if (input->type == Type::imm && !std::get<SSAVar::ImmInfo>(input->info).binary_relative) {
+            if (input->is_immediate() && !std::get<SSAVar::ImmInfo>(input->info).binary_relative) {
                 // cast,sign_extend and zero_extend are no-ops
                 auto imm = std::get<SSAVar::ImmInfo>(input->info).val;
                 switch (output->type) {
@@ -1032,7 +1034,7 @@ bool RegAlloc::merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg) {
                 if (next_op->in_vars[0] != dst) {
                     return false;
                 }
-                assert((in1->type == Type::i64 || in1->type == Type::imm) && (in2->type == Type::i64 || in2->type == Type::imm));
+                assert((in1->type == Type::i64 || in1->is_immediate()) && (in2->type == Type::i64 || in2->is_immediate()));
                 const auto *in1_reg_name = reg_names[in1->gen_info.reg_idx][0];
                 const auto *in2_reg_name = reg_names[in2->gen_info.reg_idx][0];
                 // check if there is a zero/sign-extend afterwards
@@ -1081,12 +1083,12 @@ bool RegAlloc::merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg) {
                 if (addr_src != dst) {
                     return false;
                 }
-                assert((in1->type == Type::i64 || in1->type == Type::imm) && (in2->type == Type::i64 || in2->type == Type::imm));
+                assert((in1->type == Type::i64 || in1->is_immediate()) && (in2->type == Type::i64 || in2->is_immediate()));
                 const auto *in1_reg_name = reg_names[in1->gen_info.reg_idx][0];
                 const auto *in2_reg_name = reg_names[in2->gen_info.reg_idx][0];
 
                 const auto val_reg = load_val_in_reg(cur_time, val_src);
-                print_asm("mov [%s + %s], %s\n", in1_reg_name, in2_reg_name, reg_name(val_reg, val_src->type));
+                print_asm("mov [%s + %s], %s\n", in1_reg_name, in2_reg_name, reg_name(val_reg, next_op->lifter_info.in_op_size));
                 next_op->out_vars[0]->gen_info.already_generated = true;
                 return true;
             } else if (next_op->type == Instruction::cast) {
@@ -1102,7 +1104,7 @@ bool RegAlloc::merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg) {
                 if (store_op->type != Instruction::store || store_op->in_vars[0] != dst || store_op->in_vars[1] != cast_var) {
                     return false;
                 }
-                assert((in1->type == Type::i64 || in1->type == Type::imm) && (in2->type == Type::i64 || in2->type == Type::imm));
+                assert((in1->type == Type::i64 || in1->is_immediate()) && (in2->type == Type::i64 || in2->is_immediate()));
                 const auto *in1_reg_name = reg_names[in1->gen_info.reg_idx][0];
                 const auto *in2_reg_name = reg_names[in2->gen_info.reg_idx][0];
 
@@ -1179,8 +1181,9 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             auto *cmp2 = cf_op.in_vars[1].get();
 
             const auto cmp1_reg = load_val_in_reg(cur_time, cmp1);
-            const auto type = choose_type(cmp1->type, cmp2->type);
-            if (cmp2->type == Type::imm && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative) {
+            const auto type = choose_type(cmp1, cmp2);
+            if (cmp2->is_immediate() && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative && static_cast<uint64_t>(cmp2->get_immediate().val) != 0x80000000'00000000 &&
+                std::abs(cmp2->get_immediate().val) <= 0x7FFFFFFF) {
                 // TODO: only 32bit immediates which are safe to sign extend
                 print_asm("cmp %s, %ld\n", reg_name(cmp1_reg, type), std::get<SSAVar::ImmInfo>(cmp2->info).val);
             } else {
@@ -1285,7 +1288,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             const auto tmp_reg = alloc_reg(cur_time + 1 + info.mapping.size(), REG_NONE, dst_reg);
             const auto dst_reg_name = reg_names[dst_reg][0];
             const auto tmp_reg_name = reg_names[tmp_reg][0];
-            assert(dst->type == Type::imm || dst->type == Type::i64);
+            assert(dst->is_immediate() || dst->type == Type::i64);
             print_asm("# destroy stack space\n");
             print_asm("add rsp, %zu\n", max_stack_frame_size * 8);
 
@@ -1447,7 +1450,7 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
         if (input_var->gen_info.location != SSAVar::GeneratorInfoX64::NOT_CALCULATED) {
             continue;
         }
-        assert(input_var->type == Type::imm);
+        assert(input_var->is_immediate());
         load_val_in_reg<false>(cur_time, input_var);
     }
 
@@ -1500,6 +1503,11 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
                         load_val_in_reg(cur_time, input_var, REG_A);
                     }
                     print_asm("mov [rsp + 8 * %zu], %s\n", stack_slot, reg_names[reg][0]);
+
+                    if (!input_var->gen_info.saved_in_stack) {
+                        input_var->gen_info.saved_in_stack = true;
+                        input_var->gen_info.stack_slot = stack_slot;
+                    }
                 }
                 continue;
             }
@@ -1522,7 +1530,7 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
             }
         }
         if (rax_used && rax_input->gen_info.location != SSAVar::GeneratorInfoX64::REGISTER) {
-            assert(reg_map[REG_A].cur_var->gen_info.saved_in_stack);
+            assert(reg_map[REG_A].cur_var->gen_info.saved_in_stack || reg_map[REG_A].cur_var->is_immediate());
             clear_reg(cur_time, REG_A);
             load_val_in_reg(cur_time, rax_input, REG_A);
         }
@@ -1557,7 +1565,7 @@ void RegAlloc::generate_input_map(BasicBlock *bb) {
             // we lie a little
             InputInfo info;
             info.location = InputInfo::STATIC;
-            info.static_idx = i;
+            info.static_idx = 32;
             bb->gen_info.input_map.push_back(std::move(info));
             continue;
         }
@@ -1584,10 +1592,13 @@ void RegAlloc::generate_input_map(BasicBlock *bb) {
 void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_time, const std::vector<std::pair<RefPtr<SSAVar>, size_t>> &mapping) {
     // TODO: this is a bit unfaithful to the time calculation since we write out registers first but that should be fine
 
+    auto written_out = std::vector<bool>{};
+    written_out.resize(mapping.size());
     // TODO: here we could write out all register that do not overwrite a static that is uses as an input
     // but that involves a bit more housekeeping
     // load all static inputs into a register so we don't have to worry about that anymore
-    for (const auto &pair : mapping) {
+    for (size_t i = 0; i < mapping.size(); ++i) {
+        const auto &pair = mapping[i];
         auto *var = pair.first.get();
         if (var->type == Type::mt) {
             continue;
@@ -1598,6 +1609,7 @@ void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_
 
         // skip identity-mapped statics
         if (var->gen_info.static_idx == pair.second) {
+            written_out[i] = true;
             continue;
         }
 
@@ -1605,7 +1617,8 @@ void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_
     }
 
     // write out all registers
-    for (const auto &pair : mapping) {
+    for (size_t i = 0; i < mapping.size(); ++i) {
+        const auto &pair = mapping[i];
         auto *var = pair.first.get();
         if (var->type == Type::mt) {
             continue;
@@ -1615,6 +1628,7 @@ void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_
         }
 
         print_asm("mov [s%zu], %s\n", pair.second, reg_names[var->gen_info.reg_idx][0]);
+        written_out[i] = true;
     }
 
     // write out stuff in stack
@@ -1625,7 +1639,7 @@ void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_
         }
         const auto static_idx = mapping[var_idx].second;
 
-        if (var->gen_info.location == SSAVar::GeneratorInfoX64::REGISTER || var->gen_info.location == SSAVar::GeneratorInfoX64::STATIC) {
+        if (written_out[var_idx]) {
             continue;
         }
 
@@ -1697,10 +1711,13 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
             continue;
         }
 
-        // it is a problem when a previous input needs to be at this static
+        // it is a problem when another input needs to be at this static
         auto conflict = false;
-        for (size_t j = 0; j < i; ++j) {
-            if (input_map[j].location == BasicBlock::GeneratorInfo::InputInfo::STATIC && input_map[j].static_idx == inputs[i]->gen_info.static_idx) {
+        for (size_t j = 0; j < inputs.size(); ++j) {
+            if (j == i) {
+                continue;
+            }
+            if (inputs[j]->type != Type::mt && input_map[j].location == BasicBlock::GeneratorInfo::InputInfo::STATIC && input_map[j].static_idx == inputs[i]->gen_info.static_idx) {
                 conflict = true;
                 break;
             }
@@ -2000,10 +2017,13 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::load_val_in_reg(
         // TODO: add a thing in the regmap that tells the allocater that the var may only be in this register
         // TODO: this will bug out when you alloc a reg and then alloc one if only_this_reg and they end up in the same register
         if (auto *other_var = reg_map[only_this_reg].cur_var; other_var && other_var->gen_info.last_use_time >= cur_time) {
-            print_asm("xchg %s, %s\n", reg_names[only_this_reg][0], reg_names[var->gen_info.reg_idx][0]);
+            // TODO: disabled this as it doesn't cope well when a var needs to be in two registers at the same time,
+            // e.g. in cfops
+            /*print_asm("xchg %s, %s\n", reg_names[only_this_reg][0], reg_names[var->gen_info.reg_idx][0]);
             std::swap(reg_map[only_this_reg], reg_map[var->gen_info.reg_idx]);
             std::swap(var->gen_info.reg_idx, other_var->gen_info.reg_idx);
-            return only_this_reg;
+            return only_this_reg;*/
+            save_reg(only_this_reg);
         }
         clear_reg(cur_time, only_this_reg);
         print_asm("mov %s, %s\n", reg_names[only_this_reg][0], reg_names[var->gen_info.reg_idx][0]);
@@ -2015,7 +2035,7 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::load_val_in_reg(
 
     const auto reg = alloc_reg<evict_imms>(cur_time, only_this_reg, clear_regs...);
 
-    if (var->type == Type::imm) {
+    if (var->is_immediate()) {
         auto &info = std::get<SSAVar::ImmInfo>(var->info);
         if (info.binary_relative) {
             print_asm("lea %s, [binary + %ld]\n", reg_names[reg][0], info.val);
@@ -2045,7 +2065,7 @@ void RegAlloc::clear_reg(size_t cur_time, REGISTER reg, bool imm_to_stack) {
         return;
     }
 
-    if (var->type == Type::imm && !imm_to_stack) {
+    if (var->is_immediate() && !imm_to_stack) {
         // we simply calculate the value on demand
         var->gen_info.location = SSAVar::GeneratorInfoX64::NOT_CALCULATED;
     } else if (var->gen_info.saved_in_stack) {
@@ -2096,7 +2116,7 @@ void RegAlloc::save_reg(REGISTER reg, bool imm_to_stack) {
         return;
     }
 
-    if (var->type == Type::imm && !imm_to_stack) {
+    if (var->is_immediate() && !imm_to_stack) {
         // no need to save immediates i think
         return;
     }
@@ -2104,11 +2124,7 @@ void RegAlloc::save_reg(REGISTER reg, bool imm_to_stack) {
     // find slot for var
     size_t stack_slot = allocate_stack_slot(var);
 
-    if (var->type == Type::imm) {
-        print_asm("mov QWORD PTR [rsp + 8 * %zu], %ld\n", stack_slot, std::get<SSAVar::ImmInfo>(var->info).val);
-    } else {
-        print_asm("mov [rsp + 8 * %zu], %s\n", stack_slot, reg_name(reg, var->type));
-    }
+    print_asm("mov [rsp + 8 * %zu], %s\n", stack_slot, reg_name(reg, var->type));
     var->gen_info.saved_in_stack = true;
     var->gen_info.stack_slot = stack_slot;
 }
@@ -2126,7 +2142,7 @@ void RegAlloc::clear_after_alloc_time(size_t alloc_time) {
             return;
         }
 
-        if (var->type == Type::imm) {
+        if (var->is_immediate()) {
             // we simply calculate the value on demand
             var->gen_info.location = SSAVar::GeneratorInfoX64::NOT_CALCULATED;
         } else if (var->gen_info.saved_in_stack) {
