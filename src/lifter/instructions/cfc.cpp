@@ -60,16 +60,16 @@ void Lifter::lift_branch(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     }
 
     // calculate jump address and create an immediate variable for the jump and the continuation address
-    int64_t jump_addr = static_cast<int64_t>(instr.instr.imm) + static_cast<int64_t>(ip);
-    SSAVar *jump_addr_variable = load_immediate(bb, jump_addr, ip, true);
-    SSAVar *next_addr_var = load_immediate(bb, static_cast<int64_t>(next_addr), ip, true);
+    const uint64_t jump_addr = static_cast<uint64_t>(static_cast<int64_t>(instr.instr.imm)) + ip;
+    SSAVar *jump_addr_variable = bb->add_var_imm(jump_addr, ip, true);
+    SSAVar *next_addr_var = bb->add_var_imm(next_addr, ip, true);
 
     // stores the address which is used if the branch condition is false
-    uint64_t uc_jmp_addr = reverse_jumps ? jump_addr : next_addr;
+    const uint64_t uc_jmp_addr = reverse_jumps ? jump_addr : next_addr;
     SSAVar *uc_jmp_addr_var = reverse_jumps ? jump_addr_variable : next_addr_var;
 
     // stores the address which is used if the branch condition is true
-    uint64_t br_jmp_addr = reverse_jumps ? next_addr : jump_addr;
+    const uint64_t br_jmp_addr = reverse_jumps ? next_addr : jump_addr;
     SSAVar *br_jmp_addr_var = reverse_jumps ? next_addr_var : jump_addr_variable;
 
     SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
@@ -85,14 +85,14 @@ void Lifter::lift_branch(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
 
 void Lifter::lift_jal(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     // 1. calculate the jump address
-    int64_t jump_addr = static_cast<int64_t>(instr.instr.imm) + static_cast<int64_t>(ip);
+    const uint64_t jump_addr = static_cast<uint64_t>(static_cast<int64_t>(instr.instr.imm)) + ip;
 
     // 2. load the jump address as variable
-    SSAVar *jump_addr_variable = load_immediate(bb, jump_addr, ip, true);
+    SSAVar *jump_addr_variable = bb->add_var_imm(jump_addr, ip, true);
 
     if (instr.instr.rd != ZERO_IDX) {
         // 3. load return address as another immediate
-        SSAVar *return_addr = load_immediate(bb, (int64_t)(next_addr), ip, true);
+        SSAVar *return_addr = bb->add_var_imm(next_addr, ip, true);
 
         // write SSAVar of the result of the operation back to mapping
         write_to_mapping(mapping, return_addr, instr.instr.rd);
