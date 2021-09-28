@@ -389,10 +389,10 @@ class TestFloatingPointLifting : public ::testing::Test {
                 FAIL() << "The test developer has failed!";
                 break;
             }
-            ASSERT_TRUE(op->rounding_info.has_value()) << "The conversion operation should have an rounding mode set!";
-            ASSERT_EQ(op->rounding_info.value(), expected_rounding_mode) << "The rounding mode is the wrong one!";
+            ASSERT_TRUE(std::holds_alternative<RoundingMode>(op->rounding_info)) << "The conversion operation should have an rounding mode set!";
+            ASSERT_EQ(std::get<RoundingMode>(op->rounding_info), expected_rounding_mode) << "The rounding mode is the wrong one!";
         } else {
-            ASSERT_FALSE(op->rounding_info.has_value()) << "The conversion opertaion shouldn't have an rounding mode set!";
+            ASSERT_TRUE(std::holds_alternative<std::monostate>(op->rounding_info)) << "The conversion opertaion shouldn't have an rounding mode set!";
         }
 
         count_scanned_variables++;

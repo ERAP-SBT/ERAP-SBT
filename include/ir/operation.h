@@ -15,7 +15,8 @@ struct Operation {
     Instruction type;
     std::array<RefPtr<SSAVar>, 4> in_vars = {};
     std::array<SSAVar *, 3> out_vars = {};
-    std::optional<RoundingMode> rounding_info = {};
+    // nothing (not rounded), static rounding mode, dynamic rounding with this variable
+    std::variant<std::monostate, RoundingMode, SSAVar *> rounding_info = {};
 
     // TODO: do we need that here?
     bool const_evaluable = false;
@@ -30,7 +31,7 @@ struct Operation {
     void set_inputs(SSAVar *in1 = nullptr, SSAVar *in2 = nullptr, SSAVar *in3 = nullptr, SSAVar *in4 = nullptr);
     void set_outputs(SSAVar *out1 = nullptr, SSAVar *out2 = nullptr, SSAVar *out3 = nullptr);
 
-    void set_rounding_mode(const RoundingMode mode) { rounding_info = mode; }
+    void set_rounding_mode(RoundingMode mode) { rounding_info = mode; }
 
     void set_inputs(std::initializer_list<SSAVar *> inputs);
     void set_outputs(std::initializer_list<SSAVar *> outputs);
