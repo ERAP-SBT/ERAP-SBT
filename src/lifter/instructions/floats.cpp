@@ -87,29 +87,27 @@ void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr
 
     // Only conversions to integers should have an rounding mode
     if (to == Type::i32 || to == Type::i64) {
-        RoundingMode rounding_mode;
         switch (instr.instr.misc) {
         case 0:
         case 4:
             // both RISC-V Rounding Modes are rounding to the nearest, but ties will be rounded to even (0) respectively to max magnitude (4).
             // but this details cannot be saved in x86_64 and therefore both RISC-V rounding modes get mapped to the same IR rounding mode.
-            rounding_mode = RoundingMode::NEAREST;
+            op->rounding_info = RoundingMode::NEAREST;
             break;
         case 1:
-            rounding_mode = RoundingMode::ZERO;
+            op->rounding_info = RoundingMode::ZERO;
             break;
         case 2:
-            rounding_mode = RoundingMode::DOWN;
+            op->rounding_info = RoundingMode::DOWN;
             break;
         case 3:
-            rounding_mode = RoundingMode::UP;
+            op->rounding_info = RoundingMode::UP;
             break;
         default:
             // TODO: Implement dynamic rounding
             assert(0 && "Dynamic rounding is currently not supported!");
             break;
         }
-        op->set_rounding_mode(rounding_mode);
     }
 
     op->set_inputs(src);

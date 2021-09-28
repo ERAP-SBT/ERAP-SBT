@@ -103,7 +103,7 @@ const char *fp_op_size_from_type(const Type type) {
     return type == Type::f32 ? "s" : "d";
 }
 
-const char *convert_name_from_type(const Type type) {
+constexpr const char *convert_name_from_type(const Type type) {
     switch (type) {
     case Type::i32:
     case Type::i64:
@@ -799,29 +799,50 @@ void Generator::compile_vars(const BasicBlock *block) {
         }
         case Instruction::convert:
             assert(arg_count == 1);
+            assert(is_float(var->type) || is_float(op->in_vars[0]->type));
+            if (is_integer(var->type)) {
+                compile_rounding_mode(var);
+            }
             fprintf(out_fd, "cvt%s2%s %s, %s\n", convert_name_from_type(op->in_vars[0]->type), convert_name_from_type(var->type), (is_float(var->type) ? "xmm0" : rax_from_type(var->type)),
                     (is_float(op->in_vars[0]->type) ? "xmm0" : rax_from_type(op->in_vars[0]->type)));
             break;
-        case Instruction::uconvert:
+        case Instruction::uconvert: {
             assert(arg_count == 1);
             const Type in_var_type = op->in_vars[0]->type;
+            assert(is_float(var->type) || is_float(in_var_type));
             if (is_float(in_var_type)) {
+                compile_rounding_mode(var);
                 const bool is_single_precision = in_var_type == Type::f32;
-                // clear the sign bit
-                fprintf(out_fd, "mov rbx, %s\n", is_single_precision ? "0x7FFFFFFF" : "0x7FFFFFFFFFFFFFFF");
-                fprintf(out_fd, "mov%s xmm3, rbx\n", is_single_precision ? "d" : "q");
-                fprintf(out_fd, "pand xmm0, xmm3\n");
-                break;
+                // spread the sign bit of the floating point number to the length of the (result) integer.
+                // Negate this value and with an "and" operation set so the result to zero if the floating point value is negative
+                const char *help_reg_name = (is_single_precision ? "ebx" : "rbx");
+                fprintf(out_fd, "mov%s %s, xmm0", (is_single_precision ? "d" : "q"), help_reg_name);
+                fprintf(out_fd, "sar %s, %u\n", help_reg_name, (is_single_precision ? 31 : 63));
+                fprintf(out_fd, "not %s\n", help_reg_name);
+                if (is_single_precision && var->type == Type::i64) {
+                    fprintf(out_fd, "movsxd rbx, ebx\n");
+                }
+                fprintf(out_fd, "cvt%s2%s %s, xmm0\n", convert_name_from_type(in_var_type), convert_name_from_type(var->type), rax_from_type(var->type));
+                fprintf(out_fd, "and rax, rbx\n");
             } else {
-                // calculate absulute value of integer: (taken from https://bits.stephan-brumme.com/absInteger.html)
-                assert(in_var_type == Type::i32 || in_var_type == Type::i64);
-                fprintf(out_fd, "c%s\n", in_var_type == Type::i32 ? "dq" : "qo");
-                fprintf(out_fd, "xor %s, %s\n", op_reg_map_for_type(in_var_type)[0], op_reg_map_for_type(in_var_type)[3]);
-                fprintf(out_fd, "sub %s, %s\n", op_reg_map_for_type(in_var_type)[0], op_reg_map_for_type(in_var_type)[3]);
+                if (in_var_type == Type::i32) {
+                    // "zero extend" and then convert: use 64bit register
+                    fprintf(out_fd, "and rax, 0xFFFFFFFF\n");
+                    fprintf(out_fd, "cvt%s2%s xmm0, rax\n", convert_name_from_type(Type::i32), convert_name_from_type(var->type));
+                } else if (in_var_type == Type::i64) {
+                    // method taken from gcc compiler
+                    fprintf(out_fd, "mov rbx, rax\n");
+                    fprintf(out_fd, "shr rax\n");
+                    fprintf(out_fd, "and rbx, 1\n");
+                    fprintf(out_fd, "or rax, rbx\n");
+                    fprintf(out_fd, "cvt%s2%s xmm0, rax\n", convert_name_from_type(Type::i64), convert_name_from_type(var->type));
+                    fprintf(out_fd, "adds%s xmm0, xmm0\n", fp_op_size_from_type(var->type));
+                } else {
+                    assert(0);
+                }
             }
-            fprintf(out_fd, "cvt%s2%s %s, %s\n", convert_name_from_type(in_var_type), convert_name_from_type(var->type), (is_float(var->type) ? "xmm0" : rax_from_type(var->type)),
-                    (is_float(in_var_type) ? "xmm0" : rax_from_type(in_var_type)));
             break;
+        }
         }
 
         if (var->type != Type::mt) {
@@ -838,6 +859,46 @@ void Generator::compile_vars(const BasicBlock *block) {
                 }
             }
         }
+    }
+}
+
+void Generator::compile_rounding_mode(const SSAVar *var) {
+    assert(std::holds_alternative<std::unique_ptr<Operation>>(var->info));
+    auto &rounding_mode_variant = std::get<std::unique_ptr<Operation>>(var->info).get()->rounding_info;
+    if (std::holds_alternative<SSAVar *>(rounding_mode_variant)) {
+        // TODO: Handle dynamic rounding
+        assert(0);
+    } else if (std::holds_alternative<RoundingMode>(rounding_mode_variant)) {
+        uint32_t x86_64_rounding_mode;
+        switch (std::get<RoundingMode>(rounding_mode_variant)) {
+        case RoundingMode::NEAREST:
+            x86_64_rounding_mode = 0x0000;
+            break;
+        case RoundingMode::DOWN:
+            x86_64_rounding_mode = 0x2000;
+            break;
+        case RoundingMode::UP:
+            x86_64_rounding_mode = 0x4000;
+            break;
+        case RoundingMode::ZERO:
+            x86_64_rounding_mode = 0x6000;
+            break;
+        default:
+            assert(0);
+            break;
+        }
+        // clear rounding mode and set correctly
+        fprintf(out_fd, "sub rsp, 4\n");
+        fprintf(out_fd, "STMXCSR [rsp]\n");
+        fprintf(out_fd, "mov edi, [rsp]\n");
+        fprintf(out_fd, "and edi, 0xFFFF1FFF\n");
+        if (x86_64_rounding_mode != 0) {
+            fprintf(out_fd, "or edi, %u\n", x86_64_rounding_mode);
+        }
+        fprintf(out_fd, "mov [rsp], edi\n");
+        fprintf(out_fd, "add rsp, 4\n");
+    } else {
+        assert(0);
     }
 }
 

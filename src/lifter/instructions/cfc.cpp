@@ -22,24 +22,6 @@ void Lifter::lift_ecall(BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t 
 }
 
 void Lifter::lift_branch(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
-    // 1. load the immediate from the instruction
-    SSAVar *jmp_imm = load_immediate(bb, (int64_t)instr.instr.imm, ip, false);
-
-    // 2. this immediate is originally encoded in multiples of 2 bytes, but is already converted by frvdec
-
-    // 3. load IP
-    SSAVar *ip_imm = load_immediate(bb, (int64_t)(ip), ip, true);
-
-    // 4. add offset to ip
-    SSAVar *jmp_addr = bb->add_var(Type::i64, ip);
-    {
-        auto addition = std::make_unique<Operation>(Instruction::add);
-        addition->lifter_info.in_op_size = Type::i64;
-        addition->set_inputs(ip_imm, jmp_imm);
-        addition->set_outputs(jmp_addr);
-        jmp_addr->set_op(std::move(addition));
-    }
-
     // ((rs1 == rs2) ? continue : jmp to addr) := true
     // ((rs1 == rs2) ? jmp to addr : continue) := false
     bool reverse_jumps = false;
@@ -77,16 +59,18 @@ void Lifter::lift_branch(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         break;
     }
 
-    uint64_t encoded_addr = (int64_t)(instr.instr.imm) + ip;
-    SSAVar *next_addr_var = load_immediate(bb, (int64_t)(next_addr), ip, true);
+    // calculate jump address and create an immediate variable for the jump and the continuation address
+    const uint64_t jump_addr = static_cast<uint64_t>(static_cast<int64_t>(instr.instr.imm)) + ip;
+    SSAVar *jump_addr_variable = bb->add_var_imm(jump_addr, ip, true);
+    SSAVar *next_addr_var = bb->add_var_imm(next_addr, ip, true);
 
     // stores the address which is used if the branch condition is false
-    uint64_t uc_jmp_addr = reverse_jumps ? encoded_addr : next_addr;
-    SSAVar *uc_jmp_addr_var = reverse_jumps ? jmp_addr : next_addr_var;
+    const uint64_t uc_jmp_addr = reverse_jumps ? jump_addr : next_addr;
+    SSAVar *uc_jmp_addr_var = reverse_jumps ? jump_addr_variable : next_addr_var;
 
     // stores the address which is used if the branch condition is true
-    uint64_t br_jmp_addr = reverse_jumps ? next_addr : encoded_addr;
-    SSAVar *br_jmp_addr_var = reverse_jumps ? next_addr_var : jmp_addr;
+    const uint64_t br_jmp_addr = reverse_jumps ? next_addr : jump_addr;
+    SSAVar *br_jmp_addr_var = reverse_jumps ? next_addr_var : jump_addr_variable;
 
     SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
     SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
@@ -100,45 +84,33 @@ void Lifter::lift_branch(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
 }
 
 void Lifter::lift_jal(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
-    // 1. load the immediate from the instruction (with built-in sign extension)
-    SSAVar *jmp_imm = load_immediate(bb, (int64_t)instr.instr.imm, ip, false);
+    // 1. calculate the jump address
+    const uint64_t jump_addr = static_cast<uint64_t>(static_cast<int64_t>(instr.instr.imm)) + ip;
 
-    // 2. the original immediate is encoded in multiples of 2 bytes, but frvdec already took of that for us.
-
-    // 3. load IP
-    SSAVar *ip_imm = load_immediate(bb, (int64_t)(ip), ip, true);
-
-    // 4. add offset to ip
-    SSAVar *sum = bb->add_var(Type::i64, ip);
-    {
-        auto addition = std::make_unique<Operation>(Instruction::add);
-        addition->lifter_info.in_op_size = Type::i64;
-        addition->set_inputs(ip_imm, jmp_imm);
-        addition->set_outputs(sum);
-        sum->set_op(std::move(addition));
-    }
+    // 2. load the jump address as variable
+    SSAVar *jump_addr_variable = bb->add_var_imm(jump_addr, ip, true);
 
     if (instr.instr.rd != ZERO_IDX) {
-        // 5. load return address as another immediate
-        SSAVar *return_addr = load_immediate(bb, (int64_t)(next_addr), ip, true);
+        // 3. load return address as another immediate
+        SSAVar *return_addr = bb->add_var_imm(next_addr, ip, true);
 
         // write SSAVar of the result of the operation back to mapping
         write_to_mapping(mapping, return_addr, instr.instr.rd);
     }
 
-    // 6. jump!
+    // 4. jump!
     // According to the risc-v manual, direct jumps which write the ip to x1 (or ra) are considered subroutine calls.
     // create the jump operation
-    CfOp &cf_operation = bb->add_cf_op(ENABLE_CALL_RET_TRANSFORM && is_link_reg(instr.instr.rd) ? CFCInstruction::call : CFCInstruction::jump, nullptr, ip, instr.instr.imm + ip);
+    CfOp &cf_operation = bb->add_cf_op(ENABLE_CALL_RET_TRANSFORM && is_link_reg(instr.instr.rd) ? CFCInstruction::call : CFCInstruction::jump, nullptr, ip, jump_addr);
 
     // set operation in- and outputs
-    cf_operation.set_inputs(sum);
+    cf_operation.set_inputs(jump_addr_variable);
 }
 
 void Lifter::lift_jalr(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     // detect indirect jumps that are just returns
     if (ENABLE_CALL_RET_TRANSFORM && instr.instr.imm == 0 && is_link_reg(instr.instr.rs1)) {
-        CfOp &return_op = bb->add_cf_op(CFCInstruction::_return, nullptr, ip, (uint64_t)0);
+        CfOp &return_op = bb->add_cf_op(CFCInstruction::_return, nullptr, ip);
         return_op.set_inputs(get_from_mapping(bb, mapping, instr.instr.rs1, ip));
         return;
     }
@@ -174,7 +146,7 @@ void Lifter::lift_jalr(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, 
 
     // create the jump operation
     // According to the risc-v manual, ijumps which write the ip to x1 (or ra) are considered subroutine calls.
-    CfOp &cf_operation = bb->add_cf_op(ENABLE_CALL_RET_TRANSFORM && is_link_reg(instr.instr.rd) ? CFCInstruction::icall : CFCInstruction::ijump, nullptr, ip, (uint64_t)0);
+    CfOp &cf_operation = bb->add_cf_op(ENABLE_CALL_RET_TRANSFORM && is_link_reg(instr.instr.rd) ? CFCInstruction::icall : CFCInstruction::ijump, nullptr, ip);
 
     // set operation in- and outputs
     cf_operation.set_inputs(jump_addr);
