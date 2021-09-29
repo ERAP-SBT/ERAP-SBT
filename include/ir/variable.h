@@ -41,7 +41,7 @@ struct SSAVar : Refable {
         size_t stack_slot = 0;
 
         // TODO: allow a variable to be in a register and static and don't save it to the stack if it is?
-        enum LOCATION : uint8_t { NOT_CALCULATED, STACK_FRAME, STATIC, REGISTER };
+        enum LOCATION : uint8_t { NOT_CALCULATED, STACK_FRAME, STATIC, REGISTER, FP_REGISTER };
         LOCATION location = NOT_CALCULATED;
         bool saved_in_stack = false; // a variable can be in a register and saved in the stack frame
         bool already_generated = false;

@@ -98,11 +98,6 @@ size_t index_for_var(const BasicBlock *block, const SSAVar *var) {
     exit(1);
 }
 
-const char *fp_op_size_from_type(const Type type) {
-    assert(is_float(type));
-    return type == Type::f32 ? "s" : "d";
-}
-
 constexpr const char *convert_name_from_type(const Type type) {
     switch (type) {
     case Type::i32:
