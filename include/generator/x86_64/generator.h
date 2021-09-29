@@ -193,10 +193,9 @@ struct Generator {
     void compile();
     void compile_block(const BasicBlock *block);
 
-    static const char *fp_op_size_from_type(const Type type) {
-        assert(is_float(type));
-        return type == Type::f32 ? "s" : "d";
-    }
+    static const char *fp_op_size_from_type(const Type type);
+
+    static const char *convert_name_from_type(const Type type);
 
   protected:
     enum class Section { DATA, BSS, TEXT, RODATA };

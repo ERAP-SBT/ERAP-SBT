@@ -98,7 +98,14 @@ size_t index_for_var(const BasicBlock *block, const SSAVar *var) {
     exit(1);
 }
 
-constexpr const char *convert_name_from_type(const Type type) {
+} // namespace
+
+const char *Generator::fp_op_size_from_type(const Type type) {
+    assert(is_float(type));
+    return type == Type::f32 ? "s" : "d";
+}
+
+const char *Generator::convert_name_from_type(const Type type) {
     switch (type) {
     case Type::i32:
     case Type::i64:
@@ -115,8 +122,6 @@ constexpr const char *convert_name_from_type(const Type type) {
 }
 
 constexpr bool compatible_types(const Type t1, const Type t2) { return (t1 == t2) || ((t1 == Type::imm || t2 == Type::imm) && (is_integer(t1) || is_integer(t2))); }
-
-} // namespace
 
 void Generator::compile() {
     assert(err_msgs.empty());

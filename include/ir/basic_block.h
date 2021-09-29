@@ -38,7 +38,7 @@ struct BasicBlock {
         size_t max_stack_size = 0;
 
         struct InputInfo {
-            enum LOCATION { STATIC, REGISTER, STACK };
+            enum LOCATION { STATIC, REGISTER, FP_REGISTER, STACK };
 
             LOCATION location;
             union {
