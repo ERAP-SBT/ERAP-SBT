@@ -225,7 +225,7 @@ void print_help(bool usage_only) {
         std::cerr << "    --debug:                  Enables debug logging (use --debug=false to prevent logging in debug builds)\n";
         std::cerr << "    --disable-fp:             Disables the support of floating point instructions.\n";
         std::cerr << "    --dump-elf:               Show information about the input file\n";
-        std::cerr << "    --full-backtracking:   Evaluates every possible input combination for indirect jump address backtracking.\n";
+        std::cerr << "    --full-backtracking:      Evaluates every possible input combination for indirect jump address backtracking.\n";
         std::cerr << "    --help:                   Shows this help message\n";
         std::cerr << "    --interpreter-only:       Only uses the interpreter to translate the binary (dynamic binary translation). (default: false)\n";
         std::cerr << "    --optimize:               Set optimization flags, comma-seperated list. Specifying a group enables all flags in that group. Appending '!' before disables a single flag\n";
@@ -235,6 +235,7 @@ void print_help(bool usage_only) {
         std::cerr << "          - merge_ops:            Merge multiple IR-Operations into a single native op\n";
         std::cerr << "          - unused_statics:       Eliminate unused static-load-stores in the default generator\n";
         std::cerr << "          - bmi2:                 Allow usage of instructions in the BMI2 instruction set extension (shlx/shrx/sarx)\n";
+        std::cerr << "          - fma3:                 Allow usage of instructions in the FMA3 set extension (fused multiply add)\n";
         std::cerr << "          - no_trans_bbs:         Register Allocation won't emit Translation Blocks (Should only be used with call_ret)\n";
         std::cerr << "      - lifter:\n";
         std::cerr << "          - call_ret:             Detect and replace RISC-V `call` and `return` instructions\n";
@@ -290,10 +291,10 @@ bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &li
             gen_opt_change |= generator::x86_64::Generator::OPT_ARCH_BMI2;
         } else if (opt_flag == "no_trans_bbs") {
             gen_opt_change = generator::x86_64::Generator::OPT_NO_TRANS_BBS;
+        } else if (opt_flag == "fma3") {
+            gen_opt_change |= generator::x86_64::Generator::OPT_ARCH_FMA3;
         } else if (opt_flag == "call_ret") {
             lifter_opt_change = lifter::RV64::Lifter::OPT_CALL_RET;
-        } else {
-            std::cerr << "Warning: Unknown optimization flag: '" << opt_flag << "'\n";
             return false;
         }
 
