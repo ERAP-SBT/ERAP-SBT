@@ -816,7 +816,7 @@ void Generator::compile_vars(const BasicBlock *block) {
                 // spread the sign bit of the floating point number to the length of the (result) integer.
                 // Negate this value and with an "and" operation set so the result to zero if the floating point value is negative
                 const char *help_reg_name = (is_single_precision ? "ebx" : "rbx");
-                fprintf(out_fd, "mov%s %s, xmm0", (is_single_precision ? "d" : "q"), help_reg_name);
+                fprintf(out_fd, "mov%s %s, xmm0\n", (is_single_precision ? "d" : "q"), help_reg_name);
                 fprintf(out_fd, "sar %s, %u\n", help_reg_name, (is_single_precision ? 31 : 63));
                 fprintf(out_fd, "not %s\n", help_reg_name);
                 if (is_single_precision && var->type == Type::i64) {
@@ -827,7 +827,7 @@ void Generator::compile_vars(const BasicBlock *block) {
             } else {
                 if (in_var_type == Type::i32) {
                     // "zero extend" and then convert: use 64bit register
-                    fprintf(out_fd, "and rax, 0xFFFFFFFF\n");
+                    fprintf(out_fd, "mov eax, eax\n");
                     fprintf(out_fd, "cvt%s2%s xmm0, rax\n", convert_name_from_type(Type::i32), convert_name_from_type(var->type));
                 } else if (in_var_type == Type::i64) {
                     // method taken from gcc compiler
