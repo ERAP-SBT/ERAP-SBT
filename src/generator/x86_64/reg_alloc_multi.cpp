@@ -896,6 +896,8 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
             set_var_to_reg(cur_time, dst, val_reg);
             break;
         }
+        case Instruction::seq:
+            [[fallthrough]];
         case Instruction::slt:
             [[fallthrough]];
         case Instruction::sltu: {
@@ -927,7 +929,9 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                         // dont need to clear if we know the register holds a value that fits into 1 byte
                         print_asm("mov %s, 0\n", reg_names[cmp1_reg][0]);
                     }
-                    if (op->type == Instruction::slt) {
+                    if (op->type == Instruction::seq) {
+                        print_asm("sete %s\n", reg_names[cmp1_reg][3]);
+                    } else if (op->type == Instruction::slt) {
                         print_asm("setl %s\n", reg_names[cmp1_reg][3]);
                     } else {
                         print_asm("setb %s\n", reg_names[cmp1_reg][3]);
@@ -950,7 +954,10 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                 print_asm("cmp %s, %s\n", reg_name(cmp1_reg, type), reg_name(cmp2_reg, type));
             }
 
-            if (op->type == Instruction::slt) {
+            if (op->type == Instruction::seq) {
+                print_asm("cmove %s, %s\n", reg_name(cmp1_reg, dst->type), reg_name(val1_reg, dst->type));
+                print_asm("cmovne %s, %s\n", reg_name(cmp1_reg, dst->type), reg_name(val2_reg, dst->type));
+            } else if (op->type == Instruction::slt) {
                 print_asm("cmovl %s, %s\n", reg_name(cmp1_reg, dst->type), reg_name(val1_reg, dst->type));
                 print_asm("cmovge %s, %s\n", reg_name(cmp1_reg, dst->type), reg_name(val2_reg, dst->type));
             } else {
