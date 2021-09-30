@@ -27,10 +27,10 @@ mkdir build_rv64
 
 set -x
 
-gcc -g -static -o build_amd64/mandelbrot mandelbrot.c  -Wall -Wextra -O3
+gcc -g -static -o build_amd64/mandelbrot mandelbrot.c -Wall -Wextra -O3
 # -march=native: generate fma3 instructions if supported
-gcc -march=native -g -static -o build_amd64/mandelbrot_fma mandelbrot.c  -Wall -Wextra -O3
-$1 -g -static -o build_rv64/mandelbrot mandelbrot.c -Wall -Wextra -O3
+gcc -march=native -g -static -o build_amd64/mandelbrot_fma mandelbrot.c -Wall -Wextra -O3
+$1 -g -static -o build_rv64/mandelbrot mandelbrot.c -Wall -Wextra -O3 -march=rv64g -mabi=lp64d
 
 { set +x; } 2>/dev/null
 
