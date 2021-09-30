@@ -81,3 +81,12 @@ mandelbrot:
     - tests/mandelbrot/test.sh riscv64-linux-gnu-gcc
   tags:
     - mem_intensive
+
+fclass:
+  stage: test
+  needs:
+    - build
+  script:
+    - tests/fclass/test.sh riscv64-linux-gnu-gcc
+  tags:
+    - mem_intensive

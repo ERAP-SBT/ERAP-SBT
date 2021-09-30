@@ -315,11 +315,11 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     // bit masks:
 
     SSAVar *const zero = bb->add_var_imm(0, ip);
-    SSAVar *const mask0 = bb->add_var_imm(0x1, ip);    // lsb (0. bit) set if source is negative infinity.
-    SSAVar *const mask3 = bb->add_var_imm(0x8, ip);    // 3. bit set if source is -0.
-    SSAVar *const mask4 = bb->add_var_imm(0x10, ip);   // 4. bit set if source is +0.
-    SSAVar *const mask7 = bb->add_var_imm(0x80, ip);   // 7. bit set if source is positive infinity.
-    SSAVar *const mask8 = bb->add_var_imm(0x100, ip);  // 8. bit set if source is signaling NaN.
+    SSAVar *const mask0 = bb->add_var_imm(0x1, ip);   // lsb (0. bit) set if source is negative infinity.
+    SSAVar *const mask3 = bb->add_var_imm(0x8, ip);   // 3. bit set if source is -0.
+    SSAVar *const mask4 = bb->add_var_imm(0x10, ip);  // 4. bit set if source is +0.
+    SSAVar *const mask7 = bb->add_var_imm(0x80, ip);  // 7. bit set if source is positive infinity.
+    SSAVar *const mask8 = bb->add_var_imm(0x100, ip); // 8. bit set if source is signaling NaN.
     SSAVar *const mask9 = bb->add_var_imm(0x200, ip); // 9. bit set if source is quiet NaN.
 
     SSAVar *const combined_mask_1_2 = bb->add_var_imm(0b110, ip);     // combined mask with 1. and 2. bit set
