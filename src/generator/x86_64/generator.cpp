@@ -733,11 +733,20 @@ void Generator::compile_vars(const BasicBlock *block) {
             break;
         case Instruction::seq:
             assert(arg_count == 4);
-            assert(is_float(op->in_vars[0]->type));
-            assert(op->in_vars[0]->type == op->in_vars[1]->type);
-            fprintf(out_fd, "comis%s %s, %s\n", fp_op_size_from_type(op->in_vars[0]->type), in_regs[0], in_regs[1]);
+            assert(op->in_vars[0]->type == op->in_vars[1]->type || (!is_float(op->in_vars[0]->type) && op->in_vars[1]->type == Type::imm) ||
+                   (op->in_vars[0]->type == Type::imm && !is_float(op->in_vars[1]->type)));
+            assert(op->in_vars[2]->type == op->in_vars[3]->type);
+            assert(!is_float(op->in_vars[2]->type));
+
+            if (is_float(op->in_vars[0]->type)) {
+                fprintf(out_fd, "comis%s %s, %s\n", fp_op_size_from_type(op->in_vars[0]->type), in_regs[0], in_regs[1]);
+            } else {
+                fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
+            }
+
             fprintf(out_fd, "cmove %s, %s\n", rax_from_type(var->type), in_regs[2]);
             fprintf(out_fd, "cmovne %s, %s\n", rax_from_type(var->type), in_regs[3]);
+
             break;
         case Instruction::fmul:
             assert(arg_count == 2);
