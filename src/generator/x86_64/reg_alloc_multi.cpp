@@ -1167,9 +1167,18 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
         if (in1->gen_info.last_use_time > cur_time) {
             save_fp_reg(dst_reg);
         }
-        print_asm("movq %s, %s\n", fp_reg_names[dst_reg], fp_reg_names[dst_reg]);
+        // print_asm("movq %s, %s\n", fp_reg_names[dst_reg], fp_reg_names[dst_reg]);
         clear_fp_reg(cur_time, dst_reg);
         set_var_to_fp_reg(cur_time, var, dst_reg);
+        break;
+    }
+    case Instruction::convert: {
+        assert(is_float(var->type) && is_float(in1->type));
+        const FP_REGISTER in_reg = load_val_in_fp_reg(cur_time, in1);
+        // floating point -> floating point
+        const FP_REGISTER dest_reg = alloc_fp_reg(cur_time);
+        print_asm("cvt%s2%s %s, %s\n", Generator::convert_name_from_type(in1->type), Generator::convert_name_from_type(var->type), fp_reg_names[dest_reg], fp_reg_names[in_reg]);
+        set_var_to_fp_reg(cur_time, var, dest_reg);
         break;
     }
     default:
@@ -1202,33 +1211,26 @@ void RegAlloc::compile_fp_morphing_op(SSAVar *var, size_t cur_time) {
 
     switch (op->type) {
     case Instruction::slt:
-        cmp_op("ge");
+        cmp_op("ae");
         break;
     case Instruction::sle:
-        cmp_op("g");
+        cmp_op("a");
         break;
     case Instruction::seq:
         cmp_op("ne");
         break;
     case Instruction::convert: {
-        assert(is_float(var->type) || is_float(in1->type));
+        assert(is_float(var->type) ^ is_float(in1->type));
         // evalute convert names
         const char *conv_name_1 = Generator::convert_name_from_type(in1->type);
         const char *conv_name_2 = Generator::convert_name_from_type(var->type);
         if (is_float(in1->type)) {
             const FP_REGISTER in_reg = load_val_in_fp_reg(cur_time, in1);
-            if (is_float(var->type)) {
-                // floating point -> floating point
-                const FP_REGISTER dest_reg = alloc_fp_reg(cur_time);
-                print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, fp_reg_names[dest_reg], fp_reg_names[in_reg]);
-                set_var_to_fp_reg(cur_time, var, dest_reg);
-            } else {
-                // floating point -> integer
-                // TODO: Handle rounding accordingly
-                const REGISTER dest_reg = alloc_reg(cur_time);
-                print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, reg_name(dest_reg, var->type), fp_reg_names[in_reg]);
-                set_var_to_reg(cur_time, var, dest_reg);
-            }
+            // floating point -> integer
+            // TODO: Handle rounding accordingly
+            const REGISTER dest_reg = alloc_reg(cur_time);
+            print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, reg_name(dest_reg, var->type), fp_reg_names[in_reg]);
+            set_var_to_reg(cur_time, var, dest_reg);
         } else {
             // integer -> floating point
             const REGISTER in_reg = load_val_in_reg(cur_time, in1);
@@ -1929,6 +1931,7 @@ void RegAlloc::generate_translation_block(BasicBlock *bb) {
 void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar>> &inputs) {
     // TODO: when there are multiple blocks that follow only generate an input mapping once
     auto &reg_map = *cur_reg_map;
+    auto &fp_reg_map = *cur_fp_reg_map;
     const auto cur_time = cur_bb->variables.size();
     // fix for immediate inputs
     for (size_t i = 0; i < inputs.size(); ++i) {
@@ -1953,8 +1956,8 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
             input.get()->gen_info.allocated_to_input = false;
         }
 
-        bool rax_used = false;
-        SSAVar *rax_input;
+        bool rax_used = false, xmm0_used = false;
+        SSAVar *rax_input, *xmm0_input;
         // just write input locations, compile the input map and we done
         for (size_t i = 0; i < inputs.size(); ++i) {
             auto *input_var = inputs[i].get();
@@ -1974,6 +1977,27 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
                 // move var to stack slot
                 if (input_var->gen_info.location == SSAVar::GeneratorInfoX64::REGISTER) {
                     print_asm("mov [rsp + 8 * %zu], %s\n", stack_slot, reg_names[input_var->gen_info.reg_idx][0]);
+                } else if (input_var->gen_info.location == SSAVar::GeneratorInfoX64::FP_REGISTER) {
+                    print_asm("movq [rsp + 8 * %zu], %s\n", stack_slot, fp_reg_names[input_var->gen_info.reg_idx]);
+                } else if (is_float(input_var->type)) {
+                    FP_REGISTER reg;
+                    // find free/unused register
+                    for (size_t i = 0; i < FP_REG_COUNT; ++i) {
+                        if (fp_reg_map[i].cur_var == nullptr || fp_reg_map[i].cur_var->gen_info.last_use_time < cur_time) {
+                            reg = static_cast<FP_REGISTER>(i);
+                            break;
+                        }
+                    }
+                    if (reg == FP_REG_NONE) {
+                        // use xmm0 to transfer
+                        reg = REG_XMM0;
+                        if (xmm0_used) {
+                            save_fp_reg(REG_XMM0);
+                            clear_fp_reg(cur_time, REG_XMM0);
+                        }
+                        load_val_in_fp_reg(cur_time, input_var, REG_XMM0);
+                    }
+                    print_asm("movq [rsp + 8 * %zu], %s\n", stack_slot, fp_reg_names[reg]);
                 } else {
                     auto reg = REG_NONE;
                     // find free/unused register
@@ -2013,11 +2037,22 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
                 rax_used = true;
                 rax_input = input_var;
             }
+
+            if (input_var->gen_info.location == SSAVar::GeneratorInfoX64::FP_REGISTER && input_var->gen_info.reg_idx == REG_XMM0) {
+                xmm0_used = true;
+                xmm0_input = input_var;
+            }
         }
         if (rax_used && rax_input->gen_info.location != SSAVar::GeneratorInfoX64::REGISTER) {
             assert(reg_map[REG_A].cur_var->gen_info.saved_in_stack);
             clear_reg(cur_time, REG_A);
             load_val_in_reg(cur_time, rax_input, REG_A);
+        }
+
+        if (xmm0_used && xmm0_input->gen_info.location != SSAVar::GeneratorInfoX64::FP_REGISTER) {
+            assert(fp_reg_map[REG_XMM0].cur_var->gen_info.saved_in_stack);
+            clear_fp_reg(cur_time, REG_XMM0);
+            load_val_in_fp_reg(cur_time, xmm0_input, REG_XMM0);
         }
 
         generate_input_map(target);
@@ -2097,7 +2132,11 @@ void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_
             continue;
         }
 
-        load_val_in_reg(cur_time, var);
+        if (is_float(var->type)) {
+            load_val_in_fp_reg(cur_time, var);
+        } else {
+            load_val_in_reg(cur_time, var);
+        }
     }
 
     // write out all registers
@@ -2167,8 +2206,13 @@ void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_
 
         // TODO: cant do that here since the syscall cfop needs some vars later on
         // TODO: really need to fix this time management
-        const auto reg = load_val_in_reg(cur_time /*+ var_idx*/, var);
-        print_asm("mov [s%zu], %s\n", static_idx, reg_names[reg][0]);
+        if (is_float(var->type)) {
+            const auto reg = load_val_in_fp_reg(cur_time, var);
+            print_asm("movq [s%zu], %s\n", static_idx, fp_reg_names[reg]);
+        } else {
+            const auto reg = load_val_in_reg(cur_time /*+ var_idx*/, var);
+            print_asm("mov [s%zu], %s\n", static_idx, reg_names[reg][0]);
+        }
     }
 }
 
@@ -2407,7 +2451,7 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
                 save_fp_reg(reg);
             }
             clear_fp_reg(cur_write_time, reg);
-            print_asm("movq %s, %s\n", reg_names[reg][0], reg_names[input->gen_info.reg_idx][0]);
+            print_asm("movq %s, %s\n", fp_reg_names[reg], fp_reg_names[input->gen_info.reg_idx]);
             fp_reg_map[reg].cur_var = input;
             fp_reg_map[reg].alloc_time = cur_write_time;
         } else {
