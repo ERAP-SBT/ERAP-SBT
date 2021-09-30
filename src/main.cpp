@@ -6,6 +6,7 @@
 #include "lifter/lifter.h"
 
 #include <chrono>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <fcntl.h>
@@ -140,6 +141,8 @@ int main(int argc, const char **argv) {
             }
         }
     }
+
+    signal(SIGPIPE, SIG_IGN);
 
     auto output_object = temp_dir / "translated.o";
     FILE *assembler = open_assembler(output_object);
