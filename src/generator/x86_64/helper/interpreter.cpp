@@ -1154,9 +1154,91 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
 #undef operation
             break;
         case FRV_FCLASSS:
+            if (instr.rd != 0) {
+                const uint32_t val = register_file[instr.rs1 + START_FP_STATICS];
+                uint64_t result = 0;
+
+                const uint32_t sign = val >> 31;
+                const uint32_t exponent = (val >> 23) & 0xFF;
+                const uint32_t mantisse = val & 0x7F'FFFF;
+                const uint32_t mantisse_msb = mantisse >> 22;
+
+                // negative infinity
+                result |= (val == 0xFF80'0000);
+
+                // negative normal number
+                result |= (sign && (exponent != 0) && (exponent != 0xFF)) << 1;
+
+                // negative subnormal number
+                result |= (sign && (exponent == 0) && (mantisse != 0)) << 2;
+
+                // negative zero
+                result |= (val == 0x8000'0000) << 3;
+
+                // positive zero
+                result |= (val == 0) << 4;
+
+                // positive subnormal number
+                result |= (!sign && (exponent == 0) && (mantisse != 0)) << 5;
+
+                // positive normal number
+                result |= (!sign && (exponent != 0) && (exponent != 0xFF)) << 6;
+
+                // positive infinity
+                result |= (val == 0x7F80'0000) << 7;
+
+                // sNaN
+                result |= ((exponent == 0xFF) && !mantisse_msb && (mantisse != 0)) << 8;
+
+                // qNaN
+                result |= ((exponent == 0xFF) && mantisse_msb) << 9;
+
+                register_file[instr.rd] = result;
+            }
+            break;
+
         case FRV_FCLASSD:
-            trace(pc, &instr);
-            panic("FLCASS[S|D] is currently not implemented!");
+            if (instr.rd != 0) {
+                const uint64_t val = register_file[instr.rs1 + START_FP_STATICS];
+                uint64_t result = 0;
+
+                const uint64_t sign = val >> 63;
+                const uint64_t exponent = (val >> 52) & 0x7FF;
+                const uint64_t mantisse = val & 0xF'FFFF'FFFF'FFFF;
+                const uint64_t mantisse_msb = mantisse >> 51;
+
+                // negative infinity
+                result |= (val == 0xFFF0'0000'0000'0000);
+
+                // negative normal number
+                result |= (sign && (exponent != 0) && (exponent != 0x7FF)) << 1;
+
+                // negative subnormal number
+                result |= (sign && (exponent == 0) && (mantisse != 0)) << 2;
+
+                // negative zero
+                result |= (val == 0x8000'0000'0000'0000) << 3;
+
+                // positive zero
+                result |= (val == 0) << 4;
+
+                // positive subnormal number
+                result |= (!sign && (exponent == 0) && (mantisse != 0)) << 5;
+
+                // positive normal number
+                result |= (!sign && (exponent != 0) && (exponent != 0x7FF)) << 6;
+
+                // positive infinity
+                result |= (val == 0x7FF0'0000'0000'0000) << 7;
+
+                // sNaN
+                result |= ((exponent == 0x7FF) && !mantisse_msb && (mantisse != 0)) << 8;
+
+                // qNaN
+                result |= ((exponent == 0x7FF) && mantisse_msb) << 9;
+
+                register_file[instr.rd] = result;
+            }
             break;
         default:
             trace(pc, &instr);
