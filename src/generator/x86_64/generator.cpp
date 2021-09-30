@@ -119,6 +119,8 @@ constexpr const char *convert_name_from_type(const Type type) {
     }
 }
 
+constexpr bool compatible_types(const Type t1, const Type t2) { return (t1 == t2) || ((t1 == Type::imm || t2 == Type::imm) && (is_integer(t1) || is_integer(t2))); }
+
 } // namespace
 
 void Generator::compile() {
@@ -534,6 +536,34 @@ void Generator::compile_vars(const BasicBlock *block) {
             in_regs[in_idx] = reg_str;
         }
 
+        auto set_if_op = [this, var, op, in_regs, arg_count](const char *cc_i_1, const char *cc_i_2, const char *cc_fp_1, const char *cc_fp_2, bool allow_fp = true) {
+            assert(arg_count == 4);
+            SSAVar *const in1 = op->in_vars[0];
+            SSAVar *const in2 = op->in_vars[1];
+            SSAVar *const in3 = op->in_vars[2];
+            SSAVar *const in4 = op->in_vars[3];
+            const char *cc_1, *cc_2;
+            if (is_float(in1->type) || is_float(in2->type)) {
+                assert(allow_fp);
+                assert(in1->type == in2->type);
+                assert(!is_float(var->type));
+                assert(compatible_types(var->type, in3->type) && compatible_types(var->type, in4->type));
+                fprintf(out_fd, "comis%s %s, %s\n", fp_op_size_from_type(in1->type), in_regs[0], in_regs[1]);
+                // fprintf(out_fd, "cmov%s %s, %s\n", cc_fp_1, rax_from_type(var->type), op_reg_map_for_type(var->type)[2]);
+                // fprintf(out_fd, "cmov%s %s, %s\n", cc_fp_2, rax_from_type(var->type), op_reg_map_for_type(var->type)[3]);
+                cc_1 = cc_fp_1;
+                cc_2 = cc_fp_2;
+            } else {
+                const Type cmp_type = (in1->type == Type::imm ? (in2->type == Type::imm ? Type::i64 : in2->type) : in1->type);
+                assert(compatible_types(var->type, in3->type) && compatible_types(var->type, in4->type));
+                fprintf(out_fd, "cmp %s, %s\n", op_reg_map_for_type(cmp_type)[0], op_reg_map_for_type(cmp_type)[1]);
+                cc_1 = cc_i_1;
+                cc_2 = cc_i_2;
+            }
+            fprintf(out_fd, "cmov%s %s, %s\n", cc_1, rax_from_type(var->type), op_reg_map_for_type(var->type)[2]);
+            fprintf(out_fd, "cmov%s %s, %s\n", cc_2, rax_from_type(var->type), op_reg_map_for_type(var->type)[3]);
+        };
+
         switch (op->type) {
         case Instruction::store:
             assert(op->in_vars[0]->type == Type::i64 || op->in_vars[0]->type == Type::imm);
@@ -667,24 +697,15 @@ void Generator::compile_vars(const BasicBlock *block) {
             }
             break;
         case Instruction::slt:
-            assert(arg_count == 4);
-            if (is_float(op->in_vars[0]->type)) {
-                assert(op->in_vars[0]->type == op->in_vars[1]->type);
-                fprintf(out_fd, "comis%s %s, %s\n", fp_op_size_from_type(op->in_vars[0]->type), in_regs[0], in_regs[1]);
-                fprintf(out_fd, "cmovb %s, %s\n", rax_from_type(var->type), in_regs[2]);
-                fprintf(out_fd, "cmovae %s, %s\n", rax_from_type(var->type), in_regs[3]);
-            } else {
-                fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
-                fprintf(out_fd, "cmovl %s, %s\n", in_regs[0], in_regs[2]);
-                fprintf(out_fd, "cmovge %s, %s\n", in_regs[0], in_regs[3]);
-            }
+            set_if_op("l", "ge", "b", "ae");
             break;
         case Instruction::sltu:
-            assert(arg_count == 4);
-            assert(!is_float(op->in_vars[0]->type));
-            fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
-            fprintf(out_fd, "cmovb %s, %s\n", in_regs[0], in_regs[2]);
-            fprintf(out_fd, "cmovae %s, %s\n", in_regs[0], in_regs[3]);
+            // assert(arg_count == 4);
+            // assert(!is_float(op->in_vars[0]->type));
+            // fprintf(out_fd, "cmp %s, %s\n", in_regs[0], in_regs[1]);
+            // fprintf(out_fd, "cmovb %s, %s\n", in_regs[0], in_regs[2]);
+            // fprintf(out_fd, "cmovae %s, %s\n", in_regs[0], in_regs[3]);
+            set_if_op("b", "ae", "", "", false);
             break;
         case Instruction::sumul_h: /* TODO: implement */
             assert(0);
@@ -724,15 +745,16 @@ void Generator::compile_vars(const BasicBlock *block) {
             }
             break;
         case Instruction::sle:
-            assert(arg_count == 4);
-            assert(is_float(op->in_vars[0]->type));
-            assert(op->in_vars[0]->type == op->in_vars[1]->type);
-            fprintf(out_fd, "comis%s %s, %s\n", fp_op_size_from_type(op->in_vars[0]->type), in_regs[0], in_regs[1]);
-            fprintf(out_fd, "cmovbe %s, %s\n", rax_from_type(var->type), in_regs[2]);
-            fprintf(out_fd, "cmova %s, %s\n", rax_from_type(var->type), in_regs[3]);
+            // assert(arg_count == 4);
+            // assert(is_float(op->in_vars[0]->type));
+            // assert(op->in_vars[0]->type == op->in_vars[1]->type);
+            // fprintf(out_fd, "comis%s %s, %s\n", fp_op_size_from_type(op->in_vars[0]->type), in_regs[0], in_regs[1]);
+            // fprintf(out_fd, "cmovbe %s, %s\n", rax_from_type(var->type), in_regs[2]);
+            // fprintf(out_fd, "cmova %s, %s\n", rax_from_type(var->type), in_regs[3]);
+            set_if_op("le", "g", "be", "a");
             break;
         case Instruction::seq:
-            assert(arg_count == 4);
+            /*assert(arg_count == 4);
             assert(op->in_vars[0]->type == op->in_vars[1]->type || (!is_float(op->in_vars[0]->type) && op->in_vars[1]->type == Type::imm) ||
                    (op->in_vars[0]->type == Type::imm && !is_float(op->in_vars[1]->type)));
             assert(op->in_vars[2]->type == op->in_vars[3]->type);
@@ -745,8 +767,8 @@ void Generator::compile_vars(const BasicBlock *block) {
             }
 
             fprintf(out_fd, "cmove %s, %s\n", rax_from_type(var->type), in_regs[2]);
-            fprintf(out_fd, "cmovne %s, %s\n", rax_from_type(var->type), in_regs[3]);
-
+            fprintf(out_fd, "cmovne %s, %s\n", rax_from_type(var->type), in_regs[3]); */
+            set_if_op("e", "ne", "e", "ne");
             break;
         case Instruction::fmul:
             assert(arg_count == 2);
