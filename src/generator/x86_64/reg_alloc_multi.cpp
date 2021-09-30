@@ -874,7 +874,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                 const auto &val1_info = std::get<SSAVar::ImmInfo>(val1->info);
                 const auto &val2_info = std::get<SSAVar::ImmInfo>(val2->info);
                 if (val1_info.val == 1 && !val1_info.binary_relative && val2_info.val == 0 && !val2_info.binary_relative) {
-                    if (cmp2->is_immediate() && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative) {
+                    if (cmp2->is_immediate() && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative && static_cast<uint64_t>(cmp2->get_immediate().val) != 0x80000000'00000000 && std::abs(cmp2->get_immediate().val) <= 0x7FFFFFFF) {
                         const auto type = cmp1->is_immediate() ? Type::i64 : cmp1->type;
                         print_asm("cmp %s, %ld\n", reg_name(cmp1_reg, type), std::get<SSAVar::ImmInfo>(cmp2->info).val);
                     } else {
