@@ -1183,6 +1183,7 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
         break;
     }
     case Instruction::zero_extend:
+        assert(is_float(var->type) && is_float(in1->type));
         [[fallthrough]];
     case Instruction::cast: {
         assert(is_float(var->type) || is_float(in1->type));
@@ -1225,46 +1226,7 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
             } else {
                 // TODO: Handle rounding accordingly, with SSE4 use rounds[s|d] else mxcsr
                 const REGISTER dest_reg = alloc_reg(cur_time);
-
-                uint32_t x86_64_rounding_mode;
-                assert(std::holds_alternative<RoundingMode>(op->rounding_info));
-                switch (std::get<RoundingMode>(op->rounding_info)) {
-                case RoundingMode::NEAREST:
-                    x86_64_rounding_mode = 0x0000;
-                    break;
-                case RoundingMode::DOWN:
-                    x86_64_rounding_mode = 0x2000;
-                    break;
-                case RoundingMode::UP:
-                    x86_64_rounding_mode = 0x4000;
-                    break;
-                case RoundingMode::ZERO:
-                    x86_64_rounding_mode = 0x6000;
-                    break;
-                default:
-                    assert(0);
-                    break;
-                }
-
-                if (gen->optimizations & Generator::OPT_ARCH_SSE4) {
-                    if (in1->gen_info.last_use_time > cur_time) {
-                        save_fp_reg(in_reg);
-                    }
-                    print_asm("rounds%s %s, %s, %x\n", Generator::fp_op_size_from_type(in1->type), fp_reg_names[in_reg], fp_reg_names[in_reg], x86_64_rounding_mode);
-                } else {
-                    // use dest_reg to set mxcsr
-                    const char *round_reg_name = reg_name(dest_reg, Type::i32);
-                    print_asm("sub rsp, 4\n");
-                    print_asm("stmxcsr [rsp]\n");
-                    print_asm("mov %s, [rsp]\n", round_reg_name);
-                    print_asm("and %s, 0xFFFF'1FFF\n", round_reg_name);
-                    if (x86_64_rounding_mode != 0) {
-                        print_asm("or %s, %x\n", round_reg_name, x86_64_rounding_mode);
-                    }
-                    print_asm("mov [rsp], %s\n", round_reg_name);
-                    print_asm("ldmxcsr [rsp]\n");
-                    print_asm("add rsp, 4\n");
-                }
+                compile_rounding_mode(cur_time, op, in_reg, dest_reg);
                 print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, reg_name(dest_reg, var->type), fp_reg_names[in_reg]);
                 set_var_to_reg(cur_time, var, dest_reg);
             }
@@ -1277,10 +1239,49 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
         }
         break;
     }
-    case Instruction::uconvert:
-        assert(0);
+    case Instruction::uconvert: {
+        assert(is_float(in1->type) ^ is_float(var->type));
+        const char *conv_name_1 = Generator::convert_name_from_type(in1->type);
+        const char *conv_name_2 = Generator::convert_name_from_type(var->type);
+        if (is_float(in1->type)) {
+            const FP_REGISTER in_reg = load_val_in_fp_reg(cur_time, in1);
+            const REGISTER dest_reg = alloc_reg(cur_time);
+            const REGISTER help_reg = alloc_reg(cur_time);
+            const char *help_reg_name = reg_name(help_reg, var->type);
+            compile_rounding_mode(cur_time, op, in_reg, dest_reg);
+            const bool is_single_precision = in1->type == Type::f32;
+            // spread the sign bit of the floating point number to the length of the (result) integer.
+            // Negate this value and with an "and" operation set so the result to zero if the floating point value is negative
+            print_asm("mov%s %s, %s", (is_single_precision ? "d" : "q"), help_reg_name, fp_reg_names[in_reg]);
+            print_asm("sar %s, %u\n", help_reg_name, (is_single_precision ? 31 : 63));
+            print_asm("not %s\n", help_reg_name);
+            if (is_single_precision && var->type == Type::i64) {
+                print_asm("movsxd %s, %s\n", reg_names[help_reg][0], help_reg_name);
+            }
+            print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, reg_name(dest_reg, var->type), fp_reg_names[in_reg]);
+            print_asm("and %s, %s\n", reg_name(dest_reg, var->type), help_reg_name);
+        } else {
+            assert(in1->type == Type::i32 || in1->type == Type::i64);
+            const REGISTER in_reg = load_val_in_reg(cur_time, in1);
+            const FP_REGISTER dest_reg = alloc_fp_reg(cur_time);
+            if (in1->type == Type::i32) {
+                // "zero extend" and then convert: use 64bit register
+                print_asm("mov %s, %s\n", reg_names[in_reg][1], reg_names[in_reg][1]);
+                print_asm("cvt%s2%s %s, %s\n", Generator::convert_name_from_type(Type::i64), conv_name_2, fp_reg_names[dest_reg], reg_names[in_reg][0]);
+            } else if (in1->type == Type::i64) {
+                // method taken from gcc compiler
+                const REGISTER help_reg = alloc_reg(cur_time);
+                const char *in_reg_name = reg_names[in_reg][0], *help_reg_name = reg_names[help_reg][0], *dest_reg_name = fp_reg_names[dest_reg];
+                print_asm("mov %s, %s\n", help_reg_name, in_reg_name);
+                print_asm("shr %s\n", in_reg_name);
+                print_asm("and %s, 1\n", help_reg_name);
+                print_asm("or %s, %s\n", in_reg_name, help_reg_name);
+                print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, dest_reg_name, in_reg_name);
+                print_asm("adds%s %s, %s\n", Generator::fp_op_size_from_type(var->type), dest_reg_name);
+            }
+        }
         break;
-
+    }
     default:
         assert(0);
         break;
@@ -1402,6 +1403,48 @@ bool RegAlloc::merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg) {
     }
 
     return false;
+}
+
+void RegAlloc::compile_rounding_mode(size_t cur_time, const Operation *op, const FP_REGISTER in_reg, const REGISTER dest_reg) {
+    uint32_t x86_64_rounding_mode;
+    assert(std::holds_alternative<RoundingMode>(op->rounding_info));
+    switch (std::get<RoundingMode>(op->rounding_info)) {
+    case RoundingMode::NEAREST:
+        x86_64_rounding_mode = 0x0000;
+        break;
+    case RoundingMode::DOWN:
+        x86_64_rounding_mode = 0x2000;
+        break;
+    case RoundingMode::UP:
+        x86_64_rounding_mode = 0x4000;
+        break;
+    case RoundingMode::ZERO:
+        x86_64_rounding_mode = 0x6000;
+        break;
+    default:
+        assert(0);
+        break;
+    }
+    SSAVar *in1 = op->in_vars[0];
+    if (gen->optimizations & Generator::OPT_ARCH_SSE4) {
+        if (in1->gen_info.last_use_time > cur_time) {
+            save_fp_reg(in_reg);
+        }
+        print_asm("rounds%s %s, %s, %x\n", Generator::fp_op_size_from_type(in1->type), fp_reg_names[in_reg], fp_reg_names[in_reg], x86_64_rounding_mode);
+    } else {
+        // use dest_reg to set mxcsr
+        const char *round_reg_name = reg_name(dest_reg, Type::i32);
+        print_asm("sub rsp, 4\n");
+        print_asm("stmxcsr [rsp]\n");
+        print_asm("mov %s, [rsp]\n", round_reg_name);
+        print_asm("and %s, 0xFFFF'1FFF\n", round_reg_name);
+        if (x86_64_rounding_mode != 0) {
+            print_asm("or %s, %x\n", round_reg_name, x86_64_rounding_mode);
+        }
+        print_asm("mov [rsp], %s\n", round_reg_name);
+        print_asm("ldmxcsr [rsp]\n");
+        print_asm("add rsp, 4\n");
+    }
 }
 
 void RegAlloc::prepare_cf_ops(BasicBlock *bb) {

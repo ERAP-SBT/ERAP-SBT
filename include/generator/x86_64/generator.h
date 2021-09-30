@@ -96,6 +96,7 @@ struct RegAlloc {
     void compile_vars(BasicBlock *bb);
     void compile_fp_op(SSAVar *var, size_t cur_time);
     bool merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg);
+    void compile_rounding_mode(size_t cur_time, const Operation *op, const FP_REGISTER in_reg, const REGISTER dest_reg);
     void prepare_cf_ops(BasicBlock *bb);
     void compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_map, StackMap &stack_map, size_t max_stack_frame_size, BasicBlock *next_bb, std::vector<BasicBlock *> &compiled_blocks);
     void write_assembled_blocks(size_t max_stack_frame_size, std::vector<BasicBlock *> &compiled_blocks);

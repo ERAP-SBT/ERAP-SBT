@@ -872,7 +872,7 @@ void Generator::compile_vars(const BasicBlock *block) {
         case Instruction::uconvert: {
             assert(arg_count == 1);
             const Type in_var_type = op->in_vars[0]->type;
-            assert(is_float(var->type) || is_float(in_var_type));
+            assert(is_float(var->type) ^ is_float(in_var_type));
             if (is_float(in_var_type)) {
                 compile_rounding_mode(var);
                 const bool is_single_precision = in_var_type == Type::f32;
