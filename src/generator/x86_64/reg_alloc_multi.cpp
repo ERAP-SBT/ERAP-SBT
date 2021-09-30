@@ -330,12 +330,8 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
         }
 
         auto *op = std::get<std::unique_ptr<Operation>>(var->info).get();
-        if ((is_float(op->lifter_info.in_op_size) || op->type == Instruction::load) && (is_float(var->type) || var->type == Type::mt)) {
-            compile_fp_op(var, cur_time);
-            continue;
-        }
         if (is_float(op->lifter_info.in_op_size) || is_float(var->type)) {
-            compile_fp_morphing_op(var, cur_time);
+            compile_fp_op(var, cur_time);
             continue;
         }
 
@@ -1097,6 +1093,24 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
         set_var_to_fp_reg(cur_time, var, in1_reg);
     };
 
+    auto cmp_op = [this, var, op, in1, cur_time](const char *cc) {
+        SSAVar *cmp2 = op->in_vars[1];
+        SSAVar *val1 = op->in_vars[2];
+        SSAVar *val2 = op->in_vars[3];
+        assert(is_float(in1->type) && in1->type == cmp2->type && val1->type == Type::imm && val2->type == Type::imm);
+        FP_REGISTER cmp1_reg = load_val_in_fp_reg(cur_time, in1);
+        FP_REGISTER cmp2_reg = load_val_in_fp_reg(cur_time, cmp2);
+        REGISTER val1_reg = load_val_in_reg(cur_time, val1);
+        REGISTER val2_reg = load_val_in_reg(cur_time, val2);
+        if (val1->gen_info.last_use_time > cur_time) {
+            save_reg(val1_reg);
+        }
+        print_asm("comis%s %s, %s\n", Generator::fp_op_size_from_type(in1->type), fp_reg_names[cmp1_reg], fp_reg_names[cmp2_reg]);
+        print_asm("cmov%s %s, %s\n", cc, reg_name(val1_reg, var->type), reg_name(val2_reg, var->type));
+        clear_reg(cur_time, val1_reg);
+        set_var_to_reg(cur_time, var, val1_reg);
+    };
+
     switch (op->type) {
     case Instruction::min:
         bin_op("mins");
@@ -1139,6 +1153,15 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
         set_var_to_fp_reg(cur_time, var, in1_reg);
         break;
     }
+    case Instruction::slt:
+        cmp_op("ae");
+        break;
+    case Instruction::sle:
+        cmp_op("a");
+        break;
+    case Instruction::seq:
+        cmp_op("ne");
+        break;
     case Instruction::load: {
         assert(in1->type == Type::i64 || in1->type == Type::imm);
         const REGISTER addr_reg = load_val_in_reg(cur_time, in1);
@@ -1162,75 +1185,89 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
     case Instruction::zero_extend:
         [[fallthrough]];
     case Instruction::cast: {
-        assert(is_float(var->type) && is_float(in1->type));
-        const FP_REGISTER dst_reg = load_val_in_fp_reg(cur_time, in1);
-        if (in1->gen_info.last_use_time > cur_time) {
-            save_fp_reg(dst_reg);
+        assert(is_float(var->type) || is_float(in1->type));
+        if (is_float(in1->type)) {
+            if (is_float(var->type)) {
+                const FP_REGISTER dst_reg = load_val_in_fp_reg(cur_time, in1);
+                if (in1->gen_info.last_use_time > cur_time) {
+                    save_fp_reg(dst_reg);
+                }
+                clear_fp_reg(cur_time, dst_reg);
+                set_var_to_fp_reg(cur_time, var, dst_reg);
+            } else {
+                const FP_REGISTER in_reg = load_val_in_fp_reg(cur_time, in1);
+                const REGISTER dest_reg = alloc_reg(cur_time);
+                print_asm("mov%s %s, %s\n", (in1->type == Type::f32 ? "d" : "q"), reg_name(dest_reg, var->type), fp_reg_names[in_reg]);
+                set_var_to_reg(cur_time, var, dest_reg);
+            }
+        } else {
+            const REGISTER in_reg = load_val_in_reg(cur_time, in1);
+            const FP_REGISTER dest_reg = alloc_fp_reg(cur_time);
+            print_asm("mov%s %s, %s\n", (var->type == Type::f32 ? "d" : "q"), fp_reg_names[dest_reg], reg_name(in_reg, in1->type));
+            set_var_to_fp_reg(cur_time, var, dest_reg);
         }
-        // print_asm("movq %s, %s\n", fp_reg_names[dst_reg], fp_reg_names[dst_reg]);
-        clear_fp_reg(cur_time, dst_reg);
-        set_var_to_fp_reg(cur_time, var, dst_reg);
         break;
     }
     case Instruction::convert: {
-        assert(is_float(var->type) && is_float(in1->type));
-        const FP_REGISTER in_reg = load_val_in_fp_reg(cur_time, in1);
-        // floating point -> floating point
-        const FP_REGISTER dest_reg = alloc_fp_reg(cur_time);
-        print_asm("cvt%s2%s %s, %s\n", Generator::convert_name_from_type(in1->type), Generator::convert_name_from_type(var->type), fp_reg_names[dest_reg], fp_reg_names[in_reg]);
-        set_var_to_fp_reg(cur_time, var, dest_reg);
-        break;
-    }
-    default:
-        assert(0);
-        break;
-    }
-}
-
-void RegAlloc::compile_fp_morphing_op(SSAVar *var, size_t cur_time) {
-    auto *op = std::get<std::unique_ptr<Operation>>(var->info).get();
-    SSAVar *in1 = op->in_vars[0];
-
-    auto cmp_op = [this, var, op, in1, cur_time](const char *cc) {
-        SSAVar *cmp2 = op->in_vars[1];
-        SSAVar *val1 = op->in_vars[2];
-        SSAVar *val2 = op->in_vars[3];
-        assert(is_float(in1->type) && in1->type == cmp2->type && val1->type == Type::imm && val2->type == Type::imm);
-        FP_REGISTER cmp1_reg = load_val_in_fp_reg(cur_time, in1);
-        FP_REGISTER cmp2_reg = load_val_in_fp_reg(cur_time, cmp2);
-        REGISTER val1_reg = load_val_in_reg(cur_time, val1);
-        REGISTER val2_reg = load_val_in_reg(cur_time, val2);
-        if (val1->gen_info.last_use_time > cur_time) {
-            save_reg(val1_reg);
-        }
-        print_asm("comis%s %s, %s\n", Generator::fp_op_size_from_type(in1->type), fp_reg_names[cmp1_reg], fp_reg_names[cmp2_reg]);
-        print_asm("cmov%s %s, %s\n", cc, reg_name(val1_reg, var->type), reg_name(val2_reg, var->type));
-        clear_reg(cur_time, val1_reg);
-        set_var_to_reg(cur_time, var, val1_reg);
-    };
-
-    switch (op->type) {
-    case Instruction::slt:
-        cmp_op("ae");
-        break;
-    case Instruction::sle:
-        cmp_op("a");
-        break;
-    case Instruction::seq:
-        cmp_op("ne");
-        break;
-    case Instruction::convert: {
-        assert(is_float(var->type) ^ is_float(in1->type));
+        assert(is_float(var->type) || is_float(in1->type));
         // evalute convert names
         const char *conv_name_1 = Generator::convert_name_from_type(in1->type);
         const char *conv_name_2 = Generator::convert_name_from_type(var->type);
         if (is_float(in1->type)) {
             const FP_REGISTER in_reg = load_val_in_fp_reg(cur_time, in1);
             // floating point -> integer
-            // TODO: Handle rounding accordingly
-            const REGISTER dest_reg = alloc_reg(cur_time);
-            print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, reg_name(dest_reg, var->type), fp_reg_names[in_reg]);
-            set_var_to_reg(cur_time, var, dest_reg);
+            if (is_float(var->type)) {
+                // floating point -> floating point
+                const FP_REGISTER dest_reg = alloc_fp_reg(cur_time);
+                print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, fp_reg_names[dest_reg], fp_reg_names[in_reg]);
+                set_var_to_fp_reg(cur_time, var, dest_reg);
+                break;
+            } else {
+                // TODO: Handle rounding accordingly, with SSE4 use rounds[s|d] else mxcsr
+                const REGISTER dest_reg = alloc_reg(cur_time);
+
+                uint32_t x86_64_rounding_mode;
+                assert(std::holds_alternative<RoundingMode>(op->rounding_info));
+                switch (std::get<RoundingMode>(op->rounding_info)) {
+                case RoundingMode::NEAREST:
+                    x86_64_rounding_mode = 0x0000;
+                    break;
+                case RoundingMode::DOWN:
+                    x86_64_rounding_mode = 0x2000;
+                    break;
+                case RoundingMode::UP:
+                    x86_64_rounding_mode = 0x4000;
+                    break;
+                case RoundingMode::ZERO:
+                    x86_64_rounding_mode = 0x6000;
+                    break;
+                default:
+                    assert(0);
+                    break;
+                }
+
+                if (gen->optimizations & Generator::OPT_ARCH_SSE4) {
+                    if (in1->gen_info.last_use_time > cur_time) {
+                        save_fp_reg(in_reg);
+                    }
+                    print_asm("rounds%s %s, %s, %x\n", Generator::fp_op_size_from_type(in1->type), fp_reg_names[in_reg], fp_reg_names[in_reg], x86_64_rounding_mode);
+                } else {
+                    // use dest_reg to set mxcsr
+                    const char *round_reg_name = reg_name(dest_reg, Type::i32);
+                    print_asm("sub rsp, 4\n");
+                    print_asm("stmxcsr [rsp]\n");
+                    print_asm("mov %s, [rsp]\n", round_reg_name);
+                    print_asm("and %s, 0xFFFF'1FFF\n", round_reg_name);
+                    if (x86_64_rounding_mode != 0) {
+                        print_asm("or %s, %x\n", round_reg_name, x86_64_rounding_mode);
+                    }
+                    print_asm("mov [rsp], %s\n", round_reg_name);
+                    print_asm("ldmxcsr [rsp]\n");
+                    print_asm("add rsp, 4\n");
+                }
+                print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, reg_name(dest_reg, var->type), fp_reg_names[in_reg]);
+                set_var_to_reg(cur_time, var, dest_reg);
+            }
         } else {
             // integer -> floating point
             const REGISTER in_reg = load_val_in_reg(cur_time, in1);
@@ -1240,26 +1277,10 @@ void RegAlloc::compile_fp_morphing_op(SSAVar *var, size_t cur_time) {
         }
         break;
     }
-
     case Instruction::uconvert:
         assert(0);
         break;
 
-    case Instruction::cast: {
-        assert(is_float(var->type) || is_float(in1->type));
-        if (is_float(var->type)) {
-            const REGISTER in_reg = load_val_in_reg(cur_time, in1);
-            const FP_REGISTER dest_reg = alloc_fp_reg(cur_time);
-            print_asm("mov%s %s, %s\n", (var->type == Type::f32 ? "d" : "q"), fp_reg_names[dest_reg], reg_name(in_reg, in1->type));
-            set_var_to_fp_reg(cur_time, var, dest_reg);
-        } else {
-            const FP_REGISTER in_reg = load_val_in_fp_reg(cur_time, in1);
-            const REGISTER dest_reg = alloc_reg(cur_time);
-            print_asm("mov%s %s, %s\n", (in1->type == Type::f32 ? "d" : "q"), reg_name(dest_reg, var->type), fp_reg_names[in_reg]);
-            set_var_to_reg(cur_time, var, dest_reg);
-        }
-        break;
-    }
     default:
         assert(0);
         break;

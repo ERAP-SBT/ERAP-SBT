@@ -95,7 +95,6 @@ struct RegAlloc {
     void compile_block(BasicBlock *bb, bool first_block, size_t &max_stack_frame_size, std::vector<BasicBlock *> &compiled_blocks);
     void compile_vars(BasicBlock *bb);
     void compile_fp_op(SSAVar *var, size_t cur_time);
-    void compile_fp_morphing_op(SSAVar *var, size_t cur_time);
     bool merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg);
     void prepare_cf_ops(BasicBlock *bb);
     void compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_map, StackMap &stack_map, size_t max_stack_frame_size, BasicBlock *next_bb, std::vector<BasicBlock *> &compiled_blocks);
@@ -170,7 +169,15 @@ struct RegAlloc {
 
 struct Generator {
     enum class ErrType { unreachable };
-    enum Optimization : uint32_t { OPT_UNUSED_STATIC = 1 << 0, OPT_MBRA = 1 << 1, OPT_MERGE_OP = 1 << 2, OPT_ARCH_BMI2 = 1 << 3, OPT_NO_TRANS_BBS = 1 << 4, OPT_ARCH_FMA3 = 1 << 5 };
+    enum Optimization : uint32_t {
+        OPT_UNUSED_STATIC = 1 << 0,
+        OPT_MBRA = 1 << 1,
+        OPT_MERGE_OP = 1 << 2,
+        OPT_NO_TRANS_BBS = 1 << 3,
+        OPT_ARCH_BMI2 = 1 << 4,
+        OPT_ARCH_FMA3 = 1 << 5,
+        OPT_ARCH_SSE4 = 1 << 6,
+    };
 
     // Optimization Warnings:
     // OPT_UNUSED_STATIC:

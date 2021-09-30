@@ -952,13 +952,14 @@ void Generator::compile_rounding_mode(const SSAVar *var) {
         }
         // clear rounding mode and set correctly
         fprintf(out_fd, "sub rsp, 4\n");
-        fprintf(out_fd, "STMXCSR [rsp]\n");
+        fprintf(out_fd, "stmxcsr [rsp]\n");
         fprintf(out_fd, "mov edi, [rsp]\n");
         fprintf(out_fd, "and edi, 0xFFFF1FFF\n");
         if (x86_64_rounding_mode != 0) {
             fprintf(out_fd, "or edi, %u\n", x86_64_rounding_mode);
         }
         fprintf(out_fd, "mov [rsp], edi\n");
+        fprintf(out_fd, "ldmxcsr [rsp]\n");
         fprintf(out_fd, "add rsp, 4\n");
     } else {
         assert(0);
