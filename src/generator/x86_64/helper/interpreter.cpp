@@ -93,8 +93,9 @@ typedef union converter {
 
 /* from compiled code */
 extern "C" uint64_t register_file[];
-extern "C" uint64_t ijump_lookup_base;
-extern "C" uint64_t ijump_lookup[];
+extern "C" const uint64_t ijump_lookup_base;
+extern "C" const uint64_t ijump_lookup[];
+extern "C" const uint64_t ijump_lookup_end;
 
 void trace(uint64_t addr, const FrvInst *instr) {
     puts("TRACE: 0x");
@@ -109,8 +110,14 @@ void trace(uint64_t addr, const FrvInst *instr) {
     puts("\n");
 }
 
-// TODO: bounds check
-uint64_t ijump_lookup_for_addr(uint64_t addr) { return ijump_lookup[(addr - ijump_lookup_base) / 0x2]; }
+uint64_t ijump_lookup_for_addr(uint64_t addr) {
+    const uint64_t *const entry = &ijump_lookup[(addr - ijump_lookup_base) / 0x2];
+    if (entry >= &ijump_lookup_end) {
+        return 0x0;
+    } else {
+        return *entry;
+    }
+}
 
 /* make the code a bit clearer */
 constexpr uint64_t sign_extend_int64_t(int32_t v) { return static_cast<int64_t>(v); }

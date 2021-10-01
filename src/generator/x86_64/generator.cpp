@@ -181,6 +181,7 @@ void Generator::compile_ijump_lookup() {
 
     fprintf(out_fd, ".global ijump_lookup_base\n");
     fprintf(out_fd, ".global ijump_lookup\n");
+    fprintf(out_fd, ".global ijump_lookup_end\n");
 
     fprintf(out_fd, "ijump_lookup_base:\n");
     fprintf(out_fd, ".8byte %zu\n", ir->virt_bb_start_addr);
