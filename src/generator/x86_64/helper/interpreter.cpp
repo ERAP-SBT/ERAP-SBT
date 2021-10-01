@@ -1045,16 +1045,18 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
         }
         case FRV_FCVTDS: {
             converter conv;
-            conv.d32 = static_cast<uint32_t>(register_file[instr.rs1 + START_FP_STATICS]);
+            conv.d64 = register_file[instr.rs1 + START_FP_STATICS];
             conv.f64 = static_cast<double>(conv.f32);
-            register_file[instr.rd + START_FP_STATICS] = conv.f64;
+
+            register_file[instr.rd + START_FP_STATICS] = conv.d64;
             break;
         }
         case FRV_FCVTSD: {
             converter conv;
             conv.d64 = register_file[instr.rs1 + START_FP_STATICS];
-            conv.f32 = static_cast<double>(conv.f64);
-            register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>(conv.d32);
+            conv.f32 = static_cast<float>(conv.f64);
+
+            register_file[instr.rd + START_FP_STATICS] = conv.d32;
             break;
         }
 
