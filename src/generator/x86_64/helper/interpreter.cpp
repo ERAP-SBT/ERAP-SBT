@@ -21,6 +21,9 @@ typedef union converter {
     double f64;
 } converter;
 
+/* for debugging, generates a massive amount of output */
+#define TRACE false
+
 #define AMO_OP(ptr_type, type) \
     { \
         ptr_type *ptr = reinterpret_cast<ptr_type *>(register_file[instr.rs1]); \
@@ -92,16 +95,14 @@ typedef union converter {
     }
 
 /* from compiled code */
-extern "C" uint64_t register_file[];
+extern "C" uint64_t register_file[32 + 1 + 32 + 1]; /* size is the maximum register_file size when compiled with floating point support */
 extern "C" const uint64_t ijump_lookup_base;
 extern "C" const uint64_t ijump_lookup[];
 extern "C" const uint64_t ijump_lookup_end;
 
 void trace(uint64_t addr, const FrvInst *instr) {
-    puts("TRACE: 0x");
-
+    puts("TRACE: ");
     print_hex64(addr);
-
     puts(" : ");
 
     char buf[32];
@@ -243,18 +244,85 @@ void trace_dump_state(uint64_t pc) {
     puts("\ns31: ");
     print_hex64(register_file[31]);
 
+    /* floats */
+    puts("\nf00: ");
+    print_hex64(register_file[START_FP_STATICS + 0]);
+    puts("\nf01: ");
+    print_hex64(register_file[START_FP_STATICS + 1]);
+    puts("\nf02: ");
+    print_hex64(register_file[START_FP_STATICS + 2]);
+    puts("\nf03: ");
+    print_hex64(register_file[START_FP_STATICS + 3]);
+    puts("\nf04: ");
+    print_hex64(register_file[START_FP_STATICS + 4]);
+    puts("\nf05: ");
+    print_hex64(register_file[START_FP_STATICS + 5]);
+    puts("\nf06: ");
+    print_hex64(register_file[START_FP_STATICS + 6]);
+    puts("\nf07: ");
+    print_hex64(register_file[START_FP_STATICS + 7]);
+    puts("\nf08: ");
+    print_hex64(register_file[START_FP_STATICS + 8]);
+    puts("\nf09: ");
+    print_hex64(register_file[START_FP_STATICS + 9]);
+    puts("\nf10: ");
+    print_hex64(register_file[START_FP_STATICS + 10]);
+    puts("\nf11: ");
+    print_hex64(register_file[START_FP_STATICS + 11]);
+    puts("\nf12: ");
+    print_hex64(register_file[START_FP_STATICS + 12]);
+    puts("\nf13: ");
+    print_hex64(register_file[START_FP_STATICS + 13]);
+    puts("\nf14: ");
+    print_hex64(register_file[START_FP_STATICS + 14]);
+    puts("\nf15: ");
+    print_hex64(register_file[START_FP_STATICS + 15]);
+    puts("\nf16: ");
+    print_hex64(register_file[START_FP_STATICS + 16]);
+    puts("\nf17: ");
+    print_hex64(register_file[START_FP_STATICS + 17]);
+    puts("\nf18: ");
+    print_hex64(register_file[START_FP_STATICS + 18]);
+    puts("\nf19: ");
+    print_hex64(register_file[START_FP_STATICS + 19]);
+    puts("\nf20: ");
+    print_hex64(register_file[START_FP_STATICS + 20]);
+    puts("\nf21: ");
+    print_hex64(register_file[START_FP_STATICS + 21]);
+    puts("\nf22: ");
+    print_hex64(register_file[START_FP_STATICS + 22]);
+    puts("\nf23: ");
+    print_hex64(register_file[START_FP_STATICS + 23]);
+    puts("\nf24: ");
+    print_hex64(register_file[START_FP_STATICS + 24]);
+    puts("\nf25: ");
+    print_hex64(register_file[START_FP_STATICS + 25]);
+    puts("\nf26: ");
+    print_hex64(register_file[START_FP_STATICS + 26]);
+    puts("\nf27: ");
+    print_hex64(register_file[START_FP_STATICS + 27]);
+    puts("\nf28: ");
+    print_hex64(register_file[START_FP_STATICS + 28]);
+    puts("\nf29: ");
+    print_hex64(register_file[START_FP_STATICS + 29]);
+    puts("\nf30: ");
+    print_hex64(register_file[START_FP_STATICS + 30]);
+    puts("\nf31: ");
+    print_hex64(register_file[START_FP_STATICS + 31]);
+
     puts("\n");
 }
 
 /**
- * @param target unresolved jump target address
+ * @param pc unresolved jump target address
  */
-extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
-    // puts("TRACE: handler, target: ");
-    // print_hex64(target);
-    // puts("\n");
-
-    uint64_t pc = target;
+extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
+#if TRACE
+    puts("TRACE: enter handler, pc: ");
+    print_hex64(pc);
+    puts("\n");
+    trace_dump_state(pc);
+#endif
 
     do {
         bool jump = false;
@@ -271,6 +339,11 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
             trace_dump_state(pc);
             panic("undefined");
         }
+
+#if TRACE
+        trace(pc, &instr);
+        //    trace_dump_state(pc);
+#endif
 
         // TODO: we might be able to ignore everything with rd=0 as either HINT or NOP instructions
         switch (instr.mnem) {
@@ -1261,18 +1334,27 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t target) {
         }
     } while (ijump_lookup_for_addr(pc) == 0);
 
-    // puts("TRACE: found compiled basic block, addr: ");
-    // print_hex64(pc);
-    // puts("\n");
+#if TRACE
+    puts("TRACE: found compiled basic block, pc: ");
+    print_hex64(pc);
+    puts("\n");
 
-    // trace_dump_state(pc);
+    trace_dump_state(pc);
 
-    // puts("\n");
+    puts("\n");
+#endif
 
     /* At this point we have found a valid entry point back into
      * the compiled BasicBlocks
      */
-    return ijump_lookup_for_addr(pc);
+    const uint64_t return_addr = ijump_lookup_for_addr(pc);
+#if TRACE
+    puts("TRACE: leave handler, return_addr: ");
+    print_hex64(return_addr);
+    puts("\n");
+#endif
+
+    return return_addr;
 }
 
 } // namespace helper::interpreter
