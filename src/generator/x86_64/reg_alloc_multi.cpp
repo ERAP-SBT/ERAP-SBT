@@ -866,7 +866,8 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                 const auto &val1_info = std::get<SSAVar::ImmInfo>(val1->info);
                 const auto &val2_info = std::get<SSAVar::ImmInfo>(val2->info);
                 if (val1_info.val == 1 && !val1_info.binary_relative && val2_info.val == 0 && !val2_info.binary_relative) {
-                    if (cmp2->is_immediate() && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative && static_cast<uint64_t>(cmp2->get_immediate().val) != 0x80000000'00000000 && std::abs(cmp2->get_immediate().val) <= 0x7FFFFFFF) {
+                    if (cmp2->is_immediate() && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative && static_cast<uint64_t>(cmp2->get_immediate().val) != 0x80000000'00000000 &&
+                        std::abs(cmp2->get_immediate().val) <= 0x7FFFFFFF) {
                         const auto type = cmp1->is_immediate() ? Type::i64 : cmp1->type;
                         print_asm("cmp %s, %ld\n", reg_name(cmp1_reg, type), std::get<SSAVar::ImmInfo>(cmp2->info).val);
                     } else {
@@ -1449,8 +1450,13 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
         // cheap fix to force single block register allocation
         set_bb_inputs_from_static(target);
     } else {
-        for (auto &input : inputs) {
-            input.get()->gen_info.allocated_to_input = false;
+        for (size_t i = 0; i < inputs.size(); ++i) {
+            auto *input = inputs[i].get();
+            input->gen_info.allocated_to_input = false;
+            if (input->is_static() && input->gen_info.location == SSAVar::GeneratorInfoX64::STATIC && input->gen_info.static_idx != target->inputs[i]->get_static()) {
+                // force into register because translation blocks might generate incorrect code otherwise
+                load_val_in_reg(cur_time, input);
+            }
         }
 
         bool rax_used = false;
