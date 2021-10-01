@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <elf.h>
 #include <linux/errno.h>
 #include <sys/epoll.h>
 #include <sys/stat.h>
@@ -247,6 +248,10 @@ extern "C" uint8_t *copy_stack(uint8_t *stack, uint8_t *out_stack) {
             cur_auxv->a_val = phdr_size;
         } else if (cur_auxv->a_type == auxv_t::type::phnum) {
             cur_auxv->a_val = phdr_num;
+        } else if (cur_auxv->a_type == static_cast<auxv_t::type>(AT_SYSINFO)) {
+            cur_auxv->a_val = 0;
+        } else if (cur_auxv->a_type == static_cast<auxv_t::type>(AT_SYSINFO_EHDR)) {
+            cur_auxv->a_val = 0;
         }
     }
 
