@@ -12,6 +12,9 @@
 
 namespace helper {
 
+/* dump interpreter statistics at exit */
+#define INTERPRETER_DUMP_PERF_STATS_AT_EXIT false
+
 struct auxv_t {
     // see https://fossies.org/dox/Checker-0.9.9.1/gcc-startup_8c_source.html#l00042
     // see also https://refspecs.linuxfoundation.org/ELF/zSeries/lzsabi0_zSeries/x895.html
@@ -102,6 +105,13 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
         } else if (info.action == SyscallAction::handle) {
             // not sure if this is a good idea
             switch (static_cast<RISCV_SYSCALL_ID>(id)) {
+            case RISCV_SYSCALL_ID::EXIT:
+            case RISCV_SYSCALL_ID::EXIT_GROUP: {
+#if INTERPRETER_DUMP_PERF_STATS_AT_EXIT
+                helper::interpreter::interpreter_dump_perf_stats();
+#endif
+                return syscall1(info.translated_id, arg0);
+            }
             case RISCV_SYSCALL_ID::EPOLL_CTL: {
                 struct epoll_event event;
                 auto *rv64_event = reinterpret_cast<rv64_epoll_event_t *>(arg3);

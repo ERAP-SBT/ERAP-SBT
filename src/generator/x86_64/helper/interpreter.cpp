@@ -21,6 +21,25 @@ typedef union converter {
     double f64;
 } converter;
 
+/* tims unresolved_ijump_handler has been entered */
+volatile uint64_t perf_enter_count = 0;
+
+/* number of instruction decoded by the interpreter */
+volatile uint64_t perf_instr_count = 0;
+
+/* number of bytes decoded by the interpreter */
+volatile uint64_t perf_instr_byte_count = 0;
+
+void interpreter_dump_perf_stats() {
+    puts("perf_enter_count: ");
+    print_hex64(perf_enter_count);
+    puts("\nperf_instr_count: ");
+    print_hex64(perf_instr_count);
+    puts("\nperf_instr_byte_count: ");
+    print_hex64(perf_instr_byte_count);
+    puts("\n");
+}
+
 /* for debugging, generates a massive amount of output */
 #define TRACE false
 
@@ -324,6 +343,8 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
     trace_dump_state(pc);
 #endif
 
+    perf_enter_count++;
+
     do {
         bool jump = false;
         FrvInst instr;
@@ -344,6 +365,9 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
         trace(pc, &instr);
         //    trace_dump_state(pc);
 #endif
+
+        perf_instr_count++;
+        perf_instr_byte_count += r;
 
         // TODO: we might be able to ignore everything with rd=0 as either HINT or NOP instructions
         switch (instr.mnem) {

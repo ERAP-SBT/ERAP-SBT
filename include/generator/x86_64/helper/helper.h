@@ -49,4 +49,10 @@ void print_hex16(uint16_t byte);
 void print_hex32(uint32_t byte);
 void print_hex64(uint64_t byte);
 
+namespace interpreter {
+
+void interpreter_dump_perf_stats();
+
+}
+
 } // namespace helper
