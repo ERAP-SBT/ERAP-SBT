@@ -109,7 +109,7 @@ struct RegAlloc {
     void write_target_inputs(BasicBlock *target, size_t cur_time, const std::vector<RefPtr<SSAVar>> &inputs);
     void init_time_of_use(BasicBlock *bb);
 
-    template <typename... Args> void print_asm(const char *fmt, Args &&... args) {
+    template <typename... Args> void print_asm(const char *fmt, Args &&...args) {
         // NOLINTNEXTLINE(clang-diagnostic-format-security)
         snprintf(print_buf, sizeof(print_buf), fmt, args...);
         asm_buf += print_buf;
