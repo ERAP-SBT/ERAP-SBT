@@ -145,7 +145,7 @@ struct Generator {
 
     void compile_statics();
     void compile_phdr_info();
-    void compile_interpreter_only();
+    void compile_interpreter_only_entry();
     void compile_blocks();
     void compile_entry();
     void compile_err_msgs();

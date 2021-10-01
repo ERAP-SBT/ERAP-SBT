@@ -164,16 +164,16 @@ void Generator::compile() {
     fprintf(out_fd, "init_stack_ptr: .quad 0\n");
 
     if (interpreter_only) {
-        compile_interpreter_only();
+        compile_interpreter_only_entry();
     } else {
         compile_blocks();
 
         compile_entry();
 
         compile_err_msgs();
-
-        compile_ijump_lookup();
     }
+
+    compile_ijump_lookup();
 }
 
 void Generator::compile_ijump_lookup() {
@@ -224,7 +224,7 @@ void Generator::compile_phdr_info() {
     std::fprintf(out_fd, ".global phdr_off\n.global phdr_num\n.global phdr_size\n");
 }
 
-void Generator::compile_interpreter_only() {
+void Generator::compile_interpreter_only_entry() {
     compile_section(Section::TEXT);
     fprintf(out_fd, ".global _start\n");
     fprintf(out_fd, "_start:\n");
@@ -244,26 +244,6 @@ void Generator::compile_interpreter_only() {
 
     fprintf(out_fd, ".type _start,STT_FUNC\n");
     fprintf(out_fd, ".size _start,$-_start\n");
-    compile_section(Section::RODATA);
-
-    fprintf(out_fd, ".global ijump_lookup_base\n");
-    fprintf(out_fd, ".global ijump_lookup\n");
-
-    fprintf(out_fd, "ijump_lookup_base:\n");
-    fprintf(out_fd, ".8byte %zu\n", ir->virt_bb_start_addr);
-
-    fprintf(out_fd, "ijump_lookup:\n");
-
-    assert(ir->virt_bb_start_addr <= ir->virt_bb_end_addr);
-
-    /* Incredibly space inefficient but also O(1) fast */
-    for (uint64_t i = ir->virt_bb_start_addr; i < ir->virt_bb_end_addr; i += 2) {
-        fprintf(out_fd, ".8byte 0x0\n");
-    }
-
-    fprintf(out_fd, "ijump_lookup_end:\n");
-    fprintf(out_fd, ".type ijump_lookup,STT_OBJECT\n");
-    fprintf(out_fd, ".size ijump_lookup,ijump_lookup_end-ijump_lookup\n");
 }
 
 void Generator::compile_blocks() {
