@@ -723,11 +723,14 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                     int cmp = cast_dir(a->type, b->type);
                     assert(cmp != -1);
                     type = cmp == 1 ? b->type : a->type;
-                } else if (a->type == Type::imm && is_signed) {
-                    std::cerr << "Warning: signed conditional set operation with imm values, treating as i64\n";
-                    type = Type::i64;
                 } else {
                     type = a->type;
+                }
+                if (type == Type::imm) {
+                    if (is_signed) {
+                        std::cerr << "Warning: signed conditional set operation with imm values, treating as i64\n";
+                    }
+                    type = Type::i64;
                 }
                 int cmp = typed_compare(type, a->get_immediate().val, b->get_immediate().val, is_signed);
                 bool is_true;
