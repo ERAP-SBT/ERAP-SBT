@@ -315,30 +315,29 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     // bit masks:
 
     SSAVar *const zero = bb->add_var_imm(0, ip);
-    SSAVar *const mask1 = bb->add_var_imm(0x1, ip);    // lsb (0. bit) set if source is negative infinity.
-    SSAVar *const mask4 = bb->add_var_imm(0x8, ip);    // 3. bit set if source is -0.
-    SSAVar *const mask5 = bb->add_var_imm(0x10, ip);   // 4. bit set if source is +0.
-    SSAVar *const mask8 = bb->add_var_imm(0x80, ip);   // 7. bit set if source is positive infinity.
-    SSAVar *const mask9 = bb->add_var_imm(0x100, ip);  // 8. bit set if source is signaling NaN.
-    SSAVar *const mask10 = bb->add_var_imm(0x200, ip); // 9. bit set if source is quiet NaN.
+    SSAVar *const mask0 = bb->add_var_imm(0x1, ip);   // lsb (0. bit) set if source is negative infinity.
+    SSAVar *const mask3 = bb->add_var_imm(0x8, ip);   // 3. bit set if source is -0.
+    SSAVar *const mask4 = bb->add_var_imm(0x10, ip);  // 4. bit set if source is +0.
+    SSAVar *const mask7 = bb->add_var_imm(0x80, ip);  // 7. bit set if source is positive infinity.
+    SSAVar *const mask8 = bb->add_var_imm(0x100, ip); // 8. bit set if source is signaling NaN.
+    SSAVar *const mask9 = bb->add_var_imm(0x200, ip); // 9. bit set if source is quiet NaN.
 
     SSAVar *const combined_mask_1_2 = bb->add_var_imm(0b110, ip);     // combined mask with 1. and 2. bit set
     SSAVar *const combined_mask_5_6 = bb->add_var_imm(0b1100000, ip); // combined mask with 5. and 6. bit set
     SSAVar *const combined_mask_1_6 = bb->add_var_imm(0b1000010, ip); // combined mask with 1. and 6. bit set
     SSAVar *const combined_mask_2_5 = bb->add_var_imm(0b100100, ip);  // combined mask with 2. and 5. bit set
-    SSAVar *const combined_mask_8_9 = bb->add_var_imm(0x200, ip);     // combined mask with 8. and 9. bit set
+    SSAVar *const combined_mask_8_9 = bb->add_var_imm(0x300, ip);     // combined mask with 8. and 9. bit set
+    SSAVar *const combined_mask_2_5_8 = bb->add_var_imm(0x124, ip);   // combined mask with 2., 5. and 8. bit set
 
     SSAVar *const exponent_mask = bb->add_var_imm(is_single_precision ? 0x7F800000 : 0x7FF0000000000000, ip); // mask to extract the exponent of the floating point number
     SSAVar *const mantisse_mask = bb->add_var_imm(is_single_precision ? 0x7FFFFF : 0xFFFFFFFFFFFFF, ip);      // mask to extract the mantisse of the floating point number
 
     SSAVar *const shift_to_right_amount = bb->add_var_imm(is_single_precision ? 31 : 63, ip);     // constant for shifting the sign bit to the lsb
-    SSAVar *const mantisse_msb_shift_amount = bb->add_var_imm(is_single_precision ? 22 : 51, ip); // constant for shifting the msb of the mantisse to the slb
+    SSAVar *const mantisse_msb_shift_amount = bb->add_var_imm(is_single_precision ? 22 : 51, ip); // constant for shifting the msb of the mantisse to the lsb
 
     SSAVar *const negative_infinity = bb->add_var_imm(is_single_precision ? 0xff800000 : 0xfff0000000000000, ip); // bit pattern of -inf
     SSAVar *const positive_infinity = bb->add_var_imm(is_single_precision ? 0x7f800000 : 0x7FF0000000000000, ip); // bit pattern of +inf
     SSAVar *const negative_zero = bb->add_var_imm(is_single_precision ? 0x80000000 : 0x8000000000000000, ip);     // bit pattern of -0.0
-
-    SSAVar *const max_exponent_value = bb->add_var_imm(is_single_precision ? 0xFF : 0x7FF, ip); // bit pattern of exponent with all bits set
 
     // cast the floating point bit pattern to integer bit pattern to use bit manipulation
     SSAVar *const f_src = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, op_size);
@@ -367,7 +366,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
         op->lifter_info.in_op_size = integer_op_size;
-        op->set_inputs(i_src, zero, zero, combined_mask_1_2);
+        op->set_inputs(sign_bit, zero, zero, combined_mask_1_2);
         op->set_outputs(negative_sign_test);
         negative_sign_test->set_op(std::move(op));
     }
@@ -377,9 +376,9 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
         op->lifter_info.in_op_size = integer_op_size;
-        op->set_inputs(i_src, zero, combined_mask_5_6, zero);
-        op->set_outputs(negative_sign_test);
-        negative_sign_test->set_op(std::move(op));
+        op->set_inputs(sign_bit, zero, combined_mask_5_6, zero);
+        op->set_outputs(positive_sign_test);
+        positive_sign_test->set_op(std::move(op));
     }
 
     // extract the exponent
@@ -417,9 +416,18 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
         op->lifter_info.in_op_size = integer_op_size;
-        op->set_inputs(exponent, max_exponent_value, combined_mask_8_9, zero);
+        op->set_inputs(exponent, exponent_mask, combined_mask_8_9, zero);
         op->set_outputs(max_exponent_test);
         max_exponent_test->set_op(std::move(op));
+    }
+
+    SSAVar *const non_max_exponent = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::seq);
+        op->lifter_info.in_op_size = integer_op_size;
+        op->set_inputs(exponent, exponent_mask, zero, combined_mask_1_6);
+        op->set_outputs(non_max_exponent);
+        non_max_exponent->set_op(std::move(op));
     }
 
     // extract the mantisse
@@ -447,7 +455,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
         op->lifter_info.in_op_size = integer_op_size;
-        op->set_inputs(mantisse, zero, zero, mask9);
+        op->set_inputs(mantisse, zero, zero, combined_mask_2_5_8);
         op->set_outputs(mantisse_non_zero_test);
         mantisse_non_zero_test->set_op(std::move(op));
     }
@@ -457,7 +465,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
         op->lifter_info.in_op_size = integer_op_size;
-        op->set_inputs(mantisse_msb, zero, mask9, zero);
+        op->set_inputs(mantisse_msb, zero, mask8, zero);
         op->set_outputs(mantisse_msb_zero_test);
         mantisse_msb_zero_test->set_op(std::move(op));
     }
@@ -467,9 +475,29 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
         op->lifter_info.in_op_size = integer_op_size;
-        op->set_inputs(mantisse_msb, zero, zero, mask10);
+        op->set_inputs(mantisse_msb, zero, zero, mask9);
         op->set_outputs(mantisse_msb_non_zero_test);
         mantisse_msb_non_zero_test->set_op(std::move(op));
+    }
+
+    // set to mask if it is a normal number (0 < exponent < max_exponent) (ignoring sign)
+    SSAVar *const normal_number_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_and);
+        op->lifter_info.in_op_size = integer_op_size;
+        op->set_inputs(non_zero_exponent_test, non_max_exponent);
+        op->set_outputs(normal_number_test);
+        normal_number_test->set_op(std::move(op));
+    }
+
+    // set to mask if it is a subnormal number (exponent == 0 && mantisse != 0) (ignoring sign)
+    SSAVar *const subnormal_number_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_and);
+        op->lifter_info.in_op_size = integer_op_size;
+        op->set_inputs(zero_exponent_test, mantisse_non_zero_test);
+        op->set_outputs(subnormal_number_test);
+        subnormal_number_test->set_op(std::move(op));
     }
 
     // test wheter the source is -inf
@@ -477,7 +505,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
         op->lifter_info.in_op_size = integer_op_size;
-        op->set_inputs(i_src, negative_infinity, mask1, zero);
+        op->set_inputs(i_src, negative_infinity, mask0, zero);
         op->set_outputs(negative_inifinty_test);
         negative_inifinty_test->set_op(std::move(op));
     }
@@ -487,7 +515,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     {
         auto op = std::make_unique<Operation>(Instruction::_and);
         op->lifter_info.in_op_size = integer_op_size;
-        op->set_inputs(non_zero_exponent_test, negative_sign_test);
+        op->set_inputs(normal_number_test, negative_sign_test);
         op->set_outputs(negative_normal_number_test);
         negative_normal_number_test->set_op(std::move(op));
     }
@@ -497,7 +525,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     {
         auto op = std::make_unique<Operation>(Instruction::_and);
         op->lifter_info.in_op_size = integer_op_size;
-        op->set_inputs(zero_exponent_test, negative_sign_test);
+        op->set_inputs(subnormal_number_test, negative_sign_test);
         op->set_outputs(negative_subnormal_number_test);
         negative_subnormal_number_test->set_op(std::move(op));
     }
@@ -507,7 +535,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
         op->lifter_info.in_op_size = integer_op_size;
-        op->set_inputs(i_src, negative_zero, mask4, zero);
+        op->set_inputs(i_src, negative_zero, mask3, zero);
         op->set_outputs(negative_zero_test);
         negative_zero_test->set_op(std::move(op));
     }
@@ -517,7 +545,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
         op->lifter_info.in_op_size = integer_op_size;
-        op->set_inputs(i_src, zero, mask5, zero);
+        op->set_inputs(i_src, zero, mask4, zero);
         op->set_outputs(positive_zero_test);
         positive_zero_test->set_op(std::move(op));
     }
@@ -527,7 +555,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     {
         auto op = std::make_unique<Operation>(Instruction::_and);
         op->lifter_info.in_op_size = integer_op_size;
-        op->set_inputs(zero_exponent_test, negative_sign_test);
+        op->set_inputs(subnormal_number_test, positive_sign_test);
         op->set_outputs(positive_subnormal_number_test);
         positive_subnormal_number_test->set_op(std::move(op));
     }
@@ -537,7 +565,7 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     {
         auto op = std::make_unique<Operation>(Instruction::_and);
         op->lifter_info.in_op_size = integer_op_size;
-        op->set_inputs(non_zero_exponent_test, positive_sign_test);
+        op->set_inputs(normal_number_test, positive_sign_test);
         op->set_outputs(positive_normal_number_test);
         positive_normal_number_test->set_op(std::move(op));
     }
@@ -547,32 +575,31 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
     {
         auto op = std::make_unique<Operation>(Instruction::seq);
         op->lifter_info.in_op_size = integer_op_size;
-        op->set_inputs(i_src, positive_infinity, mask8, zero);
+        op->set_inputs(i_src, positive_infinity, mask7, zero);
         op->set_outputs(positive_inifinty_test);
         positive_inifinty_test->set_op(std::move(op));
     }
 
-    // test whether source is a signaling NaN (all bits in the exponent are set && mantisse msb == 0 && mantisse != 0)
+    /* test whether source is a signaling NaN (all bits in the exponent are set && mantisse msb == 0 && mantisse != 0) */
+
+    // test whether the mantisse has the "correct" form
+    SSAVar *const signaling_nan_mantisse_test = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_and);
+        op->lifter_info.in_op_size = integer_op_size;
+        op->set_inputs(mantisse_msb_zero_test, mantisse_non_zero_test);
+        op->set_outputs(signaling_nan_mantisse_test);
+        signaling_nan_mantisse_test->set_op(std::move(op));
+    }
+
+    // and the exponent is "correct"
     SSAVar *const signaling_nan_test = bb->add_var(integer_op_size, ip);
     {
-        // test whether the mantisse has the "correct" form
-        SSAVar *const signaling_nan_mantisse_test = bb->add_var(integer_op_size, ip);
-        {
-            auto op = std::make_unique<Operation>(Instruction::_and);
-            op->lifter_info.in_op_size = integer_op_size;
-            op->set_inputs(mantisse_msb_zero_test, mantisse_non_zero_test);
-            op->set_outputs(signaling_nan_test);
-            signaling_nan_test->set_op(std::move(op));
-        }
-
-        // and the exponent is "correct"
-        {
-            auto op = std::make_unique<Operation>(Instruction::_and);
-            op->lifter_info.in_op_size = integer_op_size;
-            op->set_inputs(signaling_nan_mantisse_test, max_exponent_test);
-            op->set_outputs(signaling_nan_test);
-            signaling_nan_test->set_op(std::move(op));
-        }
+        auto op = std::make_unique<Operation>(Instruction::_and);
+        op->lifter_info.in_op_size = integer_op_size;
+        op->set_inputs(signaling_nan_mantisse_test, max_exponent_test);
+        op->set_outputs(signaling_nan_test);
+        signaling_nan_test->set_op(std::move(op));
     }
 
     // test whether source is a quiet NaN (all bits in the exponent are set && the msb of the mantisse is set)
@@ -585,97 +612,94 @@ void Lifter::lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping
         quiet_nan_test->set_op(std::move(op));
     }
 
-    // merge all test results with logical or's
+    // merge tests which sets the bits 0 and 1
+    SSAVar *const test_0_1 = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_or);
+        op->lifter_info.in_op_size = integer_op_size;
+        op->set_inputs(negative_inifinty_test, negative_normal_number_test);
+        op->set_outputs(test_0_1);
+        test_0_1->set_op(std::move(op));
+    }
+
+    // merge tests which sets the bits 2 and 3
+    SSAVar *const test_2_3 = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_or);
+        op->lifter_info.in_op_size = integer_op_size;
+        op->set_inputs(negative_subnormal_number_test, negative_zero_test);
+        op->set_outputs(test_2_3);
+        test_2_3->set_op(std::move(op));
+    }
+
+    // merge tests which sets the bits 4 and 5
+    SSAVar *const test_4_5 = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_or);
+        op->lifter_info.in_op_size = integer_op_size;
+        op->set_inputs(positive_zero_test, positive_subnormal_number_test);
+        op->set_outputs(test_4_5);
+        test_4_5->set_op(std::move(op));
+    }
+
+    // merge tests which sets the bits 6 and 7
+    SSAVar *const test_6_7 = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_or);
+        op->lifter_info.in_op_size = integer_op_size;
+        op->set_inputs(positive_normal_number_test, positive_inifinty_test);
+        op->set_outputs(test_6_7);
+        test_6_7->set_op(std::move(op));
+    }
+
+    // merge tests which sets the bits 8 and 9
+    SSAVar *const test_8_9 = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_or);
+        op->lifter_info.in_op_size = integer_op_size;
+        op->set_inputs(signaling_nan_test, quiet_nan_test);
+        op->set_outputs(test_8_9);
+        test_8_9->set_op(std::move(op));
+    }
+
+    // merge tests which sets the bits from 0 to 3
+    SSAVar *const test_0_to_3 = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_or);
+        op->lifter_info.in_op_size = integer_op_size;
+        op->set_inputs(test_0_1, test_2_3);
+        op->set_outputs(test_0_to_3);
+        test_0_to_3->set_op(std::move(op));
+    }
+
+    // merge tests which sets the bits from 4 to 7
+    SSAVar *const test_4_to_7 = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_or);
+        op->lifter_info.in_op_size = integer_op_size;
+        op->set_inputs(test_4_5, test_6_7);
+        op->set_outputs(test_4_to_7);
+        test_4_to_7->set_op(std::move(op));
+    }
+
+    // merge tests which sets the bits from 0 to 7
+    SSAVar *const test_0_to_7 = bb->add_var(integer_op_size, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_or);
+        op->lifter_info.in_op_size = integer_op_size;
+        op->set_inputs(test_0_to_3, test_4_to_7);
+        op->set_outputs(test_0_to_7);
+        test_0_to_7->set_op(std::move(op));
+    }
+
+    // merge to the test result
     SSAVar *const test_result = bb->add_var(integer_op_size, ip);
     {
-        // merge tests which sets the bits 0 and 1
-        SSAVar *const test_0_1 = bb->add_var(integer_op_size, ip);
-        {
-            auto op = std::make_unique<Operation>(Instruction::_or);
-            op->lifter_info.in_op_size = integer_op_size;
-            op->set_inputs(negative_inifinty_test, negative_normal_number_test);
-            op->set_outputs(test_0_1);
-            test_0_1->set_op(std::move(op));
-        }
-
-        // merge tests which sets the bits 2 and 3
-        SSAVar *const test_2_3 = bb->add_var(integer_op_size, ip);
-        {
-            auto op = std::make_unique<Operation>(Instruction::_or);
-            op->lifter_info.in_op_size = integer_op_size;
-            op->set_inputs(negative_subnormal_number_test, negative_zero_test);
-            op->set_outputs(test_2_3);
-            test_2_3->set_op(std::move(op));
-        }
-
-        // merge tests which sets the bits 4 and 5
-        SSAVar *const test_4_5 = bb->add_var(integer_op_size, ip);
-        {
-            auto op = std::make_unique<Operation>(Instruction::_or);
-            op->lifter_info.in_op_size = integer_op_size;
-            op->set_inputs(positive_zero_test, positive_subnormal_number_test);
-            op->set_outputs(test_4_5);
-            test_4_5->set_op(std::move(op));
-        }
-
-        // merge tests which sets the bits 6 and 7
-        SSAVar *const test_6_7 = bb->add_var(integer_op_size, ip);
-        {
-            auto op = std::make_unique<Operation>(Instruction::_or);
-            op->lifter_info.in_op_size = integer_op_size;
-            op->set_inputs(positive_normal_number_test, positive_inifinty_test);
-            op->set_outputs(test_6_7);
-            test_6_7->set_op(std::move(op));
-        }
-
-        // merge tests which sets the bits 8 and 9
-        SSAVar *const test_8_9 = bb->add_var(integer_op_size, ip);
-        {
-            auto op = std::make_unique<Operation>(Instruction::_or);
-            op->lifter_info.in_op_size = integer_op_size;
-            op->set_inputs(signaling_nan_test, quiet_nan_test);
-            op->set_outputs(test_8_9);
-            test_8_9->set_op(std::move(op));
-        }
-
-        // merge tests which sets the bits from 0 to 3
-        SSAVar *const test_0_to_3 = bb->add_var(integer_op_size, ip);
-        {
-            auto op = std::make_unique<Operation>(Instruction::_or);
-            op->lifter_info.in_op_size = integer_op_size;
-            op->set_inputs(test_0_1, test_2_3);
-            op->set_outputs(test_0_to_3);
-            test_0_to_3->set_op(std::move(op));
-        }
-
-        // merge tests which sets the bits from 4 to 7
-        SSAVar *const test_4_to_7 = bb->add_var(integer_op_size, ip);
-        {
-            auto op = std::make_unique<Operation>(Instruction::_or);
-            op->lifter_info.in_op_size = integer_op_size;
-            op->set_inputs(test_4_5, test_6_7);
-            op->set_outputs(test_4_to_7);
-            test_4_to_7->set_op(std::move(op));
-        }
-
-        // merge tests which sets the bits from 0 to 7
-        SSAVar *const test_0_to_7 = bb->add_var(integer_op_size, ip);
-        {
-            auto op = std::make_unique<Operation>(Instruction::_or);
-            op->lifter_info.in_op_size = integer_op_size;
-            op->set_inputs(test_0_to_3, test_4_to_7);
-            op->set_outputs(test_0_to_7);
-            test_0_to_7->set_op(std::move(op));
-        }
-
-        // merge to the test result
-        {
-            auto op = std::make_unique<Operation>(Instruction::_or);
-            op->lifter_info.in_op_size = integer_op_size;
-            op->set_inputs(test_0_to_7, test_8_9);
-            op->set_outputs(test_result);
-            test_result->set_op(std::move(op));
-        }
+        auto op = std::make_unique<Operation>(Instruction::_or);
+        op->lifter_info.in_op_size = integer_op_size;
+        op->set_inputs(test_0_to_7, test_8_9);
+        op->set_outputs(test_result);
+        test_result->set_op(std::move(op));
     }
 
     // write the test result to the mapping
