@@ -124,7 +124,7 @@ constexpr bool compatible_types(const Type t1, const Type t2) { return (t1 == t2
 /**
  * Inserts a signal trampoline block whose only purpose is to jump to the signal_restorer code.
  */
-uint64_t inject_signal_trampoline(IR *ir) {
+BasicBlock *inject_signal_trampoline(IR *ir) {
     // This block needs a valid virtual address, since it must be able to be jumped to by ijump code.
     uint64_t fake_addr = (ir->virt_bb_end_addr + 1) & ~1; // Align at two byte boundary
     auto *bb = ir->add_basic_block(fake_addr, "_egp_sbt_signal_trampoline");
@@ -135,7 +135,7 @@ uint64_t inject_signal_trampoline(IR *ir) {
     std::vector<std::string> d;
     assert(bb->verify(d));
 
-    return fake_addr;
+    return bb;
 }
 
 } // namespace
@@ -152,7 +152,7 @@ void Generator::compile() {
         fprintf(out_fd, ".incbin \"%s\"\n", binary_filepath.c_str());
     }
 
-    uint64_t signal_trampoline_vaddr = inject_signal_trampoline(ir);
+    auto *signal_trampoline = inject_signal_trampoline(ir);
 
     /* we expect the linker to link the original binary image (if any) at
      * exactly this address
@@ -163,7 +163,7 @@ void Generator::compile() {
     fprintf(out_fd, "orig_binary_size = %#lx\n", ir->load_size);
     fprintf(out_fd, "binary = orig_binary_vaddr\n");
     fprintf(out_fd, ".global signal_trampoline_vaddr\n");
-    fprintf(out_fd, "signal_trampoline_vaddr = %#lx\n", signal_trampoline_vaddr);
+    fprintf(out_fd, "signal_trampoline_vaddr = %#lx\n", signal_trampoline->virt_start_addr);
 
     compile_statics();
     compile_phdr_info();
@@ -186,6 +186,10 @@ void Generator::compile() {
 
     if (interpreter_only) {
         compile_interpreter_only_entry();
+
+        // Compile the signal trampoline block anyway
+        compile_section(Section::TEXT);
+        compile_block(signal_trampoline);
     } else {
         compile_blocks();
 
