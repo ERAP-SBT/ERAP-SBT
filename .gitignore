@@ -8,3 +8,19 @@
 CppProperties.json
 launch.vs.json
 tasks.vs.json
+
+# tests stuff
+#mandelbrot
+tests/mandelbrot/amd64_fma3_mandelbrot.txt
+tests/mandelbrot/amd64_mandelbrot.txt
+tests/mandelbrot/build_amd64/
+tests/mandelbrot/build_rv64/
+tests/mandelbrot/rv64_fma3_mandelbrot.txt
+tests/mandelbrot/rv64_mandelbrot.txt
+# simple_zip
+tests/simple_zip/build_amd64/
+tests/simple_zip/build_rv64/
+tests/simple_zip/test_amd64.zip
+tests/simple_zip/test_amd64/
+tests/simple_zip/test_trans.zip
+tests/simple_zip/test_trans/

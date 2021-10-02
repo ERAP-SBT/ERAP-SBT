@@ -16,7 +16,7 @@ echo -e "${TXT_BLUE}Cleaning up leftovers...${TXT_CLEAR}"
 set -x
 
 rm -rf build_amd64 build_rv64
-rm amd64_mandelbrot.txt rv64_mandelbrot.txt optimized_mandelbrot.txt interpreter_mandelbrot.txt
+rm amd64_mandelbrot.txt rv64_mandelbrot.txt optimized_mandelbrot.txt interpreter_mandelbrot.txt amd64_fma3_mandelbrot.txt fma3_optimized_mandelbrot.txt
 
 { set +x; } 2>/dev/null
 set -e
@@ -40,7 +40,8 @@ cd build_rv64
 set -x
 
 ../../../build/src/translate --debug=false --output=translated mandelbrot
-../../../build/src/translate --debug=false --output=optimized mandelbrot --optimize=all
+../../../build/src/translate --debug=false --output=optimized mandelbrot --optimize=all,!fma3 # dont use fma3 due to rounding issues and x86_64 also doesn't use it
+../../../build/src/translate --debug=false --output=fma3_optimized mandelbrot --optimize=all # use fma3 for comparison to x86_64 with fma
 ../../../build/src/translate --debug=false --output=interpreter mandelbrot --interpreter-only
 
 { set +x; } 2>/dev/null
@@ -60,6 +61,10 @@ cmp amd64_mandelbrot.txt rv64_mandelbrot.txt
 cmp amd64_mandelbrot.txt optimized_mandelbrot.txt
 cmp amd64_mandelbrot_fma.txt interpreter_mandelbrot.txt
 
+build_amd64/fma3_mandelbrot > amd64_fma3_mandelbrot.txt
+build_rv64/fma3_optimized > fma3_optimized_mandelbrot.txt
+cmp amd64_fma3_mandelbrot.txt fma3_optimized_mandelbrot.txt
+
 { set +x; } 2>/dev/null
 
 echo -e "${TXT_BLUE}Successfully run the mandelbrot test!${TXT_CLEAR}"
@@ -68,7 +73,7 @@ echo -e "${TXT_BLUE}Cleaning up...${TXT_CLEAR}"
 set -x
 
 rm -rf build_amd64 build_rv64
-rm amd64_mandelbrot.txt amd64_mandelbrot_fma.txt rv64_mandelbrot.txt optimized_mandelbrot.txt interpreter_mandelbrot.txt
+rm amd64_mandelbrot.txt amd64_mandelbrot_fma.txt rv64_mandelbrot.txt optimized_mandelbrot.txt interpreter_mandelbrot.txt fma3_optimized_mandelbrot.txt
 
 { set +x; } 2>/dev/null
 exit 0
