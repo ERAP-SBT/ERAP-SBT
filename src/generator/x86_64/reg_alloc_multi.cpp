@@ -603,7 +603,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
 
                 const auto op_with_imm32 = [imm_val, this, in1_reg_name, cur_time, in1](const char *op_str) {
                     //  0x8000'0000'0000'0000 cannot be represented as uint64_t
-                    if (std::abs(imm_val) <= 0x7FFF'FFFF && imm_val != INT64_MIN) {
+                    if (imm_val != INT64_MIN && std::abs(imm_val) <= 0x7FFF'FFFF) {
                         print_asm("%s %s, 0x%lx\n", op_str, in1_reg_name, imm_val);
                     } else {
                         auto imm_reg = alloc_reg(cur_time);
