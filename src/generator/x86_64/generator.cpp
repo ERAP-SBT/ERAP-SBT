@@ -240,7 +240,7 @@ void Generator::compile_interpreter_only_entry() {
 
     // load the entry address of the binary and call the interpreter
     fprintf(out_fd, "mov rdi, %ld\n", ir->p_entry_addr);
-    fprintf(out_fd, "jmp unresolved_ijump_handler\n");
+    fprintf(out_fd, "call unresolved_ijump_handler\n");
 
     fprintf(out_fd, ".type _start,STT_FUNC\n");
     fprintf(out_fd, ".size _start,$-_start\n");
