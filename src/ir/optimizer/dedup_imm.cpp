@@ -32,16 +32,16 @@ struct VarMeta {
                 return false; // Currently, in/out_vars are arrays, but this check future-proofs it.
             for (size_t i = 0; i < op.in_vars.size(); i++) {
                 // Compare by id here, since all inputs must be declared before the variable
-                if (!op.out_vars[i] && !oop.out_vars[i])
+                if (!op.in_vars[i] && !oop.in_vars[i])
                     continue;
-                if (!op.out_vars[i] || !oop.out_vars[i])
+                if (!op.in_vars[i] || !oop.in_vars[i])
                     continue;
                 if (op.in_vars[i]->id != oop.in_vars[i]->id)
                     return false;
             }
             for (size_t i = 0; i < op.out_vars.size(); i++) {
                 // Only compare output position here
-                if (!op.out_vars[i] ^ !oop.out_vars[i])
+                if (!op.out_vars[i] != !oop.out_vars[i])
                     return false;
             }
             if (op.rounding_info != oop.rounding_info)
