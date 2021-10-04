@@ -57,6 +57,15 @@ void test3(void) {
     test3_bad();
 }
 
+float test4_t(double v) {
+    printf("test4_t: v = %f\n", v);
+    return v;
+}
+
+void test4(void) {
+    assert(test4_t(10.6l) == 10.6f);
+}
+
 int main(int argc, char *argv[]) {
     printf("Hello World from C + libc\n");
 
@@ -91,6 +100,7 @@ int main(int argc, char *argv[]) {
     }
 
     test3();
+    test4();
 
     assert(strcmp("abc", "abc2") < 0);
 
