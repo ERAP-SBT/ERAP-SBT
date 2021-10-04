@@ -150,10 +150,7 @@ size_t evaluate_csr_index(uint32_t csr_id) {
         return FCSR_IDX;
     default:
         panic("Not known csr register!");
-        break;
     }
-    panic("Not known csr register!");
-    return -1;
 }
 
 /**
