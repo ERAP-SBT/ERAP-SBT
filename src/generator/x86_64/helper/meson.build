@@ -1,4 +1,10 @@
-helper_sources = ['helper.cpp', 'interpreter.cpp', 'rv64_syscalls.cpp', 'wrappers.S']
+helper_sources = [
+    'helper.cpp',
+    'interpreter.cpp',
+    'rv64_syscalls.cpp',
+    'wrappers.S',
+    'frvdec' / 'frvdec.c',
+    ]
 
 runtime_dep_dir = get_option('datadir') / meson.project_name()
 
@@ -7,7 +13,7 @@ install_data('link.ld', install_dir: runtime_dep_dir)
 if host_machine.system() == 'linux' and host_machine.cpu_family() == 'x86_64'
     static_library('helper-x86_64',
         helper_sources,
-        include_directories : inc,
+        include_directories : [ inc, 'frvdec' ],
         cpp_args: ['-ffreestanding', '-fno-exceptions', '-fno-stack-protector', '-nostdlib', '-fsanitize-undefined-trap-on-error', '-O3', '-fno-tree-slp-vectorize'],
         c_args: ['-ffreestanding', '-fno-exceptions', '-fno-stack-protector', '-nostdlib', '-fsanitize-undefined-trap-on-error', '-O3', '-fno-tree-slp-vectorize'],
 
@@ -16,6 +22,5 @@ if host_machine.system() == 'linux' and host_machine.cpu_family() == 'x86_64'
         override_options: ['b_sanitize=none', 'b_coverage=false'],
         install: true,
         install_dir: runtime_dep_dir,
-        dependencies: [frvdec_dep],
         )
 endif
