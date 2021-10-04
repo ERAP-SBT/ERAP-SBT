@@ -1,2 +1,2 @@
 subprojects/**/*
-frvdec/**/*
+src/generator/x86_64/helper/frvdec/*
