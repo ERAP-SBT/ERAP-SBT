@@ -31,7 +31,7 @@ class VarRewriter {
 enum Optimization : uint32_t {
     OPT_DCE = 1 << 0,
     OPT_CONST_FOLDING = 1 << 1,
-    OPT_DEDUP_IMMEDIATES = 1 << 2,
+    OPT_DEDUP = 1 << 2,
 };
 
 constexpr uint32_t OPT_FLAGS_ALL = 0xFFFFFFFF;
