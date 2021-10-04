@@ -5,7 +5,7 @@
 #include "ir/optimizer/common.h"
 #include "ir/optimizer/const_folding.h"
 #include "ir/optimizer/dce.h"
-#include "ir/optimizer/dedup_imm.h"
+#include "ir/optimizer/dedup.h"
 #include "lifter/elf_file.h"
 #include "lifter/lifter.h"
 
@@ -133,8 +133,8 @@ int main(int argc, const char **argv) {
         if (ir_optimizations & optimizer::OPT_DCE) {
             optimizer::dce(&ir);
         }
-        if (ir_optimizations & optimizer::OPT_DEDUP_IMMEDIATES) {
-            optimizer::dedup_imm(&ir);
+        if (ir_optimizations & optimizer::OPT_DEDUP) {
+            optimizer::dedup(&ir);
         }
     }
 
@@ -253,7 +253,7 @@ void print_help(bool usage_only) {
         std::cerr << "      - ir:\n";
         std::cerr << "          - dce: Dead Code Elimination\n";
         std::cerr << "          - const_folding: Fold and propagage constant values\n";
-        std::cerr << "          - dedup_imm: Deduplicate immediates\n";
+        std::cerr << "          - dedup: Deduplicate variables\n";
         std::cerr << "      - generator:\n";
         std::cerr << "          - reg_alloc:            Register Allocation\n";
         std::cerr << "          - merge_ops:            Merge multiple IR-Operations into a single native op\n";
@@ -323,8 +323,8 @@ bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &li
             ir_opt_change = optimizer::OPT_DCE;
         } else if (opt_flag == "const_folding") {
             ir_opt_change = optimizer::OPT_CONST_FOLDING | optimizer::OPT_DCE; // Constant folding requires DCE
-        } else if (opt_flag == "dedup_imm") {
-            ir_opt_change = optimizer::OPT_DEDUP_IMMEDIATES;
+        } else if (opt_flag == "dedup") {
+            ir_opt_change = optimizer::OPT_DEDUP;
         } else {
             std::cerr << "Warning: Unknown optimization flag: '" << opt_flag << "'\n";
             return false;

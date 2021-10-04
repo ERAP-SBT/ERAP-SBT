@@ -1,6 +1,6 @@
 #include "ir/ir.h"
 #include "ir/optimizer/dce.h"
-#include "ir/optimizer/dedup_imm.h"
+#include "ir/optimizer/dedup.h"
 #include "shared.h"
 
 #include "gtest/gtest.h"
@@ -32,7 +32,7 @@ TEST(TestDedupImm, deduplicates_immediate) {
 
     assert_valid(ir);
 
-    dedup_imm(&ir);
+    dedup(&ir);
 
     assert_valid(ir);
     const auto &op = c->get_operation();
