@@ -19,6 +19,6 @@ struct SyscallInfo {
     AMD64_SYSCALL_ID translated_id;
 };
 
-extern const SyscallInfo rv64_syscall_table[static_cast<size_t>(RISCV_SYSCALL_ID::SYSCALL_ID_MAX)];
+extern const SyscallInfo rv64_syscall_table[static_cast<size_t>(RISCV_SYSCALL_ID::SYSCALL_ID_MAX) + 1];
 
 } // namespace helper

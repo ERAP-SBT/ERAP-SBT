@@ -248,8 +248,8 @@ enum class RISCV_SYSCALL_ID : uint16_t {
     PERF_EVENT_OPEN,
     ACCEPT4,
     RECVMMSG,
-    FLUSH_ICACHE,
-    WAIT4,
+    FLUSH_ICACHE = 259, // _NR_arch_specific_syscall (=244) + 15
+    WAIT4 = 260,
     PRLIMIT64,
     FANOTIFY_INIT,
     FANOTIFY_MARK,
