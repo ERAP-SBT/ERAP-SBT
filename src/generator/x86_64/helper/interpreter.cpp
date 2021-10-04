@@ -448,12 +448,12 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
             break;
         case FRV_SLLIW:
             if (instr.rd != 0) {
-                register_file[instr.rd] = sign_extend_int64_t(static_cast<uint32_t>(register_file[instr.rs1]) << instr.imm);
+                register_file[instr.rd] = sign_extend_int64_t(static_cast<int32_t>(static_cast<uint32_t>(register_file[instr.rs1]) << instr.imm));
             }
             break;
         case FRV_SRLIW:
             if (instr.rd != 0) {
-                register_file[instr.rd] = sign_extend_int64_t(static_cast<uint32_t>(register_file[instr.rs1]) >> instr.imm);
+                register_file[instr.rd] = sign_extend_int64_t(static_cast<int32_t>(static_cast<uint32_t>(register_file[instr.rs1]) >> instr.imm));
             }
             break;
         case FRV_SRAIW:
