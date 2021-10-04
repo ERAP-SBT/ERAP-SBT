@@ -1,4 +1,4 @@
-#include "ir/optimizer/dedup_imm.h"
+#include "ir/optimizer/dedup.h"
 
 #include "ir/optimizer/common.h"
 
@@ -86,7 +86,7 @@ template <> struct std::hash<VarMeta> {
 
 namespace optimizer {
 
-void dedup_imm(IR *ir) {
+void dedup(IR *ir) {
     VarRewriter rw;
     std::unordered_set<VarMeta> vars;
     std::vector<size_t> deduplicated_indices;
