@@ -267,13 +267,15 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
             fprintf(gen->out_fd, "# Virt Start: %#lx\n# Virt End:  %#lx\n", bb->virt_start_addr, bb->virt_end_addr);
             write_assembled_blocks(max_stack_frame_size);
 
-            fprintf(gen->out_fd, "\n# Translation Blocks\n");
-            for (const auto &pair : translation_blocks) {
-                fprintf(gen->out_fd, "b%zu:\nsub rsp, %zu\n", pair.first, max_stack_frame_size);
-                fprintf(gen->out_fd, "# MBRATB\n"); // multi-block register allocation translation block
-                fprintf(gen->out_fd, "%s\n", pair.second.c_str());
+            if (!(gen->optimizations & Generator::OPT_NO_TRANS_BBS)) {
+                fprintf(gen->out_fd, "\n# Translation Blocks\n");
+                for (const auto &pair : translation_blocks) {
+                    fprintf(gen->out_fd, "b%zu:\nsub rsp, %zu\n", pair.first, max_stack_frame_size);
+                    fprintf(gen->out_fd, "# MBRATB\n"); // multi-block register allocation translation block
+                    fprintf(gen->out_fd, "%s\n", pair.second.c_str());
+                }
+                fprintf(gen->out_fd, "\n");
             }
-            fprintf(gen->out_fd, "\n");
             translation_blocks.clear();
             assembled_blocks.clear();
         }
@@ -1319,8 +1321,6 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             print_asm("# destroy stack space\n");
             print_asm("add rsp, %zu\n", max_stack_frame_size);
 
-            gen->err_msgs.emplace_back(Generator::ErrType::unresolved_ijump, bb);
-
             /* we trust the lifter that the ijump destination is already aligned */
 
             /* turn absolute address into relative offset from start of first basicblock */
@@ -1336,7 +1336,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             print_asm("0:\n");
 
             /* Slow-path: unresolved IJump, call interpreter */
-            print_asm("lea rdi, [%s + %zu]\n", dst_reg_name, gen->ir->virt_bb_start_addr);
+            print_asm("lea rdi, [%s + %lu]\n", dst_reg_name, gen->ir->virt_bb_start_addr);
             print_asm("jmp unresolved_ijump\n");
             break;
         }
@@ -1378,16 +1378,26 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
                 print_asm("mov [s%zu], rax\n", info.static_mapping.at(0));
             }
             print_asm("# destroy stack space\n");
-            print_asm("add rsp, %zu\n", max_stack_frame_size + 16);
+            if (is_block_top_level(info.continuation_block)) {
+                print_asm("add rsp, %zu\n", max_stack_frame_size + 16);
+            } else {
+                print_asm("add rsp, 16\n");
+            }
             // need to jump to translation block
             // TODO: technically we don't need to if the block didn't have a input mapping before
             // so only do that when the next block does have an input mapping or more than one predecessor?
-            print_asm("jmp b%zu\n", info.continuation_block->id);
+            print_asm("jmp b%zu%s\n", info.continuation_block->id, is_block_top_level(info.continuation_block) ? "" : "_reg_alloc");
             break;
         }
         case CFCInstruction::call: {
             auto &info = std::get<CfOp::CallInfo>(cf_op.info);
             write_target_inputs(info.target, cur_time, info.target_inputs);
+
+            // prevent overflow
+            print_asm("mov rax, [init_ret_stack_ptr]\n");
+            print_asm("lea rax, [rax - %zu]\n", max_stack_frame_size);
+            print_asm("cmp rsp, stack_space + 524288\n"); // max depth ~65k
+            print_asm("cmovb rsp, rax\n");
 
             if (info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
                 print_asm("push %lu\n", info.continuation_block->virt_start_addr);
@@ -1395,6 +1405,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
                 print_asm("mov rax, %lu\n", info.continuation_block->virt_start_addr);
                 print_asm("push rax\n");
             }
+
             print_asm("call b%zu\nadd rsp, 8\n", info.target->id);
             if (bb->control_flow_ops.size() != 1 || info.continuation_block != next_bb) {
                 print_asm("jmp b%zu%s\n", info.continuation_block->id, is_block_top_level(info.continuation_block) ? "" : "_reg_alloc");
@@ -1418,7 +1429,6 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             const auto dst_reg_name = reg_names[ret_reg][0];
             const auto tmp_reg = alloc_reg(cur_time + std::get<CfOp::RetInfo>(cf_op.info).mapping.size(), REG_NONE, ret_reg);
             const auto tmp_reg_name = reg_names[tmp_reg][0];
-            gen->err_msgs.emplace_back(Generator::ErrType::unresolved_ijump, bb);
 
             /* we trust the lifter that the ijump destination is already aligned */
 
@@ -1433,8 +1443,8 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             print_asm("je 0f\n");
             print_asm("jmp %s\n", tmp_reg_name);
             print_asm("0:\n");
-            print_asm("lea rdi, [rip + err_unresolved_ijump_b%zu]\n", bb->id);
-            print_asm("jmp panic\n");
+            print_asm("lea rdi, [%s + %lu]\n", dst_reg_name, gen->ir->virt_bb_start_addr);
+            print_asm("jmp unresolved_ijump\n");
             break;
         }
         case CFCInstruction::icall: {
@@ -1447,10 +1457,14 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             const auto dst_reg_name = reg_names[dst_reg][0];
             const auto tmp_reg_name = reg_names[tmp_reg][0];
             assert(dst->type == Type::imm || dst->type == Type::i64);
-            // print_asm("# destroy stack space\n");
-            // print_asm("add rsp, %zu\n", max_stack_frame_size);
 
-            gen->err_msgs.emplace_back(Generator::ErrType::unresolved_ijump, bb);
+            const auto overflow_reg = alloc_reg(cur_time + 1 + info.mapping.size(), REG_NONE, dst_reg, tmp_reg);
+            const auto of_reg_name = reg_names[overflow_reg][0];
+            // prevent overflow
+            print_asm("mov %s, [init_ret_stack_ptr]\n", of_reg_name);
+            print_asm("lea %s, [rax - %zu]\n", of_reg_name, max_stack_frame_size);
+            print_asm("cmp rsp, stack_space + 524288\n"); // max depth ~65k
+            print_asm("cmovb rsp, %s\n", of_reg_name);
 
             /* we trust the lifter that the ijump destination is already aligned */
 
@@ -1470,11 +1484,12 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
                 print_asm("mov %s, %lu\n", reg_names[tmp_reg][0], info.continuation_block->virt_start_addr);
                 print_asm("push %s\n", reg_names[tmp_reg][0]);
             }
+
             print_asm("call %s\n", tmp_reg_name);
             print_asm("jmp b%zu%s\n", info.continuation_block->id, is_block_top_level(info.continuation_block) ? "" : "_reg_alloc");
             print_asm("0:\n");
-            print_asm("lea rdi, [rip + err_unresolved_ijump_b%zu]\n", bb->id);
-            print_asm("jmp panic\n");
+            print_asm("lea rdi, [%s + %lu]\n", dst_reg_name, gen->ir->virt_bb_start_addr);
+            print_asm("jmp unresolved_ijump\n");
             break;
         }
         default: {
