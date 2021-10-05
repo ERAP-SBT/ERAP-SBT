@@ -261,6 +261,7 @@ void print_help(bool usage_only) {
         std::cerr << "          - merge_ops:            Merge multiple IR-Operations into a single native op\n";
         std::cerr << "          - unused_statics:       Eliminate unused static-load-stores in the default generator\n";
         std::cerr << "          - bmi2:                 Allow usage of instructions in the BMI2 instruction set extension (shlx/shrx/sarx)\n";
+        std::cerr << "          - inline_syscalls:      Inline system calls when their ID is known\n";
         std::cerr << "    --output:                 Set the output file name (by default, the input file path suffixed with `.translated`)\n";
         std::cerr << "    --print-ir:               Prints a textual representation of the IR (if no file is specified, prints to standard out)\n";
         std::cerr << "    --transform-call-ret:     Detect and replace RISC-V `call` and `return` instructions\n\n";
@@ -319,6 +320,8 @@ void parse_opt_flags(const Args &args, uint32_t &ir_optimizations, uint32_t &gen
             gen_opt_change = generator::x86_64::Generator::OPT_MERGE_OP;
         } else if (opt_flag == "bmi2") {
             gen_opt_change = generator::x86_64::Generator::OPT_ARCH_BMI2;
+        } else if (opt_flag == "inline_syscalls") {
+            gen_opt_change = generator::x86_64::Generator::OPT_INLINE_SYSCALLS;
         } else {
             std::cerr << "Warning: Unknown optimization flag: '" << opt_flag << "'\n";
         }

@@ -1,5 +1,7 @@
 #include "generator/x86_64/generator.h"
 
+#include "generator/x86_64/helper/rv64_syscalls.h"
+
 #include <iostream>
 
 using namespace generator::x86_64;
@@ -41,6 +43,7 @@ std::array<const char *, 4> &op_reg_map_for_type(const Type type) {
 }
 
 std::array<const char *, 6> call_reg = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+std::array<const char *, 7> syscall_reg = {"rax", "rdi", "rsi", "rdx", "r10", "r8", "r9"};
 
 const char *rax_from_type(const Type type) {
     switch (type) {
@@ -1081,36 +1084,122 @@ void Generator::compile_syscall(const BasicBlock *block, const CfOp &cf_op, cons
     const auto &info = std::get<CfOp::SyscallInfo>(cf_op.info);
     compile_continuation_args(block, info.continuation_mapping);
 
-    for (size_t i = 0; i < call_reg.size(); ++i) {
-        const auto &var = cf_op.in_vars[i];
-        if (!var)
+    assert(cf_op.in_vars[0]);
+
+    constexpr size_t MAX_SYSCALL_PARAMS = 7; // id + 6 arguments
+
+    size_t input_count = 0;
+    for (; input_count < cf_op.in_vars.size(); ++input_count) {
+        if (!cf_op.in_vars[input_count])
             break;
+    }
 
-        if (var->type == Type::mt)
-            continue;
+    assert(input_count <= MAX_SYSCALL_PARAMS);
 
-        fprintf(out_fd, "# syscall argument %lu\n", i);
-        if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(var->info)) {
-            fprintf(out_fd, "mov %s, [s%zu]\n", call_reg[i], std::get<size_t>(var->info));
-        } else {
-            fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", call_reg[i], index_for_var(block, var));
+    auto emit_syscall_params_direct = [this, block, cf_op](size_t id, size_t count) {
+        fprintf(out_fd, "# syscall id\n");
+        fprintf(out_fd, "mov rax, %zu\n", id);
+
+        for (size_t i = 1; i < count; ++i) {
+            const auto &var = cf_op.in_vars[i];
+            assert(var->type != Type::mt);
+
+            fprintf(out_fd, "# syscall argument %lu\n", i);
+            if (optimizations & OPT_UNUSED_STATIC && var->is_static()) {
+                fprintf(out_fd, "mov %s, [s%zu]\n", syscall_reg[i], var->get_static());
+            } else {
+                fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", syscall_reg[i], index_for_var(block, var));
+            }
         }
-    }
-    if (cf_op.in_vars[6] == nullptr) {
-        // since the function can theoretically change the value on the stack we do want to add some space here
-        fprintf(out_fd, "sub rsp, 16\n");
+    };
+
+    auto emit_syscall_params = [this, block, cf_op](size_t count, bool force_stack_fill) -> size_t {
+        size_t num_in_register = std::min(count, call_reg.size());
+
+        for (size_t i = 0; i < num_in_register; ++i) {
+            const auto &var = cf_op.in_vars[i];
+            assert(var->type != Type::mt);
+
+            fprintf(out_fd, "# syscall argument %lu\n", i);
+            if (optimizations & OPT_UNUSED_STATIC && var->is_static()) {
+                fprintf(out_fd, "mov %s, [s%zu]\n", call_reg[i], var->get_static());
+            } else {
+                fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", call_reg[i], index_for_var(block, var));
+            }
+        }
+
+        size_t num_on_stack = count > call_reg.size() ? count - call_reg.size() : 0;
+
+        if (force_stack_fill) {
+            num_on_stack = MAX_SYSCALL_PARAMS - call_reg.size();
+        }
+
+        size_t stack_off_qw = 0;
+
+        if (num_on_stack % 2 == 0) {
+            // ensure stack is 16-byte aligned for the call
+            fprintf(out_fd, "sub rsp, 8\n");
+            stack_off_qw++;
+        }
+
+        for (size_t si = 0; si < num_on_stack; ++si) {
+            size_t i = num_in_register + si;
+            const auto &var = cf_op.in_vars[i];
+
+            fprintf(out_fd, "# syscall argument %lu\n", i);
+            if (var) {
+                assert(var->type != Type::mt);
+                fprintf(out_fd, "mov rax, [rsp + 8 * %zu]\n", index_for_var(block, var) + stack_off_qw);
+                fprintf(out_fd, "push rax\n");
+            } else {
+                // since the function can theoretically change the value on the stack we do want to add some space here
+                fprintf(out_fd, "sub rsp, 8\n");
+            }
+            stack_off_qw++;
+        }
+
+        return stack_off_qw;
+    };
+
+    size_t additional_stack = 0;
+
+    if ((optimizations & Generator::OPT_INLINE_SYSCALLS) && cf_op.in_vars[0]->is_immediate()) {
+        size_t syscall_id = cf_op.in_vars[0]->get_immediate().val;
+        auto syscall_info = helper::rv64_syscall_table[syscall_id];
+        assert(syscall_info.param_count < MAX_SYSCALL_PARAMS);
+        if (input_count - 1 < syscall_info.param_count) {
+            fprintf(stderr, "Syscall %zu takes %d arguments, but only %zu inputs were provided. This might lead to undefined behaviour\n", syscall_id, syscall_info.param_count, input_count - 1);
+        } else {
+            input_count = syscall_info.param_count + 1;
+        }
+
+        switch (syscall_info.action) {
+        case helper::SyscallAction::passthrough:
+            emit_syscall_params_direct(static_cast<size_t>(syscall_info.translated_id), input_count);
+            fprintf(out_fd, "syscall\n");
+            break;
+        case helper::SyscallAction::handle:
+            additional_stack += emit_syscall_params(input_count, false);
+            fprintf(out_fd, "call syscall_impl\n");
+            break;
+        case helper::SyscallAction::unimplemented:
+            fprintf(out_fd, "mov rax, %lx\n", static_cast<uint64_t>(-ENOSYS));
+            break;
+        case helper::SyscallAction::succeed:
+            fprintf(out_fd, "xor rax, rax\n");
+            break;
+        }
     } else {
-        fprintf(out_fd, "mov rax, [rsp + 8 * %zu]\n", index_for_var(block, cf_op.in_vars[6]));
-        fprintf(out_fd, "sub rsp, 8\n");
-        fprintf(out_fd, "push rax\n");
+        additional_stack += emit_syscall_params(input_count, true);
+        fprintf(out_fd, "call syscall_impl\n");
     }
 
-    fprintf(out_fd, "call syscall_impl\nadd rsp, 16\n");
     if (info.static_mapping.size() > 0) {
         fprintf(out_fd, "mov [s%zu], rax\n", info.static_mapping.at(0));
     }
+
     fprintf(out_fd, "# destroy stack space\n");
-    fprintf(out_fd, "add rsp, %zu\n", stack_size);
+    fprintf(out_fd, "add rsp, %zu\n", stack_size + additional_stack * 8);
     fprintf(out_fd, "jmp b%zu\n", info.continuation_block->id);
 }
 

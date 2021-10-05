@@ -116,7 +116,7 @@ struct RegAlloc {
 
 struct Generator {
     enum class ErrType { unreachable, unresolved_ijump };
-    enum Optimization : uint32_t { OPT_UNUSED_STATIC = 1 << 0, OPT_MBRA = 1 << 1, OPT_MERGE_OP = 1 << 2, OPT_ARCH_BMI2 = 1 << 3 };
+    enum Optimization : uint32_t { OPT_UNUSED_STATIC = 1 << 0, OPT_MBRA = 1 << 1, OPT_MERGE_OP = 1 << 2, OPT_ARCH_BMI2 = 1 << 3, OPT_INLINE_SYSCALLS = 1 << 4 };
 
     // Optimization Warnings:
     // OPT_UNUSED_STATIC:

@@ -1,4 +1,5 @@
 #include "generator/x86_64/generator.h"
+#include "generator/x86_64/helper/rv64_syscalls.h"
 
 #include <sstream>
 
@@ -23,6 +24,7 @@ std::array<std::array<const char *, 4>, REG_COUNT> reg_names = {
 };
 
 std::array<REGISTER, 6> call_reg = {REG_DI, REG_SI, REG_D, REG_C, REG_8, REG_9};
+std::array<REGISTER, 7> syscall_reg = {REG_A, REG_DI, REG_SI, REG_D, REG_10, REG_8, REG_9};
 
 // only for integers
 const char *reg_name(const REGISTER reg, const Type type) {
@@ -1306,43 +1308,133 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
         }
         case CFCInstruction::syscall: {
             // TODO: allocate over inlined syscall or syscall helper call
-            // TODO: inline syscalls if they are just passthrough
             const auto &info = std::get<CfOp::SyscallInfo>(cf_op.info);
             write_static_mapping(info.continuation_block, cur_time, info.continuation_mapping);
             // cur_time += 1 + info.continuation_mapping.size();
 
-            for (size_t i = 0; i < call_reg.size(); ++i) {
-                auto *var = cf_op.in_vars[i].get();
-                if (var == nullptr)
+            assert(cf_op.in_vars[0]);
+
+            constexpr size_t MAX_SYSCALL_PARAMS = 7; // id + 6 arguments
+
+            size_t input_count = 0;
+            for (; input_count < cf_op.in_vars.size(); ++input_count) {
+                if (!cf_op.in_vars[input_count])
                     break;
-
-                if (var->type == Type::mt)
-                    continue;
-
-                const auto reg = call_reg[i];
-                if (reg_map[reg].cur_var && reg_map[reg].cur_var->gen_info.last_use_time >= cur_time) {
-                    save_reg(reg);
-                }
-                load_val_in_reg(cur_time, var, call_reg[i]);
             }
-            if (cf_op.in_vars[6] == nullptr) {
-                print_asm("sub rsp, 16\n");
-            } else {
-                // TODO: clear rax before when we have inputs < 64 bit
+
+            assert(input_count <= MAX_SYSCALL_PARAMS);
+
+            auto emit_syscall_params_direct = [this, reg_map, cur_time, cf_op](size_t id, size_t count) {
                 if (reg_map[REG_A].cur_var && reg_map[REG_A].cur_var->gen_info.last_use_time >= cur_time) {
                     save_reg(REG_A);
                 }
-                load_val_in_reg(cur_time, cf_op.in_vars[6].get(), REG_A);
-                print_asm("sub rsp, 8\n");
-                print_asm("push rax\n");
+
+                for (size_t i = 1; i < count; ++i) {
+                    auto *var = cf_op.in_vars[i].get();
+                    assert(var->type != Type::mt);
+
+                    const auto reg = syscall_reg[i];
+                    if (reg_map[reg].cur_var && reg_map[reg].cur_var->gen_info.last_use_time >= cur_time) {
+                        save_reg(reg);
+                    }
+                    load_val_in_reg(cur_time, var, reg);
+                }
+
+                clear_reg(cur_time, REG_A);
+                print_asm("mov rax, %zu\n", id);
+            };
+
+            auto emit_syscall_params = [this, reg_map, cur_time, cf_op](size_t count, bool force_stack_fill) -> size_t {
+                size_t num_in_register = std::min(count, call_reg.size());
+
+                for (size_t i = 0; i < num_in_register; ++i) {
+                    auto *var = cf_op.in_vars[i].get();
+                    assert(var->type != Type::mt);
+
+                    const auto reg = call_reg[i];
+                    if (reg_map[reg].cur_var && reg_map[reg].cur_var->gen_info.last_use_time >= cur_time) {
+                        save_reg(reg);
+                    }
+                    load_val_in_reg(cur_time, var, reg);
+                }
+
+                size_t num_on_stack = count > call_reg.size() ? count - call_reg.size() : 0;
+
+                if (force_stack_fill) {
+                    num_on_stack = MAX_SYSCALL_PARAMS - call_reg.size();
+                }
+
+                size_t stack_off_qw = 0;
+
+                if (num_on_stack % 2 == 0) {
+                    // ensure stack is 16-byte aligned for the call
+                    print_asm("sub rsp, 8\n");
+                    stack_off_qw++;
+                }
+
+                if (num_on_stack > 0) {
+                    // TODO: clear rax before when we have inputs < 64 bit
+                    if (reg_map[REG_A].cur_var && reg_map[REG_A].cur_var->gen_info.last_use_time >= cur_time) {
+                        save_reg(REG_A);
+                    }
+                }
+
+                for (size_t si = 0; si < num_on_stack; ++si) {
+                    size_t i = num_in_register + si;
+                    const auto &var = cf_op.in_vars[i];
+                    if (var) {
+                        assert(var->type != Type::mt);
+                        load_val_in_reg(cur_time, cf_op.in_vars[6].get(), REG_A);
+                        print_asm("push rax\n");
+                    } else {
+                        print_asm("sub rsp, 8\n");
+                    }
+                    stack_off_qw++;
+                }
+
+                return stack_off_qw;
+            };
+
+            size_t additional_stack = 0;
+
+            if ((gen->optimizations & Generator::OPT_INLINE_SYSCALLS) && cf_op.in_vars[0]->is_immediate()) {
+                size_t syscall_id = cf_op.in_vars[0]->get_immediate().val;
+                auto syscall_info = helper::rv64_syscall_table[syscall_id];
+                assert(syscall_info.param_count < MAX_SYSCALL_PARAMS);
+                if (input_count - 1 < syscall_info.param_count) {
+                    fprintf(stderr, "Syscall %zu takes %d arguments, but only %zu inputs were provided. This might lead to undefined behaviour\n", syscall_id, syscall_info.param_count,
+                            input_count - 1);
+                } else {
+                    input_count = syscall_info.param_count + 1;
+                }
+
+                switch (syscall_info.action) {
+                case helper::SyscallAction::passthrough:
+                    emit_syscall_params_direct(static_cast<size_t>(syscall_info.translated_id), input_count);
+                    print_asm("syscall\n");
+                    break;
+                case helper::SyscallAction::handle:
+                    additional_stack += emit_syscall_params(input_count, false);
+                    print_asm("call syscall_impl\n");
+                    break;
+                case helper::SyscallAction::unimplemented:
+                    print_asm("mov rax, %lx\n", static_cast<uint64_t>(-ENOSYS));
+                    break;
+                case helper::SyscallAction::succeed:
+                    print_asm("xor rax, rax\n");
+                    break;
+                }
+            } else {
+                additional_stack += emit_syscall_params(input_count, true);
+                print_asm("call syscall_impl\n");
             }
 
-            print_asm("call syscall_impl\n");
             if (info.static_mapping.size() > 0) {
                 print_asm("mov [s%zu], rax\n", info.static_mapping.at(0));
             }
+
             print_asm("# destroy stack space\n");
-            print_asm("add rsp, %zu\n", max_stack_frame_size * 8 + 16);
+            print_asm("add rsp, %zu\n", max_stack_frame_size * 8 + additional_stack * 8);
             // need to jump to translation block
             // TODO: technically we don't need to if the block didn't have a input mapping before
             // so only do that when the next block does have an input mapping or more than one predecessor?
