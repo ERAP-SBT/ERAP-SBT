@@ -183,6 +183,10 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                 rv64_event->events = event.events;
                 return res;
             }
+            case RISCV_SYSCALL_ID::CLONE: {
+                // RISC-V uses a backwards variant, where arguments 4 and 5 (child_tidptr/tls) are swapped
+                return syscall5(AMD64_SYSCALL_ID::CLONE, arg0, arg1, arg2, arg4, arg3);
+            }
             default:
                 break;
             }
