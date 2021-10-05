@@ -74,9 +74,9 @@ int main(int argc, char *argv[]) {
     {
         volatile float v1 = 1.23f;
         int64_t v2;
-        assert(sscanf("10.1 12345", "%f %d", &v1, &v2) == 2);
+        assert(sscanf("10.1 12345", "%f %ld", &v1, &v2) == 2);
         printf("v1 = %f\n", v1); /* TODO: currently delivers wrong values when build with --interpreter-only=true */
-        printf("v2 = %d\n", v2);
+        printf("v2 = %ld\n", v2);
         assert(v1 == 10.100000f);
         assert(v2 == 12345);
 
