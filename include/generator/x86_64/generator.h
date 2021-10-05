@@ -131,7 +131,10 @@ struct Generator {
     std::unique_ptr<RegAlloc> reg_alloc = nullptr;
     uint32_t optimizations = 0;
 
-    Generator(IR *ir, std::string binary_filepath = {}, FILE *out_fd = stdout) : ir(ir), binary_filepath(std::move(binary_filepath)), out_fd(out_fd) {}
+    const bool interpreter_only;
+
+    Generator(IR *ir, std::string binary_filepath = {}, FILE *out_fd = stdout, bool interpreter_only = false)
+        : ir(ir), binary_filepath(std::move(binary_filepath)), out_fd(out_fd), interpreter_only(interpreter_only) {}
 
     void compile();
     void compile_block(const BasicBlock *block);
@@ -142,6 +145,7 @@ struct Generator {
 
     void compile_statics();
     void compile_phdr_info();
+    void compile_interpreter_only_entry();
     void compile_blocks();
     void compile_entry();
     void compile_err_msgs();

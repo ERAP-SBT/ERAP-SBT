@@ -1,5 +1,6 @@
 # vim: set expandtab shiftwidth=2 :
-
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
 image: $CI_REGISTRY/lrr-tum/students/eragp-sbt-2021/gp_build_env:latest
 
 cache:

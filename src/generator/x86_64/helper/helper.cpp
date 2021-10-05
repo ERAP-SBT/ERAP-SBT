@@ -1,38 +1,19 @@
-#include "stddef.h"
+#include "generator/x86_64/helper/helper.h"
 
-#include <cstdint>
-
-// TODO: define these structs ourselves?
 #include "generator/syscall_ids.h"
 #include "generator/x86_64/helper/rv64_syscalls.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <elf.h>
 #include <linux/errno.h>
 #include <sys/epoll.h>
 #include <sys/stat.h>
 
 namespace helper {
 
-extern "C" {
-extern uint8_t *orig_binary_vaddr;
-extern uint64_t phdr_off;
-extern uint64_t phdr_num;
-extern uint64_t phdr_size;
-}
-
-// from https://github.com/aengelke/ria-jit/blob/master/src/runtime/emulateEcall.c
-[[maybe_unused]] size_t syscall0(AMD64_SYSCALL_ID id);
-[[maybe_unused]] size_t syscall1(AMD64_SYSCALL_ID id, size_t a1);
-[[maybe_unused]] size_t syscall2(AMD64_SYSCALL_ID id, size_t a1, size_t a2);
-[[maybe_unused]] size_t syscall3(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3);
-[[maybe_unused]] size_t syscall4(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4);
-[[maybe_unused]] size_t syscall5(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5);
-[[maybe_unused]] size_t syscall6(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4, size_t a5, size_t a6);
-
-size_t strlen(const char *);
-void memcpy(void *dst, const void *src, size_t count);
-void itoa(char *str_addr, unsigned int num, unsigned int num_digits);
-
-const char panic_str[] = "PANIC: ";
+/* dump interpreter statistics at exit */
+#define INTERPRETER_DUMP_PERF_STATS_AT_EXIT false
 
 struct auxv_t {
     // see https://fossies.org/dox/Checker-0.9.9.1/gcc-startup_8c_source.html#l00042
@@ -93,8 +74,6 @@ struct rv64_epoll_event_t {
     epoll_data_t data;
 };
 
-extern "C" [[noreturn]] void panic(const char *err_msg);
-
 // TODO: make a bitmap which syscalls are passthrough, which are not implemented
 extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
     if (id <= static_cast<uint64_t>(RISCV_SYSCALL_ID::SYSCALL_ID_MAX)) {
@@ -126,6 +105,13 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
         } else if (info.action == SyscallAction::handle) {
             // not sure if this is a good idea
             switch (static_cast<RISCV_SYSCALL_ID>(id)) {
+            case RISCV_SYSCALL_ID::EXIT:
+            case RISCV_SYSCALL_ID::EXIT_GROUP: {
+#if INTERPRETER_DUMP_PERF_STATS_AT_EXIT
+                helper::interpreter::interpreter_dump_perf_stats();
+#endif
+                return syscall1(info.translated_id, arg0);
+            }
             case RISCV_SYSCALL_ID::EPOLL_CTL: {
                 struct epoll_event event;
                 auto *rv64_event = reinterpret_cast<rv64_epoll_event_t *>(arg3);
@@ -203,18 +189,17 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
         }
     }
 
-    char syscall_str[31 + 8 + 1 + 1] = "Couldn't translate syscall ID: ";
-    itoa(syscall_str + 31, id, 8);
-    syscall_str[31 + 8] = '\n';
-    syscall_str[sizeof(syscall_str) - 1] = '\0';
-    panic(syscall_str);
+    puts("Couldn't translate syscall ID: ");
+    print_hex64(id);
+    panic("Couldn't translate syscall ID");
 }
 
 extern "C" [[noreturn]] void panic(const char *err_msg) {
-    static_assert(sizeof(size_t) == sizeof(const char *));
-    syscall3(AMD64_SYSCALL_ID::WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(panic_str), sizeof(panic_str));
+    puts("PANIC: ");
     // in theory string length is known so maybe give it as an arg?
-    syscall3(AMD64_SYSCALL_ID::WRITE, 2 /*stderr*/, reinterpret_cast<size_t>(err_msg), strlen(err_msg));
+    puts(err_msg);
+    puts("\n");
+
     syscall1(AMD64_SYSCALL_ID::EXIT, 1);
     __builtin_unreachable();
 }
@@ -273,6 +258,10 @@ extern "C" uint8_t *copy_stack(uint8_t *stack, uint8_t *out_stack) {
             cur_auxv->a_val = phdr_size;
         } else if (cur_auxv->a_type == auxv_t::type::phnum) {
             cur_auxv->a_val = phdr_num;
+        } else if (cur_auxv->a_type == static_cast<auxv_t::type>(AT_SYSINFO)) {
+            cur_auxv->a_val = 0;
+        } else if (cur_auxv->a_type == static_cast<auxv_t::type>(AT_SYSINFO_EHDR)) {
+            cur_auxv->a_val = 0;
         }
     }
 
@@ -352,14 +341,6 @@ size_t syscall6(AMD64_SYSCALL_ID id, size_t a1, size_t a2, size_t a3, size_t a4,
     return retval;
 }
 
-// need to implement ourselves without stdlib
-size_t strlen(const char *str) {
-    size_t c = 0;
-    while (*str++)
-        ++c;
-    return c;
-}
-
 void memcpy(void *dst, const void *src, size_t count) {
     auto *dst_ptr = static_cast<uint8_t *>(dst);
     const auto *src_ptr = static_cast<const uint8_t *>(src);
@@ -370,11 +351,56 @@ void memcpy(void *dst, const void *src, size_t count) {
     }
 }
 
-void itoa(char *str_addr, unsigned int num, unsigned int num_digits) {
-    for (int j = num_digits - 1; j >= 0; j--) {
-        str_addr[j] = num % 10 + '0';
-        num /= 10;
+size_t write_stderr(const char *buf, size_t buf_len) {
+    static_assert(sizeof(size_t) == sizeof(const char *));
+    return syscall3(AMD64_SYSCALL_ID::WRITE, 2, reinterpret_cast<size_t>(buf), buf_len);
+}
+
+size_t puts(const char *str) { return write_stderr(str, strlen(str)); }
+
+constexpr char utoa_lookup[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+void utoa(uint64_t v, char *buf, unsigned int base, unsigned int num_digits) {
+    if ((base > strlen(utoa_lookup)) || (base < 2)) {
+        panic("utoa: invalid base");
     }
+
+    for (int j = num_digits - 1; j >= 0; j--) {
+        buf[j] = utoa_lookup[v % base];
+        v /= base;
+    }
+}
+
+void print_hex8(uint8_t byte) {
+    char str[2 + 2] = "0x";
+
+    utoa(byte, &str[2], 16, 2);
+
+    write_stderr(str, 2 + 2);
+}
+
+void print_hex16(uint16_t byte) {
+    char str[2 + 4] = "0x";
+
+    utoa(byte, &str[2], 16, 4);
+
+    write_stderr(str, 2 + 4);
+}
+
+void print_hex32(uint32_t byte) {
+    char str[2 + 8] = "0x";
+
+    utoa(byte, &str[2], 16, 8);
+
+    write_stderr(str, 2 + 8);
+}
+
+void print_hex64(uint64_t byte) {
+    char str[2 + 16] = "0x";
+
+    utoa(byte, &str[2], 16, 16);
+
+    write_stderr(str, 2 + 16);
 }
 
 } // namespace helper

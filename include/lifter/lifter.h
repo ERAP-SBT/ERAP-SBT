@@ -24,8 +24,11 @@ class Lifter {
 
     const size_t count_used_static_vars;
 
-    explicit Lifter(IR *ir, bool floating_point_support)
-        : ir(ir), dummy(), floating_point_support(floating_point_support), count_used_static_vars(COUNT_STATIC_VARS + (floating_point_support ? COUNT_STATIC_FP_VARS : 0)) {}
+    const bool interpreter_only;
+
+    explicit Lifter(IR *ir, bool floating_point_support = false, bool interpreter_only = false)
+        : ir(ir), dummy(), floating_point_support(floating_point_support), count_used_static_vars(COUNT_STATIC_VARS + (floating_point_support ? COUNT_STATIC_FP_VARS : 0)),
+          interpreter_only(interpreter_only) {}
 
     void lift(Program *prog);
 

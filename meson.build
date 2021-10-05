@@ -1,4 +1,4 @@
-project('eragp-sbt-2021', 'cpp', version : '0.1', default_options : ['cpp_std=c++17', 'warning_level=3'])
+project('eragp-sbt-2021', 'c', 'cpp', version : '0.1', default_options : ['cpp_std=c++17', 'warning_level=3'])
 
 gtest = subproject('gtest')
 gtest_dep = gtest.get_variable('gtest_dep')

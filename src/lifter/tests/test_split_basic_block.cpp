@@ -31,7 +31,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_small) {
     IR ir{};
     ir.setup_bb_addr_vec(prog_start, prog_end);
 
-    Lifter lifter{&ir, false};
+    Lifter lifter{&ir};
 
     lifter.add_statics();
 
@@ -126,7 +126,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
     IR ir{};
     ir.setup_bb_addr_vec(prog_start, prog_end);
 
-    Lifter lifter{&ir, false};
+    Lifter lifter{&ir};
 
     lifter.add_statics();
 

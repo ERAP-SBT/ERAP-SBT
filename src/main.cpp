@@ -111,12 +111,14 @@ int main(int argc, const char **argv) {
         output_file.concat(".translated");
     }
 
+    const bool interpreter_only = args.has_argument("interpreter-only") && (args.get_argument("interpreter-only") == "" || args.get_value_as_bool("interpreter-only"));
     const auto time_pre_lift = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+
     Program prog(std::move(elf_file));
     // support floating points if the flag isn't set or the provided value isn't equal to true
     const bool fp_support = !args.has_argument("disable-fp") || (args.get_argument("disable-fp") != "" && !args.get_value_as_bool("disable-fp"));
 
-    auto lifter = lifter::RV64::Lifter(&ir, fp_support);
+    auto lifter = lifter::RV64::Lifter(&ir, fp_support, interpreter_only);
     lifter.lift(&prog);
     const auto time_post_lift = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 
@@ -152,7 +154,7 @@ int main(int argc, const char **argv) {
     uint64_t time_pre_gen, time_post_gen;
     if (!args.has_argument("asm-out")) {
         time_pre_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
-        generator::x86_64::Generator generator(&ir, binary_image_file.string(), assembler);
+        generator::x86_64::Generator generator(&ir, binary_image_file.string(), assembler, interpreter_only);
         generator.optimizations = gen_optimizations;
         generator.compile();
         time_post_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
@@ -165,7 +167,7 @@ int main(int argc, const char **argv) {
         }
 
         time_pre_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
-        generator::x86_64::Generator generator(&ir, binary_image_file.string(), asm_out);
+        generator::x86_64::Generator generator(&ir, binary_image_file.string(), asm_out, interpreter_only);
         generator.optimizations = gen_optimizations;
         generator.compile();
         time_post_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
@@ -220,25 +222,26 @@ void print_help(bool usage_only) {
     std::cerr << "usage: translate <file> [args...]\n";
     if (!usage_only) {
         std::cerr << "Possible arguments are (--key=value):\n";
-        std::cerr << "    --help:        Shows this help message\n";
-        std::cerr << "    --output:      Set the output file name (by default, the input file path suffixed with `.translated`)\n";
-        std::cerr << "    --debug:       Enables debug logging (use --debug=false to prevent logging in debug builds)\n";
-        std::cerr << "    --print-ir:    Prints a textual representation of the IR (if no file is specified, prints to standard out)\n";
-        std::cerr << "    --asm-out:     Output the generated Assembly to a file\n";
-        std::cerr << "    --dump-elf:    Show information about the input file\n";
-        std::cerr << "    --optimize:    Set optimization flags, comma-seperated list. Specifying a group enables all flags in that group. Appending '!' before disables a single flag\n";
+        std::cerr << "    --asm-out:                Output the generated Assembly to a file\n";
+        std::cerr << "    --debug:                  Enables debug logging (use --debug=false to prevent logging in debug builds)\n";
+        std::cerr << "    --disable-fp:             Disables the support of floating point instructions.\n";
+        std::cerr << "    --dump-elf:               Show information about the input file\n";
+        std::cerr << "    --full-backtracking:   Evaluates every possible input combination for indirect jump address backtracking.\n";
+        std::cerr << "    --help:                   Shows this help message\n";
+        std::cerr << "    --interpreter-only:       Only uses the interpreter to translate the binary (dynamic binary translation). (default: false)\n";
+        std::cerr << "    --optimize:               Set optimization flags, comma-seperated list. Specifying a group enables all flags in that group. Appending '!' before disables a single flag\n";
         std::cerr << "    Optimization Flags:\n";
         std::cerr << "      - generator:\n";
-        std::cerr << "          - reg_alloc: Register Allocation\n";
-        std::cerr << "          - merge_ops: Merge multiple IR-Operations into a single native op\n";
-        std::cerr << "          - unused_statics: Eliminate unused static-load-stores in the default generator\n";
-        std::cerr << "          - bmi2: Allow usage of instructions in the BMI2 instruction set extension (shlx/shrx/sarx)\n";
-        std::cerr << "    --helper-path: Set the path to the runtime helper library\n";
-        std::cerr << "    --linkerscript-path: Set the path to the linker script\n";
-        std::cerr << "                   (The above two are only required if the translator can't find these by itself)\n";
-        std::cerr << "    --disable-fp:   Disables the support of floating point instructions.\n";
-        std::cerr << "    --transform-call-ret:   Detect and replace RISC-V `call` and `return` instructions\n\n";
-        std::cerr << "    --full-backtracking:   Evaluates every possible input combination for indirect jump address backtracking.\n";
+        std::cerr << "          - reg_alloc:            Register Allocation\n";
+        std::cerr << "          - merge_ops:            Merge multiple IR-Operations into a single native op\n";
+        std::cerr << "          - unused_statics:       Eliminate unused static-load-stores in the default generator\n";
+        std::cerr << "          - bmi2:                 Allow usage of instructions in the BMI2 instruction set extension (shlx/shrx/sarx)\n";
+        std::cerr << "    --output:                 Set the output file name (by default, the input file path suffixed with `.translated`)\n";
+        std::cerr << "    --print-ir:               Prints a textual representation of the IR (if no file is specified, prints to standard out)\n";
+        std::cerr << "    --transform-call-ret:     Detect and replace RISC-V `call` and `return` instructions\n\n";
+        std::cerr << "    --helper-path:            Set the path to the runtime helper library\n";
+        std::cerr << "    --linkerscript-path:      Set the path to the linker script\n";
+        std::cerr << "                              (The above two are only required if the translator can't find these by itself)\n\n";
         std::cerr << '\n';
         std::cerr << "Environment variables:\n";
         std::cerr << "    AS: Override the assembler binary (by default, the system `as` is used)\n";

@@ -163,17 +163,28 @@ void Generator::compile() {
 
     fprintf(out_fd, "init_stack_ptr: .quad 0\n");
 
-    compile_blocks();
+    if (interpreter_only) {
+        compile_interpreter_only_entry();
+    } else {
+        compile_blocks();
 
-    compile_entry();
+        compile_entry();
 
-    compile_err_msgs();
+        compile_err_msgs();
+    }
 
     compile_ijump_lookup();
 }
 
 void Generator::compile_ijump_lookup() {
     compile_section(Section::RODATA);
+
+    fprintf(out_fd, ".global ijump_lookup_base\n");
+    fprintf(out_fd, ".global ijump_lookup\n");
+    fprintf(out_fd, ".global ijump_lookup_end\n");
+
+    fprintf(out_fd, "ijump_lookup_base:\n");
+    fprintf(out_fd, ".8byte %zu\n", ir->virt_bb_start_addr);
 
     fprintf(out_fd, "ijump_lookup:\n");
 
@@ -198,8 +209,11 @@ void Generator::compile_ijump_lookup() {
 void Generator::compile_statics() {
     compile_section(Section::DATA);
 
+    fprintf(out_fd, ".global register_file\n");
+    fprintf(out_fd, "register_file:\n");
+
     for (const auto &var : ir->statics) {
-        std::fprintf(out_fd, "s%zu: .quad 0\n", var.id); // for now have all of the statics be 64bit
+        fprintf(out_fd, "s%zu: .quad 0\n", var.id); // for now have all of the statics be 64bit
     }
 }
 
@@ -208,6 +222,28 @@ void Generator::compile_phdr_info() {
     std::fprintf(out_fd, "phdr_num: .quad %lu\n", ir->phdr_num);
     std::fprintf(out_fd, "phdr_size: .quad %lu\n", ir->phdr_size);
     std::fprintf(out_fd, ".global phdr_off\n.global phdr_num\n.global phdr_size\n");
+}
+
+void Generator::compile_interpreter_only_entry() {
+    compile_section(Section::TEXT);
+    fprintf(out_fd, ".global _start\n");
+    fprintf(out_fd, "_start:\n");
+
+    // setup the RISC-V stack
+    fprintf(out_fd, "mov rbx, offset param_passing\n");
+    fprintf(out_fd, "mov rdi, rsp\n");
+    fprintf(out_fd, "mov rsi, offset stack_space_end\n");
+    fprintf(out_fd, "call copy_stack\n");
+
+    // mov the stack pointer to the register which holds the stack pointer (refering to the calling convention)
+    fprintf(out_fd, "mov [rip + register_file + 16], rax\n");
+
+    // load the entry address of the binary and call the interpreter
+    fprintf(out_fd, "mov rdi, %ld\n", ir->p_entry_addr);
+    fprintf(out_fd, "call unresolved_ijump_handler\n");
+
+    fprintf(out_fd, ".type _start,STT_FUNC\n");
+    fprintf(out_fd, ".size _start,$-_start\n");
 }
 
 void Generator::compile_blocks() {
@@ -383,6 +419,7 @@ void Generator::compile_ijump(const BasicBlock *block, const CfOp &op, const siz
 
     assert(op.in_vars[0] != nullptr);
     assert(ijump_info.targets.empty());
+    assert((op.in_vars[0]->type == Type::i64) || (op.in_vars[0]->type == Type::imm)); // TODO: only one should be used
 
     fprintf(out_fd, "# Get IJump Destination\n");
     fprintf(out_fd, "xor rax, rax\n");
@@ -406,8 +443,12 @@ void Generator::compile_ijump(const BasicBlock *block, const CfOp &op, const siz
     fprintf(out_fd, "je 0f\n");
     fprintf(out_fd, "jmp rdi\n");
     fprintf(out_fd, "0:\n");
-    fprintf(out_fd, "lea rdi, [rip + err_unresolved_ijump_b%zu]\n", block->id);
-    fprintf(out_fd, "jmp panic\n");
+
+    /* Slow-path: unresolved IJump, call interpreter */
+    fprintf(out_fd, "add rax, %zu\n", ir->virt_bb_start_addr);
+    fprintf(out_fd, "mov rdi, rax\n");
+    fprintf(out_fd, "lea rsi, [rip + err_unresolved_ijump_b%zu]\n", block->id);
+    fprintf(out_fd, "jmp unresolved_ijump\n");
 }
 
 void Generator::compile_entry() {
