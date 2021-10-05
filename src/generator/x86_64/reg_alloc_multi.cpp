@@ -577,11 +577,11 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                         op_with_imm32("add");
                     } else {
                         if (static_cast<uint64_t>(imm_val) != 0x80000000'00000000 && std::abs(imm_val) <= 0x7FFF'FFFF) {
-                            print_asm("lea %s, [%s + %ld]\n", dst_reg_name, in1_reg_name, imm_val);
+                            print_asm("lea %s, [%s + %ld]\n", dst_reg_name, reg_names[in1_reg][0], imm_val);
                         } else {
                             auto imm_reg = alloc_reg(cur_time);
                             print_asm("mov %s, %ld\n", reg_names[imm_reg][0], imm_val);
-                            print_asm("lea %s, [%s + %s]\n", dst_reg_name, reg_name(imm_reg, choose_type(in1, in2)), reg_names[imm_reg][0]);
+                            print_asm("lea %s, [%s + %s]\n", reg_names[dst_reg][0], reg_names[in1_reg][0], reg_names[imm_reg][0]);
                         }
                     }
                     break;
@@ -1465,7 +1465,7 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
             input->gen_info.allocated_to_input = false;
             if (input->is_static() && input->gen_info.location == SSAVar::GeneratorInfoX64::STATIC && input->gen_info.static_idx != target->inputs[i]->get_static()) {
                 // force into register because translation blocks might generate incorrect code otherwise
-                load_val_in_reg(cur_time, input);
+                load_val_in_reg<false>(cur_time, input);
             }
         }
 
