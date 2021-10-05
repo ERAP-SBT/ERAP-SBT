@@ -446,7 +446,7 @@ const SyscallInfo rv64_syscall_table[static_cast<size_t>(RISCV_SYSCALL_ID::SYSCA
     // RISCV_KEYCTL,
     {SyscallAction::passthrough, 5, AMD64_SYSCALL_ID::KEYCTL},
     // RISCV_CLONE,
-    {SyscallAction::passthrough, 5, AMD64_SYSCALL_ID::CLONE},
+    {SyscallAction::handle, 5, AMD64_SYSCALL_ID::CLONE},
     // RISCV_EXECVE,
     {SyscallAction::passthrough, 3, AMD64_SYSCALL_ID::EXECVE},
     // RISCV_MMAP = 222,
