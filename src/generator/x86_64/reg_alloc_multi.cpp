@@ -622,7 +622,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                         } else {
                             auto imm_reg = alloc_reg(cur_time);
                             print_asm("mov %s, %ld\n", reg_names[imm_reg][0], imm_val);
-                            print_asm("lea %s, [%s + %s]\n", dst_reg_name, reg_name(imm_reg, choose_type(in1, in2)), reg_names[imm_reg][0]);
+                            print_asm("lea %s, [%s + %s]\n", reg_names[dst_reg][0], reg_names[in1_reg][0], reg_names[imm_reg][0]);
                         }
                     }
                     break;
