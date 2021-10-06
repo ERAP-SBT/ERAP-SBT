@@ -1462,7 +1462,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             const auto of_reg_name = reg_names[overflow_reg][0];
             // prevent overflow
             print_asm("mov %s, [init_ret_stack_ptr]\n", of_reg_name);
-            print_asm("lea %s, [rax - %zu]\n", of_reg_name, max_stack_frame_size);
+            print_asm("lea %s, [%s - %zu]\n", of_reg_name, of_reg_name, max_stack_frame_size);
             print_asm("cmp rsp, stack_space + 524288\n"); // max depth ~65k
             print_asm("cmovb rsp, %s\n", of_reg_name);
 
