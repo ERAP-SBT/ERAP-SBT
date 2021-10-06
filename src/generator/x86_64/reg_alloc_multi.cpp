@@ -351,7 +351,11 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     }
                     clear_reg(cur_time, REG_D);
                     if (op->type == Instruction::div) {
-                        print_asm("cqo\n");
+                        if (var->type == Type::i32) {
+                            print_asm("cdq\n");
+                        } else {
+                            print_asm("cqo\n");
+                        }
                     } else if (op->type == Instruction::udiv) {
                         print_asm("xor edx, edx\n");
                     }
@@ -691,7 +695,11 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                 }
                 clear_reg(cur_time, REG_D);
                 if (op->type == Instruction::div) {
-                    print_asm("cqo\n");
+                    if (var->type == Type::i32) {
+                        print_asm("cdq\n");
+                    } else {
+                        print_asm("cqo\n");
+                    }
                 } else {
                     print_asm("xor edx, edx\n");
                 }
