@@ -240,7 +240,7 @@ void Generator::compile_interpreter_only_entry() {
 
     // load the entry address of the binary and call the interpreter
     fprintf(out_fd, "mov rdi, %ld\n", ir->p_entry_addr);
-    fprintf(out_fd, "call unresolved_ijump_handler\n");
+    fprintf(out_fd, "jmp unresolved_ijump\n");
 
     fprintf(out_fd, ".type _start,STT_FUNC\n");
     fprintf(out_fd, ".size _start,$-_start\n");
@@ -299,6 +299,13 @@ void Generator::compile_block(const BasicBlock *block) {
             break;
         case CFCInstruction::ijump:
             compile_ijump(block, cf_op, stack_size);
+            break;
+        case CFCInstruction::jump_interpreter:
+            fprintf(out_fd, "# destroy stack space\n");
+            fprintf(out_fd, "add rsp, %zu\n", stack_size);
+            //
+            fprintf(out_fd, "mov rdi, %zu\n", std::get<CfOp::IJumpInfo>(cf_op.info).interpreter_target);
+            fprintf(out_fd, "jmp unresolved_ijump\n");
             break;
         case CFCInstruction::unreachable:
             err_msgs.emplace_back(ErrType::unreachable, block);
@@ -447,7 +454,9 @@ void Generator::compile_ijump(const BasicBlock *block, const CfOp &op, const siz
     /* Slow-path: unresolved IJump, call interpreter */
     fprintf(out_fd, "add rax, %zu\n", ir->virt_bb_start_addr);
     fprintf(out_fd, "mov rdi, rax\n");
+#if 0
     fprintf(out_fd, "lea rsi, [rip + err_unresolved_ijump_b%zu]\n", block->id);
+#endif
     fprintf(out_fd, "jmp unresolved_ijump\n");
 }
 

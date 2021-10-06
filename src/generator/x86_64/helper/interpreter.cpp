@@ -41,7 +41,7 @@ void interpreter_dump_perf_stats() {
 }
 
 /* for debugging, generates a massive amount of output */
-#define TRACE false
+#define TRACE true
 
 #define AMO_OP(ptr_type, type) \
     { \
@@ -131,12 +131,16 @@ void trace(uint64_t addr, const FrvInst *instr) {
 }
 
 uint64_t ijump_lookup_for_addr(uint64_t addr) {
+#if 0
+    return 0;
+#else
     const uint64_t *const entry = &ijump_lookup[(addr - ijump_lookup_base) / 0x2];
     if (entry >= &ijump_lookup_end) {
         return 0x0;
     } else {
         return *entry;
     }
+#endif
 }
 
 /* make the code a bit clearer */
@@ -333,11 +337,11 @@ void trace_dump_state(uint64_t pc) {
  * @param pc unresolved jump target address
  */
 extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
-#if TRACE
+#if false
     puts("TRACE: enter handler, pc: ");
     print_hex64(pc);
     puts("\n");
-    trace_dump_state(pc);
+    // trace_dump_state(pc);
 #endif
 
     perf_enter_count++;
@@ -1386,7 +1390,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
     print_hex64(pc);
     puts("\n");
 
-    trace_dump_state(pc);
+    // trace_dump_state(pc);
 
     puts("\n");
 #endif
@@ -1395,7 +1399,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
      * the compiled BasicBlocks
      */
     const uint64_t return_addr = ijump_lookup_for_addr(pc);
-#if TRACE
+#if false
     puts("TRACE: leave handler, return_addr: ");
     print_hex64(return_addr);
     puts("\n");

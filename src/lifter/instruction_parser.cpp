@@ -9,13 +9,21 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         DEBUG_LOG("Discovered floating point or ziscr instruction with disabled floating point support. Skipping!");
         return;
     }
+
+#if 0
+    lift_jump_interpreter(bb, instr, mapping, ip);
+#else
     switch (instr.instr.mnem) {
     case FRV_INVALID:
         lift_invalid(bb, ip);
         break;
 
     case FRV_LB:
+#if 0
+        lift_jump_interpreter(bb, instr, mapping, ip);
+#else
         lift_load(bb, instr, mapping, ip, Type::i8, true);
+#endif
         break;
     case FRV_LH:
         lift_load(bb, instr, mapping, ip, Type::i16, true);
@@ -24,7 +32,11 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         lift_load(bb, instr, mapping, ip, Type::i32, true);
         break;
     case FRV_LD:
+#if 1
         lift_load(bb, instr, mapping, ip, Type::i64, true);
+#else
+        lift_jump_interpreter(bb, instr, mapping, ip);
+#endif
         break;
     case FRV_LBU:
         lift_load(bb, instr, mapping, ip, Type::i8, false);
@@ -194,7 +206,10 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         break;
 
     case FRV_LUI:
+        lift_jump_interpreter(bb, instr, mapping, ip);
+#if 0
         lift_lui(bb, instr, mapping, ip);
+#endif
         break;
 
     case FRV_JAL:
@@ -240,10 +255,16 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         break;
 
     case FRV_AMOSWAPW:
+        lift_jump_interpreter(bb, instr, mapping, ip);
+#if 0
         lift_amo_swap(bb, instr, mapping, ip, Type::i32);
+#endif
         break;
     case FRV_AMOSWAPD:
+        lift_jump_interpreter(bb, instr, mapping, ip);
+#if 0
         lift_amo_swap(bb, instr, mapping, ip, Type::i64);
+#endif
         break;
 
     case FRV_AMOXORW:
@@ -506,6 +527,7 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
 
         // TODO: add unreachable instruction
     }
+#endif
 }
 
 inline void Lifter::lift_invalid([[maybe_unused]] BasicBlock *bb, [[maybe_unused]] uint64_t ip) {

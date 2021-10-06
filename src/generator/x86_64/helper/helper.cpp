@@ -13,7 +13,7 @@
 namespace helper {
 
 /* dump interpreter statistics at exit */
-#define INTERPRETER_DUMP_PERF_STATS_AT_EXIT false
+#define INTERPRETER_DUMP_PERF_STATS_AT_EXIT true
 
 struct auxv_t {
     // see https://fossies.org/dox/Checker-0.9.9.1/gcc-startup_8c_source.html#l00042

@@ -61,6 +61,7 @@ enum class CFCInstruction {
     _return,
     unreachable,
     syscall,
+    jump_interpreter, // jump to the inpreter to continue interpretation with pc=a
 };
 
 std::ostream &operator<<(std::ostream &stream, CFCInstruction instr);

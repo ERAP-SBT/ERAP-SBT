@@ -185,6 +185,7 @@ CfOp::CfOp(const CFCInstruction type, BasicBlock *source, BasicBlock *target) : 
         info = JumpInfo{};
         std::get<JumpInfo>(info).target = target;
         break;
+    case CFCInstruction::jump_interpreter:
     case CFCInstruction::ijump:
         info = IJumpInfo{};
         if (target != nullptr) {
@@ -247,6 +248,7 @@ void CfOp::add_target_input(SSAVar *input, size_t static_idx) {
     case CFCInstruction::_return:
         std::get<RetInfo>(info).mapping.emplace_back(input, static_idx);
         break;
+    case CFCInstruction::jump_interpreter:
     case CFCInstruction::ijump:
         std::get<IJumpInfo>(info).mapping.emplace_back(input, static_idx);
         break;
@@ -276,16 +278,20 @@ void CfOp::clear_target_inputs() {
     case CFCInstruction::icall:
         std::get<CfOp::ICallInfo>(info).mapping.clear();
         break;
+    case CFCInstruction::jump_interpreter:
+        std::get<CfOp::IJumpInfo>(info).mapping.clear();
+        break;
     case CFCInstruction::ijump:
         std::get<CfOp::IJumpInfo>(info).mapping.clear();
         break;
     default:
+        printf("type = %d\n", type);
         assert(0);
     }
 }
 
 void CfOp::set_target(BasicBlock *target) {
-    assert(type == CFCInstruction::jump || type == CFCInstruction::cjump || type == CFCInstruction::ijump || type == CFCInstruction::call || type == CFCInstruction::syscall ||
+    assert(type == CFCInstruction::jump || type == CFCInstruction::cjump || type == CFCInstruction::ijump || type == CFCInstruction::jump_interpreter || type == CFCInstruction::call || type == CFCInstruction::syscall ||
            type == CFCInstruction::icall);
 
     switch (type) {
@@ -309,6 +315,8 @@ void CfOp::set_target(BasicBlock *target) {
     case CFCInstruction::ijump:
         assert(0);
         break;
+    case CFCInstruction::jump_interpreter:
+        break; // ignore
     }
 }
 
@@ -326,6 +334,7 @@ BasicBlock *CfOp::target() const {
     case CFCInstruction::ijump:
     case CFCInstruction::unreachable:
     case CFCInstruction::_return:
+    case CFCInstruction::jump_interpreter:
         return nullptr;
     }
 
@@ -355,6 +364,11 @@ const std::vector<RefPtr<SSAVar>> &CfOp::target_inputs() const {
         }
         return vec;
     case CFCInstruction::ijump:
+        for (auto &var : std::get<IJumpInfo>(info).mapping) {
+            vec.emplace_back(var.first);
+        }
+        return vec;
+    case CFCInstruction::jump_interpreter:
         for (auto &var : std::get<IJumpInfo>(info).mapping) {
             vec.emplace_back(var.first);
         }

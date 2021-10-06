@@ -120,6 +120,7 @@ void Lifter::lift(Program *prog) {
 
         // we reached the end of a bblock
         cur_bb->set_virt_end_addr(virt_addr);
+#if 1
         // check if we need to split bblocks and mark needed bbs
         for (size_t i = 0; i < cur_bb->control_flow_ops.size(); ++i) {
             auto &cf_op = cur_bb->control_flow_ops[i];
@@ -218,6 +219,7 @@ void Lifter::lift(Program *prog) {
                 }
             }
         }
+#endif
         cur_bb->variables.shrink_to_fit();
         cur_bb->control_flow_ops.shrink_to_fit();
         cur_bb = nullptr;
@@ -234,7 +236,7 @@ void Lifter::postprocess(Program *prog) {
     // set all jump targets and remove guessed ijumps
     for (auto &bb : ir->basic_blocks) {
         for (auto &cf_op : bb->control_flow_ops) {
-            if (cf_op.type == CFCInstruction::unreachable || cf_op.type == CFCInstruction::_return) {
+            if (cf_op.type == CFCInstruction::unreachable || cf_op.type == CFCInstruction::_return || cf_op.type == CFCInstruction::jump_interpreter) {
                 continue;
             }
 

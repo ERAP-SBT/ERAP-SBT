@@ -96,6 +96,8 @@ class Lifter {
 
     void lift_jal(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr);
 
+    void lift_jump_interpreter(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip);
+
     void lift_jalr(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr);
 
     void lift_branch(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr);

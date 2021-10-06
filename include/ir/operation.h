@@ -78,6 +78,8 @@ struct CfOp {
 
         // one (same) mapping for all jump targets
         std::vector<std::pair<RefPtr<SSAVar>, size_t>> mapping{};
+
+        uint64_t interpreter_target;
     };
 
     struct CJumpInfo {

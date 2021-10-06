@@ -79,6 +79,7 @@ bool BasicBlock::verify(std::vector<std::string> &messages_out) const {
         variable_ids.insert(var->id);
     }
 
+#if 0
     for (const auto &cf_op : control_flow_ops) {
         if (cf_op.type == CFCInstruction::unreachable || cf_op.type == CFCInstruction::_return) {
             continue;
@@ -189,6 +190,7 @@ bool BasicBlock::verify(std::vector<std::string> &messages_out) const {
             ok = false;
         }
     }
+#endif
 
     return ok;
 }
