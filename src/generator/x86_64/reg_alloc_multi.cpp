@@ -208,7 +208,9 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
         }
 
         if (!first_block) {
-            generate_translation_block(bb);
+            if (!(gen->optimizations & Generator::OPT_NO_TRANS_BBS) || is_block_jumpable(bb)) {
+                generate_translation_block(bb);
+            }
             print_asm("b%zu_reg_alloc:\n", bb->id);
             print_asm("# MBRA\n"); // multi-block register allocation
             print_asm("# Virt Start: %#lx\n# Virt End:  %#lx\n", bb->virt_start_addr, bb->virt_end_addr);
@@ -267,15 +269,13 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
             fprintf(gen->out_fd, "# Virt Start: %#lx\n# Virt End:  %#lx\n", bb->virt_start_addr, bb->virt_end_addr);
             write_assembled_blocks(max_stack_frame_size);
 
-            if (!(gen->optimizations & Generator::OPT_NO_TRANS_BBS)) {
-                fprintf(gen->out_fd, "\n# Translation Blocks\n");
-                for (const auto &pair : translation_blocks) {
-                    fprintf(gen->out_fd, "b%zu:\nsub rsp, %zu\n", pair.first, max_stack_frame_size);
-                    fprintf(gen->out_fd, "# MBRATB\n"); // multi-block register allocation translation block
-                    fprintf(gen->out_fd, "%s\n", pair.second.c_str());
-                }
-                fprintf(gen->out_fd, "\n");
+            fprintf(gen->out_fd, "\n# Translation Blocks\n");
+            for (const auto &pair : translation_blocks) {
+                fprintf(gen->out_fd, "b%zu:\nsub rsp, %zu\n", pair.first, max_stack_frame_size);
+                fprintf(gen->out_fd, "# MBRATB\n"); // multi-block register allocation translation block
+                fprintf(gen->out_fd, "%s\n", pair.second.c_str());
             }
+            fprintf(gen->out_fd, "\n");
             translation_blocks.clear();
             assembled_blocks.clear();
         }

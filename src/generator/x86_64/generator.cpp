@@ -196,11 +196,7 @@ void Generator::compile_ijump_lookup() {
         const auto bb = ir->bb_at_addr(i);
         fprintf(out_fd, "/* 0x%#.8lx: */", i);
         if (bb != nullptr && bb->virt_start_addr == i && (!(optimizations & OPT_MBRA) || !(optimizations & OPT_NO_TRANS_BBS) || RegAlloc::is_block_jumpable(bb))) {
-            if ((optimizations & OPT_MBRA) && (optimizations & OPT_NO_TRANS_BBS)) {
-                fprintf(out_fd, ".8byte b%zu%s\n", bb->id, RegAlloc::is_block_top_level(bb) ? "" : "_reg_alloc");
-            } else {
-                fprintf(out_fd, ".8byte b%zu\n", bb->id);
-            }
+            fprintf(out_fd, ".8byte b%zu\n", bb->id);
         } else {
             fprintf(out_fd, ".8byte 0x0\n");
         }
