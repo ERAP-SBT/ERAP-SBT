@@ -659,7 +659,11 @@ void Generator::compile_vars(const BasicBlock *block) {
         case Instruction::div:
             assert(arg_count == 2 || arg_count == 3);
             assert(!is_float(var->type));
-            fprintf(out_fd, "cqo\nidiv rbx\n");
+            if (var->type == Type::i32) {
+                fprintf(out_fd, "cdq\nidiv ebx\n");
+            } else {
+                fprintf(out_fd, "cqo\nidiv rbx\n");
+            }
             fprintf(out_fd, "mov rbx, rdx\n"); // second output is remainder and needs to be in rbx atm
             break;
         case Instruction::udiv:
