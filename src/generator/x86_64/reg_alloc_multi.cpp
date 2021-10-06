@@ -1439,7 +1439,7 @@ void RegAlloc::compile_rounding_mode(size_t cur_time, const Operation *op, const
         if (in1->gen_info.last_use_time > cur_time) {
             save_fp_reg(in_reg);
         }
-        print_asm("rounds%s %s, %s, %x\n", Generator::fp_op_size_from_type(in1->type), fp_reg_names[in_reg], fp_reg_names[in_reg], x86_64_rounding_mode);
+        print_asm("rounds%s %s, %s, %d\n", Generator::fp_op_size_from_type(in1->type), fp_reg_names[in_reg], fp_reg_names[in_reg], x86_64_rounding_mode);
     } else {
         uint32_t x86_64_rounding_mode;
         switch (std::get<RoundingMode>(op->rounding_info)) {
@@ -1466,7 +1466,7 @@ void RegAlloc::compile_rounding_mode(size_t cur_time, const Operation *op, const
         print_asm("mov %s, [rsp]\n", round_reg_name);
         print_asm("and %s, 0xFFFF'1FFF\n", round_reg_name);
         if (x86_64_rounding_mode != 0) {
-            print_asm("or %s, %x\n", round_reg_name, x86_64_rounding_mode);
+            print_asm("or %s, %d\n", round_reg_name, x86_64_rounding_mode);
         }
         print_asm("mov [rsp], %s\n", round_reg_name);
         print_asm("ldmxcsr [rsp]\n");
