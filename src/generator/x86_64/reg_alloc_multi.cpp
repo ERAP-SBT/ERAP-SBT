@@ -351,7 +351,11 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     }
                     clear_reg(cur_time, REG_D);
                     if (op->type == Instruction::div) {
-                        print_asm("cqo\n");
+                        if (var->type == Type::i32) {
+                            print_asm("cdq\n");
+                        } else {
+                            print_asm("cqo\n");
+                        }
                     } else if (op->type == Instruction::udiv) {
                         print_asm("xor edx, edx\n");
                     }
@@ -691,7 +695,11 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                 }
                 clear_reg(cur_time, REG_D);
                 if (op->type == Instruction::div) {
-                    print_asm("cqo\n");
+                    if (var->type == Type::i32) {
+                        print_asm("cdq\n");
+                    } else {
+                        print_asm("cqo\n");
+                    }
                 } else {
                     print_asm("xor edx, edx\n");
                 }
@@ -1296,8 +1304,10 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             print_asm("je 0f\n");
             print_asm("jmp %s\n", tmp_reg_name);
             print_asm("0:\n");
-            print_asm("lea rdi, [rip + err_unresolved_ijump_b%zu]\n", bb->id);
-            print_asm("jmp panic\n");
+
+            /* Slow-path: unresolved IJump, call interpreter */
+            print_asm("lea rdi, [%s + %zu]\n", dst_reg_name, gen->ir->virt_bb_start_addr);
+            print_asm("jmp unresolved_ijump\n");
             break;
         }
         case CFCInstruction::syscall: {
