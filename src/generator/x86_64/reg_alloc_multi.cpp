@@ -1415,32 +1415,50 @@ bool RegAlloc::merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg) {
 }
 
 void RegAlloc::compile_rounding_mode(size_t cur_time, const Operation *op, const FP_REGISTER in_reg, const REGISTER dest_reg) {
-    uint32_t x86_64_rounding_mode;
     assert(std::holds_alternative<RoundingMode>(op->rounding_info));
-    switch (std::get<RoundingMode>(op->rounding_info)) {
-    case RoundingMode::NEAREST:
-        x86_64_rounding_mode = 0x0000;
-        break;
-    case RoundingMode::DOWN:
-        x86_64_rounding_mode = 0x2000;
-        break;
-    case RoundingMode::UP:
-        x86_64_rounding_mode = 0x4000;
-        break;
-    case RoundingMode::ZERO:
-        x86_64_rounding_mode = 0x6000;
-        break;
-    default:
-        assert(0);
-        break;
-    }
     SSAVar *in1 = op->in_vars[0];
     if (gen->optimizations & Generator::OPT_ARCH_SSE4) {
+        uint8_t x86_64_rounding_mode;
+        switch (std::get<RoundingMode>(op->rounding_info)) {
+        case RoundingMode::NEAREST:
+            x86_64_rounding_mode = 0x0B;
+            break;
+        case RoundingMode::DOWN:
+            x86_64_rounding_mode = 0x1B;
+            break;
+        case RoundingMode::UP:
+            x86_64_rounding_mode = 0x2B;
+            break;
+        case RoundingMode::ZERO:
+            x86_64_rounding_mode = 0x3B;
+            break;
+        default:
+            assert(0);
+            break;
+        }
         if (in1->gen_info.last_use_time > cur_time) {
             save_fp_reg(in_reg);
         }
         print_asm("rounds%s %s, %s, %x\n", Generator::fp_op_size_from_type(in1->type), fp_reg_names[in_reg], fp_reg_names[in_reg], x86_64_rounding_mode);
     } else {
+        uint32_t x86_64_rounding_mode;
+        switch (std::get<RoundingMode>(op->rounding_info)) {
+        case RoundingMode::NEAREST:
+            x86_64_rounding_mode = 0x0000;
+            break;
+        case RoundingMode::DOWN:
+            x86_64_rounding_mode = 0x2000;
+            break;
+        case RoundingMode::UP:
+            x86_64_rounding_mode = 0x4000;
+            break;
+        case RoundingMode::ZERO:
+            x86_64_rounding_mode = 0x6000;
+            break;
+        default:
+            assert(0);
+            break;
+        }
         // use dest_reg to set mxcsr
         const char *round_reg_name = reg_name(dest_reg, Type::i32);
         print_asm("sub rsp, 4\n");
