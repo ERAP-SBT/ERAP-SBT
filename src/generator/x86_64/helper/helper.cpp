@@ -103,7 +103,6 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                 break;
             }
         } else if (info.action == SyscallAction::handle) {
-            // not sure if this is a good idea
             switch (static_cast<RISCV_SYSCALL_ID>(id)) {
             case RISCV_SYSCALL_ID::EXIT:
             case RISCV_SYSCALL_ID::EXIT_GROUP: {
