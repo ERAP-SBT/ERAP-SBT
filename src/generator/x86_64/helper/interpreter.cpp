@@ -1061,7 +1061,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
                 uint32_t status = _mm_getcsr();
                 // clear rounding mode and set correctly
                 uint32_t changed_status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
-                _mm_setcsr(status);
+                _mm_setcsr(changed_status);
                 // perform conversion (not using c conversion because this using the conversion with truncation: cvtt)
                 int32_t result;
                 __asm__ __volatile__("cvtsd2si %1, %0" : "=r"(result) : "x"(conv.f64));
@@ -1076,7 +1076,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
                 uint32_t status = _mm_getcsr();
                 // clear rounding mode and set correctly
                 uint32_t changed_status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
-                _mm_setcsr(status);
+                _mm_setcsr(changed_status);
                 // perform conversion (not using c conversion because this using the conversion with truncation: cvtt)
                 int32_t result;
                 __asm__ __volatile__("cvtsd2si %1, %0" : "=r"(result) : "x"(conv.f64));
@@ -1093,7 +1093,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
                 uint32_t status = _mm_getcsr();
                 // clear rounding mode and set correctly
                 uint32_t changed_status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
-                _mm_setcsr(status);
+                _mm_setcsr(changed_status);
                 // perform conversion (not using c conversion because this using the conversion with truncation: cvtt)
                 int64_t result;
                 __asm__ __volatile__("cvtsd2si %1, %0" : "=r"(result) : "x"(conv.f64));
@@ -1108,7 +1108,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
                 uint32_t status = _mm_getcsr();
                 // clear rounding mode and set correctly
                 uint32_t changed_status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
-                _mm_setcsr(status);
+                _mm_setcsr(changed_status);
                 // perform conversion (not using c conversion because this using the conversion with truncation: cvtt)
                 int64_t result;
                 __asm__ __volatile__("cvtsd2si %1, %0" : "=r"(result) : "x"(conv.f64));
