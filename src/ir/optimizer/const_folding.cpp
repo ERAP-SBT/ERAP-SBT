@@ -669,7 +669,7 @@ void ConstFoldPass::process_block(BasicBlock *block) {
                 // op imm
                 auto &ii = in->get_immediate();
                 if (input == Type::imm) {
-                    std::cerr << "Found morphing operation (b" << block->id << "/v" << var->id << ") with imm as input, this shouldn't really happen\n";
+                    // Morphing op with immediate input, ignore
                     input = output;
                 }
                 if (ii.binary_relative)
