@@ -915,19 +915,17 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
 #undef operation
             break;
         case FRV_FSQRTS: {
-            float *src_ptr = reinterpret_cast<float *>(&register_file[instr.rs1 + START_FP_STATICS]);
-            float res;
-            __asm__ __volatile__("sqrtss %1, %0" : "=x"(res) : "x"(*src_ptr));
-            uint32_t *res_ptr = reinterpret_cast<uint32_t *>(&res);
-            register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>(*res_ptr);
+            converter conv1, conv2;
+            conv1.d32 = register_file[instr.rs1 + START_FP_STATICS];
+            __asm__ __volatile__("sqrtss %1, %0" : "=x"(conv2.d32) : "x"(conv1.f32));
+            register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>(conv2.d32);
             break;
         }
         case FRV_FSQRTD: {
-            double *src_ptr = reinterpret_cast<double *>(&register_file[instr.rs1 + START_FP_STATICS]);
-            double res;
-            __asm__ __volatile__("sqrtss %1, %0" : "=x"(res) : "x"(*src_ptr));
-            uint64_t *res_ptr = reinterpret_cast<uint64_t *>(&res);
-            register_file[instr.rd + START_FP_STATICS] = *res_ptr;
+            converter conv1, conv2;
+            conv1.d64 = register_file[instr.rs1 + START_FP_STATICS];
+            __asm__ __volatile__("sqrtsd %1, %0" : "=x"(conv2.f64) : "x"(conv1.f64));
+            register_file[instr.rd + START_FP_STATICS] = conv2.d64;
             break;
         }
 
@@ -971,11 +969,12 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
                 conv.d32 = static_cast<uint32_t>(register_file[instr.rs1 + START_FP_STATICS]);
                 uint32_t status = _mm_getcsr();
                 // clear rounding mode and set correctly
-                status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
-                _mm_setcsr(status);
+                uint32_t changed_status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
+                _mm_setcsr(changed_status);
                 // perform conversion (not using c conversion because this using the conversion with truncation: cvtt)
                 int32_t result;
                 __asm__ __volatile__("cvtss2si %1, %0" : "=r"(result) : "x"(conv.f32));
+                _mm_setcsr(status);
                 register_file[instr.rd] = static_cast<int64_t>(result);
             }
             break;
@@ -985,11 +984,12 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
                 conv.d32 = static_cast<uint32_t>(register_file[instr.rs1 + START_FP_STATICS]);
                 uint32_t status = _mm_getcsr();
                 // clear rounding mode and set correctly
-                status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
-                _mm_setcsr(status);
+                uint32_t changed_status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
+                _mm_setcsr(changed_status);
                 // perform conversion (not using c conversion because gcc using the conversion with truncation: cvtt)
                 int32_t result;
                 __asm__ __volatile__("cvtss2si %1, %0" : "=r"(result) : "x"(conv.f32));
+                _mm_setcsr(status);
                 // if value is negative, the result should be zero. spread sign bit and use inverted value to zero if necessary.
                 result = result & ~(conv.i32 >> 31);
                 register_file[instr.rd] = static_cast<uint32_t>(result);
@@ -1001,11 +1001,12 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
                 conv.d32 = static_cast<uint32_t>(register_file[instr.rs1 + START_FP_STATICS]);
                 uint32_t status = _mm_getcsr();
                 // clear rounding mode and set correctly
-                status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
-                _mm_setcsr(status);
+                uint32_t changed_status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
+                _mm_setcsr(changed_status);
                 // perform conversion (not using c conversion because gcc using the conversion with truncation: cvtt)
                 int64_t result;
                 __asm__ __volatile__("cvtss2si %1, %0" : "=r"(result) : "x"(conv.f32));
+                _mm_setcsr(status);
                 register_file[instr.rd] = result;
             }
             break;
@@ -1015,11 +1016,12 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
                 conv.d32 = static_cast<uint32_t>(register_file[instr.rs1 + START_FP_STATICS]);
                 uint32_t status = _mm_getcsr();
                 // clear rounding mode and set correctly
-                status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
-                _mm_setcsr(status);
+                uint32_t changed_status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
+                _mm_setcsr(changed_status);
                 // perform conversion (not using c conversion because gcc using the conversion with truncation: cvtt)
                 int64_t result;
                 __asm__ __volatile__("cvtss2si %1, %0" : "=r"(result) : "x"(conv.f32));
+                _mm_setcsr(status);
                 // if value is negative, the result should be zero. spread sign bit and use inverted value to zero if necessary.
                 int64_t mask = ~(conv.i64 >> 63);
                 result = result & static_cast<int64_t>(mask);
@@ -1058,11 +1060,12 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
                 conv.d64 = register_file[instr.rs1 + START_FP_STATICS];
                 uint32_t status = _mm_getcsr();
                 // clear rounding mode and set correctly
-                status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
+                uint32_t changed_status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
                 _mm_setcsr(status);
                 // perform conversion (not using c conversion because this using the conversion with truncation: cvtt)
                 int32_t result;
                 __asm__ __volatile__("cvtsd2si %1, %0" : "=r"(result) : "x"(conv.f64));
+                _mm_setcsr(status);
                 register_file[instr.rd] = static_cast<int64_t>(result);
             }
             break;
@@ -1072,11 +1075,12 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
                 conv.d64 = register_file[instr.rs1 + START_FP_STATICS];
                 uint32_t status = _mm_getcsr();
                 // clear rounding mode and set correctly
-                status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
+                uint32_t changed_status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
                 _mm_setcsr(status);
                 // perform conversion (not using c conversion because this using the conversion with truncation: cvtt)
                 int32_t result;
                 __asm__ __volatile__("cvtsd2si %1, %0" : "=r"(result) : "x"(conv.f64));
+                _mm_setcsr(status);
                 // if value is negative, the result should be zero. spread sign bit and use inverted value to zero if necessary.
                 result = result & static_cast<int32_t>(~(conv.i64 >> 63));
                 register_file[instr.rd] = static_cast<uint32_t>(result);
@@ -1088,11 +1092,12 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
                 conv.d64 = register_file[instr.rs1 + START_FP_STATICS];
                 uint32_t status = _mm_getcsr();
                 // clear rounding mode and set correctly
-                status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
+                uint32_t changed_status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
                 _mm_setcsr(status);
                 // perform conversion (not using c conversion because this using the conversion with truncation: cvtt)
                 int64_t result;
                 __asm__ __volatile__("cvtsd2si %1, %0" : "=r"(result) : "x"(conv.f64));
+                _mm_setcsr(status);
                 register_file[instr.rd] = result;
             }
             break;
@@ -1102,11 +1107,12 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
                 conv.d64 = register_file[instr.rs1 + START_FP_STATICS];
                 uint32_t status = _mm_getcsr();
                 // clear rounding mode and set correctly
-                status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
+                uint32_t changed_status = (status & 0xFF'FF'1F'FF) | evaluate_rounding_mode(instr.misc, true);
                 _mm_setcsr(status);
                 // perform conversion (not using c conversion because this using the conversion with truncation: cvtt)
                 int64_t result;
                 __asm__ __volatile__("cvtsd2si %1, %0" : "=r"(result) : "x"(conv.f64));
+                _mm_setcsr(status);
                 // if value is negative, the result should be zero. spread sign bit and use inverted value to zero if necessary.
                 result = result & ~(conv.i64 >> 63);
                 register_file[instr.rd] = result;
