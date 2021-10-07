@@ -1,5 +1,6 @@
 #include "generator/x86_64/generator.h"
 
+#include <iostream>
 #include <sstream>
 
 using namespace generator::x86_64;
@@ -1286,7 +1287,7 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
                 print_asm("and %s, 1\n", help_reg_name);
                 print_asm("or %s, %s\n", in_reg_name, help_reg_name);
                 print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, dest_reg_name, in_reg_name);
-                print_asm("adds%s %s, %s\n", Generator::fp_op_size_from_type(var->type), dest_reg_name);
+                print_asm("adds%s %s, %s\n", Generator::fp_op_size_from_type(var->type), dest_reg_name, dest_reg_name);
             }
         }
         break;
@@ -2071,7 +2072,7 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
                 } else if (input_var->gen_info.location == SSAVar::GeneratorInfoX64::FP_REGISTER) {
                     print_asm("movq [rsp + 8 * %zu], %s\n", stack_slot, fp_reg_names[input_var->gen_info.reg_idx]);
                 } else if (is_float(input_var->type)) {
-                    FP_REGISTER reg;
+                    FP_REGISTER reg = FP_REG_NONE;
                     // find free/unused register
                     for (size_t i = 0; i < FP_REG_COUNT; ++i) {
                         if (fp_reg_map[i].cur_var == nullptr || fp_reg_map[i].cur_var->gen_info.last_use_time < cur_time) {
