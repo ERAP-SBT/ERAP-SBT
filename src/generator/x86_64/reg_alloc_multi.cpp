@@ -1158,7 +1158,7 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
         if (in1->gen_info.last_use_time > cur_time) {
             save_fp_reg(in1_reg);
         }
-        print_asm("sqrts%s %s", Generator::fp_op_size_from_type(var->type), fp_reg_names[in1_reg]);
+        print_asm("sqrts%s %s, %s\n", Generator::fp_op_size_from_type(var->type), fp_reg_names[in1_reg], fp_reg_names[in1_reg]);
         clear_fp_reg(cur_time, in1_reg);
         set_var_to_fp_reg(cur_time, var, in1_reg);
         break;
@@ -1234,7 +1234,6 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
                 set_var_to_fp_reg(cur_time, var, dest_reg);
                 break;
             } else {
-                // TODO: Handle rounding accordingly, with SSE4 use rounds[s|d] else mxcsr
                 const REGISTER dest_reg = alloc_reg(cur_time);
                 compile_rounding_mode(cur_time, op, in_reg, dest_reg);
                 print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, reg_name(dest_reg, var->type), fp_reg_names[in_reg]);
@@ -1262,7 +1261,7 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
             const bool is_single_precision = in1->type == Type::f32;
             // spread the sign bit of the floating point number to the length of the (result) integer.
             // Negate this value and with an "and" operation set so the result to zero if the floating point value is negative
-            print_asm("mov%s %s, %s", (is_single_precision ? "d" : "q"), help_reg_name, fp_reg_names[in_reg]);
+            print_asm("mov%s %s, %s\n", (is_single_precision ? "d" : "q"), reg_name(help_reg, (is_single_precision ? Type::i32 : Type::i64)), fp_reg_names[in_reg]);
             print_asm("sar %s, %u\n", help_reg_name, (is_single_precision ? 31 : 63));
             print_asm("not %s\n", help_reg_name);
             if (is_single_precision && var->type == Type::i64) {
@@ -1270,6 +1269,7 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
             }
             print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, reg_name(dest_reg, var->type), fp_reg_names[in_reg]);
             print_asm("and %s, %s\n", reg_name(dest_reg, var->type), help_reg_name);
+            set_var_to_reg(cur_time, var, dest_reg);
         } else {
             assert(in1->type == Type::i32 || in1->type == Type::i64);
             const REGISTER in_reg = load_val_in_reg(cur_time, in1);
@@ -1289,10 +1289,12 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
                 print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, dest_reg_name, in_reg_name);
                 print_asm("adds%s %s, %s\n", Generator::fp_op_size_from_type(var->type), dest_reg_name, dest_reg_name);
             }
+            set_var_to_fp_reg(cur_time, var, dest_reg);
         }
         break;
     }
     default:
+        fprintf(stderr, "Encountered a unknown floating point instruction in the generator!\n");
         assert(0);
         break;
     }
@@ -2035,6 +2037,19 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
         if (input_var->gen_info.location != SSAVar::GeneratorInfoX64::NOT_CALCULATED) {
             continue;
         }
+        if (input_var->type != Type::imm) {
+            std::cout << "type = " << input_var->type << "\n";
+            std::cout << "id = " << input_var->id << "\n";
+            std::cout << "info_variant_idx = " << input_var->info.index() << "\n";
+            if (std::holds_alternative<size_t>(input_var->info)) {
+                std::cout << "static idx = " << std::get<size_t>(input_var->info) << "\n";
+            } else if (std::holds_alternative<SSAVar::ImmInfo>(input_var->info)) {
+                auto imm_info = std::get<SSAVar::ImmInfo>(input_var->info);
+                std::cout << "imm_info.val = " << imm_info.val << "\n";
+            } else if (std::holds_alternative<std::unique_ptr<Operation>>(input_var->info)) {
+                std::cout << "op->type = " << std::get<std::unique_ptr<Operation>>(input_var->info).get()->type << "\n";
+            }
+        }
         assert(input_var->type == Type::imm);
         load_val_in_reg<false>(cur_time, input_var);
     }
@@ -2044,10 +2059,15 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
         // cheap fix to force single block register allocation
         set_bb_inputs_from_static(target);
     } else {
-        for (auto &input : inputs) {
-            input.get()->gen_info.allocated_to_input = false;
+        for (size_t i = 0; i < inputs.size(); ++i) {
+            auto *input = inputs[i].get();
+            input->gen_info.allocated_to_input = false;
+            if (std::holds_alternative<size_t>(input->info) && input->gen_info.location == SSAVar::GeneratorInfoX64::STATIC &&
+                input->gen_info.static_idx != std::get<size_t>(target->inputs[i]->info)) {
+                // force into register because translation blocks might generate incorrect code otherwise
+                load_val_in_reg<false>(cur_time, input);
+            }
         }
-
         bool rax_used = false, xmm0_used = false;
         SSAVar *rax_input, *xmm0_input;
         // just write input locations, compile the input map and we done
@@ -2109,6 +2129,10 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
                         load_val_in_reg(cur_time, input_var, REG_A);
                     }
                     print_asm("mov [rsp + 8 * %zu], %s\n", stack_slot, reg_names[reg][0]);
+                    if (!input_var->gen_info.saved_in_stack) {
+                        input_var->gen_info.saved_in_stack = true;
+                        input_var->gen_info.stack_slot = stack_slot;
+                    }
                 }
                 continue;
             }
@@ -2829,10 +2853,11 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::load_val_in_reg(
         // TODO: add a thing in the regmap that tells the allocater that the var may only be in this register
         // TODO: this will bug out when you alloc a reg and then alloc one if only_this_reg and they end up in the same register
         if (auto *other_var = reg_map[only_this_reg].cur_var; other_var && other_var->gen_info.last_use_time >= cur_time) {
-            print_asm("xchg %s, %s\n", reg_names[only_this_reg][0], reg_names[var->gen_info.reg_idx][0]);
+            /*print_asm("xchg %s, %s\n", reg_names[only_this_reg][0], reg_names[var->gen_info.reg_idx][0]);
             std::swap(reg_map[only_this_reg], reg_map[var->gen_info.reg_idx]);
             std::swap(var->gen_info.reg_idx, other_var->gen_info.reg_idx);
-            return only_this_reg;
+            return only_this_reg; */
+            save_reg(only_this_reg);
         }
         clear_reg(cur_time, only_this_reg);
         print_asm("mov %s, %s\n", reg_names[only_this_reg][0], reg_names[var->gen_info.reg_idx][0]);
@@ -2892,12 +2917,13 @@ template <typename... Args> FP_REGISTER RegAlloc::load_val_in_fp_reg(size_t cur_
         // TODO: this will bug out when you alloc a reg and then alloc one if only_this_reg and they end up in the same register
         if (auto *other_var = reg_map[only_this_reg].cur_var; other_var && other_var->gen_info.last_use_time >= cur_time) {
             // swap register contents
-            print_asm("pxor %s, %s\n", fp_reg_names[only_this_reg], fp_reg_names[var->gen_info.reg_idx]);
+            /*print_asm("pxor %s, %s\n", fp_reg_names[only_this_reg], fp_reg_names[var->gen_info.reg_idx]);
             print_asm("pxor %s, %s\n", fp_reg_names[var->gen_info.reg_idx], fp_reg_names[only_this_reg]);
             print_asm("pxor %s, %s\n", fp_reg_names[only_this_reg], fp_reg_names[var->gen_info.reg_idx]);
             std::swap(reg_map[only_this_reg], reg_map[var->gen_info.reg_idx]);
             std::swap(var->gen_info.reg_idx, other_var->gen_info.reg_idx);
-            return only_this_reg;
+            return only_this_reg; */
+            save_fp_reg(only_this_reg);
         }
         clear_fp_reg(cur_time, only_this_reg);
         print_asm("movq %s, %s\n", fp_reg_names[only_this_reg], fp_reg_names[var->gen_info.reg_idx]);
