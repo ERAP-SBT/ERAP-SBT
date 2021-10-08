@@ -1155,12 +1155,10 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
     case Instruction::fsqrt: {
         assert(is_float(var->type) && var->type == in1->type);
         const FP_REGISTER in1_reg = load_val_in_fp_reg(cur_time, in1);
-        if (in1->gen_info.last_use_time > cur_time) {
-            save_fp_reg(in1_reg);
-        }
-        print_asm("sqrts%s %s, %s\n", Generator::fp_op_size_from_type(var->type), fp_reg_names[in1_reg], fp_reg_names[in1_reg]);
-        clear_fp_reg(cur_time, in1_reg);
-        set_var_to_fp_reg(cur_time, var, in1_reg);
+        const FP_REGISTER dest_reg = alloc_fp_reg(cur_time);
+        print_asm("sqrts%s %s, %s\n", Generator::fp_op_size_from_type(var->type), fp_reg_names[dest_reg], fp_reg_names[in1_reg]);
+        clear_fp_reg(cur_time, dest_reg);
+        set_var_to_fp_reg(cur_time, var, dest_reg);
         break;
     }
     case Instruction::slt:
