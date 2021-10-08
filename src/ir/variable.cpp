@@ -7,7 +7,6 @@
 
 void SSAVar::set_op(std::unique_ptr<Operation> &&ptr) {
     assert(info.index() == 0);
-    const_evaluable = ptr->const_evaluable;
     info = std::move(ptr);
 }
 
@@ -30,10 +29,6 @@ void SSAVar::print(std::ostream &stream, const IR *ir) const {
     }
 
     stream << " (" << ref_count;
-
-    if (const_evaluable) {
-        stream << ", constant";
-    }
 
     if (info.index() == 1 && std::get<1>(info).binary_relative) {
         stream << ", bin-rel";

@@ -542,9 +542,7 @@ void Generator::compile_vars(const BasicBlock *block) {
         }
 
         assert(var->info.index() != 2);
-        if (var->type == Type::imm) {
-            assert(var->info.index() == 1);
-
+        if (var->info.index() == 1) {
             const auto &info = std::get<SSAVar::ImmInfo>(var->info);
             if (info.binary_relative) {
                 fprintf(out_fd, "lea rax, [binary + %ld]\n", info.val);
@@ -967,14 +965,15 @@ void Generator::compile_rounding_mode(const SSAVar *var) {
 
 void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op, const size_t stack_size) {
     const auto *target = cf_op.target();
-    if (target->inputs.size() != cf_op.target_inputs().size()) {
+    const auto &target_inputs = cf_op.target_inputs();
+    if (target->inputs.size() != target_inputs.size()) {
         std::cout << "target->inputs.size() = " << target->inputs.size() << "\n";
-        std::cout << "cf_op.target_inputs().size() = " << cf_op.target_inputs().size() << "\n";
+        std::cout << "cf_op.target_inputs().size() = " << target_inputs.size() << "\n";
     }
-    assert(target->inputs.size() == cf_op.target_inputs().size());
-    for (size_t i = 0; i < cf_op.target_inputs().size(); ++i) {
+    assert(target->inputs.size() == target_inputs.size());
+    for (size_t i = 0; i < target_inputs.size(); ++i) {
         const auto *target_var = target->inputs[i];
-        const auto &source_var = cf_op.target_inputs()[i];
+        const auto *source_var = target_inputs[i];
 
         assert(target_var->type != Type::imm && target_var->info.index() > 1);
 

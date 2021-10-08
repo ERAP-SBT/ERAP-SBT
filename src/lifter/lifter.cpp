@@ -341,8 +341,8 @@ void Lifter::postprocess(Program *prog) {
     /* TODO: this isn't very nice: make all relative immediates actually relative */
     for (auto &bb : ir->basic_blocks) {
         for (auto &var : bb->variables) {
-            if (std::holds_alternative<SSAVar::ImmInfo>(var->info) && std::get<SSAVar::ImmInfo>(var->info).binary_relative) {
-                std::get<SSAVar::ImmInfo>(var->info).val -= ir->base_addr;
+            if (var->is_immediate() && var->get_immediate().binary_relative) {
+                var->get_immediate().val -= ir->base_addr;
             }
         }
     }

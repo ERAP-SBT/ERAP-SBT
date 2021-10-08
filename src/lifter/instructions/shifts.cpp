@@ -40,6 +40,12 @@ void Lifter::lift_shift(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping,
 
     SSAVar *rs2 = get_from_mapping(bb, mapping, instr.instr.rs2, ip);
 
+    if (rs2->type != op_size) {
+        auto *casted_rs2 = bb->add_var(op_size, ip);
+        casted_rs2->set_op(Operation::new_cast(casted_rs2, rs2));
+        rs2 = casted_rs2;
+    }
+
     // create new variable with the result of the masking
     SSAVar *masked_count_shifts = bb->add_var(op_size, ip);
     std::unique_ptr<Operation> operation = std::make_unique<Operation>(Instruction::_and);

@@ -88,7 +88,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_small) {
         ASSERT_EQ(cfop.type, CFCInstruction::jump) << "The cfop between both basic blocks must be an jump!";
         ASSERT_EQ(cfop.source, first_block) << "The first basic block must be the source of the cfop!";
         ASSERT_EQ(cfop.target(), second_block) << "The second basic block must be the target of the cfop!";
-        ASSERT_EQ(second_block->inputs.size(), cfop.target_inputs().size()) << "The second basic block must have as much inputs as the cfop has target_inputs!";
+        ASSERT_EQ(second_block->inputs.size(), cfop.target_input_count()) << "The second basic block must have as much inputs as the cfop has target_inputs!";
     }
 
     // test for correct variable division
@@ -264,7 +264,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
             SSAVar *var = ptr.get();
 
             // skip statics
-            if (std::holds_alternative<size_t>(var->info)) {
+            if (var->is_static()) {
                 continue;
             }
             ASSERT_NE(std::find(vars_before.begin(), vars_before.end(), var), vars_before.end()) << "The first basic block contains a wrong variable!";
@@ -282,7 +282,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
             SSAVar *var = ptr.get();
 
             // skip statics
-            if (std::holds_alternative<size_t>(var->info)) {
+            if (var->is_static()) {
                 continue;
             }
 
