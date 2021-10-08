@@ -70,7 +70,17 @@ void Lifter::lift_csr_read_write(BasicBlock *bb, const RV64Inst &instr, reg_map 
     } else {
         new_csr = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, Type::i32);
     }
-    write_csr(mapping, new_csr, instr.instr.imm);
+
+    SSAVar *mask = bb->add_var_imm(0xE0, ip);
+    // clear the excpetion flags
+    SSAVar *masked_new_csr = bb->add_var(Type::i32, ip);
+    {
+        auto op = std::make_unique<Operation>(Instruction::_and);
+        op->set_inputs(new_csr, mask);
+        op->set_outputs(masked_new_csr);
+        masked_new_csr->set_op(std::move(op));
+    }
+    write_csr(mapping, masked_new_csr, instr.instr.imm);
 }
 
 void Lifter::lift_csr_read_set(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, bool with_immediate) {
@@ -80,7 +90,7 @@ void Lifter::lift_csr_read_set(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     write_to_mapping(mapping, zero_extend_csr(bb, csr, ip), instr.instr.rd);
 
     // dont't write to the csr if the immediate is zero or the register is x0, in both cases rs1 is zero
-    if (instr.instr.rs1 == 0) {
+    if (instr.instr.rs1 != 0) {
 
         // TODO:
         // Note that if rs1
@@ -91,12 +101,24 @@ void Lifter::lift_csr_read_set(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         SSAVar *rs1 = with_immediate ? bb->add_var_imm(instr.instr.rs1, ip) : get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, Type::i32);
         SSAVar *new_csr = bb->add_var(Type::i32, ip);
 
-        auto op = std::make_unique<Operation>(Instruction::_or);
-        op->lifter_info.in_op_size = Type::i64;
-        op->set_inputs(csr, rs1);
-        op->set_outputs(new_csr);
-        new_csr->set_op(std::move(op));
-        write_csr(mapping, new_csr, instr.instr.imm);
+        {
+            auto op = std::make_unique<Operation>(Instruction::_or);
+            op->lifter_info.in_op_size = Type::i64;
+            op->set_inputs(csr, rs1);
+            op->set_outputs(new_csr);
+            new_csr->set_op(std::move(op));
+        }
+
+        SSAVar *mask = bb->add_var_imm(0xE0, ip);
+        // clear the excpetion flags
+        SSAVar *masked_new_csr = bb->add_var(Type::i32, ip);
+        {
+            auto op = std::make_unique<Operation>(Instruction::_and);
+            op->set_inputs(new_csr, mask);
+            op->set_outputs(masked_new_csr);
+            masked_new_csr->set_op(std::move(op));
+        }
+        write_csr(mapping, masked_new_csr, instr.instr.imm);
     }
 }
 
@@ -107,7 +129,7 @@ void Lifter::lift_csr_read_clear(BasicBlock *bb, const RV64Inst &instr, reg_map 
     write_to_mapping(mapping, zero_extend_csr(bb, csr, ip), instr.instr.rd);
 
     // dont't write to the csr if the immediate is zero or the register is x0, in both cases rs1 is zero
-    if (instr.instr.rs1 == 0) {
+    if (instr.instr.rs1 != 0) {
 
         // TODO:
         // Note that if rs1

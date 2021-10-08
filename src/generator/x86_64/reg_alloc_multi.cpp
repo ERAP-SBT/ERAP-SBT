@@ -28,6 +28,7 @@ std::array<REGISTER, 6> call_reg = {REG_DI, REG_SI, REG_D, REG_C, REG_8, REG_9};
 const char *reg_name(const REGISTER reg, const Type type) {
     const auto &arr = reg_names[reg];
     switch (type) {
+    case Type::imm:
     case Type::i64:
         return arr[0];
     case Type::i32:
