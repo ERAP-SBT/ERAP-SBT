@@ -18,7 +18,7 @@ namespace {
 using std::filesystem::path;
 
 void print_help(bool usage_only);
-void parse_opt_flags(const Args &args, uint32_t &gen_optimizations);
+bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations);
 void dump_elf(const ELF64File *);
 std::optional<path> create_temp_directory();
 bool find_runtime_dependencies(const path &exec_dir, const Args &args, path &out_helper_lib, path &out_linker_script);
@@ -58,7 +58,9 @@ int main(int argc, const char **argv) {
     }
 
     uint32_t gen_optimizations = 0;
-    parse_opt_flags(args, gen_optimizations);
+    if (!parse_opt_flags(args, gen_optimizations)) {
+        return EXIT_FAILURE;
+    }
 
     path elf_path(args.positional[0]);
 
@@ -249,10 +251,10 @@ void print_help(bool usage_only) {
     }
 }
 
-void parse_opt_flags(const Args &args, uint32_t &gen_optimizations) {
+bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations) {
     if (!args.has_argument("optimize")) {
         // TODO: turn on flags by default?
-        return;
+        return true;
     }
     auto val = args.get_argument("optimize");
     while (true) {
@@ -285,6 +287,7 @@ void parse_opt_flags(const Args &args, uint32_t &gen_optimizations) {
             gen_opt_change |= generator::x86_64::Generator::OPT_ARCH_BMI2;
         } else {
             std::cerr << "Warning: Unknown optimization flag: '" << opt_flag << "'\n";
+            return false;
         }
 
         if (disable_flag) {
@@ -298,6 +301,8 @@ void parse_opt_flags(const Args &args, uint32_t &gen_optimizations) {
         }
         val.remove_prefix(comma_pos + 1);
     }
+
+    return true;
 }
 
 void dump_elf(const ELF64File *file) {
