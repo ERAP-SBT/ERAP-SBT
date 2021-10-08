@@ -221,6 +221,8 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
         compile_vars(bb);
 
         prepare_cf_ops(bb);
+
+        max_stack_frame_size = std::max(max_stack_frame_size, stack_map.size());
         {
             auto asm_block = AssembledBlock{};
             asm_block.bb = bb;
@@ -236,7 +238,6 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
         cur_reg_map = nullptr;
         bb->gen_info.compiled = true;
 
-        max_stack_frame_size = std::max(max_stack_frame_size, stack_map.size());
         // TODO: prioritize jumps so we can omit the jmp bX_reg_alloc
         for (const auto &cf_op : bb->control_flow_ops) {
             auto *target = cf_op.target();
