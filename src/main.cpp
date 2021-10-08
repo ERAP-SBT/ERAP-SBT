@@ -18,7 +18,7 @@ namespace {
 using std::filesystem::path;
 
 void print_help(bool usage_only);
-bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations);
+bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &lifter_optimizations);
 void dump_elf(const ELF64File *);
 std::optional<path> create_temp_directory();
 bool find_runtime_dependencies(const path &exec_dir, const Args &args, path &out_helper_lib, path &out_linker_script);
@@ -43,10 +43,6 @@ int main(int argc, const char **argv) {
         ENABLE_DEBUG = args.get_value_as_bool("debug");
     }
 
-    if (args.has_argument("transform-call-ret")) {
-        ENABLE_CALL_RET_TRANSFORM = args.get_value_as_bool("transform-call-ret");
-    }
-
     if (args.has_argument("full-backtracking")) {
         FULL_BACKTRACKING = args.get_value_as_bool("full-backtracking");
     }
@@ -58,7 +54,8 @@ int main(int argc, const char **argv) {
     }
 
     uint32_t gen_optimizations = 0;
-    if (!parse_opt_flags(args, gen_optimizations)) {
+    uint32_t lifter_optimizations = 0;
+    if (!parse_opt_flags(args, gen_optimizations, lifter_optimizations)) {
         return EXIT_FAILURE;
     }
 
@@ -120,7 +117,7 @@ int main(int argc, const char **argv) {
     // support floating points if the flag isn't set or the provided value isn't equal to true
     const bool fp_support = !args.has_argument("disable-fp") || (args.get_argument("disable-fp") != "" && !args.get_value_as_bool("disable-fp"));
 
-    auto lifter = lifter::RV64::Lifter(&ir, fp_support, interpreter_only);
+    auto lifter = lifter::RV64::Lifter(&ir, fp_support, interpreter_only, lifter_optimizations);
     lifter.lift(&prog);
     const auto time_post_lift = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 
@@ -238,9 +235,11 @@ void print_help(bool usage_only) {
         std::cerr << "          - merge_ops:            Merge multiple IR-Operations into a single native op\n";
         std::cerr << "          - unused_statics:       Eliminate unused static-load-stores in the default generator\n";
         std::cerr << "          - bmi2:                 Allow usage of instructions in the BMI2 instruction set extension (shlx/shrx/sarx)\n";
+        std::cerr << "          - no_trans_bbs:         Register Allocation won't emit Translation Blocks (Should only be used with call_ret)\n";
+        std::cerr << "      - lifter:\n";
+        std::cerr << "          - call_ret:             Detect and replace RISC-V `call` and `return` instructions\n";
         std::cerr << "    --output:                 Set the output file name (by default, the input file path suffixed with `.translated`)\n";
         std::cerr << "    --print-ir:               Prints a textual representation of the IR (if no file is specified, prints to standard out)\n";
-        std::cerr << "    --transform-call-ret:     Detect and replace RISC-V `call` and `return` instructions\n\n";
         std::cerr << "    --helper-path:            Set the path to the runtime helper library\n";
         std::cerr << "    --linkerscript-path:      Set the path to the linker script\n";
         std::cerr << "                              (The above two are only required if the translator can't find these by itself)\n\n";
@@ -251,7 +250,7 @@ void print_help(bool usage_only) {
     }
 }
 
-bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations) {
+bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &lifter_optimizations) {
     if (!args.has_argument("optimize")) {
         // TODO: turn on flags by default?
         return true;
@@ -273,10 +272,13 @@ bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations) {
             opt_flag.remove_prefix(1);
         }
         uint32_t gen_opt_change = 0;
+        uint32_t lifter_opt_change = 0;
         if (opt_flag == "all") {
             gen_opt_change = 0xFFFFFFFF;
         } else if (opt_flag == "generator") {
             gen_opt_change = 0xFFFFFFFF;
+        } else if (opt_flag == "lifter") {
+            lifter_opt_change = 0xFFFFFFFF;
         } else if (opt_flag == "reg_alloc") {
             gen_opt_change |= generator::x86_64::Generator::OPT_MBRA;
         } else if (opt_flag == "unused_statics") {
@@ -285,6 +287,10 @@ bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations) {
             gen_opt_change |= generator::x86_64::Generator::OPT_MERGE_OP;
         } else if (opt_flag == "bmi2") {
             gen_opt_change |= generator::x86_64::Generator::OPT_ARCH_BMI2;
+        } else if (opt_flag == "no_trans_bbs") {
+            gen_opt_change = generator::x86_64::Generator::OPT_NO_TRANS_BBS;
+        } else if (opt_flag == "call_ret") {
+            lifter_opt_change = lifter::RV64::Lifter::OPT_CALL_RET;
         } else {
             std::cerr << "Warning: Unknown optimization flag: '" << opt_flag << "'\n";
             return false;
@@ -292,8 +298,10 @@ bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations) {
 
         if (disable_flag) {
             gen_optimizations &= ~gen_opt_change;
+            lifter_optimizations &= ~lifter_opt_change;
         } else {
             gen_optimizations |= gen_opt_change;
+            lifter_optimizations |= lifter_opt_change;
         }
 
         if (comma_pos == std::string::npos) {

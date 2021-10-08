@@ -13,6 +13,9 @@ void Lifter::process_ijumps(std::vector<CfOp *> &unprocessed_ijumps, ELF64File *
     std::vector<std::pair<uint64_t, BasicBlock *>> to_split;
 
     for (auto jump : unprocessed_ijumps) {
+        if (!std::holds_alternative<CfOp::IJumpInfo>(jump->info)) {
+            continue;
+        }
         auto &jump_info = std::get<CfOp::IJumpInfo>(jump->info);
 
         auto addrs = backtrace_jmp_addrs(jump, jump->source);

@@ -14,6 +14,8 @@ constexpr size_t COUNT_STATIC_FP_VARS = 33;
 
 class Lifter {
   public:
+    enum Optimization : uint32_t { OPT_CALL_RET = 1 << 0 };
+
     IR *ir;
     std::vector<bool> needs_bb_start;
 
@@ -26,9 +28,11 @@ class Lifter {
 
     const bool interpreter_only;
 
-    explicit Lifter(IR *ir, bool floating_point_support = false, bool interpreter_only = false)
+    const uint32_t optimizations;
+
+    explicit Lifter(IR *ir, bool floating_point_support = false, bool interpreter_only = false, uint32_t optimizations = 0)
         : ir(ir), dummy(), floating_point_support(floating_point_support), count_used_static_vars(COUNT_STATIC_VARS + (floating_point_support ? COUNT_STATIC_FP_VARS : 0)),
-          interpreter_only(interpreter_only) {}
+          interpreter_only(interpreter_only), optimizations(optimizations) {}
 
     void lift(Program *prog);
 

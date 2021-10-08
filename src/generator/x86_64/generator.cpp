@@ -162,6 +162,7 @@ void Generator::compile() {
     fprintf(out_fd, ".size stack_space,$-stack_space\n");
 
     fprintf(out_fd, "init_stack_ptr: .quad 0\n");
+    fprintf(out_fd, "init_ret_stack_ptr: .quad 0\n");
 
     if (interpreter_only) {
         compile_interpreter_only_entry();
@@ -194,7 +195,7 @@ void Generator::compile_ijump_lookup() {
     for (uint64_t i = ir->virt_bb_start_addr; i < ir->virt_bb_end_addr; i += 2) {
         const auto bb = ir->bb_at_addr(i);
         fprintf(out_fd, "/* 0x%#.8lx: */", i);
-        if (bb != nullptr && bb->virt_start_addr == i) {
+        if (bb != nullptr && bb->virt_start_addr == i && (!(optimizations & OPT_MBRA) || !(optimizations & OPT_NO_TRANS_BBS) || RegAlloc::is_block_jumpable(bb))) {
             fprintf(out_fd, ".8byte b%zu\n", bb->id);
         } else {
             fprintf(out_fd, ".8byte 0x0\n");
@@ -285,8 +286,7 @@ void Generator::compile_block(const BasicBlock *block) {
             fprintf(out_fd, "jmp b%zu\n", std::get<CfOp::JumpInfo>(cf_op.info).target->id);
             break;
         case CFCInstruction::_return:
-            compile_ret_args(block, cf_op, stack_size);
-            fprintf(out_fd, "# control flow\nret\n");
+            compile_ret(block, cf_op, stack_size);
             break;
         case CFCInstruction::cjump:
             compile_cjump(block, cf_op, i, stack_size);
@@ -322,8 +322,21 @@ void Generator::compile_call(const BasicBlock *block, const CfOp &op, const size
     // Store statics for call
     compile_cf_args(block, op, stack_size);
 
+    // prevent overflow
+    fprintf(out_fd, "cmp rsp, stack_space + 524288\n"); // max depth ~65k
+    fprintf(out_fd, "cmovb rsp, [init_ret_stack_ptr]\n");
+
+    // return address
+    const auto &info = std::get<CfOp::CallInfo>(op.info);
+    if (info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
+        fprintf(out_fd, "push %lu\n", info.continuation_block->virt_start_addr);
+    } else {
+        fprintf(out_fd, "mov rax, %lu\n", info.continuation_block->virt_start_addr);
+        fprintf(out_fd, "push rax\n");
+    }
+
     fprintf(out_fd, "# control flow\n");
-    fprintf(out_fd, "call b%zu\n", std::get<CfOp::CallInfo>(op.info).target->id);
+    fprintf(out_fd, "call b%zu\nadd rsp, 8\n", std::get<CfOp::CallInfo>(op.info).target->id);
 
     assert(std::get<CfOp::CallInfo>(op.info).continuation_block != nullptr);
     fprintf(out_fd, "jmp b%zu\n", std::get<CfOp::CallInfo>(op.info).continuation_block->id);
@@ -362,8 +375,6 @@ void Generator::compile_icall(const BasicBlock *block, const CfOp &op, const siz
     fprintf(out_fd, "xor rax, rax\n");
     fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", rax_from_type(op.in_vars[0]->type), index_for_var(block, op.in_vars[0]));
 
-    err_msgs.emplace_back(ErrType::unresolved_ijump, block);
-
     fprintf(out_fd, "sub rax, %zu\n", ir->virt_bb_start_addr);
 
     fprintf(out_fd, "cmp rax, ijump_lookup_end - ijump_lookup\n");
@@ -374,14 +385,22 @@ void Generator::compile_icall(const BasicBlock *block, const CfOp &op, const siz
     fprintf(out_fd, "jne 1f\n");
 
     fprintf(out_fd, "0:\n");
-    fprintf(out_fd, "lea rdi, [rip + err_unresolved_ijump_b%zu]\n", block->id);
-    fprintf(out_fd, "jmp panic\n");
+    fprintf(out_fd, "lea rdi, [rax + %ld]\n", ir->virt_bb_start_addr);
+    fprintf(out_fd, "jmp unresolved_ijump\n");
 
     fprintf(out_fd, "1:\n");
+    // return addr
+    const auto &info = std::get<CfOp::ICallInfo>(op.info);
+    if (info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
+        fprintf(out_fd, "push %lu\n", info.continuation_block->virt_start_addr);
+    } else {
+        fprintf(out_fd, "mov rax, %lu\n", info.continuation_block->virt_start_addr);
+        fprintf(out_fd, "push rax\n");
+    }
     fprintf(out_fd, "call rdi\n");
 
     fprintf(out_fd, "# destroy stack space\n");
-    fprintf(out_fd, "add rsp, %zu\n", stack_size);
+    fprintf(out_fd, "add rsp, %zu\n", stack_size + 8);
 
     assert(std::get<CfOp::ICallInfo>(op.info).continuation_block != nullptr);
     fprintf(out_fd, "jmp b%zu\n", std::get<CfOp::ICallInfo>(op.info).continuation_block->id);
@@ -428,8 +447,6 @@ void Generator::compile_ijump(const BasicBlock *block, const CfOp &op, const siz
     fprintf(out_fd, "# destroy stack space\n");
     fprintf(out_fd, "add rsp, %zu\n", stack_size);
 
-    err_msgs.emplace_back(ErrType::unresolved_ijump, block);
-
     /* we trust the lifter that the ijump destination is already aligned */
 
     /* turn absolute address into relative offset from start of first basicblock */
@@ -445,9 +462,7 @@ void Generator::compile_ijump(const BasicBlock *block, const CfOp &op, const siz
     fprintf(out_fd, "0:\n");
 
     /* Slow-path: unresolved IJump, call interpreter */
-    fprintf(out_fd, "add rax, %zu\n", ir->virt_bb_start_addr);
-    fprintf(out_fd, "mov rdi, rax\n");
-    fprintf(out_fd, "lea rsi, [rip + err_unresolved_ijump_b%zu]\n", block->id);
+    fprintf(out_fd, "lea rdi, [rax + %zu]\n", ir->virt_bb_start_addr);
     fprintf(out_fd, "jmp unresolved_ijump\n");
 }
 
@@ -460,6 +475,8 @@ void Generator::compile_entry() {
     fprintf(out_fd, "mov rsi, offset stack_space_end\n");
     fprintf(out_fd, "call copy_stack\n");
     fprintf(out_fd, "mov [init_stack_ptr], rax\n");
+    fprintf(out_fd, "push 0\npush 0\n");
+    fprintf(out_fd, "mov [init_ret_stack_ptr], rsp\n");
     fprintf(out_fd, "jmp b%zu\n", ir->entry_block);
     fprintf(out_fd, ".type _start,STT_FUNC\n");
     fprintf(out_fd, ".size _start,$-_start\n");
@@ -472,9 +489,6 @@ void Generator::compile_err_msgs() {
         switch (type) {
         case ErrType::unreachable:
             fprintf(out_fd, "err_unreachable_b%zu: .ascii \"Reached unreachable code in block %zu\\n\\0\"\n", block->id, block->id);
-            break;
-        case ErrType::unresolved_ijump:
-            fprintf(out_fd, "err_unresolved_ijump_b%zu: .ascii \"Reached unresolved indirect jump in block%zu\\n\\0\"\n", block->id, block->id);
             break;
         }
     }
@@ -1005,7 +1019,7 @@ void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op, cons
     fprintf(out_fd, "add rsp, %zu\n", stack_size);
 }
 
-void Generator::compile_ret_args(const BasicBlock *block, const CfOp &op, const size_t stack_size) {
+void Generator::compile_ret(const BasicBlock *block, const CfOp &op, const size_t stack_size) {
     fprintf(out_fd, "# Ret Mapping\n");
 
     assert(op.info.index() == 2);
@@ -1030,9 +1044,36 @@ void Generator::compile_ret_args(const BasicBlock *block, const CfOp &op, const 
         fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
     }
 
+    const auto ret_idx = index_for_var(block, op.in_vars[0]);
+    fprintf(out_fd, "mov rax, [rsp + 8 * %zu]\n", ret_idx);
+
     // destroy stack space
     fprintf(out_fd, "# destroy stack space\n");
     fprintf(out_fd, "add rsp, %zu\n", stack_size);
+
+    fprintf(out_fd, "cmp [rsp + 8], rax\n");
+    fprintf(out_fd, "jnz 0f\n");
+    fprintf(out_fd, "ret\n");
+    fprintf(out_fd, "0:\n");
+    // reset ret stack
+    fprintf(out_fd, "mov rsp, [init_ret_stack_ptr]\n");
+
+    // do ijump
+    /* turn absolute address into relative offset from start of first basicblock */
+    fprintf(out_fd, "sub rax, %zu\n", ir->virt_bb_start_addr);
+
+    fprintf(out_fd, "cmp rax, ijump_lookup_end - ijump_lookup\n");
+    fprintf(out_fd, "ja 0f\n");
+    fprintf(out_fd, "lea rdi, [rip + ijump_lookup]\n");
+    fprintf(out_fd, "mov rdi, [rdi + 4 * rax]\n");
+    fprintf(out_fd, "test rdi, rdi\n");
+    fprintf(out_fd, "je 0f\n");
+    fprintf(out_fd, "jmp rdi\n");
+    fprintf(out_fd, "0:\n");
+
+    /* Slow-path: unresolved IJump, call interpreter */
+    fprintf(out_fd, "lea rdi, [rax + %zu]\n", ir->virt_bb_start_addr);
+    fprintf(out_fd, "jmp unresolved_ijump\n");
 }
 
 void Generator::compile_cjump(const BasicBlock *block, const CfOp &cf_op, const size_t cond_idx, const size_t stack_size) {

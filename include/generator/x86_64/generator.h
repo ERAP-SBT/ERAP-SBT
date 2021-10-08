@@ -67,12 +67,12 @@ struct RegAlloc {
     RegAlloc(Generator *gen) : gen(gen) {}
 
     void compile_blocks();
-    void compile_block(BasicBlock *bb, bool first_block, size_t &max_stack_frame_size);
+    void compile_block(BasicBlock *bb, bool first_block, size_t &max_stack_frame_size, std::vector<BasicBlock *> &compiled_blocks);
     void compile_vars(BasicBlock *bb);
     bool merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg);
     void prepare_cf_ops(BasicBlock *bb);
-    void compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map, size_t max_stack_frame_size);
-    void write_assembled_blocks(size_t max_stack_frame_size);
+    void compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map, size_t max_stack_frame_size, BasicBlock *next_bb, std::vector<BasicBlock *> &compiled_blocks);
+    void write_assembled_blocks(size_t max_stack_frame_size, std::vector<BasicBlock *> &compiled_blocks);
 
     void generate_translation_block(BasicBlock *bb);
     void generate_input_map(BasicBlock *bb);
@@ -111,12 +111,26 @@ struct RegAlloc {
     void clear_after_alloc_time(size_t alloc_time);
 
     // TODO: this thing is only needed because smth in the lifter breaks predecessor/successor lists
-    bool is_block_top_level(BasicBlock *bb);
+    static bool is_block_top_level(BasicBlock *bb);
+
+    static bool is_block_jumpable(BasicBlock *bb) {
+        if (is_block_top_level(bb) || bb->gen_info.call_cont_block) {
+            return true;
+        }
+        assert(bb->gen_info.input_map_setup);
+        for (auto &input : bb->gen_info.input_map) {
+            if (input.location != BasicBlock::GeneratorInfo::InputInfo::STATIC) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 };
 
 struct Generator {
-    enum class ErrType { unreachable, unresolved_ijump };
-    enum Optimization : uint32_t { OPT_UNUSED_STATIC = 1 << 0, OPT_MBRA = 1 << 1, OPT_MERGE_OP = 1 << 2, OPT_ARCH_BMI2 = 1 << 3 };
+    enum class ErrType { unreachable };
+    enum Optimization : uint32_t { OPT_UNUSED_STATIC = 1 << 0, OPT_MBRA = 1 << 1, OPT_MERGE_OP = 1 << 2, OPT_ARCH_BMI2 = 1 << 3, OPT_NO_TRANS_BBS = 1 << 4 };
 
     // Optimization Warnings:
     // OPT_UNUSED_STATIC:
@@ -157,7 +171,7 @@ struct Generator {
     void compile_vars(const BasicBlock *block);
     void compile_rounding_mode(const SSAVar *var);
     void compile_cf_args(const BasicBlock *block, const CfOp &op, size_t stack_size);
-    void compile_ret_args(const BasicBlock *block, const CfOp &op, size_t stack_size);
+    void compile_ret(const BasicBlock *block, const CfOp &op, size_t stack_size);
     void compile_cjump(const BasicBlock *block, const CfOp &op, size_t cond_idx, size_t stack_size);
     void compile_syscall(const BasicBlock *block, const CfOp &op, size_t stack_size);
     void compile_continuation_args(const BasicBlock *block, const std::vector<std::pair<RefPtr<SSAVar>, size_t>> &mapping);
