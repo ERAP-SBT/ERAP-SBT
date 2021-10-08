@@ -78,6 +78,7 @@ Type choose_type(Type typ1, Type typ2) {
 
 void RegAlloc::compile_blocks() {
 
+    auto compiled_blocks = std::vector<BasicBlock *>{};
     for (const auto &bb : gen->ir->basic_blocks) {
         if (bb->gen_info.compiled) {
             continue;
@@ -109,7 +110,8 @@ void RegAlloc::compile_blocks() {
         }
 
         size_t max_stack_frame = 0;
-        compile_block(bb.get(), true, max_stack_frame);
+        compiled_blocks.clear();
+        compile_block(bb.get(), true, max_stack_frame, compiled_blocks);
 
         translation_blocks.clear();
         asm_buf.clear();
@@ -145,8 +147,9 @@ void RegAlloc::compile_blocks() {
         }
 
         size_t max_stack_frame = 0;
+        compiled_blocks.clear();
         bb->gen_info.manual_top_level = true;
-        compile_block(bb.get(), true, max_stack_frame);
+        compile_block(bb.get(), true, max_stack_frame, compiled_blocks);
 
         translation_blocks.clear();
         asm_buf.clear();
@@ -158,7 +161,7 @@ constexpr size_t BB_OLD_COMPILE_ID_TIL = static_cast<size_t>(-1);
 // only merge bblocks with an id <= BB_MERGE_TIL_ID, otherwise mark them as a top-level block and pass inputs through statics
 constexpr size_t BB_MERGE_TIL_ID = static_cast<size_t>(-1);
 
-void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max_stack_frame_size) {
+void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max_stack_frame_size, std::vector<BasicBlock *> &compiled_blocks) {
     RegMap reg_map = {};
     StackMap stack_map = {};
     cur_bb = bb;
@@ -236,24 +239,25 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
         cur_stack_map = nullptr;
         cur_reg_map = nullptr;
         bb->gen_info.compiled = true;
+        compiled_blocks.push_back(bb);
 
         // TODO: prioritize jumps so we can omit the jmp bX_reg_alloc
         for (const auto &cf_op : bb->control_flow_ops) {
             auto *target = cf_op.target();
             if (target && !target->gen_info.compiled && target->id <= BB_MERGE_TIL_ID && !is_block_top_level(target) && !target->gen_info.call_cont_block) {
-                compile_block(target, false, max_stack_frame_size);
+                compile_block(target, false, max_stack_frame_size, compiled_blocks);
             }
             if (cf_op.type == CFCInstruction::call) {
                 // sometimes there are cases where a block is a call target and continuation block,
                 // e.g. with noreturn calls the next block will be recognized as a continuation block
                 auto *cont_block = std::get<CfOp::CallInfo>(cf_op.info).continuation_block;
                 if (!cont_block->gen_info.compiled && !is_block_top_level(cont_block)) {
-                    compile_block(cont_block, false, max_stack_frame_size);
+                    compile_block(cont_block, false, max_stack_frame_size, compiled_blocks);
                 }
             } else if (cf_op.type == CFCInstruction::icall) {
                 auto *cont_block = std::get<CfOp::ICallInfo>(cf_op.info).continuation_block;
                 if (!cont_block->gen_info.compiled && !is_block_top_level(cont_block)) {
-                    compile_block(cont_block, false, max_stack_frame_size);
+                    compile_block(cont_block, false, max_stack_frame_size, compiled_blocks);
                 }
             }
         }
@@ -263,11 +267,14 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
             max_stack_frame_size += gen->ir->statics.size();
             // align to 16 bytes
             max_stack_frame_size = (((max_stack_frame_size * 8) + 15) & 0xFFFFFFFF'FFFFFFF0);
+            for (auto *bb : compiled_blocks) {
+                bb->gen_info.max_stack_size = max_stack_frame_size;
+            }
 
             fprintf(gen->out_fd, "b%zu:\nsub rsp, %zu\n", bb->id, max_stack_frame_size);
             fprintf(gen->out_fd, "# MBRA\n"); // multi-block register allocation
             fprintf(gen->out_fd, "# Virt Start: %#lx\n# Virt End:  %#lx\n", bb->virt_start_addr, bb->virt_end_addr);
-            write_assembled_blocks(max_stack_frame_size);
+            write_assembled_blocks(max_stack_frame_size, compiled_blocks);
 
             fprintf(gen->out_fd, "\n# Translation Blocks\n");
             for (const auto &pair : translation_blocks) {
@@ -1173,7 +1180,7 @@ void RegAlloc::prepare_cf_ops(BasicBlock *bb) {
     }
 }
 
-void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map, size_t max_stack_frame_size, BasicBlock *next_bb) {
+void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map, size_t max_stack_frame_size, BasicBlock *next_bb, std::vector<BasicBlock *> &compiled_blocks) {
     // TODO: when there is one cfop and it's a jump we can already omit the jmp bX_reg_alloc if the block isn't compiled yet
     // since it will get compiled straight after
 
@@ -1224,10 +1231,10 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
                 gen_infos.emplace_back(var->gen_info);
             }
 
-            std::swap(cjump_asm, asm_buf);
+            /*std::swap(cjump_asm, asm_buf);
             write_target_inputs(cf_op.target(), cur_time, std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs);
             std::swap(cjump_asm, asm_buf);
-            if (!target_top_level && cjump_asm.empty()) {
+            if (!target_top_level && cjump_asm.empty() && std::find(compiled_blocks.begin(), compiled_blocks.end(), cf_op.target()) != compiled_blocks.end()) {
                 // generate a direct jump
                 switch (std::get<CfOp::CJumpInfo>(cf_op.info).type) {
                 case CfOp::CJumpInfo::CJumpType::eq:
@@ -1251,7 +1258,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
                 }
                 print_asm("b%zu_reg_alloc\n", cf_op.target()->id);
                 continue;
-            }
+            }*/
 
             switch (std::get<CfOp::CJumpInfo>(cf_op.info).type) {
             case CfOp::CJumpInfo::CJumpType::eq:
@@ -1279,26 +1286,120 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
         switch (cf_op.type) {
         case CFCInstruction::jump: {
             auto *target = std::get<CfOp::JumpInfo>(cf_op.info).target;
-            write_target_inputs(target, cur_time, std::get<CfOp::JumpInfo>(cf_op.info).target_inputs);
+            const auto out_of_group = std::find(compiled_blocks.begin(), compiled_blocks.end(), target) == compiled_blocks.end();
+            /*if (out_of_group && !target_top_level && target->gen_info.max_stack_size != max_stack_frame_size) {
+                print_asm("# adjust stack space\n");
+                if (target->gen_info.max_stack_size > max_stack_frame_size) {
+                    const size_t delta = target->gen_info.max_stack_size - max_stack_frame_size;
+                    print_asm("sub rsp, %zu\n", delta);
+                    for (auto& input : std::get<CfOp::JumpInfo>(cf_op.info).target_inputs) {
+                        if (input->gen_info.saved_in_stack) {
+                            input->gen_info.stack_slot += delta / 8;
+                        }
+                    }
+                    write_target_inputs(target, cur_time, std::get<CfOp::JumpInfo>(cf_op.info).target_inputs);
+                    for (auto& input : std::get<CfOp::JumpInfo>(cf_op.info).target_inputs) {
+                        if (input->gen_info.saved_in_stack) {
+                            input->gen_info.stack_slot -= delta / 8;
+                        }
+                    }
+                } else {
+                    const size_t delta = max_stack_frame_size - target->gen_info.max_stack_size;
+                    for (auto& input : target->gen_info.input_map) {
+                        if (input.location == BasicBlock::GeneratorInfo::InputInfo::STACK) {
+                            input.stack_slot += delta / 8;
+                        }
+                    }
+                    write_target_inputs(target, cur_time, std::get<CfOp::JumpInfo>(cf_op.info).target_inputs);
+                    for (auto& input : target->gen_info.input_map) {
+                        if (input.location == BasicBlock::GeneratorInfo::InputInfo::STACK) {
+                            input.stack_slot -= delta / 8;
+                        }
+                    }
+                    print_asm("add rsp, %zu\n", delta);
+                }
+            } else {
+                write_target_inputs(target, cur_time, std::get<CfOp::JumpInfo>(cf_op.info).target_inputs);
+            }*/
+            if (out_of_group && !target_top_level) {
+                auto static_mapping = std::vector<std::pair<RefPtr<SSAVar>, size_t>>{};
+                for (size_t i = 0; i < target->inputs.size(); ++i) {
+                    static_mapping.emplace_back(std::get<CfOp::JumpInfo>(cf_op.info).target_inputs[i], std::get<size_t>(target->inputs[i]->info));
+                }
+                write_static_mapping(target, cur_time, static_mapping);
+            } else {
+                write_target_inputs(target, cur_time, std::get<CfOp::JumpInfo>(cf_op.info).target_inputs);
+            }
             if (target_top_level) {
                 print_asm("# destroy stack space\n");
                 print_asm("add rsp, %zu\n", max_stack_frame_size);
                 print_asm("jmp b%zu\n", target->id);
-            } else {
+            } else if (!out_of_group) {
                 if (cf_idx != bb->control_flow_ops.size() - 1 || target != next_bb) {
                     print_asm("jmp b%zu_reg_alloc\n", target->id);
                 }
+            } else {
+                print_asm("add rsp, %zu\n", max_stack_frame_size);
+                print_asm("jmp b%zu\n", target->id);
             }
             break;
         }
         case CFCInstruction::cjump: {
-            asm_buf += cjump_asm;
+            auto *target = std::get<CfOp::CJumpInfo>(cf_op.info).target;
+            // asm_buf += cjump_asm;
+            const auto out_of_group = std::find(compiled_blocks.begin(), compiled_blocks.end(), target) == compiled_blocks.end();
+            /*if (out_of_group && !target_top_level && target->gen_info.max_stack_size != max_stack_frame_size) {
+                print_asm("# adjust stack space\n");
+                if (target->gen_info.max_stack_size > max_stack_frame_size) {
+                    const size_t delta = target->gen_info.max_stack_size - max_stack_frame_size;
+                    print_asm("sub rsp, %zu\n", delta);
+                    for (auto& input : std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs) {
+                        if (input->gen_info.saved_in_stack) {
+                            input->gen_info.stack_slot += delta / 8;
+                        }
+                    }
+                    write_target_inputs(target, cur_time, std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs);
+                    for (auto& input : std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs) {
+                        if (input->gen_info.saved_in_stack) {
+                            input->gen_info.stack_slot -= delta / 8;
+                        }
+                    }
+                } else {
+                    const size_t delta = max_stack_frame_size - target->gen_info.max_stack_size;
+                    for (auto& input : target->gen_info.input_map) {
+                        if (input.location == BasicBlock::GeneratorInfo::InputInfo::STACK) {
+                            input.stack_slot += delta / 8;
+                        }
+                    }
+                    write_target_inputs(target, cur_time, std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs);
+                    for (auto& input : target->gen_info.input_map) {
+                        if (input.location == BasicBlock::GeneratorInfo::InputInfo::STACK) {
+                            input.stack_slot -= delta / 8;
+                        }
+                    }
+                    print_asm("add rsp, %zu\n", delta);
+                }
+            } else {
+                write_target_inputs(target, cur_time, std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs);
+            }*/
+            if (out_of_group && !target_top_level) {
+                auto static_mapping = std::vector<std::pair<RefPtr<SSAVar>, size_t>>{};
+                for (size_t i = 0; i < target->inputs.size(); ++i) {
+                    static_mapping.emplace_back(std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs[i], std::get<size_t>(target->inputs[i]->info));
+                }
+                write_static_mapping(target, cur_time, static_mapping);
+            } else {
+                write_target_inputs(target, cur_time, std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs);
+            }
             if (target_top_level) {
                 print_asm("# destroy stack space\n");
                 print_asm("add rsp, %zu\n", max_stack_frame_size);
                 print_asm("jmp b%zu\n", cf_op.target()->id);
-            } else {
+            } else if (!out_of_group) {
                 print_asm("jmp b%zu_reg_alloc\n", cf_op.target()->id);
+            } else {
+                print_asm("add rsp, %zu\n", max_stack_frame_size);
+                print_asm("jmp b%zu\n", target->id);
             }
             break;
         }
@@ -1500,7 +1601,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
     }
 }
 
-void RegAlloc::write_assembled_blocks(size_t max_stack_frame_size) {
+void RegAlloc::write_assembled_blocks(size_t max_stack_frame_size, std::vector<BasicBlock *> &compiled_blocks) {
     for (size_t i = 0; i < assembled_blocks.size(); ++i) {
         auto &block = assembled_blocks[i];
 
@@ -1510,7 +1611,7 @@ void RegAlloc::write_assembled_blocks(size_t max_stack_frame_size) {
         cur_reg_map = &block.reg_map;
         cur_stack_map = &block.stack_map;
         auto *next_bb = (i + 1 >= assembled_blocks.size()) ? nullptr : assembled_blocks[i + 1].bb;
-        compile_cf_ops(block.bb, block.reg_map, block.stack_map, max_stack_frame_size, next_bb);
+        compile_cf_ops(block.bb, block.reg_map, block.stack_map, max_stack_frame_size, next_bb, compiled_blocks);
         fprintf(gen->out_fd, "%s\n", asm_buf.c_str());
     }
     cur_bb = nullptr;
