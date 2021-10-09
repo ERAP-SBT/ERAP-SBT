@@ -222,10 +222,10 @@ extern "C" uint8_t *copy_stack(uint8_t *stack, uint8_t *out_stack) {
      * is supported and can be used by the interpreter.
      */
     {
-        uint64_t unused, ecx;
-        __cpuid(0, unused, unused, ecx, unused);
-        (void)unused;
-        have_fma = ecx & bit_FMA;
+        unsigned int unused, ecx;
+        if (__get_cpuid(1, &unused, &unused, &ecx, &unused) == 1) {
+            have_fma = ecx & bit_FMA;
+        }
     }
 
     /*
