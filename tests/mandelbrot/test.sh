@@ -27,7 +27,8 @@ mkdir build_rv64
 
 set -x
 
-gcc -g -static -o build_amd64/mandelbrot mandelbrot.c  -Wall -Wextra -O3
+# -march=native: generate fma3 instructions if supported
+gcc -march=native -g -static -o build_amd64/mandelbrot mandelbrot.c  -Wall -Wextra -O3
 $1 -g -static -o build_rv64/mandelbrot mandelbrot.c -Wall -Wextra -O3
 
 { set +x; } 2>/dev/null
@@ -37,7 +38,7 @@ cd build_rv64
 
 set -x
 
-../../../build/src/translate --debug=false --output=translated mandelbrot 
+../../../build/src/translate --debug=false --output=translated mandelbrot
 ../../../build/src/translate --debug=false --output=interpreter mandelbrot --interpreter-only
 
 { set +x; } 2>/dev/null

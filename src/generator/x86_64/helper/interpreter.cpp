@@ -961,9 +961,11 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
             conv1.d32 = static_cast<uint32_t>(register_file[instr.rs1 + START_FP_STATICS]);
             conv2.d32 = static_cast<uint32_t>(register_file[instr.rs2 + START_FP_STATICS]);
             conv3.d32 = static_cast<uint32_t>(register_file[instr.rs3 + START_FP_STATICS]);
-            // conv1.f32 = operation(conv1.f32, conv2.f32, conv3.f32);
-            __asm__ __volatile__("vfmadd213ss %2, %1, %0" : "+x"(conv1.f32) : "x"(conv2.f32), "x"(conv3.f32));
-            //__m128 res = _mm_fmadd_ss(conv1.d32, conv2.d32, conv3.d32);
+            if (have_fma) {
+                __asm__ __volatile__("vfmadd213ss %2, %1, %0" : "+x"(conv1.f32) : "x"(conv2.f32), "x"(conv3.f32));
+            } else {
+                conv1.f32 = conv1.f32 * conv2.f32 + conv3.f32;
+            }
             register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>(conv1.d32);
             break;
         }
@@ -975,9 +977,11 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
             conv1.d32 = static_cast<uint32_t>(register_file[instr.rs1 + START_FP_STATICS]);
             conv2.d32 = static_cast<uint32_t>(register_file[instr.rs2 + START_FP_STATICS]);
             conv3.d32 = static_cast<uint32_t>(register_file[instr.rs3 + START_FP_STATICS]);
-            // conv1.f32 = operation(conv1.f32, conv2.f32, conv3.f32);
-            __asm__ __volatile__("vfmsub213ss %2, %1, %0" : "+x"(conv1.f32) : "x"(conv2.f32), "x"(conv3.f32));
-            //__m128 res = _mm_fmadd_ss(conv1.d32, conv2.d32, conv3.d32);
+            if (have_fma) {
+                __asm__ __volatile__("vfmsub213ss %2, %1, %0" : "+x"(conv1.f32) : "x"(conv2.f32), "x"(conv3.f32));
+            } else {
+                conv1.f32 = conv1.f32 * conv2.f32 - conv3.f32;
+            }
             register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>(conv1.d32);
             break;
         }
@@ -989,9 +993,11 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
             conv1.d32 = static_cast<uint32_t>(register_file[instr.rs1 + START_FP_STATICS]);
             conv2.d32 = static_cast<uint32_t>(register_file[instr.rs2 + START_FP_STATICS]);
             conv3.d32 = static_cast<uint32_t>(register_file[instr.rs3 + START_FP_STATICS]);
-            // conv1.f32 = operation(conv1.f32, conv2.f32, conv3.f32);
-            __asm__ __volatile__("vfnmsub213ss %2, %1, %0" : "+x"(conv1.f32) : "x"(conv2.f32), "x"(conv3.f32));
-            //__m128 res = _mm_fmadd_ss(conv1.d32, conv2.d32, conv3.d32);
+            if (have_fma) {
+                __asm__ __volatile__("vfnmsub213ss %2, %1, %0" : "+x"(conv1.f32) : "x"(conv2.f32), "x"(conv3.f32));
+            } else {
+                conv1.f32 = -(conv1.f32 * conv2.f32 + conv3.f32);
+            }
             register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>(conv1.d32);
             break;
         }
@@ -1003,9 +1009,11 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
             conv1.d32 = static_cast<uint32_t>(register_file[instr.rs1 + START_FP_STATICS]);
             conv2.d32 = static_cast<uint32_t>(register_file[instr.rs2 + START_FP_STATICS]);
             conv3.d32 = static_cast<uint32_t>(register_file[instr.rs3 + START_FP_STATICS]);
-            // conv1.f32 = operation(conv1.f32, conv2.f32, conv3.f32);
-            __asm__ __volatile__("vfnmadd213ss %2, %1, %0" : "+x"(conv1.f32) : "x"(conv2.f32), "x"(conv3.f32));
-            //__m128 res = _mm_fmadd_ss(conv1.d32, conv2.d32, conv3.d32);
+            if (have_fma) {
+                __asm__ __volatile__("vfnmadd213ss %2, %1, %0" : "+x"(conv1.f32) : "x"(conv2.f32), "x"(conv3.f32));
+            } else {
+                conv1.f32 = (-conv1.f32) * conv2.f32 + conv3.f32;
+            }
             register_file[instr.rd + START_FP_STATICS] = static_cast<uint64_t>(conv1.d32);
             break;
         }
@@ -1018,7 +1026,11 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
             conv1.d64 = register_file[instr.rs1 + START_FP_STATICS];
             conv2.d64 = register_file[instr.rs2 + START_FP_STATICS];
             conv3.d64 = register_file[instr.rs3 + START_FP_STATICS];
-            __asm__ __volatile__("vfmadd213sd %2, %1, %0" : "+x"(conv1.f64) : "x"(conv2.f64), "x"(conv3.f64));
+            if (have_fma) {
+                __asm__ __volatile__("vfmadd213sd %2, %1, %0" : "+x"(conv1.f64) : "x"(conv2.f64), "x"(conv3.f64));
+            } else {
+                conv1.f64 = conv1.f64 * conv2.f64 + conv3.f64;
+            }
             register_file[instr.rd + START_FP_STATICS] = conv1.d64;
             break;
         }
@@ -1030,7 +1042,11 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
             conv1.d64 = register_file[instr.rs1 + START_FP_STATICS];
             conv2.d64 = register_file[instr.rs2 + START_FP_STATICS];
             conv3.d64 = register_file[instr.rs3 + START_FP_STATICS];
-            __asm__ __volatile__("vfmsub213sd %2, %1, %0" : "+x"(conv1.f64) : "x"(conv2.f64), "x"(conv3.f64));
+            if (have_fma) {
+                __asm__ __volatile__("vfmsub213sd %2, %1, %0" : "+x"(conv1.f64) : "x"(conv2.f64), "x"(conv3.f64));
+            } else {
+                conv1.f64 = conv1.f64 * conv2.f64 + conv3.f64;
+            }
             register_file[instr.rd + START_FP_STATICS] = conv1.d64;
             break;
         }
@@ -1042,7 +1058,11 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
             conv1.d64 = register_file[instr.rs1 + START_FP_STATICS];
             conv2.d64 = register_file[instr.rs2 + START_FP_STATICS];
             conv3.d64 = register_file[instr.rs3 + START_FP_STATICS];
-            __asm__ __volatile__("vfnmsub213sd %2, %1, %0" : "+x"(conv1.f64) : "x"(conv2.f64), "x"(conv3.f64));
+            if (have_fma) {
+                __asm__ __volatile__("vfnmsub213sd %2, %1, %0" : "+x"(conv1.f64) : "x"(conv2.f64), "x"(conv3.f64));
+            } else {
+                conv1.f64 = -(conv1.f64 * conv2.f64 + conv3.f64);
+            }
             register_file[instr.rd + START_FP_STATICS] = conv1.d64;
             break;
         }
@@ -1054,7 +1074,11 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
             conv1.d64 = register_file[instr.rs1 + START_FP_STATICS];
             conv2.d64 = register_file[instr.rs2 + START_FP_STATICS];
             conv3.d64 = register_file[instr.rs3 + START_FP_STATICS];
-            __asm__ __volatile__("vfnmadd213sd %2, %1, %0" : "+x"(conv1.f64) : "x"(conv2.f64), "x"(conv3.f64));
+            if (have_fma) {
+                __asm__ __volatile__("vfnmadd213sd %2, %1, %0" : "+x"(conv1.f64) : "x"(conv2.f64), "x"(conv3.f64));
+            } else {
+                conv1.f64 = (-conv1.f64) * conv2.f64 + conv3.f64;
+            }
             register_file[instr.rd + START_FP_STATICS] = conv1.d64;
             break;
         }

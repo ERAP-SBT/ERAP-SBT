@@ -10,10 +10,15 @@
 #include <sys/epoll.h>
 #include <sys/stat.h>
 
+/* cpuid testing provided by gcc */
+#include <cpuid.h>
+
 namespace helper {
 
+bool have_fma;
+
 /* dump interpreter statistics at exit */
-#define INTERPRETER_DUMP_PERF_STATS_AT_EXIT false
+constexpr bool INTERPRETER_DUMP_PERF_STATS_AT_EXIT = false;
 
 struct auxv_t {
     // see https://fossies.org/dox/Checker-0.9.9.1/gcc-startup_8c_source.html#l00042
@@ -212,6 +217,17 @@ extern "C" [[noreturn]] void panic(const char *err_msg) {
  * @param out_stack RISC-V pseudo stack
  */
 extern "C" uint8_t *copy_stack(uint8_t *stack, uint8_t *out_stack) {
+    /* this function gets called before the first basic block
+     * is executed or interpreted. Take advantage of this to test if FMA
+     * is supported and can be used by the interpreter.
+     */
+    {
+        uint64_t unused, ecx;
+        __cpuid(0, unused, unused, ecx, unused);
+        (void)unused;
+        have_fma = ecx & bit_FMA;
+    }
+
     /*
      * stack looks like this:
      * *data*
