@@ -123,7 +123,7 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                 return res;
             }
             case RISCV_SYSCALL_ID::EPOLL_PWAIT: {
-                struct epoll_event event;
+                struct epoll_event event {};
                 auto *rv64_event = reinterpret_cast<rv64_epoll_event_t *>(arg1);
                 const auto res = syscall6(AMD64_SYSCALL_ID::EPOLL_PWAIT, arg0, reinterpret_cast<size_t>(&event), arg2, arg3, arg4, arg5);
                 rv64_event->data = event.data;
@@ -131,7 +131,7 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                 return res;
             }
             case RISCV_SYSCALL_ID::FSTATAT: {
-                struct stat buf = {};
+                struct stat buf {};
                 const auto result = syscall4(AMD64_SYSCALL_ID::NEWFSTATAT, arg0, arg1, reinterpret_cast<uint64_t>(&buf), arg3);
                 auto *r_stat = reinterpret_cast<rv64_fstat_t *>(arg2);
                 r_stat->st_blksize = buf.st_blksize;
@@ -153,7 +153,7 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                 return result;
             }
             case RISCV_SYSCALL_ID::FSTAT: {
-                struct stat buf = {};
+                struct stat buf {};
                 const auto result = syscall2(AMD64_SYSCALL_ID::FSTAT, arg0, reinterpret_cast<uint64_t>(&buf));
                 auto *r_stat = reinterpret_cast<rv64_fstat_t *>(arg1);
                 r_stat->st_blksize = buf.st_blksize;
@@ -175,7 +175,7 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                 return result;
             }
             case RISCV_SYSCALL_ID::EPOLL_PWAIT2: {
-                struct epoll_event event;
+                struct epoll_event event {};
                 auto *rv64_event = reinterpret_cast<rv64_epoll_event_t *>(arg1);
                 const auto res = syscall6(AMD64_SYSCALL_ID::EPOLL_PWAIT2, arg0, reinterpret_cast<size_t>(&event), arg2, arg3, arg4, arg5);
                 rv64_event->data = event.data;
@@ -261,9 +261,7 @@ extern "C" uint8_t *copy_stack(uint8_t *stack, uint8_t *out_stack) {
             cur_auxv->a_val = phdr_size;
         } else if (cur_auxv->a_type == auxv_t::type::phnum) {
             cur_auxv->a_val = phdr_num;
-        } else if (cur_auxv->a_type == static_cast<auxv_t::type>(AT_SYSINFO)) {
-            cur_auxv->a_val = 0;
-        } else if (cur_auxv->a_type == static_cast<auxv_t::type>(AT_SYSINFO_EHDR)) {
+        } else if (cur_auxv->a_type == static_cast<auxv_t::type>(AT_SYSINFO) || cur_auxv->a_type == static_cast<auxv_t::type>(AT_SYSINFO_EHDR)) {
             cur_auxv->a_val = 0;
         }
     }
