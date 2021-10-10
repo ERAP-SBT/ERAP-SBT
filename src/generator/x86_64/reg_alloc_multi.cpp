@@ -1792,6 +1792,15 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
             print_asm("jmp panic\n");
             break;
         }
+        case CFCInstruction::jump_interpreter: {
+            const auto &info = std::get<CfOp::IJumpInfo>(cf_op.info);
+            write_static_mapping((info.targets.empty() ? nullptr : info.targets[0]), cur_time, info.mapping);
+            print_asm("# destroy stack space\n");
+            print_asm("add rsp, %zu\n", max_stack_frame_size * 8);
+            print_asm("mov rdi, %zu\n", std::get<CfOp::IJumpInfo>(cf_op.info).interpreter_target);
+            print_asm("jmp unresolved_ijump\n");
+            break;
+        }
         case CFCInstruction::ijump: {
             const auto &info = std::get<CfOp::IJumpInfo>(cf_op.info);
             write_static_mapping((info.targets.empty() ? nullptr : info.targets[0]), cur_time, info.mapping);
