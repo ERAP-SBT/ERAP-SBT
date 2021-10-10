@@ -109,7 +109,7 @@ void Lifter::lift_jal(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
 
 void Lifter::lift_jalr(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     // detect indirect jumps that are just returns
-    if ((optimizations & OPT_CALL_RET) && instr.instr.imm == 0 && is_link_reg(instr.instr.rs1)) {
+    if ((optimizations & OPT_CALL_RET) && instr.instr.imm == 0 && is_link_reg(instr.instr.rs1) && instr.instr.rd == 0) {
         CfOp &return_op = bb->add_cf_op(CFCInstruction::_return, nullptr, ip);
         return_op.set_inputs(get_from_mapping(bb, mapping, instr.instr.rs1, ip));
         return;
