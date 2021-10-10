@@ -2,7 +2,7 @@
 
 using namespace lifter::RV64;
 
-void Lifter::register_jump_address(BasicBlock *jump_bb, uint64_t jmp_addr, ELF64File *elf_base) {
+inline void Lifter::register_jump_address(BasicBlock *jump_bb, uint64_t jmp_addr, ELF64File *elf_base) {
     if (jump_bb->virt_start_addr != jmp_addr) {
         split_basic_block(jump_bb, jmp_addr, elf_base);
     }
@@ -13,11 +13,12 @@ void Lifter::process_ijumps(std::vector<CfOp *> &unprocessed_ijumps, ELF64File *
     std::vector<std::pair<uint64_t, BasicBlock *>> to_split;
 
     for (auto jump : unprocessed_ijumps) {
-        auto &jump_info = std::get<CfOp::IJumpInfo>(jump->info);
+        auto &jump_targets = jump->type == CFCInstruction::ijump ? std::get<CfOp::IJumpInfo>(jump->info).targets : std::get<CfOp::ICallInfo>(jump->info).targets;
+        auto &jump_addrs = jump->type == CFCInstruction::ijump ? std::get<CfOp::IJumpInfo>(jump->info).jmp_addrs : std::get<CfOp::ICallInfo>(jump->info).jmp_addrs;
 
         auto addrs = backtrace_jmp_addrs(jump, jump->source);
         if (addrs.empty()) {
-            if (jump_info.targets.empty()) {
+            if (jump_targets.empty()) {
                 addrs.emplace(0);
                 DEBUG_LOG("-> Address backtracking failed (no address was found), skipping branch (setting dummy as target block).");
             } else {
@@ -26,7 +27,7 @@ void Lifter::process_ijumps(std::vector<CfOp *> &unprocessed_ijumps, ELF64File *
             }
         }
         for (uint64_t jmp_addr : addrs) {
-            if (std::find(jump_info.jmp_addrs.begin(), jump_info.jmp_addrs.end(), jmp_addr) != jump_info.jmp_addrs.end()) {
+            if (std::find(jump_addrs.begin(), jump_addrs.end(), jmp_addr) != jump_addrs.end()) {
                 // jump target already exists
                 continue;
             }

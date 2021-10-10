@@ -8,7 +8,8 @@ void gen_print_ir(IR &ir) {
     const auto static3 = ir.add_static(Type::i64); /* x4 */
     const auto static4 = ir.add_static(Type::i64); /* x5 */
     const auto static5 = ir.add_static(Type::i64); /* x6 */
-    for (int i = 7; i < 32; i++) {
+    const auto static6 = ir.add_static(Type::i64); /* x7 */
+    for (int i = 8; i < 32; i++) {
         ir.add_static(Type::i64);
     }
     const auto static32 = ir.add_static(Type::mt); /* MemoryToken */
@@ -23,16 +24,19 @@ void gen_print_ir(IR &ir) {
         {
             // entry
             auto *str_ptr = strlen_entry->add_var_from_static(static0);
+            auto *ret_addr = strlen_entry->add_var_from_static(static6);
             auto *count = strlen_entry->add_var_imm(0, 0);
             auto &cf_op = strlen_entry->add_cf_op(CFCInstruction::jump, strlen_cmp);
             cf_op.add_target_input(str_ptr, 0);
             cf_op.add_target_input(count, 0);
+            cf_op.add_target_input(ret_addr, 0);
         }
         {
             // cmp
             auto *mem_token = strlen_cmp->add_var(Type::mt, 0); // not proper here
             auto *str_ptr = strlen_cmp->add_var_from_static(static0);
             auto *count = strlen_cmp->add_var_from_static(static5);
+            auto *ret_addr = strlen_cmp->add_var_from_static(static6);
             auto *null = strlen_cmp->add_var_imm(0, 0);
             auto *cur_c = strlen_cmp->add_var(Type::i8, 0);
             {
@@ -47,17 +51,20 @@ void gen_print_ir(IR &ir) {
                 cf_op.set_inputs(cur_c, null);
                 std::get<CfOp::CJumpInfo>(cf_op.info).type = CfOp::CJumpInfo::CJumpType::eq;
                 std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs.emplace_back(count);
+                std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs.emplace_back(ret_addr);
             }
             {
                 auto &cf_op = strlen_cmp->add_cf_op(CFCInstruction::jump, strlen_inc);
                 std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.emplace_back(str_ptr);
                 std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.emplace_back(count);
+                std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.emplace_back(ret_addr);
             }
         }
         {
             // inc
             auto *str_ptr = strlen_inc->add_var_from_static(static0);
             auto *count = strlen_inc->add_var_from_static(static5);
+            auto *ret_addr = strlen_inc->add_var_from_static(static6);
             auto *one = strlen_inc->add_var_imm(1, 0);
             auto *new_str_ptr = strlen_inc->add_var(Type::i64, 0);
             {
@@ -76,10 +83,13 @@ void gen_print_ir(IR &ir) {
             auto &cf_op = strlen_inc->add_cf_op(CFCInstruction::jump, strlen_cmp);
             std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.emplace_back(new_str_ptr);
             std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.emplace_back(new_count);
+            std::get<CfOp::JumpInfo>(cf_op.info).target_inputs.emplace_back(ret_addr);
         }
         {
             auto *count = strlen_ret->add_var_from_static(static0);
+            auto *ret_addr = strlen_ret->add_var_from_static(static6);
             auto &cf_op = strlen_ret->add_cf_op(CFCInstruction::_return, nullptr);
+            cf_op.set_inputs(ret_addr);
             std::get<CfOp::RetInfo>(cf_op.info).mapping.emplace_back(count, static0);
         }
     }
@@ -159,9 +169,11 @@ void gen_print_ir(IR &ir) {
                 op->set_outputs(str_ptr);
                 str_ptr->set_op(std::move(op));
             }
+            auto *ret_addr = entry_strlen->add_var_imm(0, 0);
             auto &cf_op = entry_strlen->add_cf_op(CFCInstruction::call, strlen_entry);
             auto &info = std::get<CfOp::CallInfo>(cf_op.info);
             info.target_inputs.emplace_back(str_ptr);
+            info.target_inputs.emplace_back(ret_addr);
             info.continuation_block = entry_write;
         }
         {
@@ -369,6 +381,7 @@ void gen_third_ir(IR &ir) {
 
         {
             auto &cf_op = block1->add_cf_op(CFCInstruction::_return, nullptr);
+            cf_op.set_inputs(v13);
             std::get<CfOp::RetInfo>(cf_op.info).mapping.emplace_back(v13, static0);
         }
     }
@@ -386,6 +399,7 @@ void gen_sec_ir(IR &ir) {
     {
         auto *v1 = block1->add_var_imm(1, 0);
         auto &op = block1->add_cf_op(CFCInstruction::_return, nullptr);
+        op.set_inputs(v1);
         std::get<CfOp::RetInfo>(op.info).mapping.emplace_back(v1, static0);
     }
 
@@ -393,6 +407,7 @@ void gen_sec_ir(IR &ir) {
     {
         auto *v1 = block2->add_var_imm(0, 0);
         auto &op = block2->add_cf_op(CFCInstruction::_return, nullptr);
+        op.set_inputs(v1);
         std::get<CfOp::RetInfo>(op.info).mapping.emplace_back(v1, static0);
     }
 
@@ -452,6 +467,7 @@ void gen_first_ir(IR &ir) {
 
         {
             auto &op = block->add_cf_op(CFCInstruction::_return, nullptr);
+            op.set_inputs(var3);
             auto &ret_info = std::get<CfOp::RetInfo>(op.info);
             ret_info.mapping.emplace_back(var3, 0);
         }

@@ -32,6 +32,10 @@ struct BasicBlock {
         bool input_map_setup = false;
         // for circular-reference-chain
         bool manual_top_level = false;
+        bool call_target = false;
+        bool call_cont_block = false;
+        bool needs_trans_bb = false;
+        size_t max_stack_size = 0;
 
         struct InputInfo {
             enum LOCATION { STATIC, REGISTER, STACK };

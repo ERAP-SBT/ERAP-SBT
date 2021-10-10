@@ -255,35 +255,32 @@ void Lifter::postprocess(Program *prog) {
                     if (std::find(target_bb->predecessors.begin(), target_bb->predecessors.end(), bb.get()) == target_bb->predecessors.end()) {
                         target_bb->predecessors.push_back(bb.get());
                     }
+                    target_bb->gen_info.call_cont_block = true;
                 } else {
-                    cf_op.type = CFCInstruction::unreachable;
-                    cf_op.info = std::monostate{};
-                    continue;
+                    auto *cont_bb = ir->add_basic_block(lifter_info.instr_addr + 2);
+                    cont_bb->set_virt_end_addr(lifter_info.instr_addr + 2);
+                    cont_bb->add_cf_op(CFCInstruction::unreachable, nullptr);
+                    cont_bb->predecessors.emplace_back(bb.get());
+                    bb->successors.emplace_back(cont_bb);
+                    cont_bb->gen_info.call_cont_block = true;
+                    if (cf_op.type == CFCInstruction::call) {
+                        std::get<CfOp::CallInfo>(cf_op.info).continuation_block = cont_bb;
+                    } else {
+                        std::get<CfOp::ICallInfo>(cf_op.info).continuation_block = cont_bb;
+                    }
                 }
             }
 
             if (cf_op.type == CFCInstruction::ijump || cf_op.type == CFCInstruction::icall) {
                 unprocessed_ijumps.emplace_back(&cf_op);
-                auto *target = cf_op.target();
-                if (target != nullptr) {
-                    auto &pred = target->predecessors;
-                    if (auto it = std::find(pred.begin(), pred.end(), bb.get()); it != pred.end()) {
-                        pred.erase(it);
-                    }
-                    if (auto it = std::find(bb->successors.begin(), bb->successors.end(), target); it != bb->successors.end()) {
-                        bb->successors.erase(it);
-                    }
-                }
-                if (cf_op.type == CFCInstruction::ijump) {
-                    std::get<CfOp::IJumpInfo>(cf_op.info).targets.clear();
-                } else {
-                    cf_op.set_target(nullptr);
-                }
                 continue;
             }
 
             auto *cur_target = cf_op.target();
             if (cur_target && cur_target != dummy) {
+                if (cf_op.type == CFCInstruction::call) {
+                    cur_target->gen_info.call_target = true;
+                }
                 continue;
             }
 
@@ -301,6 +298,10 @@ void Lifter::postprocess(Program *prog) {
                     }
                     if (std::find(target_bb->predecessors.begin(), target_bb->predecessors.end(), bb.get()) == target_bb->predecessors.end()) {
                         target_bb->predecessors.push_back(bb.get());
+                    }
+
+                    if (cf_op.type == CFCInstruction::call) {
+                        target_bb->gen_info.call_target = true;
                     }
                 } else {
                     cf_op.type = CFCInstruction::unreachable;

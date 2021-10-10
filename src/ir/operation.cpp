@@ -298,15 +298,13 @@ void CfOp::set_target(BasicBlock *target) {
     case CFCInstruction::call:
         std::get<CallInfo>(info).target = target;
         break;
-    case CFCInstruction::icall:
-        std::get<ICallInfo>(info).target = target;
-        break;
     case CFCInstruction::syscall:
         std::get<SyscallInfo>(info).continuation_block = target;
         break;
     case CFCInstruction::unreachable:
     case CFCInstruction::_return:
     case CFCInstruction::ijump:
+    case CFCInstruction::icall:
         assert(0);
         break;
     }
