@@ -49,7 +49,7 @@ bool check_target_input_removable(const BasicBlock *block, const BasicBlock *tar
         }
         case CFCInstruction::icall: {
             const auto &info = std::get<CfOp::ICallInfo>(cf.info);
-            if (info.target == target)
+            if (std::find(info.targets.begin(), info.targets.end(), target) != info.targets.end())
                 found_cf = true;
             break;
         }
@@ -116,7 +116,7 @@ bool remove_target_inputs(BasicBlock *block, const BasicBlock *target, const std
         }
         case CFCInstruction::icall: {
             auto &info = std::get<CfOp::ICallInfo>(cf.info);
-            if (info.target != target)
+            if (std::find(info.targets.begin(), info.targets.end(), target) == info.targets.end())
                 continue;
             assert(info.mapping.size() == target->inputs.size());
             remove_indices_sorted(info.mapping, indices);
@@ -215,7 +215,7 @@ bool propagate_from_successor(const BasicBlock *successor, const std::vector<boo
         }
         case CFCInstruction::icall: {
             auto &info = std::get<CfOp::ICallInfo>(cf.info);
-            if (info.target != successor)
+            if (std::find(info.targets.begin(), info.targets.end(), successor) == info.targets.end())
                 continue;
             assert(info.mapping.size() == successor->inputs.size());
             for (size_t i = 0; i < info.mapping.size(); i++) {
@@ -232,7 +232,7 @@ bool propagate_from_successor(const BasicBlock *successor, const std::vector<boo
 
         found_cf = true;
     }
-    assert(found_cf);
+    // assert(found_cf);
 
     return has_changed;
 }

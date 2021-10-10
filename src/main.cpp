@@ -22,7 +22,7 @@ namespace {
 using std::filesystem::path;
 
 void print_help(bool usage_only);
-bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &lifter_optimizations, uint32_t& ir_optimizations);
+bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &lifter_optimizations, uint32_t &ir_optimizations);
 void dump_elf(const ELF64File *);
 std::optional<path> create_temp_directory();
 bool find_runtime_dependencies(const path &exec_dir, const Args &args, path &out_helper_lib, path &out_linker_script);
