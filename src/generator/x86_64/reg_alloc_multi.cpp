@@ -2190,7 +2190,7 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::alloc_reg(size_t
 
     if (only_this_reg != REG_NONE) {
         auto &cur_var = reg_map[only_this_reg].cur_var;
-        if (cur_var != nullptr) {
+        if (cur_var != nullptr && cur_var->gen_info.last_use_time >= cur_time) {
             save_reg(only_this_reg);
             cur_var->gen_info.location = SSAVar::GeneratorInfoX64::STACK_FRAME;
             cur_var = nullptr;
