@@ -115,7 +115,7 @@ struct RegAlloc {
     static bool is_block_top_level(BasicBlock *bb);
 
     static bool is_block_jumpable(BasicBlock *bb) {
-        if (is_block_top_level(bb) || bb->gen_info.call_cont_block) {
+        if (is_block_top_level(bb) || bb->gen_info.call_cont_block || bb->gen_info.needs_trans_bb) {
             return true;
         }
         assert(bb->gen_info.input_map_setup);

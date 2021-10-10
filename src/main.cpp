@@ -275,6 +275,7 @@ bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &li
         uint32_t lifter_opt_change = 0;
         if (opt_flag == "all") {
             gen_opt_change = 0xFFFFFFFF;
+            lifter_opt_change = 0xFFFFFFFF;
         } else if (opt_flag == "generator") {
             gen_opt_change = 0xFFFFFFFF;
         } else if (opt_flag == "lifter") {

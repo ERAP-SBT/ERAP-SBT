@@ -1288,31 +1288,41 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
         case CFCInstruction::jump: {
             auto *target = std::get<CfOp::JumpInfo>(cf_op.info).target;
             const auto out_of_group = std::find(compiled_blocks.begin(), compiled_blocks.end(), target) == compiled_blocks.end();
-            /*if (out_of_group && !target_top_level && target->gen_info.max_stack_size != max_stack_frame_size) {
-                print_asm("# adjust stack space\n");
+            if (out_of_group && !target_top_level) {
+                if (!target->gen_info.compiled) {
+                    target->gen_info.needs_trans_bb = true;
+                    // TODO: this can be fixed with the assembler by compiling all cfops at the end and holding trans bbs until the end before throwing out unneeded ones
+                    auto static_mapping = std::vector<std::pair<RefPtr<SSAVar>, size_t>>{};
+                    for (size_t i = 0; i < target->inputs.size(); ++i) {
+                        static_mapping.emplace_back(std::get<CfOp::JumpInfo>(cf_op.info).target_inputs[i], std::get<size_t>(target->inputs[i]->info));
+                    }
+                    write_static_mapping(target, cur_time, static_mapping);
+                    print_asm("add rsp, %zu\n", max_stack_frame_size);
+                    print_asm("jmp b%zu\n", target->id);
+                    break;
+                }
+
                 if (target->gen_info.max_stack_size > max_stack_frame_size) {
                     const size_t delta = target->gen_info.max_stack_size - max_stack_frame_size;
                     print_asm("sub rsp, %zu\n", delta);
-                    for (auto& input : std::get<CfOp::JumpInfo>(cf_op.info).target_inputs) {
-                        if (input->gen_info.saved_in_stack) {
-                            input->gen_info.stack_slot += delta / 8;
+                    for (auto &var : std::get<CfOp::JumpInfo>(cf_op.info).target_inputs) {
+                        if (var->gen_info.saved_in_stack) {
+                            var->gen_info.stack_slot += delta / 8;
                         }
+                    }
+                    for (size_t i = 0; i < (delta / 8); ++i) {
+                        stack_map.insert(stack_map.begin(), StackSlot{});
                     }
                     write_target_inputs(target, cur_time, std::get<CfOp::JumpInfo>(cf_op.info).target_inputs);
-                    for (auto& input : std::get<CfOp::JumpInfo>(cf_op.info).target_inputs) {
-                        if (input->gen_info.saved_in_stack) {
-                            input->gen_info.stack_slot -= delta / 8;
-                        }
-                    }
                 } else {
                     const size_t delta = max_stack_frame_size - target->gen_info.max_stack_size;
-                    for (auto& input : target->gen_info.input_map) {
+                    for (auto &input : target->gen_info.input_map) {
                         if (input.location == BasicBlock::GeneratorInfo::InputInfo::STACK) {
                             input.stack_slot += delta / 8;
                         }
                     }
                     write_target_inputs(target, cur_time, std::get<CfOp::JumpInfo>(cf_op.info).target_inputs);
-                    for (auto& input : target->gen_info.input_map) {
+                    for (auto &input : target->gen_info.input_map) {
                         if (input.location == BasicBlock::GeneratorInfo::InputInfo::STACK) {
                             input.stack_slot -= delta / 8;
                         }
@@ -1321,27 +1331,16 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
                 }
             } else {
                 write_target_inputs(target, cur_time, std::get<CfOp::JumpInfo>(cf_op.info).target_inputs);
-            }*/
-            if (out_of_group && !target_top_level) {
-                auto static_mapping = std::vector<std::pair<RefPtr<SSAVar>, size_t>>{};
-                for (size_t i = 0; i < target->inputs.size(); ++i) {
-                    static_mapping.emplace_back(std::get<CfOp::JumpInfo>(cf_op.info).target_inputs[i], std::get<size_t>(target->inputs[i]->info));
-                }
-                write_static_mapping(target, cur_time, static_mapping);
-            } else {
-                write_target_inputs(target, cur_time, std::get<CfOp::JumpInfo>(cf_op.info).target_inputs);
             }
+
             if (target_top_level) {
                 print_asm("# destroy stack space\n");
                 print_asm("add rsp, %zu\n", max_stack_frame_size);
                 print_asm("jmp b%zu\n", target->id);
-            } else if (!out_of_group) {
+            } else {
                 if (cf_idx != bb->control_flow_ops.size() - 1 || target != next_bb) {
                     print_asm("jmp b%zu_reg_alloc\n", target->id);
                 }
-            } else {
-                print_asm("add rsp, %zu\n", max_stack_frame_size);
-                print_asm("jmp b%zu\n", target->id);
             }
             break;
         }
@@ -1349,31 +1348,41 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             auto *target = std::get<CfOp::CJumpInfo>(cf_op.info).target;
             // asm_buf += cjump_asm;
             const auto out_of_group = std::find(compiled_blocks.begin(), compiled_blocks.end(), target) == compiled_blocks.end();
-            /*if (out_of_group && !target_top_level && target->gen_info.max_stack_size != max_stack_frame_size) {
-                print_asm("# adjust stack space\n");
+            if (out_of_group && !target_top_level) {
+                if (!target->gen_info.compiled) {
+                    target->gen_info.needs_trans_bb = true;
+                    // TODO: this can be fixed with the assembler by compiling all cfops at the end and holding trans bbs until the end before throwing out unneeded ones
+                    auto static_mapping = std::vector<std::pair<RefPtr<SSAVar>, size_t>>{};
+                    for (size_t i = 0; i < target->inputs.size(); ++i) {
+                        static_mapping.emplace_back(std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs[i], std::get<size_t>(target->inputs[i]->info));
+                    }
+                    write_static_mapping(target, cur_time, static_mapping);
+                    print_asm("add rsp, %zu\n", max_stack_frame_size);
+                    print_asm("jmp b%zu\n", target->id);
+                    break;
+                }
+
                 if (target->gen_info.max_stack_size > max_stack_frame_size) {
                     const size_t delta = target->gen_info.max_stack_size - max_stack_frame_size;
                     print_asm("sub rsp, %zu\n", delta);
-                    for (auto& input : std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs) {
-                        if (input->gen_info.saved_in_stack) {
-                            input->gen_info.stack_slot += delta / 8;
+                    for (auto &var : std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs) {
+                        if (var->gen_info.saved_in_stack) {
+                            var->gen_info.stack_slot += delta / 8;
                         }
+                    }
+                    for (size_t i = 0; i < (delta / 8); ++i) {
+                        stack_map.insert(stack_map.begin(), StackSlot{});
                     }
                     write_target_inputs(target, cur_time, std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs);
-                    for (auto& input : std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs) {
-                        if (input->gen_info.saved_in_stack) {
-                            input->gen_info.stack_slot -= delta / 8;
-                        }
-                    }
                 } else {
                     const size_t delta = max_stack_frame_size - target->gen_info.max_stack_size;
-                    for (auto& input : target->gen_info.input_map) {
+                    for (auto &input : target->gen_info.input_map) {
                         if (input.location == BasicBlock::GeneratorInfo::InputInfo::STACK) {
                             input.stack_slot += delta / 8;
                         }
                     }
                     write_target_inputs(target, cur_time, std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs);
-                    for (auto& input : target->gen_info.input_map) {
+                    for (auto &input : target->gen_info.input_map) {
                         if (input.location == BasicBlock::GeneratorInfo::InputInfo::STACK) {
                             input.stack_slot -= delta / 8;
                         }
@@ -1382,25 +1391,14 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
                 }
             } else {
                 write_target_inputs(target, cur_time, std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs);
-            }*/
-            if (out_of_group && !target_top_level) {
-                auto static_mapping = std::vector<std::pair<RefPtr<SSAVar>, size_t>>{};
-                for (size_t i = 0; i < target->inputs.size(); ++i) {
-                    static_mapping.emplace_back(std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs[i], std::get<size_t>(target->inputs[i]->info));
-                }
-                write_static_mapping(target, cur_time, static_mapping);
-            } else {
-                write_target_inputs(target, cur_time, std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs);
             }
+
             if (target_top_level) {
                 print_asm("# destroy stack space\n");
                 print_asm("add rsp, %zu\n", max_stack_frame_size);
-                print_asm("jmp b%zu\n", cf_op.target()->id);
-            } else if (!out_of_group) {
-                print_asm("jmp b%zu_reg_alloc\n", cf_op.target()->id);
-            } else {
-                print_asm("add rsp, %zu\n", max_stack_frame_size);
                 print_asm("jmp b%zu\n", target->id);
+            } else {
+                print_asm("jmp b%zu_reg_alloc\n", target->id);
             }
             break;
         }
@@ -1493,7 +1491,12 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
         }
         case CFCInstruction::call: {
             auto &info = std::get<CfOp::CallInfo>(cf_op.info);
-            write_target_inputs(info.target, cur_time, info.target_inputs);
+            // write_target_inputs(info.target, cur_time, info.target_inputs);
+            auto static_mapping = std::vector<std::pair<RefPtr<SSAVar>, size_t>>{};
+            for (size_t i = 0; i < info.target->inputs.size(); ++i) {
+                static_mapping.emplace_back(std::get<CfOp::CallInfo>(cf_op.info).target_inputs[i], std::get<size_t>(info.target->inputs[i]->info));
+            }
+            write_static_mapping(info.target, cur_time, static_mapping);
 
             // prevent overflow
             print_asm("mov rax, [init_ret_stack_ptr]\n");
@@ -1588,6 +1591,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             }
 
             print_asm("call %s\n", tmp_reg_name);
+            print_asm("add rsp, 8\n");
             print_asm("jmp b%zu%s\n", info.continuation_block->id, is_block_top_level(info.continuation_block) ? "" : "_reg_alloc");
             print_asm("0:\n");
             print_asm("lea rdi, [%s + %lu]\n", dst_reg_name, gen->ir->virt_bb_start_addr);
