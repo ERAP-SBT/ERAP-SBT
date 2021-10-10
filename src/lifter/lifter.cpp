@@ -262,12 +262,12 @@ void Lifter::postprocess(Program *prog) {
                     cont_bb->add_cf_op(CFCInstruction::unreachable, nullptr);
                     cont_bb->predecessors.emplace_back(bb.get());
                     bb->successors.emplace_back(cont_bb);
+                    cont_bb->gen_info.call_cont_block = true;
                     if (cf_op.type == CFCInstruction::call) {
                         std::get<CfOp::CallInfo>(cf_op.info).continuation_block = cont_bb;
                     } else {
                         std::get<CfOp::ICallInfo>(cf_op.info).continuation_block = cont_bb;
                     }
-                    continue;
                 }
             }
 
