@@ -225,32 +225,27 @@ class TestFloatingPointLifting : public ::testing::Test {
         Type expected_from_type;
         Type expected_to_type;
         Instruction expected_instruction;
-        bool respect_rounding_mode = false;
 
         switch (instr.instr.mnem) {
         case FRV_FCVTWS:
             expected_from_type = Type::f32;
             expected_to_type = Type::i32;
             expected_instruction = Instruction::convert;
-            respect_rounding_mode = true;
             break;
         case FRV_FCVTWUS:
             expected_from_type = Type::f32;
             expected_to_type = Type::i32;
             expected_instruction = Instruction::uconvert;
-            respect_rounding_mode = true;
             break;
         case FRV_FCVTLS:
             expected_from_type = Type::f32;
             expected_to_type = Type::i64;
             expected_instruction = Instruction::convert;
-            respect_rounding_mode = true;
             break;
         case FRV_FCVTLUS:
             expected_from_type = Type::f32;
             expected_to_type = Type::i64;
             expected_instruction = Instruction::uconvert;
-            respect_rounding_mode = true;
             break;
         case FRV_FCVTSW:
             expected_from_type = Type::i32;
@@ -272,30 +267,25 @@ class TestFloatingPointLifting : public ::testing::Test {
             expected_to_type = Type::f32;
             expected_instruction = Instruction::uconvert;
             break;
-
         case FRV_FCVTWD:
             expected_from_type = Type::f64;
             expected_to_type = Type::i32;
             expected_instruction = Instruction::convert;
-            respect_rounding_mode = true;
             break;
         case FRV_FCVTWUD:
             expected_from_type = Type::f64;
             expected_to_type = Type::i32;
             expected_instruction = Instruction::uconvert;
-            respect_rounding_mode = true;
             break;
         case FRV_FCVTLD:
             expected_from_type = Type::f64;
             expected_to_type = Type::i64;
             expected_instruction = Instruction::convert;
-            respect_rounding_mode = true;
             break;
         case FRV_FCVTLUD:
             expected_from_type = Type::f64;
             expected_to_type = Type::i64;
             expected_instruction = Instruction::uconvert;
-            respect_rounding_mode = true;
             break;
         case FRV_FCVTDW:
             expected_from_type = Type::i32;
@@ -368,32 +358,28 @@ class TestFloatingPointLifting : public ::testing::Test {
         ASSERT_EQ(op->out_vars[0], result) << "The output of the operation isn't the result variable!";
         ASSERT_EQ(result, mapping[instr.instr.rd + (is_float(expected_to_type) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)]) << "The result isn't written correctly to the mapping!";
         ASSERT_EQ(op->in_vars[0], input_var) << "The input of the operation isn't the expected input!";
-        if (respect_rounding_mode) {
-            RoundingMode expected_rounding_mode;
-            switch (instr.instr.misc) {
-            case 0:
-            case 4:
-                expected_rounding_mode = RoundingMode::NEAREST;
-                break;
-            case 1:
-                expected_rounding_mode = RoundingMode::ZERO;
-                break;
-            case 2:
-                expected_rounding_mode = RoundingMode::DOWN;
-                break;
-            case 3:
-                expected_rounding_mode = RoundingMode::UP;
-                break;
+        RoundingMode expected_rounding_mode;
+        switch (instr.instr.misc) {
+        case 0:
+        case 4:
+            expected_rounding_mode = RoundingMode::NEAREST;
+            break;
+        case 1:
+            expected_rounding_mode = RoundingMode::ZERO;
+            break;
+        case 2:
+            expected_rounding_mode = RoundingMode::DOWN;
+            break;
+        case 3:
+            expected_rounding_mode = RoundingMode::UP;
+            break;
 
-            default:
-                FAIL() << "The test developer has failed!";
-                break;
-            }
-            ASSERT_TRUE(std::holds_alternative<RoundingMode>(op->rounding_info)) << "The conversion operation should have an rounding mode set!";
-            ASSERT_EQ(std::get<RoundingMode>(op->rounding_info), expected_rounding_mode) << "The rounding mode is the wrong one!";
-        } else {
-            ASSERT_TRUE(std::holds_alternative<std::monostate>(op->rounding_info)) << "The conversion opertaion shouldn't have an rounding mode set!";
+        default:
+            FAIL() << "The test developer has failed!";
+            break;
         }
+        ASSERT_TRUE(std::holds_alternative<RoundingMode>(op->rounding_info)) << "The conversion operation should have an rounding mode set!";
+        ASSERT_EQ(std::get<RoundingMode>(op->rounding_info), expected_rounding_mode) << "The rounding mode is the wrong one!";
 
         count_scanned_variables++;
 
@@ -1115,25 +1101,25 @@ TEST_F(TestFloatingPointLifting, test_fp_fcvtlus) {
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtsw) {
-    // create instruction: fcvt.s.w f4, x7 (rounding should/will be ignored)
-    const RV64Inst instr{FrvInst{FRV_FCVTSW, 4, 7, 0, 0, 0, 0}, 4};
+    // create instruction: fcvt.s.w f4, x7, RUP
+    const RV64Inst instr{FrvInst{FRV_FCVTSW, 4, 7, 0, 0, 3, 0}, 4};
     test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtswu) {
-    // create instruction: fcvt.s.wu f1, x2 (rounding should/will be ignored)
-    const RV64Inst instr{FrvInst{FRV_FCVTSWU, 1, 2, 0, 0, 0, 0}, 4};
+    // create instruction: fcvt.s.wu f1, x2, RDN
+    const RV64Inst instr{FrvInst{FRV_FCVTSWU, 1, 2, 0, 0, 2, 0}, 4};
     test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtsl) {
-    // create instruction: fcvt.s.l f18, x27 (rounding should/will be ignored)
-    const RV64Inst instr{FrvInst{FRV_FCVTSL, 18, 27, 0, 0, 0, 0}, 4};
+    // create instruction: fcvt.s.l f18, x27, RTZ
+    const RV64Inst instr{FrvInst{FRV_FCVTSL, 18, 27, 0, 0, 1, 0}, 4};
     test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtslu) {
-    // create instruction: fcvt.s.lu f31, x4 (rounding should/will be ignored)
+    // create instruction: fcvt.s.lu f31, x4, RNE
     const RV64Inst instr{FrvInst{FRV_FCVTSLU, 31, 4, 0, 0, 0, 0}, 4};
     test_conversion_lifting(instr);
 }
@@ -1165,25 +1151,25 @@ TEST_F(TestFloatingPointLifting, test_fp_fcvtlud) {
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtdw) {
-    // create instruction: fcvt.d.w f6, x18 (rounding should/will be ignored)
-    const RV64Inst instr{FrvInst{FRV_FCVTDW, 6, 18, 0, 0, 0, 0}, 4};
+    // create instruction: fcvt.d.w f6, x18, RMM
+    const RV64Inst instr{FrvInst{FRV_FCVTDW, 6, 18, 0, 0, 4, 0}, 4};
     test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtdwu) {
-    // create instruction: fcvt.d.wu f0, x14 (rounding should/will be ignored)
-    const RV64Inst instr{FrvInst{FRV_FCVTDWU, 0, 14, 0, 0, 0, 0}, 4};
+    // create instruction: fcvt.d.wu f0, x14, RUP
+    const RV64Inst instr{FrvInst{FRV_FCVTDWU, 0, 14, 0, 0, 3, 0}, 4};
     test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtdl) {
-    // create instruction: fcvt.d.l f16, x9 (rounding should/will be ignored)
-    const RV64Inst instr{FrvInst{FRV_FCVTDL, 16, 9, 0, 0, 0, 0}, 4};
+    // create instruction: fcvt.d.l f16, x9, RDN
+    const RV64Inst instr{FrvInst{FRV_FCVTDL, 16, 9, 0, 0, 2, 0}, 4};
     test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtdlu) {
-    // create instruction: fcvt.d.lu f28, x10 (rounding should/will be ignored)
+    // create instruction: fcvt.d.lu f28, x10, RNE
     const RV64Inst instr{FrvInst{FRV_FCVTDLU, 6, 10, 0, 0, 0, 0}, 4};
     test_conversion_lifting(instr);
 }
@@ -1191,14 +1177,14 @@ TEST_F(TestFloatingPointLifting, test_fp_fcvtdlu) {
 /* single precision <-> double precision conversion */
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtsd) {
-    // create instruction: fcvt.s.d f4, f4 (rounding should/will be ignored)
-    const RV64Inst instr{FrvInst{FRV_FCVTSD, 4, 4, 0, 0, 0, 0}, 4};
+    // create instruction: fcvt.s.d f4, f4, RTZ
+    const RV64Inst instr{FrvInst{FRV_FCVTSD, 4, 4, 0, 0, 1, 0}, 4};
     test_conversion_lifting(instr);
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fcvtds) {
-    // create instruction: fcvt.d.s f14, f8 (rounding should/will be ignored)
-    const RV64Inst instr{FrvInst{FRV_FCVTDS, 14, 8, 0, 0, 0, 0}, 4};
+    // create instruction: fcvt.d.s f14, f8, RMM
+    const RV64Inst instr{FrvInst{FRV_FCVTDS, 14, 8, 0, 0, 4, 0}, 4};
     test_conversion_lifting(instr);
 }
 

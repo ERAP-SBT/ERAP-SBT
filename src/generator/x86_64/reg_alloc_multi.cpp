@@ -2527,7 +2527,6 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
             }
         }
 
-        SSAVar *var = inputs[var_idx].get();
         if (is_float(var->type)) {
             const auto reg = load_val_in_fp_reg(cur_write_time, var);
             print_asm("movq [s%zu], %s\n", input_map[var_idx].static_idx, fp_reg_names[reg]);

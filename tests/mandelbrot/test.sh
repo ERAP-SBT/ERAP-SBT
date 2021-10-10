@@ -16,7 +16,7 @@ echo -e "${TXT_BLUE}Cleaning up leftovers...${TXT_CLEAR}"
 set -x
 
 rm -rf build_amd64 build_rv64
-rm amd64_mandelbrot.txt rv64_mandelbrot.txt optimized_mandelbrot.txt interpreter_mandelbrot.txt amd64_fma3_mandelbrot.txt fma3_optimized_mandelbrot.txt
+rm amd64_mandelbrot.txt amd64_mandelbrot_fma.txt rv64_mandelbrot.txt optimized_mandelbrot.txt interpreter_mandelbrot.txt fma3_optimized_mandelbrot.txt
 
 { set +x; } 2>/dev/null
 set -e
@@ -55,15 +55,13 @@ build_amd64/mandelbrot > amd64_mandelbrot.txt
 build_amd64/mandelbrot_fma > amd64_mandelbrot_fma.txt
 build_rv64/translated > rv64_mandelbrot.txt
 build_rv64/optimized > optimized_mandelbrot.txt
+build_rv64/fma3_optimized > fma3_optimized_mandelbrot.txt
 build_rv64/interpreter > interpreter_mandelbrot.txt
 
 cmp amd64_mandelbrot.txt rv64_mandelbrot.txt
 cmp amd64_mandelbrot.txt optimized_mandelbrot.txt
+cmp amd64_mandelbrot_fma.txt fma3_optimized_mandelbrot.txt
 cmp amd64_mandelbrot_fma.txt interpreter_mandelbrot.txt
-
-build_amd64/fma3_mandelbrot > amd64_fma3_mandelbrot.txt
-build_rv64/fma3_optimized > fma3_optimized_mandelbrot.txt
-cmp amd64_fma3_mandelbrot.txt fma3_optimized_mandelbrot.txt
 
 { set +x; } 2>/dev/null
 
