@@ -81,6 +81,7 @@ struct RegAlloc {
     void write_static_mapping(BasicBlock *bb, size_t cur_time, const std::vector<std::pair<RefPtr<SSAVar>, size_t>> &mapping);
     void write_target_inputs(BasicBlock *target, size_t cur_time, const std::vector<RefPtr<SSAVar>> &inputs);
     void init_time_of_use(BasicBlock *bb);
+    void setup_preferences();
 
     template <typename... Args> void print_asm(const char *fmt, Args &&...args) {
         // NOLINTNEXTLINE(clang-diagnostic-format-security)
@@ -90,7 +91,7 @@ struct RegAlloc {
         // fprintf(gen->out_fd, "%s", print_buf);
     }
 
-    template <bool evict_imms = true, typename... Args> REGISTER alloc_reg(size_t cur_time, REGISTER only_this_reg = REG_NONE, Args... clear_regs);
+    template <bool evict_imms = true, typename... Args> REGISTER alloc_reg(size_t cur_time, REGISTER only_this_reg = REG_NONE, REGISTER pref_reg = REG_NONE, Args... clear_regs);
 
     template <bool evict_imms = true, typename... Args> REGISTER load_val_in_reg(size_t cur_time, SSAVar *var, REGISTER only_this_reg = REG_NONE, Args... clear_regs);
 

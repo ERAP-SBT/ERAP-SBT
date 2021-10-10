@@ -46,6 +46,8 @@ struct SSAVar : Refable {
         bool saved_in_stack = false; // a variable can be in a register and saved in the stack frame
         bool already_generated = false;
         bool allocated_to_input = false;
+        uint16_t pref_stack_slot = 0xFFFF;
+        uint8_t pref_reg = 15; /* REG_NONE */
 
         size_t last_use_time = 0;
         std::vector<size_t> uses = {};

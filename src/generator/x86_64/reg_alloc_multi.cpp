@@ -220,6 +220,7 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
         }
 
         init_time_of_use(bb);
+        setup_preferences();
 
         compile_vars(bb);
 
@@ -390,16 +391,20 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                 if (op->type != Instruction::add || in1->gen_info.last_use_time == cur_time) {
                     dst_reg = in1_reg;
                 } else {
-                    // check if there is a free register
-                    for (size_t reg = 0; reg < REG_COUNT; ++reg) {
-                        if (reg_map[reg].cur_var == nullptr) {
-                            dst_reg = static_cast<REGISTER>(reg);
-                            break;
-                        }
-                        auto *var = reg_map[reg].cur_var;
-                        if (var->gen_info.last_use_time < cur_time) {
-                            dst_reg = static_cast<REGISTER>(reg);
-                            break;
+                    if (dst->gen_info.pref_reg != REG_NONE) {
+                        dst_reg = static_cast<REGISTER>(dst->gen_info.pref_reg);
+                    } else {
+                        // check if there is a free register
+                        for (size_t reg = 0; reg < REG_COUNT; ++reg) {
+                            if (reg_map[reg].cur_var == nullptr) {
+                                dst_reg = static_cast<REGISTER>(reg);
+                                break;
+                            }
+                            auto *var = reg_map[reg].cur_var;
+                            if (var->gen_info.last_use_time < cur_time) {
+                                dst_reg = static_cast<REGISTER>(reg);
+                                break;
+                            }
                         }
                     }
                     if (dst_reg == REG_NONE) {
@@ -585,11 +590,11 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     break;
                 }
 
-                const auto op_with_imm32 = [imm_val, this, in1_reg_name, cur_time, in1](const char *op_str) {
+                const auto op_with_imm32 = [imm_val, this, in1_reg_name, cur_time, in1, in2](const char *op_str) {
                     if (std::abs(imm_val) <= 0x7FFF'FFFF) {
                         print_asm("%s %s, %ld\n", op_str, in1_reg_name, imm_val);
                     } else {
-                        auto imm_reg = alloc_reg(cur_time);
+                        auto imm_reg = alloc_reg(cur_time, REG_NONE, static_cast<REGISTER>(in2->gen_info.pref_reg));
                         print_asm("mov %s, %ld\n", reg_names[imm_reg][0], imm_val);
                         print_asm("%s %s, %s\n", op_str, in1_reg_name, reg_name(imm_reg, choose_type(in1->type, Type::imm)));
                     }
@@ -602,7 +607,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                         if (std::abs(imm_val) <= 0x7FFF'FFFF) {
                             print_asm("lea %s, [%s + %ld]\n", dst_reg_name, in1_reg_name, imm_val);
                         } else {
-                            auto imm_reg = alloc_reg(cur_time);
+                            auto imm_reg = alloc_reg(cur_time, REG_NONE, static_cast<REGISTER>(in2->gen_info.pref_reg));
                             print_asm("mov %s, %ld\n", reg_names[imm_reg][0], imm_val);
                             print_asm("lea %s, [%s + %s]\n", dst_reg_name, reg_name(imm_reg, choose_type(in1->type, Type::imm)), reg_names[imm_reg][0]);
                         }
@@ -979,7 +984,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     assert(0);
                     exit(1);
                 }
-                const auto dst_reg = alloc_reg(cur_time);
+                const auto dst_reg = alloc_reg(cur_time, REG_NONE, static_cast<REGISTER>(output->gen_info.pref_reg));
                 const auto dst_reg_name = reg_name(dst_reg, output->type);
                 print_asm("mov %s, %ld\n", dst_reg_name, imm);
 
@@ -1414,7 +1419,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             // TODO: we get a problem if the dst is in a static that has already been written out (so overwritten)
             auto *dst = cf_op.in_vars[0].get();
             const auto dst_reg = load_val_in_reg(cur_time + 1 + info.mapping.size(), dst);
-            const auto tmp_reg = alloc_reg(cur_time + 1 + info.mapping.size(), REG_NONE, dst_reg);
+            const auto tmp_reg = alloc_reg(cur_time + 1 + info.mapping.size(), REG_NONE, REG_NONE, dst_reg);
             const auto dst_reg_name = reg_names[dst_reg][0];
             const auto tmp_reg_name = reg_names[tmp_reg][0];
             assert(dst->type == Type::imm || dst->type == Type::i64);
@@ -1532,7 +1537,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
 
             // do ijump
             const auto dst_reg_name = reg_names[ret_reg][0];
-            const auto tmp_reg = alloc_reg(cur_time + std::get<CfOp::RetInfo>(cf_op.info).mapping.size(), REG_NONE, ret_reg);
+            const auto tmp_reg = alloc_reg(cur_time + std::get<CfOp::RetInfo>(cf_op.info).mapping.size(), REG_NONE, REG_NONE, ret_reg);
             const auto tmp_reg_name = reg_names[tmp_reg][0];
 
             /* we trust the lifter that the ijump destination is already aligned */
@@ -1558,12 +1563,12 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             // TODO: we get a problem if the dst is in a static that has already been written out (so overwritten)
             auto *dst = cf_op.in_vars[0].get();
             const auto dst_reg = load_val_in_reg(cur_time + 1 + info.mapping.size(), dst);
-            const auto tmp_reg = alloc_reg(cur_time + 1 + info.mapping.size(), REG_NONE, dst_reg);
+            const auto tmp_reg = alloc_reg(cur_time + 1 + info.mapping.size(), REG_NONE, REG_NONE, dst_reg);
             const auto dst_reg_name = reg_names[dst_reg][0];
             const auto tmp_reg_name = reg_names[tmp_reg][0];
             assert(dst->type == Type::imm || dst->type == Type::i64);
 
-            const auto overflow_reg = alloc_reg(cur_time + 1 + info.mapping.size(), REG_NONE, dst_reg, tmp_reg);
+            const auto overflow_reg = alloc_reg(cur_time + 1 + info.mapping.size(), REG_NONE, REG_NONE, dst_reg, tmp_reg);
             const auto of_reg_name = reg_names[overflow_reg][0];
             // prevent overflow
             print_asm("mov %s, [init_ret_stack_ptr]\n", of_reg_name);
@@ -2184,7 +2189,118 @@ void RegAlloc::init_time_of_use(BasicBlock *bb) {
     }
 }
 
-template <bool evict_imms, typename... Args> REGISTER RegAlloc::alloc_reg(size_t cur_time, REGISTER only_this_reg, Args... clear_regs) {
+void RegAlloc::setup_preferences() {
+    const auto propagate = [this](SSAVar *cur_var, const auto &self) {
+        if (!std::holds_alternative<std::unique_ptr<Operation>>(cur_var->info)) {
+            return;
+        }
+        auto *op = std::get<std::unique_ptr<Operation>>(cur_var->info).get();
+        SSAVar *cont_var = nullptr;
+        switch (op->type) {
+        case Instruction::cast:
+        case Instruction::sign_extend:
+        case Instruction::zero_extend:
+        case Instruction::add:
+        case Instruction::sub:
+        case Instruction::shl:
+        case Instruction::shr:
+        case Instruction::sar:
+        case Instruction::_or:
+        case Instruction::_xor:
+        case Instruction::_and:
+        case Instruction::_not: {
+            cont_var = op->in_vars[0];
+            cont_var->gen_info.pref_reg = cur_var->gen_info.pref_reg;
+            cont_var->gen_info.pref_stack_slot = cur_var->gen_info.pref_stack_slot;
+            break;
+        }
+        default:
+            break;
+        }
+
+        if (cont_var) {
+            self(cont_var, self);
+        }
+    };
+
+    for (size_t cf_op_idx = 0; cf_op_idx < cur_bb->control_flow_ops.size(); ++cf_op_idx) {
+        const auto &cf_op = cur_bb->control_flow_ops[cf_op_idx];
+        const auto *target = cf_op.target();
+        if (!target || !target->gen_info.input_map_setup) {
+            continue;
+        }
+
+        const auto &target_inputs = cf_op.target_inputs();
+        for (size_t i = 0; i < target_inputs.size(); ++i) {
+            auto &input_info = target->gen_info.input_map[i];
+            auto *input = target_inputs[i].get();
+
+            if (input_info.location == BasicBlock::GeneratorInfo::InputInfo::STACK) {
+                // TODO: this is wonky when the stack frame sizes are different
+                input->gen_info.pref_stack_slot = input_info.stack_slot;
+                propagate(input, propagate);
+            } else if (input_info.location == BasicBlock::GeneratorInfo::InputInfo::REGISTER) {
+                input->gen_info.pref_reg = static_cast<REGISTER>(input_info.reg_idx);
+                propagate(input, propagate);
+            } else {
+                // STATIC try to find pref from different cfop
+                SSAVar *pref_var = nullptr;
+                for (size_t j = cf_op_idx + 1; j < cur_bb->control_flow_ops.size(); ++j) {
+                    const auto &cf_op = cur_bb->control_flow_ops[j];
+                    switch (cf_op.type) {
+                    case CFCInstruction::jump: {
+                        auto &info = std::get<CfOp::JumpInfo>(cf_op.info);
+                        if (info.target->gen_info.input_map_setup && info.target->gen_info.input_map[i].location != BasicBlock::GeneratorInfo::InputInfo::STATIC) {
+                            pref_var = info.target_inputs[i];
+                            if (info.target->gen_info.input_map[i].location == BasicBlock::GeneratorInfo::InputInfo::STACK) {
+                                pref_var->gen_info.pref_stack_slot = info.target->gen_info.input_map[i].stack_slot;
+                            } else {
+                                pref_var->gen_info.pref_reg = info.target->gen_info.input_map[i].reg_idx;
+                            }
+                        }
+                        break;
+                    }
+                    case CFCInstruction::cjump: {
+                        auto &info = std::get<CfOp::CJumpInfo>(cf_op.info);
+                        if (info.target->gen_info.input_map_setup && info.target->gen_info.input_map[i].location != BasicBlock::GeneratorInfo::InputInfo::STATIC) {
+                            pref_var = info.target_inputs[i];
+                            if (info.target->gen_info.input_map[i].location == BasicBlock::GeneratorInfo::InputInfo::STACK) {
+                                pref_var->gen_info.pref_stack_slot = info.target->gen_info.input_map[i].stack_slot;
+                            } else {
+                                pref_var->gen_info.pref_reg = info.target->gen_info.input_map[i].reg_idx;
+                            }
+                        }
+                        break;
+                    }
+                    case CFCInstruction::call: {
+                        auto &info = std::get<CfOp::CallInfo>(cf_op.info);
+                        if (info.target->gen_info.input_map_setup && info.target->gen_info.input_map[i].location != BasicBlock::GeneratorInfo::InputInfo::STATIC) {
+                            pref_var = info.target_inputs[i];
+                            if (info.target->gen_info.input_map[i].location == BasicBlock::GeneratorInfo::InputInfo::STACK) {
+                                pref_var->gen_info.pref_stack_slot = info.target->gen_info.input_map[i].stack_slot;
+                            } else {
+                                pref_var->gen_info.pref_reg = info.target->gen_info.input_map[i].reg_idx;
+                            }
+                        }
+                        break;
+                    }
+                    default:
+                        break;
+                    }
+                    if (pref_var) {
+                        break;
+                    }
+                }
+                if (pref_var) {
+                    propagate(pref_var, propagate);
+                }
+            }
+        }
+        break;
+    }
+}
+
+template <bool evict_imms, typename... Args> REGISTER RegAlloc::alloc_reg(size_t cur_time, REGISTER only_this_reg, REGISTER pref_reg, Args... clear_regs) {
     static_assert((std::is_same_v<Args, REGISTER> && ...));
     auto &reg_map = *cur_reg_map;
 
@@ -2199,15 +2315,24 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::alloc_reg(size_t
     }
 
     REGISTER reg = REG_NONE;
-    // try to find free register
-    for (size_t i = 0; i < REG_COUNT; ++i) {
-        if (((i == clear_regs) || ...)) { // NOLINT(clang-diagnostic-parentheses-equality)
-            continue;
-        }
 
-        if (reg_map[i].cur_var == nullptr) {
-            reg = static_cast<REGISTER>(i);
-            break;
+    if (pref_reg != REG_NONE && ((pref_reg != clear_regs) && ...)) {
+        if (reg_map[pref_reg].cur_var == nullptr || reg_map[pref_reg].cur_var->gen_info.last_use_time < cur_time) {
+            reg = pref_reg;
+        }
+    }
+
+    if (reg == REG_NONE) {
+        // try to find free register
+        for (size_t i = 0; i < REG_COUNT; ++i) {
+            if (((i == clear_regs) || ...)) { // NOLINT(clang-diagnostic-parentheses-equality)
+                continue;
+            }
+
+            if (reg_map[i].cur_var == nullptr) {
+                reg = static_cast<REGISTER>(i);
+                break;
+            }
         }
     }
 
@@ -2279,7 +2404,7 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::load_val_in_reg(
             if (((var->gen_info.reg_idx == clear_regs) || ...)) { // NOLINT(clang-diagnostic-parentheses-equality)
                 // clear_regs take precedent over only_this_reg though it should never happen
                 assert(((only_this_reg != clear_regs) && ...));
-                const auto new_reg = alloc_reg(cur_time, REG_NONE, clear_regs...);
+                const auto new_reg = alloc_reg(cur_time, REG_NONE, REG_NONE, clear_regs...);
                 print_asm("mov %s, %s\n", reg_names[new_reg][0], reg_names[var->gen_info.reg_idx][0]);
                 reg_map[var->gen_info.reg_idx].cur_var = nullptr;
                 reg_map[new_reg].cur_var = var;
@@ -2306,7 +2431,7 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::load_val_in_reg(
         return only_this_reg;
     }
 
-    const auto reg = alloc_reg<evict_imms>(cur_time, only_this_reg, clear_regs...);
+    const auto reg = alloc_reg<evict_imms>(cur_time, only_this_reg, static_cast<REGISTER>(var->gen_info.pref_reg), clear_regs...);
 
     if (var->type == Type::imm) {
         auto &info = std::get<SSAVar::ImmInfo>(var->info);
@@ -2358,16 +2483,32 @@ size_t RegAlloc::allocate_stack_slot(SSAVar *var) {
     size_t stack_slot = 0;
     {
         auto stack_slot_found = false;
-        for (size_t i = 0; i < stack_map.size(); ++i) {
-            if (stack_map[i].free) {
+        if (var->gen_info.pref_stack_slot != 0xFFFF) {
+            const auto pref_slot = var->gen_info.pref_stack_slot;
+            if (pref_slot >= stack_map.size()) {
+                stack_map.resize(pref_slot + 1);
                 stack_slot_found = true;
-                stack_slot = i;
-                break;
+                stack_slot = pref_slot;
+            } else {
+                if (stack_map[pref_slot].free) {
+                    stack_slot_found = true;
+                    stack_slot = pref_slot;
+                }
             }
         }
+
         if (!stack_slot_found) {
-            stack_slot = stack_map.size();
-            stack_map.emplace_back();
+            for (size_t i = 0; i < stack_map.size(); ++i) {
+                if (stack_map[i].free) {
+                    stack_slot_found = true;
+                    stack_slot = i;
+                    break;
+                }
+            }
+            if (!stack_slot_found) {
+                stack_slot = stack_map.size();
+                stack_map.emplace_back();
+            }
         }
     }
 
