@@ -64,6 +64,10 @@ int main(int argc, const char **argv) {
 
     path elf_path(args.positional[0]);
 
+    path helper_library, linker_script_file;
+    if (!find_runtime_dependencies(executable_dir, args, helper_library, linker_script_file))
+        return EXIT_FAILURE;
+
     std::cout << "Translating file " << elf_path << '\n';
 
     auto maybe_temp_dir = create_temp_directory();
@@ -209,16 +213,16 @@ int main(int argc, const char **argv) {
         return EXIT_FAILURE;
     }
 
-    path helper_library, linker_script_file;
-    if (!find_runtime_dependencies(executable_dir, args, helper_library, linker_script_file))
-        return EXIT_FAILURE;
-
     if (!run_linker(linker_script_file, output_file, output_object, helper_library))
         return EXIT_FAILURE;
 
     std::cout << "Output written to " << output_file << '\n';
     std::cout << "Lifting took " << (time_post_lift - time_pre_lift) << "ms\n";
     std::cout << "Generating took " << (time_post_gen - time_pre_gen) << "ms\n";
+
+    // Note: In case of a failure somewhere above, the temp directory is intentionally not deleted
+    // to allow inspecting its content.
+    std::filesystem::remove_all(temp_dir);
 
     return EXIT_SUCCESS;
 }
