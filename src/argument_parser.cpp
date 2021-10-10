@@ -10,7 +10,7 @@ Args::Args(const char **begin, const char **end) noexcept {
             } else if (auto eq = arg.find('='); eq != std::string_view::npos) {
                 arguments.insert({arg.substr(0, eq), arg.substr(eq + 1, arg.length() - eq)});
             } else {
-                arguments.insert({std::move(arg), std::string_view()});
+                arguments.insert({arg, std::string_view()});
             }
         } else if (!arg.empty()) {
             positional.push_back(std::move(arg));

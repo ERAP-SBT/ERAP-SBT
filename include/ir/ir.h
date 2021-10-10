@@ -29,7 +29,7 @@ struct IR {
     size_t cur_func_id = 0;
     size_t entry_block = 0;
 
-    BasicBlock *add_basic_block(const size_t virt_start_addr = 0, std::string dbg_name = {}) {
+    BasicBlock *add_basic_block(const size_t virt_start_addr = 0, const std::string &dbg_name = {}) {
         auto block = std::make_unique<BasicBlock>(this, cur_block_id++, virt_start_addr, dbg_name);
         const auto ptr = block.get();
         basic_blocks.push_back(std::move(block));

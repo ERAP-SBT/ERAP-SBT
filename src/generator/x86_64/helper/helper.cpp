@@ -10,10 +10,15 @@
 #include <sys/epoll.h>
 #include <sys/stat.h>
 
+/* cpuid testing provided by gcc */
+#include <cpuid.h>
+
 namespace helper {
 
+bool have_fma;
+
 /* dump interpreter statistics at exit */
-#define INTERPRETER_DUMP_PERF_STATS_AT_EXIT false
+constexpr bool INTERPRETER_DUMP_PERF_STATS_AT_EXIT = false;
 
 struct auxv_t {
     // see https://fossies.org/dox/Checker-0.9.9.1/gcc-startup_8c_source.html#l00042
@@ -103,7 +108,6 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                 break;
             }
         } else if (info.action == SyscallAction::handle) {
-            // not sure if this is a good idea
             switch (static_cast<RISCV_SYSCALL_ID>(id)) {
             case RISCV_SYSCALL_ID::EXIT:
             case RISCV_SYSCALL_ID::EXIT_GROUP: {
@@ -124,7 +128,7 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                 return res;
             }
             case RISCV_SYSCALL_ID::EPOLL_PWAIT: {
-                struct epoll_event event;
+                struct epoll_event event {};
                 auto *rv64_event = reinterpret_cast<rv64_epoll_event_t *>(arg1);
                 const auto res = syscall6(AMD64_SYSCALL_ID::EPOLL_PWAIT, arg0, reinterpret_cast<size_t>(&event), arg2, arg3, arg4, arg5);
                 rv64_event->data = event.data;
@@ -132,7 +136,7 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                 return res;
             }
             case RISCV_SYSCALL_ID::FSTATAT: {
-                struct stat buf = {};
+                struct stat buf {};
                 const auto result = syscall4(AMD64_SYSCALL_ID::NEWFSTATAT, arg0, arg1, reinterpret_cast<uint64_t>(&buf), arg3);
                 auto *r_stat = reinterpret_cast<rv64_fstat_t *>(arg2);
                 r_stat->st_blksize = buf.st_blksize;
@@ -154,7 +158,7 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                 return result;
             }
             case RISCV_SYSCALL_ID::FSTAT: {
-                struct stat buf = {};
+                struct stat buf {};
                 const auto result = syscall2(AMD64_SYSCALL_ID::FSTAT, arg0, reinterpret_cast<uint64_t>(&buf));
                 auto *r_stat = reinterpret_cast<rv64_fstat_t *>(arg1);
                 r_stat->st_blksize = buf.st_blksize;
@@ -176,7 +180,7 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
                 return result;
             }
             case RISCV_SYSCALL_ID::EPOLL_PWAIT2: {
-                struct epoll_event event;
+                struct epoll_event event {};
                 auto *rv64_event = reinterpret_cast<rv64_epoll_event_t *>(arg1);
                 const auto res = syscall6(AMD64_SYSCALL_ID::EPOLL_PWAIT2, arg0, reinterpret_cast<size_t>(&event), arg2, arg3, arg4, arg5);
                 rv64_event->data = event.data;
@@ -213,6 +217,17 @@ extern "C" [[noreturn]] void panic(const char *err_msg) {
  * @param out_stack RISC-V pseudo stack
  */
 extern "C" uint8_t *copy_stack(uint8_t *stack, uint8_t *out_stack) {
+    /* this function gets called before the first basic block
+     * is executed or interpreted. Take advantage of this to test if FMA
+     * is supported and can be used by the interpreter.
+     */
+    {
+        unsigned int unused, ecx;
+        if (__get_cpuid(1, &unused, &unused, &ecx, &unused) == 1) {
+            have_fma = ecx & bit_FMA;
+        }
+    }
+
     /*
      * stack looks like this:
      * *data*
@@ -262,9 +277,7 @@ extern "C" uint8_t *copy_stack(uint8_t *stack, uint8_t *out_stack) {
             cur_auxv->a_val = phdr_size;
         } else if (cur_auxv->a_type == auxv_t::type::phnum) {
             cur_auxv->a_val = phdr_num;
-        } else if (cur_auxv->a_type == static_cast<auxv_t::type>(AT_SYSINFO)) {
-            cur_auxv->a_val = 0;
-        } else if (cur_auxv->a_type == static_cast<auxv_t::type>(AT_SYSINFO_EHDR)) {
+        } else if (cur_auxv->a_type == static_cast<auxv_t::type>(AT_SYSINFO) || cur_auxv->a_type == static_cast<auxv_t::type>(AT_SYSINFO_EHDR)) {
             cur_auxv->a_val = 0;
         }
     }

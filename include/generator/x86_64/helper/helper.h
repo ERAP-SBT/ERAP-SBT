@@ -7,6 +7,8 @@
 
 namespace helper {
 
+extern bool have_fma;
+
 extern "C" {
 /* provided by the compiler */
 extern uint8_t *orig_binary_vaddr;

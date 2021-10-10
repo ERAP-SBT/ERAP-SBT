@@ -65,8 +65,8 @@ void Operation::print(std::ostream &stream, const IR *ir) const {
 namespace {
 std::unique_ptr<Operation> create_op(Instruction type, std::initializer_list<SSAVar *> inputs, std::initializer_list<SSAVar *> outputs) {
     auto op = std::make_unique<Operation>(type);
-    op->set_inputs(std::move(inputs));
-    op->set_outputs(std::move(outputs));
+    op->set_inputs(inputs);
+    op->set_outputs(outputs);
     return op;
 }
 

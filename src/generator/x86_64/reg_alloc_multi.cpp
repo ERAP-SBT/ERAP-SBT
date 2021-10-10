@@ -28,6 +28,7 @@ std::array<REGISTER, 6> call_reg = {REG_DI, REG_SI, REG_D, REG_C, REG_8, REG_9};
 const char *reg_name(const REGISTER reg, const Type type) {
     const auto &arr = reg_names[reg];
     switch (type) {
+    case Type::imm:
     case Type::i64:
         return arr[0];
     case Type::i32:
@@ -181,7 +182,7 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
             BasicBlock::GeneratorInfo::InputInfo info;
             info.location = BasicBlock::GeneratorInfo::InputInfo::STATIC;
             info.static_idx = static_idx;
-            bb->gen_info.input_map.push_back(std::move(info));
+            bb->gen_info.input_map.push_back(info);
         }
         bb->gen_info.input_map_setup = true;
     }
@@ -1022,7 +1023,7 @@ bool RegAlloc::merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg) {
 
     // add,load or add,(cast),store
     if (op->type == Instruction::add) {
-        const auto try_merge_add = [this, var_idx, op, dst, dst_reg, in1, in2, cur_time]() -> bool {
+        const auto try_merge_add = [this, var_idx, dst, dst_reg, in1, in2, cur_time]() -> bool {
             auto *next_var = cur_bb->variables[var_idx + 1].get();
             if (!std::holds_alternative<std::unique_ptr<Operation>>(next_var->info))
                 return false;
@@ -1541,7 +1542,7 @@ void RegAlloc::set_bb_inputs_from_static(BasicBlock *target) {
         info.static_idx = std::get<size_t>(var->info);
         var->gen_info.location = SSAVar::GeneratorInfoX64::STATIC;
         var->gen_info.static_idx = info.static_idx;
-        target->gen_info.input_map.push_back(std::move(info));
+        target->gen_info.input_map.push_back(info);
     }
     target->gen_info.input_map_setup = true;
 }
@@ -1558,7 +1559,7 @@ void RegAlloc::generate_input_map(BasicBlock *bb) {
             InputInfo info;
             info.location = InputInfo::STATIC;
             info.static_idx = i;
-            bb->gen_info.input_map.push_back(std::move(info));
+            bb->gen_info.input_map.push_back(info);
             continue;
         }
 
@@ -1575,7 +1576,7 @@ void RegAlloc::generate_input_map(BasicBlock *bb) {
             info.location = InputInfo::STACK;
             info.stack_slot = var->gen_info.stack_slot;
         }
-        bb->gen_info.input_map.push_back(std::move(info));
+        bb->gen_info.input_map.push_back(info);
     }
 
     bb->gen_info.input_map_setup = true;
@@ -1908,7 +1909,7 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::alloc_reg(size_t
     REGISTER reg = REG_NONE;
     // try to find free register
     for (size_t i = 0; i < REG_COUNT; ++i) {
-        if (((i == clear_regs) || ...)) {
+        if (((i == clear_regs) || ...)) { // NOLINT(clang-diagnostic-parentheses-equality)
             continue;
         }
 
@@ -1921,7 +1922,7 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::alloc_reg(size_t
     if (reg == REG_NONE) {
         // try to find reg with unused var
         for (size_t i = 0; i < REG_COUNT; ++i) {
-            if (((i == clear_regs) || ...)) {
+            if (((i == clear_regs) || ...)) { // NOLINT(clang-diagnostic-parentheses-equality)
                 continue;
             }
 
@@ -1937,7 +1938,7 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::alloc_reg(size_t
             size_t farthest_use_time = 0;
             REGISTER farthest_use_reg = REG_NONE;
             for (size_t i = 0; i < REG_COUNT; ++i) {
-                if (((i == clear_regs) || ...)) {
+                if (((i == clear_regs) || ...)) { // NOLINT(clang-diagnostic-parentheses-equality)
                     continue;
                 }
 
@@ -1983,7 +1984,7 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::load_val_in_reg(
 
     if (var->gen_info.location == SSAVar::GeneratorInfoX64::REGISTER) {
         if (only_this_reg == REG_NONE || var->gen_info.reg_idx == only_this_reg) {
-            if (((var->gen_info.reg_idx == clear_regs) || ...)) {
+            if (((var->gen_info.reg_idx == clear_regs) || ...)) { // NOLINT(clang-diagnostic-parentheses-equality)
                 // clear_regs take precedent over only_this_reg though it should never happen
                 assert(((only_this_reg != clear_regs) && ...));
                 const auto new_reg = alloc_reg(cur_time, REG_NONE, clear_regs...);
