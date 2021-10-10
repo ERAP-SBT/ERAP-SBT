@@ -1201,6 +1201,51 @@ to manipulate the sign bit and to check in which category\footnote{For example, 
     infinity, negative normal number, etc.} the floating point value fits, respectively.
 
 \section{Performance}\label{performance}
+
+\begin{figure}
+    \begin{centering}
+        \begin{tikzpicture}
+            \begin{axis}[
+                    width=0.9\textwidth,
+                    height=0.5\textwidth,
+                    ybar,
+                    bar width = 5pt,
+                    ylabel={Execution time normalised to native (less is better)},
+                    symbolic x coords = {
+                        600.perlbench,
+                        602.gcc,
+                        605.mcf,
+                        620.omnetpp,
+                        623.xalancbmk,
+                        625.x264,
+                        631.deepsjeng,
+                        641.leela,
+                        648.exchange2,
+                        657.xz,
+                        average
+                    },
+                    xticklabel style = {
+                        anchor = east,
+                        rotate=45
+                    },
+                    xtick = data, % make a tick at every symbolic x coordinate
+                    ytick distance = 1, % make a tick every 1
+                    ymajorgrids = true, % display horizontal guide lines
+                    legend style = { at={(0.95, 0.95)}, anchor=north east}, % place the graph legend at the top-right
+                ]
+
+                \addplot[fill=green] table[x=benchmark, y expr=\thisrow{native}/\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=orange] table[x=benchmark, y expr=\thisrow{qemu}  /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot table[x=benchmark, y expr=\thisrow{test1} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot table[x=benchmark, y expr=\thisrow{test2} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot table[x=benchmark, y expr=\thisrow{ria}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+
+                \legend{native, qemu, test1, test2, ria}
+            \end{axis}
+        \end{tikzpicture}
+    \end{centering}
+\end{figure}
+
 \subsection{Our Solution}
 \subsection{Optimizations (Analysis)}
 \subsection{QEMU}
