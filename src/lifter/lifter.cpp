@@ -273,21 +273,6 @@ void Lifter::postprocess(Program *prog) {
 
             if (cf_op.type == CFCInstruction::ijump || cf_op.type == CFCInstruction::icall) {
                 unprocessed_ijumps.emplace_back(&cf_op);
-                auto *target = cf_op.target();
-                if (target != nullptr) {
-                    auto &pred = target->predecessors;
-                    if (auto it = std::find(pred.begin(), pred.end(), bb.get()); it != pred.end()) {
-                        pred.erase(it);
-                    }
-                    if (auto it = std::find(bb->successors.begin(), bb->successors.end(), target); it != bb->successors.end()) {
-                        bb->successors.erase(it);
-                    }
-                }
-                if (cf_op.type == CFCInstruction::ijump) {
-                    std::get<CfOp::IJumpInfo>(cf_op.info).targets.clear();
-                } else {
-                    cf_op.set_target(nullptr);
-                }
                 continue;
             }
 

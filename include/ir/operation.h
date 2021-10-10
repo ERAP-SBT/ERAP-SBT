@@ -102,8 +102,9 @@ struct CfOp {
         BasicBlock *continuation_block = nullptr;
         std::vector<std::pair<RefPtr<SSAVar>, size_t>> mapping = {};
 
-        // we are sometimes able to infer the target (normally this means the ijump is a `ret`)
-        BasicBlock *target = nullptr;
+        /* new multi-target ijumps */
+        std::vector<BasicBlock *> targets{};
+        std::vector<uint64_t> jmp_addrs{};
     };
 
     struct RetInfo {
