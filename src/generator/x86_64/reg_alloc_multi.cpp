@@ -1690,7 +1690,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
                 if (target->gen_info.max_stack_size > max_stack_frame_size) {
                     const size_t delta = target->gen_info.max_stack_size - max_stack_frame_size;
                     print_asm("sub rsp, %zu\n", delta);
-                    for (auto &var : std::get<CfOp::JumpInfo>(cf_op.info).target_inputs) {
+                    for (auto &var : bb->variables) {
                         if (var->gen_info.saved_in_stack) {
                             var->gen_info.stack_slot += delta / 8;
                         }
@@ -1750,7 +1750,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
                 if (target->gen_info.max_stack_size > max_stack_frame_size) {
                     const size_t delta = target->gen_info.max_stack_size - max_stack_frame_size;
                     print_asm("sub rsp, %zu\n", delta);
-                    for (auto &var : std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs) {
+                    for (auto &var : bb->variables) {
                         if (var->gen_info.saved_in_stack) {
                             var->gen_info.stack_slot += delta / 8;
                         }
