@@ -212,6 +212,13 @@ extern "C" [[noreturn]] void panic(const char *err_msg) {
     __builtin_unreachable();
 }
 
+void resolve_dynamic_rounding(uint32_t dyn_rm) {
+    uint32_t status = _mm_getcsr();
+    // clear rounding mode and set correctly
+    status = (status & 0xFF'FF'1F'FF) | interpreter::evaluate_rounding_mode(dyn_rm, false);
+    _mm_setcsr(status);
+}
+
 /**
  * @param stack x86 stack, as setup by the Operating System
  * @param out_stack RISC-V pseudo stack

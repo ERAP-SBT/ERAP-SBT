@@ -2,6 +2,29 @@
 
 using namespace lifter::RV64;
 
+std::variant<std::monostate, RoundingMode, SSAVar *> Lifter::parse_rounding_mode(BasicBlock *bb, reg_map &mapping, const uint64_t ip, const uint8_t riscv_rm) {
+    switch (riscv_rm) {
+    case 0:
+    case 4:
+        // both RISC-V Rounding Modes are rounding to the nearest, but ties will be rounded to even (0) respectively to max magnitude (4).
+        // but this details cannot be saved in x86_64 and therefore both RISC-V rounding modes get mapped to the same IR rounding mode.
+        return RoundingMode::NEAREST;
+    case 1:
+        return RoundingMode::ZERO;
+    case 2:
+        return RoundingMode::DOWN;
+    case 3:
+        return RoundingMode::UP;
+    case 7:
+        // dynamic rounding mode, read rounding mode from fcsr
+        return get_csr(bb, mapping, ip, 2);
+    default:
+        assert(0 && "Unsupported or unkown rounding mode!");
+        break;
+    }
+    return {};
+}
+
 void Lifter::lift_float_two_operands(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size) {
     // check an invariant
     assert(is_float(op_size) && "This method is for lifting floating point instructions with two operands!");
@@ -76,6 +99,8 @@ void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr
     assert((is_from_floating_point || is_to_floating_point) && "For conversion, at least one variable has to be an floating point!");
     assert((!(is_from_floating_point && is_to_floating_point) || _signed) && "Conversion between floating points is always signed!");
 
+    auto rounding_mode = parse_rounding_mode(bb, mapping, ip, instr.instr.misc);
+
     SSAVar *const src = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, from);
 
     // create the result variable
@@ -84,32 +109,7 @@ void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr
     // create the operation and assign in- and outputs
     auto op = std::make_unique<Operation>(_signed ? Instruction::convert : Instruction::uconvert);
     op->lifter_info.in_op_size = from;
-
-    // Only conversions to integers should have an rounding mode
-    if (to == Type::i32 || to == Type::i64) {
-        switch (instr.instr.misc) {
-        case 0:
-        case 4:
-            // both RISC-V Rounding Modes are rounding to the nearest, but ties will be rounded to even (0) respectively to max magnitude (4).
-            // but this details cannot be saved in x86_64 and therefore both RISC-V rounding modes get mapped to the same IR rounding mode.
-            op->rounding_info = RoundingMode::NEAREST;
-            break;
-        case 1:
-            op->rounding_info = RoundingMode::ZERO;
-            break;
-        case 2:
-            op->rounding_info = RoundingMode::DOWN;
-            break;
-        case 3:
-            op->rounding_info = RoundingMode::UP;
-            break;
-        default:
-            // TODO: Implement dynamic rounding
-            assert(0 && "Dynamic rounding is currently not supported!");
-            break;
-        }
-    }
-
+    op->rounding_info = rounding_mode;
     op->set_inputs(src);
     op->set_outputs(dest);
     dest->set_op(std::move(op));

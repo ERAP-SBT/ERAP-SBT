@@ -13,12 +13,47 @@ SSAVar *zero_extend_csr(BasicBlock *bb, SSAVar *csr, uint64_t ip) {
     return extended_csr;
 }
 
-SSAVar *Lifter::get_csr(reg_map &mapping, uint32_t csr_identifier) {
+SSAVar *Lifter::get_csr(BasicBlock *bb, reg_map &mapping, const uint64_t ip, uint32_t csr_identifier) {
     // return the var of the fcsr register with id 3
     switch (csr_identifier) {
-    case 1:
-    case 2:
+    case 1: {
+        // only read fflags
+        assert(floating_point_support && "Please activate the floating point support!");
+        SSAVar *mask = bb->add_var_imm(0x5, ip);
+        SSAVar *fflags = bb->add_var(Type::i32, ip);
+        auto op = std::make_unique<Operation>(Instruction::_and);
+        op->lifter_info.in_op_size = Type::i32;
+        op->set_inputs(mapping[FCSR_IDX], mask);
+        op->set_outputs(fflags);
+        fflags->set_op(std::move(op));
+        return fflags;
+    }
+    case 2: {
+        // only read rm field and shift to lowest 3 bits
+        assert(floating_point_support && "Please activate the floating point support!");
+        SSAVar *shift_width = bb->add_var_imm(5, ip);
+        SSAVar *shifted_fcsr = bb->add_var(Type::i32, ip);
+        {
+            auto op = std::make_unique<Operation>(Instruction::shr);
+            op->lifter_info.in_op_size = Type::i32;
+            op->set_inputs(mapping[FCSR_IDX], shift_width);
+            op->set_outputs(shifted_fcsr);
+            shifted_fcsr->set_op(std::move(op));
+        }
+
+        SSAVar *mask = bb->add_var_imm(0x7, ip);
+        SSAVar *rm_field = bb->add_var(Type::i32, ip);
+        {
+            auto op = std::make_unique<Operation>(Instruction::_and);
+            op->lifter_info.in_op_size = Type::i32;
+            op->set_inputs(shifted_fcsr, mask);
+            op->set_outputs(rm_field);
+            rm_field->set_op(std::move(op));
+        }
+        return rm_field;
+    }
     case 3:
+        // read whole fcsr register
         assert(floating_point_support && "Please activate the floating point support!");
         return mapping[FCSR_IDX];
     default:
@@ -35,16 +70,86 @@ SSAVar *Lifter::get_csr(reg_map &mapping, uint32_t csr_identifier) {
     return nullptr;
 }
 
-void Lifter::write_csr(reg_map &mapping, SSAVar *new_csr, uint32_t csr_identifier) {
+void Lifter::write_csr(BasicBlock *bb, reg_map &mapping, SSAVar *new_value, const uint64_t ip, uint32_t csr_identifier) {
     // return the var of the fcsr register with id 3
     switch (csr_identifier) {
-    case 1:
-    case 2:
+    case 1: {
+        // only write fflags
+        // clear fflags
+        SSAVar *mask = bb->add_var_imm(0xFFFF'FFE0, ip);
+        SSAVar *masked_fcsr = bb->add_var(Type::i32, ip);
+        {
+            auto op = std::make_unique<Operation>(Instruction::_and);
+            op->lifter_info.in_op_size = Type::i32;
+            op->set_inputs(mapping[FCSR_IDX], mask);
+            op->set_outputs(masked_fcsr);
+            masked_fcsr->set_op(std::move(op));
+        }
+
+        SSAVar *mask2 = bb->add_var_imm(0x1F, ip);
+        SSAVar *masked_new_value = bb->add_var(Type::i32, ip);
+        {
+            auto op = std::make_unique<Operation>(Instruction::_and);
+            op->lifter_info.in_op_size = Type::i32;
+            op->set_inputs(new_value, mask2);
+            op->set_outputs(masked_new_value);
+            masked_new_value->set_op(std::move(op));
+        }
+
+        // write new values
+        SSAVar *new_fcsr = bb->add_var(Type::i32, ip);
+        {
+            auto op = std::make_unique<Operation>(Instruction::_or);
+            op->lifter_info.in_op_size = Type::i32;
+            op->set_inputs(masked_fcsr, masked_new_value);
+            op->set_outputs(new_fcsr);
+            new_fcsr->set_op(std::move(op));
+        }
+        mapping[FCSR_IDX] = new_fcsr;
+        std::get<SSAVar::LifterInfo>(new_fcsr->lifter_info).static_id = FCSR_IDX;
+        break;
+    }
+    case 2: {
+        // write to rm field (lowest 3 bits in the new value)
+        SSAVar *shift_width = bb->add_var_imm(5, ip);
+        SSAVar *shifted_new_value = bb->add_var(Type::i32, ip);
+        {
+            auto op = std::make_unique<Operation>(Instruction::shl);
+            op->lifter_info.in_op_size = Type::i32;
+            op->set_inputs(new_value, shift_width);
+            op->set_outputs(shifted_new_value);
+            shifted_new_value->set_op(std::move(op));
+        }
+
+        SSAVar *mask = bb->add_var_imm(0xFFFF'FF1F, ip);
+        SSAVar *masked_fcsr = bb->add_var(Type::i32, ip);
+        {
+            auto op = std::make_unique<Operation>(Instruction::_and);
+            op->lifter_info.in_op_size = Type::i32;
+            op->set_inputs(mapping[FCSR_IDX], mask);
+            op->set_outputs(masked_fcsr);
+            masked_fcsr->set_op(std::move(op));
+        }
+
+        SSAVar *new_fcsr = bb->add_var(Type::i32, ip);
+        {
+            auto op = std::make_unique<Operation>(Instruction::_or);
+            op->lifter_info.in_op_size = Type::i32;
+            op->set_inputs(masked_fcsr, shifted_new_value);
+            op->set_outputs(new_fcsr);
+            new_fcsr->set_op(std::move(op));
+        }
+        mapping[FCSR_IDX] = new_fcsr;
+        std::get<SSAVar::LifterInfo>(new_fcsr->lifter_info).static_id = FCSR_IDX;
+        break;
+    }
     case 3:
         assert(floating_point_support && "Please activate the floating point support!");
-        mapping[FCSR_IDX] = new_csr;
+        mapping[FCSR_IDX] = new_value;
+        std::get<SSAVar::LifterInfo>(new_value->lifter_info).static_id = FCSR_IDX;
         break;
     default:
+
         // stop lifting if status register is not implemented
         std::stringstream str{};
         str << "Implement more control and status registers!\n csr_identifier = " << csr_identifier << "\n";
@@ -59,7 +164,7 @@ void Lifter::lift_csr_read_write(BasicBlock *bb, const RV64Inst &instr, reg_map 
     // dont't read csr register if rd is x0
     if (instr.instr.rd != 0) {
         // the identifier for the csr is in the immediate field
-        SSAVar *const csr = zero_extend_csr(bb, get_csr(mapping, instr.instr.imm), ip);
+        SSAVar *const csr = zero_extend_csr(bb, get_csr(bb, mapping, ip, instr.instr.imm), ip);
         write_to_mapping(mapping, csr, instr.instr.rd);
     }
 
@@ -80,13 +185,13 @@ void Lifter::lift_csr_read_write(BasicBlock *bb, const RV64Inst &instr, reg_map 
         op->set_outputs(masked_new_csr);
         masked_new_csr->set_op(std::move(op));
     }
-    write_csr(mapping, masked_new_csr, instr.instr.imm);
+    write_csr(bb, mapping, masked_new_csr, ip, instr.instr.imm);
 }
 
 void Lifter::lift_csr_read_set(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, bool with_immediate) {
     // move the crs value to the dest "register"
     // the identifier for the csr is in the immediate field
-    SSAVar *const csr = get_csr(mapping, instr.instr.imm);
+    SSAVar *const csr = get_csr(bb, mapping, ip, instr.instr.imm);
     write_to_mapping(mapping, zero_extend_csr(bb, csr, ip), instr.instr.rd);
 
     // dont't write to the csr if the immediate is zero or the register is x0, in both cases rs1 is zero
@@ -118,14 +223,14 @@ void Lifter::lift_csr_read_set(BasicBlock *bb, const RV64Inst &instr, reg_map &m
             op->set_outputs(masked_new_csr);
             masked_new_csr->set_op(std::move(op));
         }
-        write_csr(mapping, masked_new_csr, instr.instr.imm);
+        write_csr(bb, mapping, masked_new_csr, ip, instr.instr.imm);
     }
 }
 
 void Lifter::lift_csr_read_clear(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, bool with_immediate) {
     // move the crs value to the dest "register"
     // the identifier for the csr is in the immediate field
-    SSAVar *const csr = get_csr(mapping, instr.instr.imm);
+    SSAVar *const csr = get_csr(bb, mapping, ip, instr.instr.imm);
     write_to_mapping(mapping, zero_extend_csr(bb, csr, ip), instr.instr.rd);
 
     // dont't write to the csr if the immediate is zero or the register is x0, in both cases rs1 is zero
@@ -161,6 +266,6 @@ void Lifter::lift_csr_read_clear(BasicBlock *bb, const RV64Inst &instr, reg_map 
             new_csr->set_op(std::move(op));
         }
 
-        write_csr(mapping, new_csr, instr.instr.imm);
+        write_csr(bb, mapping, new_csr, ip, instr.instr.imm);
     }
 }

@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <immintrin.h>
 
 namespace helper {
 
@@ -20,6 +21,7 @@ extern uint64_t phdr_size;
 uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5);
 [[noreturn]] void panic(const char *err_msg);
 uint8_t *copy_stack(uint8_t *stack, uint8_t *out_stack);
+void resolve_dynamic_rounding(uint32_t dyn_rm);
 }
 
 // from https://github.com/aengelke/ria-jit/blob/master/src/runtime/emulateEcall.c
@@ -54,7 +56,7 @@ void print_hex64(uint64_t byte);
 namespace interpreter {
 
 void interpreter_dump_perf_stats();
-
-}
+uint32_t evaluate_rounding_mode(uint32_t riscv_rounding_mode, const bool is_rm_field);
+} // namespace interpreter
 
 } // namespace helper
