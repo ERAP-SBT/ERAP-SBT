@@ -5,6 +5,7 @@ lifter_sources = [
     'lift_utils.cpp',
     'split_basic_block.cpp',
     'backtracking.cpp',
+    'jump_table.cpp',
     'ijumps.cpp',
     'instruction_parser.cpp',
     'instructions/arithmetic_logical.cpp',
