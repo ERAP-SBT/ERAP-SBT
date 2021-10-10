@@ -1857,6 +1857,21 @@ void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_
         if (var->gen_info.location != SSAVar::GeneratorInfoX64::REGISTER) {
             continue;
         }
+        if (std::holds_alternative<size_t>(var->info)) {
+            auto should_skip = false;
+            for (size_t i = 0; i < cur_bb->inputs.size(); ++i) {
+                if (cur_bb->inputs[i] == var) {
+                    const auto &info = cur_bb->gen_info.input_map[i];
+                    if (info.location == BasicBlock::GeneratorInfo::InputInfo::STATIC && info.static_idx == pair.second) {
+                        should_skip = true;
+                    }
+                    break;
+                }
+            }
+            if (should_skip) {
+                continue;
+            }
+        }
 
         print_asm("mov [s%zu], %s\n", pair.second, reg_names[var->gen_info.reg_idx][0]);
     }
@@ -1871,6 +1886,22 @@ void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_
 
         if (var->gen_info.location == SSAVar::GeneratorInfoX64::REGISTER || var->gen_info.location == SSAVar::GeneratorInfoX64::STATIC) {
             continue;
+        }
+
+        if (std::holds_alternative<size_t>(var->info)) {
+            auto should_skip = false;
+            for (size_t i = 0; i < cur_bb->inputs.size(); ++i) {
+                if (cur_bb->inputs[i] == var) {
+                    const auto &info = cur_bb->gen_info.input_map[i];
+                    if (info.location == BasicBlock::GeneratorInfo::InputInfo::STATIC && info.static_idx == static_idx) {
+                        should_skip = true;
+                    }
+                    break;
+                }
+            }
+            if (should_skip) {
+                continue;
+            }
         }
 
         // TODO: cant do that here since the syscall cfop needs some vars later on
@@ -2002,7 +2033,25 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
             continue;
         }
 
-        const auto reg = load_val_in_reg(cur_write_time, inputs[var_idx].get());
+        auto *var = inputs[var_idx].get();
+        if (std::holds_alternative<size_t>(var->info)) {
+            auto should_skip = false;
+            for (size_t i = 0; i < cur_bb->inputs.size(); ++i) {
+                if (cur_bb->inputs[i] == var) {
+                    const auto &info = cur_bb->gen_info.input_map[i];
+                    if (info.location == BasicBlock::GeneratorInfo::InputInfo::STATIC && info.static_idx == input_map[var_idx].static_idx) {
+                        should_skip = true;
+                    }
+                    break;
+                }
+            }
+            if (should_skip) {
+                cur_write_time++;
+                continue;
+            }
+        }
+
+        const auto reg = load_val_in_reg(cur_write_time, var);
         print_asm("mov [s%zu], %s\n", input_map[var_idx].static_idx, reg_names[reg][0]);
         cur_write_time++;
     }
