@@ -15,6 +15,7 @@
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <system_error>
 
 namespace {
 using std::filesystem::path;
@@ -23,6 +24,7 @@ void print_help(bool usage_only);
 bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &lifter_optimizations);
 void dump_elf(const ELF64File *);
 std::optional<path> create_temp_directory();
+path get_executable_path(const char *arg0);
 bool find_runtime_dependencies(const path &exec_dir, const Args &args, path &out_helper_lib, path &out_linker_script);
 FILE *open_assembler(const path &output_file);
 bool run_linker(const path &linker_script_file, const path &output_file, const path &translated_object, const path &helper_library);
@@ -33,7 +35,7 @@ int main(int argc, const char **argv) {
     // Parse arguments, excluding the first entry (executable name)
     Args args(argv + 1, argv + argc);
 
-    auto executable_dir = std::filesystem::canonical(argv[0]).parent_path();
+    auto executable_dir = get_executable_path(argv[0]).parent_path();
 
     if (args.has_argument("help")) {
         print_help(false);
@@ -344,6 +346,45 @@ std::optional<path> create_temp_directory() {
         return std::nullopt;
     }
     return full_path;
+}
+
+path get_executable_path(const char *arg0) {
+    std::error_code error;
+
+    for (const char *link_path : {"/proc/self/exe", "/proc/curproc/file", "/proc/self/path/a.out"}) {
+        // `canonical` resolves symbolic links
+        if (auto exe_path = std::filesystem::canonical(link_path, error); !error)
+            return exe_path;
+    }
+
+    path arg0_path = arg0;
+    if (auto exe_path = std::filesystem::canonical(arg0_path, error); !error)
+        return exe_path;
+
+    if (arg0_path.is_absolute()) {
+        std::cerr << "Found absolute translator executable path, but it does not exist\n";
+        std::exit(EXIT_FAILURE);
+    }
+
+    // Try finding argv[0] in PATH as last resort
+    const char *maybe_env_path = std::getenv("PATH");
+    if (maybe_env_path) {
+        std::string_view env_path = maybe_env_path;
+        while (true) {
+            auto separator = env_path.find_first_of(':');
+            path path = env_path.substr(0, separator);
+            if (!path.empty()) {
+                if (auto exe_path = std::filesystem::canonical(path / arg0, error); !error)
+                    return exe_path;
+            }
+            if (separator == std::string_view::npos)
+                break;
+            env_path.remove_prefix(separator + 1);
+        }
+    }
+
+    std::cerr << "Could not resolve the translator executable's path\n";
+    std::exit(EXIT_FAILURE);
 }
 
 std::optional<path> try_get_runtime_dependency_directory(const path &exec_dir) {
