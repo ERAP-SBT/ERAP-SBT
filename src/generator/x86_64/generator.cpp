@@ -951,7 +951,6 @@ void Generator::compile_rounding_mode(const SSAVar *var) {
     auto *op = std::get<std::unique_ptr<Operation>>(var->info).get();
     if (std::holds_alternative<SSAVar *>(op->rounding_info)) {
         // let helper handle dynamic rounding, the rounding mode is already located in rdi
-        SSAVar *rm_var = std::get<SSAVar *>(op->rounding_info);
         fprintf(out_fd, "push rax\npush rcx\npush rdx\n");
         fprintf(out_fd, "call resolve_dynamic_rounding\n");
         fprintf(out_fd, "pop rdx\npop rcx\npop rax\n");
