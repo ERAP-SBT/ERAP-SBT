@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <immintrin.h>
+
 namespace helper::interpreter {
 
 constexpr inline size_t START_FP_STATICS = 33;
@@ -1471,7 +1472,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
         if (!jump) {
             pc += r; // FIXME: is increment PC a pre or post operation ?
         }
-    } while ((return_addr = calc_target(pc)) == 0);
+    } while (ijump_hash_table_size == 1 || (return_addr = calc_target(pc)) == 0);
 
     /* At this point we have found a valid entry point back into
      * the compiled BasicBlocks
