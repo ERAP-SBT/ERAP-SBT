@@ -16,7 +16,7 @@ struct Operation {
     std::array<RefPtr<SSAVar>, 4> in_vars = {};
     std::array<SSAVar *, 3> out_vars = {};
     // nothing (not rounded), static rounding mode, dynamic rounding with this variable
-    std::variant<std::monostate, RoundingMode, SSAVar *> rounding_info = {};
+    std::variant<std::monostate, RoundingMode, RefPtr<SSAVar>> rounding_info = {};
 
     struct LifterInfo {
         Type in_op_size;

@@ -2,7 +2,7 @@
 
 using namespace lifter::RV64;
 
-std::variant<std::monostate, RoundingMode, SSAVar *> Lifter::parse_rounding_mode(BasicBlock *bb, reg_map &mapping, const uint64_t ip, const uint8_t riscv_rm) {
+std::variant<std::monostate, RoundingMode, RefPtr<SSAVar>> Lifter::parse_rounding_mode(BasicBlock *bb, reg_map &mapping, const uint64_t ip, const uint8_t riscv_rm) {
     switch (riscv_rm) {
     case 0:
     case 4:

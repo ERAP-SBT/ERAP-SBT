@@ -153,7 +153,7 @@ class Lifter {
 
     // floating points
 
-    std::variant<std::monostate, RoundingMode, SSAVar *> parse_rounding_mode(BasicBlock *bb, reg_map &mapping, const uint64_t ip, const uint8_t riscv_rm);
+    std::variant<std::monostate, RoundingMode, RefPtr<SSAVar>> parse_rounding_mode(BasicBlock *bb, reg_map &mapping, const uint64_t ip, const uint8_t riscv_rm);
     void lift_float_two_operands(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size);
     void lift_float_sqrt(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size);
     void lift_float_fma(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size);

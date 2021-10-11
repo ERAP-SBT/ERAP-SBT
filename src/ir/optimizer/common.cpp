@@ -17,6 +17,10 @@ void VarRewriter::apply_to(Operation &op) const {
     for (auto &in_var : op.in_vars) {
         visit_refptr(in_var);
     }
+
+    if (std::holds_alternative<RefPtr<SSAVar>>(op.rounding_info)) {
+        visit_refptr(std::get<RefPtr<SSAVar>>(op.rounding_info));
+    }
 }
 
 template <typename> [[maybe_unused]] inline constexpr bool always_false_v = false;

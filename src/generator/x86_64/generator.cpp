@@ -883,7 +883,7 @@ void Generator::compile_vars(const BasicBlock *block) {
 void Generator::compile_rounding_mode(const SSAVar *var) {
     assert(std::holds_alternative<std::unique_ptr<Operation>>(var->info));
     auto &rounding_mode_variant = std::get<std::unique_ptr<Operation>>(var->info).get()->rounding_info;
-    if (std::holds_alternative<SSAVar *>(rounding_mode_variant)) {
+    if (std::holds_alternative<RefPtr<SSAVar>>(rounding_mode_variant)) {
         // TODO: Handle dynamic rounding
         assert(0);
     } else if (std::holds_alternative<RoundingMode>(rounding_mode_variant)) {
