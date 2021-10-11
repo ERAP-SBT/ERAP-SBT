@@ -1,5 +1,6 @@
 #pragma once
 
+#include "generator/x86_64/hashing.h"
 #include "ir/ir.h"
 
 namespace generator::x86_64 {
@@ -192,11 +193,21 @@ struct Generator {
     FILE *out_fd;
     std::unique_ptr<RegAlloc> reg_alloc = nullptr;
     uint32_t optimizations = 0;
+    hashing::HashtableBuilder ijump_hasher;
 
     const bool interpreter_only;
 
     Generator(IR *ir, std::string binary_filepath = {}, FILE *out_fd = stdout, bool interpreter_only = false)
-        : ir(ir), binary_filepath(std::move(binary_filepath)), out_fd(out_fd), interpreter_only(interpreter_only) {}
+        : ir(ir), binary_filepath(std::move(binary_filepath)), out_fd(out_fd), interpreter_only(interpreter_only) {
+        std::vector<uint64_t> keys;
+        keys.reserve(ir->basic_blocks.size());
+        for (auto &bb : ir->basic_blocks) {
+            if (bb->virt_start_addr >= ir->virt_bb_start_addr && bb->virt_end_addr <= ir->virt_bb_end_addr) {
+                keys.emplace_back(bb->virt_start_addr);
+            }
+        }
+        ijump_hasher.fill(keys);
+    }
 
     void compile();
     void compile_block(const BasicBlock *block);

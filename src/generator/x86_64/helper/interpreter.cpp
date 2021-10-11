@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <immintrin.h>
+
 namespace helper::interpreter {
 
 constexpr inline size_t START_FP_STATICS = 33;
@@ -123,9 +124,6 @@ void interpreter_dump_perf_stats() {
 
 /* from compiled code */
 extern "C" uint64_t register_file[32 + 1 + 32 + 1]; /* size is the maximum register_file size when compiled with floating point support */
-extern "C" const uint64_t ijump_lookup_base;
-extern "C" const uint64_t ijump_lookup[];
-extern "C" const uint64_t ijump_lookup_end;
 
 void trace(uint64_t addr, const FrvInst *instr) {
     puts("TRACE: ");
@@ -136,15 +134,6 @@ void trace(uint64_t addr, const FrvInst *instr) {
     frv_format(instr, sizeof(buf), buf);
     puts(buf);
     puts("\n");
-}
-
-uint64_t ijump_lookup_for_addr(uint64_t addr) {
-    const uint64_t *const entry = &ijump_lookup[(addr - ijump_lookup_base) / 0x2];
-    if (entry >= &ijump_lookup_end) {
-        return 0x0;
-    } else {
-        return *entry;
-    }
 }
 
 /* make the code a bit clearer */
@@ -364,6 +353,8 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
     status = (status & 0xFF'FF'1F'FF);
     _mm_setcsr(status);
     cur_rounding_mode = 0;
+    uint64_t return_addr;
+
     do {
         bool jump = false;
         FrvInst instr;
@@ -1481,28 +1472,21 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
         if (!jump) {
             pc += r; // FIXME: is increment PC a pre or post operation ?
         }
-    } while (ijump_lookup_for_addr(pc) == 0);
-
-#if TRACE
-    puts("TRACE: found compiled basic block, pc: ");
-    print_hex64(pc);
-    puts("\n");
-
-    trace_dump_state(pc);
-
-    puts("\n");
-#endif
+    } while (ijump_hash_table_size == 1 || (return_addr = calc_target(pc)) == 0);
 
     /* At this point we have found a valid entry point back into
      * the compiled BasicBlocks
      */
-    const uint64_t return_addr = ijump_lookup_for_addr(pc);
 #if TRACE
+    puts("TRACE: found compiled basic block, pc: ");
+    print_hex64(pc);
+    puts("\n");
+    trace_dump_state(pc);
+    puts("\n");
     puts("TRACE: leave handler, return_addr: ");
     print_hex64(return_addr);
     puts("\n");
 #endif
-
     return return_addr;
 }
 

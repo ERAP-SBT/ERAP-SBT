@@ -24,6 +24,18 @@ uint8_t *copy_stack(uint8_t *stack, uint8_t *out_stack);
 void resolve_dynamic_rounding(uint32_t dyn_rm);
 }
 
+/* Hashing helper for ijump target resolution */
+struct HashTableTuple {
+    uint64_t addr, target;
+};
+
+extern "C" const HashTableTuple ijump_hash_table[];
+extern "C" const uint16_t ijump_hash_function_idxs[];
+extern "C" const size_t ijump_hash_bucket_number;
+extern "C" const size_t ijump_hash_table_size;
+
+size_t calc_target(uint64_t addr);
+
 // from https://github.com/aengelke/ria-jit/blob/master/src/runtime/emulateEcall.c
 extern size_t syscall0(AMD64_SYSCALL_ID id);
 extern size_t syscall1(AMD64_SYSCALL_ID id, size_t a1);

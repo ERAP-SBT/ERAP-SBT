@@ -178,33 +178,24 @@ void Generator::compile() {
 }
 
 void Generator::compile_ijump_lookup() {
-    compile_section(Section::RODATA);
-
-    fprintf(out_fd, ".global ijump_lookup_base\n");
-    fprintf(out_fd, ".global ijump_lookup\n");
-    fprintf(out_fd, ".global ijump_lookup_end\n");
-
-    fprintf(out_fd, "ijump_lookup_base:\n");
-    fprintf(out_fd, ".8byte %zu\n", ir->virt_bb_start_addr);
-
-    fprintf(out_fd, "ijump_lookup:\n");
-
-    assert(ir->virt_bb_start_addr <= ir->virt_bb_end_addr);
-
-    /* Incredibly space inefficient but also O(1) fast */
-    for (uint64_t i = ir->virt_bb_start_addr; i < ir->virt_bb_end_addr; i += 2) {
-        const auto bb = ir->bb_at_addr(i);
-        fprintf(out_fd, "/* 0x%#.8lx: */", i);
-        if (bb != nullptr && bb->virt_start_addr == i && (!(optimizations & OPT_MBRA) || !(optimizations & OPT_NO_TRANS_BBS) || RegAlloc::is_block_jumpable(bb))) {
-            fprintf(out_fd, ".8byte b%zu\n", bb->id);
-        } else {
-            fprintf(out_fd, ".8byte 0x0\n");
+    using namespace hashing;
+    while (!ijump_hasher.build()) {
+        ijump_hasher.load_factor -= 0.1;
+        ijump_hasher.bucket_size -= 1;
+        if (ijump_hasher.load_factor <= 0.05) {
+            std::cerr << "Unable to calculate valid hash function!" << std::endl;
+            assert(0);
+            exit(1);
         }
+        ijump_hasher.fill(ijump_hasher.keys);
     }
 
-    fprintf(out_fd, "ijump_lookup_end:\n");
-    fprintf(out_fd, ".type ijump_lookup,STT_OBJECT\n");
-    fprintf(out_fd, ".size ijump_lookup,ijump_lookup_end-ijump_lookup\n");
+    ijump_hasher.print_ijump_lookup(out_fd);
+
+    compile_section(Section::RODATA);
+    ijump_hasher.print_hash_func_ids(out_fd);
+    ijump_hasher.print_hash_table(out_fd, ir);
+    ijump_hasher.print_hash_constants(out_fd);
 }
 
 void Generator::compile_statics() {
@@ -371,36 +362,15 @@ void Generator::compile_icall(const BasicBlock *block, const CfOp &op, const siz
     }
     assert(op.in_vars[0] != nullptr);
 
-    fprintf(out_fd, "# Get ICall Destination\n");
+    fprintf(out_fd, "# Get IJump Destination\n");
     fprintf(out_fd, "xor rax, rax\n");
     fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", rax_from_type(op.in_vars[0]->type), index_for_var(block, op.in_vars[0]));
 
-    fprintf(out_fd, "sub rax, %zu\n", ir->virt_bb_start_addr);
-
-    fprintf(out_fd, "cmp rax, ijump_lookup_end - ijump_lookup\n");
-    fprintf(out_fd, "ja 0f\n");
-    fprintf(out_fd, "lea rdi, [rip + ijump_lookup]\n");
-    fprintf(out_fd, "mov rdi, [rdi + 4 * rax]\n");
-    fprintf(out_fd, "test rdi, rdi\n");
-    fprintf(out_fd, "jne 1f\n");
-
-    fprintf(out_fd, "0:\n");
-    fprintf(out_fd, "lea rdi, [rax + %ld]\n", ir->virt_bb_start_addr);
-    fprintf(out_fd, "jmp unresolved_ijump\n");
-
-    fprintf(out_fd, "1:\n");
-    // return addr
-    const auto &info = std::get<CfOp::ICallInfo>(op.info);
-    if (info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
-        fprintf(out_fd, "push %lu\n", info.continuation_block->virt_start_addr);
-    } else {
-        fprintf(out_fd, "mov rax, %lu\n", info.continuation_block->virt_start_addr);
-        fprintf(out_fd, "push rax\n");
-    }
-    fprintf(out_fd, "call rdi\n");
-
     fprintf(out_fd, "# destroy stack space\n");
     fprintf(out_fd, "add rsp, %zu\n", stack_size + 8);
+
+    fprintf(out_fd, "mov rbx, rax\n");
+    fprintf(out_fd, "call ijump_lookup\n");
 
     assert(std::get<CfOp::ICallInfo>(op.info).continuation_block != nullptr);
     fprintf(out_fd, "jmp b%zu\n", std::get<CfOp::ICallInfo>(op.info).continuation_block->id);
@@ -447,23 +417,8 @@ void Generator::compile_ijump(const BasicBlock *block, const CfOp &op, const siz
     fprintf(out_fd, "# destroy stack space\n");
     fprintf(out_fd, "add rsp, %zu\n", stack_size);
 
-    /* we trust the lifter that the ijump destination is already aligned */
-
-    /* turn absolute address into relative offset from start of first basicblock */
-    fprintf(out_fd, "sub rax, %zu\n", ir->virt_bb_start_addr);
-
-    fprintf(out_fd, "cmp rax, ijump_lookup_end - ijump_lookup\n");
-    fprintf(out_fd, "ja 0f\n");
-    fprintf(out_fd, "lea rdi, [rip + ijump_lookup]\n");
-    fprintf(out_fd, "mov rdi, [rdi + 4 * rax]\n");
-    fprintf(out_fd, "test rdi, rdi\n");
-    fprintf(out_fd, "je 0f\n");
-    fprintf(out_fd, "jmp rdi\n");
-    fprintf(out_fd, "0:\n");
-
-    /* Slow-path: unresolved IJump, call interpreter */
-    fprintf(out_fd, "lea rdi, [rax + %zu]\n", ir->virt_bb_start_addr);
-    fprintf(out_fd, "jmp unresolved_ijump\n");
+    fprintf(out_fd, "mov rbx, rax\n");
+    fprintf(out_fd, "jmp ijump_lookup\n");
 }
 
 void Generator::compile_entry() {
@@ -1062,21 +1017,8 @@ void Generator::compile_ret(const BasicBlock *block, const CfOp &op, const size_
     fprintf(out_fd, "mov rsp, [init_ret_stack_ptr]\n");
 
     // do ijump
-    /* turn absolute address into relative offset from start of first basicblock */
-    fprintf(out_fd, "sub rax, %zu\n", ir->virt_bb_start_addr);
-
-    fprintf(out_fd, "cmp rax, ijump_lookup_end - ijump_lookup\n");
-    fprintf(out_fd, "ja 0f\n");
-    fprintf(out_fd, "lea rdi, [rip + ijump_lookup]\n");
-    fprintf(out_fd, "mov rdi, [rdi + 4 * rax]\n");
-    fprintf(out_fd, "test rdi, rdi\n");
-    fprintf(out_fd, "je 0f\n");
-    fprintf(out_fd, "jmp rdi\n");
-    fprintf(out_fd, "0:\n");
-
-    /* Slow-path: unresolved IJump, call interpreter */
-    fprintf(out_fd, "lea rdi, [rax + %zu]\n", ir->virt_bb_start_addr);
-    fprintf(out_fd, "jmp unresolved_ijump\n");
+    fprintf(out_fd, "mov rbx, rax\n");
+    fprintf(out_fd, "jmp ijump_lookup\n");
 }
 
 void Generator::compile_cjump(const BasicBlock *block, const CfOp &cf_op, const size_t cond_idx, const size_t stack_size) {
