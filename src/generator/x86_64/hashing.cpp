@@ -144,7 +144,7 @@ void HashtableBuilder::print_hash_table(FILE *out_fd, IR *ir) {
     fprintf(out_fd, "ijump_hash_table:\n");
     for (uint64_t key : hash_table) {
         BasicBlock *bb_at_addr = ir->bb_at_addr(key);
-        if (bb_at_addr != nullptr && (!(optimizations & OPT_MBRA) || !(optimizations & OPT_NO_TRANS_BBS) || RegAlloc::is_block_jumpable(bb_at_addr))) {
+        if (bb_at_addr != nullptr && (!(optimizations & Generator::OPT_MBRA) || !(optimizations & Generator::OPT_NO_TRANS_BBS) || RegAlloc::is_block_jumpable(bb_at_addr))) {
             fprintf(out_fd, ".8byte 0x%lx\n", key);
             fprintf(out_fd, ".8byte b%zu\n", bb_at_addr->id);
         } else {
