@@ -1511,6 +1511,7 @@ FP_REGISTER RegAlloc::compile_rounding_mode(size_t cur_time, const Operation *op
         print_asm("pop rsi\npop rdx\npop rcx\npop rax\n");
         return fp_in_reg;
     }
+    return FP_REG_NONE;
 }
 
 void RegAlloc::prepare_cf_ops(BasicBlock *bb) {
