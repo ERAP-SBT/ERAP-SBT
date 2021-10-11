@@ -24,7 +24,7 @@ struct HashtableBuilder {
     enum Optimization : uint32_t { OPT_UNUSED_STATIC = 1 << 0, OPT_MBRA = 1 << 1, OPT_MERGE_OP = 1 << 2, OPT_ARCH_BMI2 = 1 << 3, OPT_NO_TRANS_BBS = 1 << 4 };
 
     float load_factor = 1.0;
-    size_t bucket_size = 19;
+    size_t bucket_size = 10;
 
     size_t hash_table_size{};
     size_t bucket_number{};
