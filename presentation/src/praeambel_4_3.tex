@@ -14,6 +14,12 @@
 \setbeamertemplate{note page}[plain]
 \setbeamerfont{note page}{size=\Large}
 
+\newenvironment{itemize*}%
+  {\begin{itemize}%
+    \setlength{\itemsep}{5pt}%
+    \setlength{\parskip}{0pt}}%
+  {\end{itemize}}
+
 \newcommand{\PraesentationSchriftgroesseSehrGross}{\fontsize{30}{45}}
 \newcommand{\PraesentationSchriftgroesseGross}{\fontsize{22}{33}}
 \newcommand{\PraesentationSchriftgroesseNormal}{\fontsize{16}{29}}

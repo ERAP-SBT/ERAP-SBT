@@ -147,7 +147,7 @@
 \begin{frame}
     \frametitle{Inhalt}
     \begin{itemize}
-        \item 
+        \item
     \end{itemize}
 \end{frame}
 
@@ -191,13 +191,10 @@
     \note[item]{SSA bedeutet: Variablen frei verschiebbar, deshalb Memory Tokens für Einhaltung der Reihenfolge}
     \pause{}
     \begin{itemize}
-        \item Die IR besteht aus mehreren "`\textbf{Basic Blocks}"'
-        \item Basic Block: Eine Folge von sequentiellen Instruktionen, beendet durch eine Kontrollflussoperation
-        \item Ein Basic Block enthält Variablen in SSA-Form und dazugehörige Operationen
-        \item \textbf{Static single assignment (SSA):} Jeder Variable wird genau einmal ein Wert zugewiesen
-        \item Ein Basic Block erhält Eingaben in Form von Statics
-        \item Die Basic Blocks sind durch die Kontrollflussoperationen miteinander verbunden
-        \item Zur Nachvervolgung von Lese- und Schreiboperationen gibt es Memory Tokens $\rightarrow$ Optimierungen
+        \item Programm aus \textbf{Basic Blocks}
+        \item \textbf{Static Single Assignment (SSA)}
+        \item Eingaben in Form von Statics
+        \item Verbindung durch Kontrollflussoperationen
     \end{itemize}
 \end{frame}
 
@@ -271,40 +268,21 @@ block b1(/* inputs */) <= [/* predecessors */] {
 
 \begin{frame}[fragile]
     \frametitle{Lifter}{ELF Binärdatei laden und Instruktionsbytes decodieren}
-    \begin{columns}[c]
-        \column{0.5 \textwidth}
-        \begin{enumerate}
-            \note[item]{ELF Prüfung: Prüfbits, System-V ABI, 64-Bit, Little Endian, RISC-V Machine}
-            \item ELF File prüfen.
-                  \note[item]{Symbole weren bei gestrippten ELF-Binaries nicht eingelesen}
-            \item Program Header, Sections und Symbole auslesen.
-                  \note[item]{32-Byte bzw. 16-Byte Compressed mit frvdec decodieren}
-            \item Section Bytes $\rightarrow$ Instruktionen durch \textbf{frvdec} decodieren.
-        \end{enumerate}
-        \column{0.50 \textwidth}
-        \begin{lstlisting}[basicstyle=\footnotesize, breaklines=true, escapeinside={@@}]
-ELF Header:
-    Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00
-    Class:                             @\textcolor{TUMBlauDunkel}{ELF64}@
-    Data:                              @\textcolor{TUMBlauDunkel}{2's complement, little endian}@
-    Version:                           1 (current)
-    OS/ABI:                            UNIX - @\textcolor{TUMBlauDunkel}{System V}@
-    ABI Version:                       0
-    Type:                              @\textcolor{TUMBlauDunkel}{EXEC}@ (Executable file)
-    Machine:                           @\textcolor{TUMBlauDunkel}{RISC-V}@
-    Version:                           0x1
-    Entry point address:               @\textcolor{TUMBlauDunkel}{0x100b0}@
-    Start of program headers:          64 (bytes into file)
-    Start of section headers:          688 (bytes into file)
-    Flags:                             0x5, RVC, double-float ABI
-    Size of this header:               64 (bytes)
-    Size of program headers:           56 (bytes)
-    Number of program headers:         2
-    Size of section headers:           64 (bytes)
-    Number of section headers:         6
-    Section header string table index: 5
-        \end{lstlisting}
-    \end{columns}
+    \begin{enumerate}
+        \setlength\itemsep{0.6em}
+              \note[item]{ELF Prüfung: Prüfbits, System-V ABI, 64-Bit, Little Endian, RISC-V Machine}
+        \item ELF File prüfen.
+              \note[item]{Symbole weren bei gestrippten ELF-Binaries nicht eingelesen}
+        \item Program Header, Sections und Symbole auslesen.
+              \note[item]{32-Byte bzw. 16-Byte Compressed mit frvdec decodieren}
+              \vspace{0.5em}
+              \begin{enumerate}
+                  \setlength\itemsep{0.6em}
+                  \item Instruktionen aus \texttt{PROGBITS} Sektionen die \textit{ausführbar} sind \\
+                        $\rightarrow$ mit \textbf{frvdec} decodieren.
+                  \item Daten aus \textit{lesbaren} Sektionen die \textbf{nicht} \textit{ausführbar} sind
+              \end{enumerate}
+    \end{enumerate}
 \end{frame}
 \clearpage
 
@@ -313,63 +291,128 @@ ELF Header:
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{frame}
-    \frametitle{Lifter}{RISC-V Instruktionen in IR Code umwandeln}
+    \frametitle{Lifter}{RISC-V Instruktionen sequentiell in IR Code umwandeln}\\
+    \vspace{2cm}
+    Wiederhole solange ungeliftete Instruktionen existieren:
     \begin{enumerate}
-        \setlength\itemsep{0.6em}
-        \item Instruktionen sequenziell lesen:
-              \vspace{0.5em}
+        \setlength{\itemsep}{1em}
+        \item Starte neuen Basic Block bei der nächsten, ungelifteten Instruktion
+        \item geladene Instruktionen in IR parsen
+        \item Wiederhole solange bis:
               \begin{enumerate}
-                  \setlength\itemsep{0.6em}
-                  \item Instruktionen in IR parsen
-                  \item Wiederhole bis eine \textbf{Kontrollfluss ändernde Instruktion} auftritt
-                  \item Beende Basic Block $\rightarrow$ starte neuen Basic Blöck für jede Kontrollflussänderung
-                  \item Starte für jeden \textbf{neuen} Basic Block wieder bei 1
+                  \vspace{1em}
+                  \setlength{\itemsep}{1em}
+                  \item eine \textbf{Kontrollfluss ändernde Instruktion} auftritt
+                  \item der Start einesq
+                        neues Basic Blocks an der nächsten Instruktion registriert ist
               \end{enumerate}
-        \item Sollte Schritt 1 nicht alle vorhandenen Instruktionen in Basic Blöcke gepackt haben:\\ Beginne ab erster \textbf{unbetrachteter} Adresse / Instruktion erneut mit Schritt 1
+        \item Beende Basic Block $\rightarrow$ markiere Start neuer Basic Blöcke an evtl. Sprungzielen
     \end{enumerate}
 \end{frame}
 \clearpage
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Lifter Backtracking und Splitting %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Splitting %%
+%%%%%%%%%%%%%%%%%%%%%%
 \begin{frame}
-    \frametitle{Lifter}{Lifter Splitting und Backtracking}
-    \vspace{2em}
-    \begin{columns}[c]
-        \column{0.4 \textwidth}
-        \textbf{Aufteilen eines Basic Blocks}
-        \note[item]{Sprung zurück in bereits geparsten Codebereich}
-        \note[item]{Split an Einsprungaddresse und Verbindung mit direktem Sprung}
-        \begin{itemize}
-            \item Situation: Sprung \textbf{in} einen Basic Block
-            \item Aufteilung an Sprungadresse in zwei Basic Blöcke
-            \item Verbindung mit einem direkten Sprung
-        \end{itemize}
-        \column{0.4 \textwidth}
-        \textbf{Backtracking einer indirekten Sprungadresse}
-        \note[item]{Indirekte Sprünge, also Sprünge mit Register als Eingabeparameter}
-        \note[item]{Rekursives Backtracking um Wert des Registers zu ermitteln}
-        \note[item]{Mehrere Werte möglich -> im Moment wird erster gewählt (mögliche Fehlerquelle)}
-        \begin{itemize}
-            \item rekursive Rückverfolgung aller Argumente
-            \item für "`statics"' werden alle möglichen Vorgänger betrachtet
-            \item Aussortierung von Vorgängern
-        \end{itemize}
-    \end{columns}
+    \frametitle{Lifter Splitting}{Aufteilen eines Basic Blocks}
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item Situation: Sprung \textbf{in} einen Basic Block
+        \item Aufteilung an Sprungadresse in zwei Basic Blöcke
+        \item Verbindung mit einem direkten Sprung
+        \item Komplexe Operation, da alle Referenzen auf den geteilten Block betrachtet werden müssen
+    \end{itemize}
 \end{frame}
 \clearpage
 
-\note[itemize]{
-    \item {Ein Basic Block muss aufgeteilt werden, wenn eine Kontrollflussoperation an eine Adresse springt, welche bereits geliftet ist und sich in diesem Basic Block befindet}
-    \item {Warum muss ein Basic Block geteilt werden? -> damit nach Definition der IR immer an den Beginn eines Basic Blocks gesprungen werden kann}
-    \item {bei Schleifen nötig -> siehe IR Beispiel vorher}
-    \item {Unbedingter Sprung als Verbindung (nach )}
-    \item {Variablen anhand Zuweisungsadresse (Adresse der Instruktion, welche sie erzeugt hat) auf die beiden Basic Blöcke aufgeteilt}
-    \item {Sorgt für Probleme, weil Datenstruktur verändert wird, v.a. richtige Aufteilen der Variablen, korrekter Sprung, korrekter Transfer der Cfops}
-    \item {Die Kontrollflussoperationen werden in den zweiten Basic Block (mit der höheren Adresse) geschoben, weil diese das Ende des Basic Blocks sind und sich damit garantiert im zweiten Befinden}
-}
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Backtracking %%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Lifter Backtracking}{Rücklverfolgung einer indirekten Sprungadresse}\\
+    = rekursive Rückverfolgung der absoluten Werte aller Operationsparameter
+    \begin{figure}
+        \centering
+        \begin{tikzpicture}[scale=1.5]
+            \begin{pgfonlayer}{nodelayer}
+                \node [style=BB] (0) at (-3.75, 0) {bb24};
+                \node [style=VAR] (1) at (-2.25, 0) {v37};
+                \node [style=OP] (2) at (-0.75, 0) {ADD};
+                \node [style=VAR] (3) at (0.5, 1.5) {v36};
+                \node [style=VAR] (4) at (0.5, -1.5) {v34};
+                \node [style=OP] (5) at (2, -1.5) {SHL};
+                \node [style=VAR] (6) at (3.5, 0.25) {v15};
+                \node [style=VAR] (7) at (3.5, -1.5) {v22};
+                \node [style=STATIC] (8) at (5, 0.25) {x14};
+                \node [style=STATIC] (9) at (5, -1.5) {x21};
+                \node [style=BB] (10) at (6.5, 1) {bb42};
+                \node [style=BB] (11) at (6.5, -1) {bb23};
+                \node [style=BB] (12) at (6.5, 2) {bb8};
+                \node [style=BB] (13) at (6.5, 0) {bb17};
+                \node [style=BB] (14) at (6.5, -2.25) {bb127};
+                \node [style=VALUE] (15) at (2, 1.5) {-2};
+                \node [style=VAR] (16) at (7.75, 2) {};
+                \node [style=VAR] (18) at (7.75, 0) {};
+                \node [style=VAR] (19) at (7.75, -1) {};
+                \node [style=BB] (23) at (9.75, 1) {};
+                \node [style=BB] (24) at (9.75, -2.25) {};
+                \node [style=OP] (25) at (8.75, 0) {};
+                \node [style=OP] (26) at (8.75, -1) {};
+                \node [style=OP] (28) at (8.75, 2) {};
+                \node [style=VAR] (29) at (7.75, 1) {};
+                \node [style=VAR] (31) at (7.75, -2.25) {};
+                \node [style=STATIC] (32) at (8.75, 1) {};
+                \node [style=STATIC] (33) at (8.75, -2.25) {};
+                \node [style=none] (34) at (9.75, 2) {};
+                \node [style=none] (35) at (9.75, 1.5) {};
+                \node [style=none] (36) at (9.75, 0.25) {};
+                \node [style=none] (37) at (9.75, -0.25) {};
+                \node [style=none] (38) at (9.75, -0.75) {};
+                \node [style=none] (39) at (9.75, -1.25) {};
+                \node [style=none] (40) at (9.75, 2.5) {};
+            \end{pgfonlayer}
+            \begin{pgfonlayer}{edgelayer}
+                \draw [style=LINK] (0) to (1);
+                \draw [style=LINK] (1) to (2);
+                \draw [style=LINK] (2) to (3);
+                \draw [style=LINK] (2) to (4);
+                \draw [style=LINK] (3) to (15.center);
+                \draw [style=LINK] (4) to (5);
+                \draw [style=LINK] (5) to (7);
+                \draw [style=LINK] (5) to (6);
+                \draw [style=LINK] (6) to (8);
+                \draw [style=LINK] (7) to (9);
+                \draw [style=LINK] (9) to (14);
+                \draw [style=LINK] (9) to (11);
+                \draw [style=LINK] (8) to (13);
+                \draw [style=LINK] (8) to (10);
+                \draw [style=LINK] (8) to (12);
+                \draw [style=LINK] (12) to (16);
+                \draw [style=LINK] (13) to (18);
+                \draw [style=LINK] (11) to (19);
+                \draw [style=LINK] (16) to (28);
+                \draw [style=LINK] (10) to (29);
+                \draw [style=LINK] (29) to (32);
+                \draw [style=LINK] (18) to (25);
+                \draw [style=LINK] (14) to (31);
+                \draw [style=LINK] (31) to (33);
+                \draw [style=LINK] (33) to (24);
+                \draw [style=LINK] (19) to (26);
+                \draw [style=LINK] (32) to (23);
+                \draw [style=DASHED] (28) to (34.center);
+                \draw [style=DASHED] (28) to (35.center);
+                \draw [style=DASHED] (25) to (36.center);
+                \draw [style=DASHED] (25) to (37.center);
+                \draw [style=DASHED] (26) to (38.center);
+                \draw [style=DASHED] (26) to (39.center);
+                \draw [style=DASHED] (28) to (40.center);
+            \end{pgfonlayer}
+        \end{tikzpicture}
+    \end{figure}
+\end{frame}
+\clearpage
 
 %%%%%%%%%%%%%%%%%%%%%
 %% Generator Folie %%
@@ -381,10 +424,11 @@ ELF Header:
     \note[item]{RISC-V System-V ABI (Startup, Syscall) zur Laufzeit emuliert}
     \note[item]{Stack wird nur initialisiert, danach nicht mehr im Generator speziell behandelt}
     \note[item]{Indirekte Sprünge werden per Lookup zur Laufzeit aufgelöst}
-%    \note[item]{Erste Optimierung: Eliminierung von Redundanzen bei den Statics}
+    %    \note[item]{Erste Optimierung: Eliminierung von Redundanzen bei den Statics}
 
     \frametitle{Generator}{Übersetztung der IR zu x86\_64}
     \begin{itemize}
+        \setlength{\itemsep}{1em}
         \item Sehr einfache, aber korrekte Übersetztung
         \item Originales ELF-Programm als binäres Speicherbild an exakter Adresse eingebunden
               %        \item Stellt nur initialen Stack zur Verfügung % es wird nicht der x86-64 Stack verwendet
@@ -394,6 +438,63 @@ ELF Header:
     \end{itemize}
 \end{frame}
 \clearpage
+
+%%%%%%%%%%%%%%%%%%%
+%% IJump hashing %%
+%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Basic Block Startadressen}{Datenstruktur für effizienten Zugriff auf Basic Block Startadressen}
+    \vspace{1cm}
+    \begin{columns}[t]
+        \column{0.55 \textwidth}
+        \textbf{Naive Implementierung}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Speichere für jede RISC-V Instruktion die korrespondierende Basic Block Startadresse
+            \item Wenn diese nicht existiert, füge stattdessen 0 ein
+            \item Liste dieser Wert baut Adressraum der originalen Binary nach
+        \end{itemize}
+        \column{0.45 \textwidth}
+        \textbf{Fast perfektes Hashing}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Ordne Startadressen in Hashtabelle ein
+            \item Zweistufiges hashing durch Einsortieren in Buckets
+            \item ``Hash, Displace, and Compress''-Verfahren gepaart mit der SpookyHash Funktion
+        \end{itemize}
+    \end{columns}
+\end{frame}
+\clearpage
+
+\begin{frame}
+    \frametitle{Basic Block Startadressen}{Vorteile und Nachteile}
+    \vspace{1cm}
+    \begin{columns}[t]
+        \column{0.55 \textwidth}
+        \textbf{Naive Implementierung}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Zugriffszeit in $O(1)$
+            \item Adresszugriff benötigt \textbf{eine} Ladeoperation
+            \item Benötigt genau so viel Speicher wie der geliftete Teil der originalen Binary
+        \end{itemize}
+        \column{0.45 \textwidth}
+        \textbf{Fast perfektes Hashing}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Zugriffszeit in $O(1)$
+            \item Runtime Overhead: Hashtabellenindex muss zur Laufzeit berechnet werden
+            \item Benötigter Speicherplatz in $O(n)$ mit $n = \text{Anzahl der Startadressen}$
+        \end{itemize}
+    \end{columns}
+\end{frame}
+\clearpage
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Technische Demonstration %%
