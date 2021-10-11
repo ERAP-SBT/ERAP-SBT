@@ -50,9 +50,9 @@ void Operation::print(std::ostream &stream, const IR *ir) const {
             in->print_type_name(stream, ir);
         }
     }
-    if (std::holds_alternative<SSAVar *>(rounding_info)) {
+    if (std::holds_alternative<RefPtr<SSAVar>>(rounding_info)) {
         stream << "(rm = ";
-        std::get<SSAVar *>(rounding_info)->print_type_name(stream, ir);
+        std::get<RefPtr<SSAVar>>(rounding_info)->print_type_name(stream, ir);
         stream << ")";
     } else if (std::holds_alternative<RoundingMode>(rounding_info)) {
         stream << "(rm = " << static_cast<uint32_t>(std::get<RoundingMode>(rounding_info)) << ")";

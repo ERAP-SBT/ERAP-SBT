@@ -1506,9 +1506,9 @@ FP_REGISTER RegAlloc::compile_rounding_mode(size_t cur_time, const Operation *op
             print_asm("add rsp, 4\n");
             return fp_in_reg;
         }
-    } else if (std::holds_alternative<SSAVar *>(op->rounding_info)) {
+    } else if (std::holds_alternative<RefPtr<SSAVar>>(op->rounding_info)) {
         // let helper handle dynamic rounding
-        SSAVar *rm_var = std::get<SSAVar *>(op->rounding_info);
+        SSAVar *rm_var = std::get<RefPtr<SSAVar>>(op->rounding_info).get();
         const REGISTER reg = load_val_in_reg(cur_time, rm_var, REG_DI);
         assert(reg == REG_DI);
         clear_reg(cur_time, REG_DI);
@@ -2575,8 +2575,8 @@ void RegAlloc::init_time_of_use(BasicBlock *bb) {
             input->gen_info.uses.push_back(i);
         }
 
-        if (std::holds_alternative<SSAVar *>(op->rounding_info)) {
-            SSAVar *rounding_info = std::get<SSAVar *>(op->rounding_info);
+        if (std::holds_alternative<RefPtr<SSAVar>>(op->rounding_info)) {
+            SSAVar *rounding_info = std::get<RefPtr<SSAVar>>(op->rounding_info).get();
             rounding_info->gen_info.last_use_time = i;
             rounding_info->gen_info.uses.push_back(i);
         }

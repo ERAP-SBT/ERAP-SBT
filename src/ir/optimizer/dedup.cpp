@@ -44,8 +44,15 @@ struct VarMeta {
                 if (!op.out_vars[i] != !oop.out_vars[i])
                     return false;
             }
-            if (op.rounding_info != oop.rounding_info)
+            if (op.rounding_info.index() != oop.rounding_info.index())
                 return false;
+            if (std::holds_alternative<RefPtr<SSAVar>>(op.rounding_info)) {
+                if (std::get<RefPtr<SSAVar>>(op.rounding_info)->id != std::get<RefPtr<SSAVar>>(oop.rounding_info))
+                    return false;
+            } else if (std::holds_alternative<RoundingMode>(op.rounding_info)) {
+                if (std::get<RoundingMode>(op.rounding_info) != std::get<RoundingMode>(oop.rounding_info))
+                    return false;
+            }
             return true;
         } else {
             assert(0 && "Uninitialized IR variable in optimizer");
@@ -76,6 +83,7 @@ template <> struct std::hash<VarMeta> {
                 }
             }
             // TODO rounding mode
+            hash ^= std::hash<size_t>()(op.rounding_info.index());
             return hash;
         } else {
             assert(0 && "Uninitialized IR variable in optimizer");
