@@ -1259,17 +1259,24 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
             assert(var->type == Type::i32 || var->type == Type::i64);
             const FP_REGISTER in_reg = load_val_in_fp_reg(cur_time, in1);
             const REGISTER dest_reg = alloc_reg(cur_time);
+            const bool single_precision = in1->type == Type::f32;
             const char *dest_reg_name = reg_name(dest_reg, var->type);
             print_asm("cvt%s2si %s, %s\n", conv_name_1, dest_reg_name, fp_reg_names[in_reg]);
-            print_asm("cmp %s, 0\n", dest_reg_name);
-            print_asm("cmovl %s, %s\n", dest_reg_name, (var->type == Type::i32 ? "ebp" : "rbp"));
+            print_asm("mov%s %s, %s\n", (single_precision ? "d" : "q"), (single_precision ? "ebp" : "rbp"), fp_reg_names[in_reg]);
+            print_asm("sar rbp, %d\n", (single_precision ? 31 : 63));
+            if (var->type == Type::i64 && single_precision) {
+                print_asm("movsxd rbp, ebp\n");
+            }
+            print_asm("not rbp\n");
+            print_asm("and %s, %s\n", dest_reg_name, (var->type == Type::i32 ? "ebp" : "rbp"));
+            print_asm("xor rbp, rbp\n");
             set_var_to_reg(cur_time, var, dest_reg);
         } else {
             // unsigned integer -> floating point
             assert(in1->type == Type::i32 || in1->type == Type::i64);
             const REGISTER in_reg = load_val_in_reg(cur_time, in1);
             const FP_REGISTER dest_reg = alloc_fp_reg(cur_time);
-            const REGISTER help_reg = alloc_reg(cur_time);
+            const REGISTER help_reg = alloc_reg(cur_time, REG_NONE, in_reg);
             if (in1->type == Type::i32) {
                 // "zero extend" and then convert: use 64bit register
                 print_asm("mov %s, %s\n", reg_names[in_reg][1], reg_names[in_reg][1]);
@@ -2074,19 +2081,6 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
         if (input_var->gen_info.location != SSAVar::GeneratorInfoX64::NOT_CALCULATED) {
             continue;
         }
-        if (input_var->type != Type::imm) {
-            std::cout << "type = " << input_var->type << "\n";
-            std::cout << "id = " << input_var->id << "\n";
-            std::cout << "info_variant_idx = " << input_var->info.index() << "\n";
-            if (std::holds_alternative<size_t>(input_var->info)) {
-                std::cout << "static idx = " << std::get<size_t>(input_var->info) << "\n";
-            } else if (std::holds_alternative<SSAVar::ImmInfo>(input_var->info)) {
-                auto imm_info = std::get<SSAVar::ImmInfo>(input_var->info);
-                std::cout << "imm_info.val = " << imm_info.val << "\n";
-            } else if (std::holds_alternative<std::unique_ptr<Operation>>(input_var->info)) {
-                std::cout << "op->type = " << std::get<std::unique_ptr<Operation>>(input_var->info).get()->type << "\n";
-            }
-        }
         assert(input_var->type == Type::imm);
         load_val_in_reg<false>(cur_time, input_var);
     }
@@ -2300,12 +2294,7 @@ void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_
         }
 
         auto location = var->gen_info.location;
-        if (location == SSAVar::GeneratorInfoX64::FP_REGISTER) {
-            print_asm("movq [s%zu], %s\n", pair.second, fp_reg_names[var->gen_info.reg_idx]);
-            continue;
-        }
-
-        if (location != SSAVar::GeneratorInfoX64::REGISTER) {
+        if (location != SSAVar::GeneratorInfoX64::REGISTER && location != SSAVar::GeneratorInfoX64::FP_REGISTER) {
             continue;
         }
         if (std::holds_alternative<size_t>(var->info)) {
@@ -2322,6 +2311,10 @@ void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_
             if (should_skip) {
                 continue;
             }
+        }
+        if (location == SSAVar::GeneratorInfoX64::FP_REGISTER) {
+            print_asm("movq [s%zu], %s\n", pair.second, fp_reg_names[var->gen_info.reg_idx]);
+            continue;
         }
 
         print_asm("mov [s%zu], %s\n", pair.second, reg_names[var->gen_info.reg_idx][0]);
