@@ -427,4 +427,83 @@ void print_hex64(uint64_t byte) {
     write_stderr(str, 2 + 16);
 }
 
+/* Hashing helpers for ijump target resolution */
+struct Hashes {
+    uint64_t h0, h1, h2;
+};
+
+// taken from https://www.burtleburtle.net/bob/c/SpookyV2.h
+inline uint64_t rot_64(uint64_t x, int k) { return (x << k) | (x >> (64 - k)); }
+
+// taken from https://www.burtleburtle.net/bob/c/SpookyV2.h
+extern "C" Hashes spookey_hash(uint64_t key) {
+    // "random" seeds
+    uint64_t h0 = 42;
+    uint64_t h1 = 0xbeef;
+
+    // "sc_const" = 0xdeadbeefdeadbeef
+    uint64_t h2 = 0xdeadbeefdeadbeef;
+    uint64_t h3 = 0xdeadbeefdeadbeef + key;
+
+    h2 += ((uint64_t)8) << 56;
+
+    // inlined ShortEnd from https://www.burtleburtle.net/bob/c/SpookyV2.h
+    h3 ^= h2;
+    h2 = rot_64(h2, 15);
+    h3 += h2;
+    h0 ^= h3;
+    h3 = rot_64(h3, 52);
+    h0 += h3;
+    h1 ^= h0;
+    h0 = rot_64(h0, 26);
+    h1 += h0;
+    h2 ^= h1;
+    h1 = rot_64(h1, 51);
+    h2 += h1;
+    h3 ^= h2;
+    h2 = rot_64(h2, 28);
+    h3 += h2;
+    h0 ^= h3;
+    h3 = rot_64(h3, 9);
+    h0 += h3;
+    h1 ^= h0;
+    h0 = rot_64(h0, 47);
+    h1 += h0;
+    h2 ^= h1;
+    h1 = rot_64(h1, 54);
+    h2 += h1;
+    h3 ^= h2;
+    h2 = rot_64(h2, 32);
+    h3 += h2;
+    h0 ^= h3;
+    h3 = rot_64(h3, 25);
+    h0 += h3;
+    h1 ^= h0;
+    h0 = rot_64(h0, 63);
+    h1 += h0;
+
+    // apply size constraints
+    h0 %= ijump_hash_bucket_number;
+    h1 %= ijump_hash_table_size;
+    h2 %= ijump_hash_table_size;
+    return {h0, h1, h2};
+}
+
+// returns the target basic block start address for valid input risc-v addresses and return 0x0 otherwise.
+size_t calc_target(uint64_t addr) {
+    // required, because we otherwise divide by zero for calculating hashes (happens in interpreter-only runs)
+    if (ijump_hash_table_size == 0) {
+        return 0x0;
+    }
+
+    const Hashes hashes = spookey_hash(addr);
+    const size_t idx = ijump_hash_function_idxs[hashes.h0];
+    const size_t hash_table_idx = ((hashes.h1 + ((idx / ijump_hash_table_size) * hashes.h2) + (idx % ijump_hash_table_size)) % ijump_hash_table_size);
+    const struct HashTableTuple result_tuple = ijump_hash_table[hash_table_idx];
+
+    if (result_tuple.addr == addr) {
+        return result_tuple.target;
+    }
+    return 0x0;
+}
 } // namespace helper

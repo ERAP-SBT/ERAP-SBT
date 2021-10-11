@@ -1797,31 +1797,12 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
             write_static_mapping((info.targets.empty() ? nullptr : info.targets[0]), cur_time, info.mapping);
             // TODO: we get a problem if the dst is in a static that has already been written out (so overwritten)
             auto *dst = cf_op.in_vars[0].get();
-            const auto dst_reg = load_val_in_reg(cur_time + 1 + info.mapping.size(), dst);
-            const auto tmp_reg = alloc_reg(cur_time + 1 + info.mapping.size(), REG_NONE, dst_reg);
-            const auto dst_reg_name = reg_names[dst_reg][0];
-            const auto tmp_reg_name = reg_names[tmp_reg][0];
+            load_val_in_reg(cur_time + 1 + info.mapping.size(), dst, REG_B);
             assert(dst->type == Type::imm || dst->type == Type::i64);
             print_asm("# destroy stack space\n");
-            print_asm("add rsp, %zu\n", max_stack_frame_size);
+            print_asm("add rsp, %zu\n", max_stack_frame_size * 8);
 
-            /* we trust the lifter that the ijump destination is already aligned */
-
-            /* turn absolute address into relative offset from start of first basicblock */
-            print_asm("sub %s, %zu\n", dst_reg_name, gen->ir->virt_bb_start_addr);
-
-            print_asm("cmp %s, ijump_lookup_end - ijump_lookup\n", dst_reg_name);
-            print_asm("ja 0f\n");
-            print_asm("lea %s, [rip + ijump_lookup]\n", tmp_reg_name);
-            print_asm("mov %s, [%s + 4 * %s]\n", tmp_reg_name, tmp_reg_name, dst_reg_name);
-            print_asm("test %s, %s\n", tmp_reg_name, tmp_reg_name);
-            print_asm("je 0f\n");
-            print_asm("jmp %s\n", tmp_reg_name);
-            print_asm("0:\n");
-
-            /* Slow-path: unresolved IJump, call interpreter */
-            print_asm("lea rdi, [%s + %lu]\n", dst_reg_name, gen->ir->virt_bb_start_addr);
-            print_asm("jmp unresolved_ijump\n");
+            print_asm("jmp ijump_lookup\n");
             break;
         }
         case CFCInstruction::syscall: {
