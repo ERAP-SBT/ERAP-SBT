@@ -989,6 +989,10 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                 break;
             }
 
+            if (merge_op_unary(cur_time, var_idx)) {
+                break;
+            }
+
             const auto dst_reg = load_val_in_reg(cur_time, input);
             const auto dst_reg_name = reg_name(dst_reg, input->type);
             if (input->gen_info.last_use_time > cur_time) {
@@ -1032,6 +1036,43 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
             exit(1);
         }
     }
+}
+
+bool RegAlloc::merge_op_unary(size_t cur_time, size_t var_idx) {
+    auto *var = cur_bb->variables[var_idx].get();
+    auto &op = var->get_operation();
+
+    if (op.type != Instruction::cast || cur_bb->variables.size() <= var_idx + 1 || var->ref_count > 1) {
+        return false;
+    }
+
+    auto *next_var = cur_bb->variables[var_idx + 1].get();
+    if (!next_var->is_operation()) {
+        return false;
+    }
+    auto &next_op = next_var->get_operation();
+
+    if (next_op.type == Instruction::store && next_op.in_vars[1] == var) {
+        const auto addr_reg = load_val_in_reg(cur_time, next_op.in_vars[0].get());
+        const auto val_reg = load_val_in_reg(cur_time, op.in_vars[0]);
+        print_asm("mov [%s], %s\n", reg_names[addr_reg][0], reg_name(val_reg, var->type));
+        next_var->gen_info.already_generated = true;
+        return true;
+    } else if (next_op.type == Instruction::sign_extend && next_op.in_vars[0] == var) {
+        const auto val_reg = load_val_in_reg(cur_time, op.in_vars[0]);
+        if (op.in_vars[0]->gen_info.last_use_time > cur_time) {
+            save_reg(val_reg);
+        }
+        if (next_var->type != var->type) {
+            print_asm("movsx %s, %s\n", reg_name(val_reg, next_var->type), reg_name(val_reg, var->type));
+        }
+        clear_reg(cur_time + 1, val_reg);
+        set_var_to_reg(cur_time, next_var, val_reg);
+        next_var->gen_info.already_generated = true;
+        return true;
+    }
+
+    return false;
 }
 
 bool RegAlloc::merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg) {
@@ -1134,6 +1175,7 @@ bool RegAlloc::merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg) {
 
                 const auto cast_reg = load_val_in_reg(cur_time, next_op->in_vars[0].get());
                 print_asm("mov [%s + %s], %s\n", in1_reg_name, in2_reg_name, reg_name(cast_reg, cast_var->type));
+                cast_var->gen_info.already_generated = true;
                 store_op->out_vars[0]->gen_info.already_generated = true;
                 return true;
             }
