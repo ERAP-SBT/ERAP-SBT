@@ -49,11 +49,16 @@ bool check_target_input_removable(const BasicBlock *block, const BasicBlock *tar
         }
         case CFCInstruction::icall: {
             const auto &info = std::get<CfOp::ICallInfo>(cf.info);
-            if (std::find(info.targets.begin(), info.targets.end(), target) != info.targets.end())
+            if (info.targets.size() > 1) {
+                // Ignore icalls with multiple targets for now
+                return false;
+            } else if (info.targets.size() == 1 && info.targets[0] == target) {
                 found_cf = true;
+            }
             break;
         }
         case CFCInstruction::_return:
+            return false;
         case CFCInstruction::unreachable:
             break;
         }
@@ -203,6 +208,10 @@ bool propagate_from_successor(const BasicBlock *successor, const std::vector<boo
         }
         case CFCInstruction::call: {
             auto &info = std::get<CfOp::CallInfo>(cf.info);
+            if (info.continuation_block == successor) {
+                found_cf = true;
+                continue;
+            }
             if (info.target != successor)
                 continue;
             assert(info.target_inputs.size() == successor->inputs.size());
@@ -215,7 +224,11 @@ bool propagate_from_successor(const BasicBlock *successor, const std::vector<boo
         }
         case CFCInstruction::icall: {
             auto &info = std::get<CfOp::ICallInfo>(cf.info);
-            if (std::find(info.targets.begin(), info.targets.end(), successor) == info.targets.end())
+            if (info.continuation_block == successor) {
+                found_cf = true;
+                continue;
+            }
+            if (info.targets.size() != 1 || info.targets[0] != successor)
                 continue;
             assert(info.mapping.size() == successor->inputs.size());
             for (size_t i = 0; i < info.mapping.size(); i++) {
@@ -232,7 +245,7 @@ bool propagate_from_successor(const BasicBlock *successor, const std::vector<boo
 
         found_cf = true;
     }
-    // assert(found_cf);
+    assert(found_cf);
 
     return has_changed;
 }
