@@ -47,7 +47,7 @@ struct HashtableBuilder {
     void print_hash_table(FILE *out_fd, IR *ir);
     void print_hash_func_ids(FILE *out_fd);
     void print_hash_constants(FILE *out_fd) const;
-    void print_ijump_lookup(FILE *out_fd, bool print_call) const;
+    void print_ijump_lookup(FILE *out_fd) const;
     [[nodiscard]] std::array<uint64_t, 3> spookey_hash(uint64_t key) const;
 };
 

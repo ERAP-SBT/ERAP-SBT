@@ -169,12 +169,8 @@ void HashtableBuilder::print_hash_constants(FILE *out_fd) const {
     fprintf(out_fd, "ijump_hash_table_size:\n.quad %zu\n", hash_table_size);
 }
 
-void HashtableBuilder::print_ijump_lookup(FILE *out_fd, bool print_call) const {
-    if (print_call) {
-        fprintf(out_fd, "icall_lookup:\n");
-    } else {
-        fprintf(out_fd, "ijump_lookup:\n");
-    }
+void HashtableBuilder::print_ijump_lookup(FILE *out_fd) const {
+    fprintf(out_fd, "ijump_lookup:\n");
 
     // setup stack frame
     fprintf(out_fd, "push rax\npush rdx\npush rdi\npush rsi\npush rcx\n");
@@ -221,11 +217,7 @@ void HashtableBuilder::print_ijump_lookup(FILE *out_fd, bool print_call) const {
     fprintf(out_fd, "mov rbx, rax\npop rax\n");
 
     // jump to ijump entry point
-    if (print_call) {
-        fprintf(out_fd, "call [ijump_hash_table + rbx + 8]\n");
-    } else {
-        fprintf(out_fd, "jmp [ijump_hash_table + rbx + 8]\n");
-    }
+    fprintf(out_fd, "jmp [ijump_hash_table + rbx + 8]\n");
 
     // panic
     fprintf(out_fd, "0:\nmov rdi, rbx\njmp unresolved_ijump\n");

@@ -225,6 +225,7 @@ struct Generator {
     void compile_interpreter_only_entry();
     void compile_blocks();
     void compile_entry();
+    void compile_err_msgs();
     void compile_ijump_lookup();
 
     void compile_ijump(const BasicBlock *block, const CfOp &op, size_t stack_size);

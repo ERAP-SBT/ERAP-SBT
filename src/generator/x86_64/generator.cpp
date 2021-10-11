@@ -170,6 +170,8 @@ void Generator::compile() {
         compile_blocks();
 
         compile_entry();
+
+        compile_err_msgs();
     }
 
     compile_ijump_lookup();
@@ -188,8 +190,7 @@ void Generator::compile_ijump_lookup() {
         ijump_hasher.fill(ijump_hasher.keys);
     }
 
-    ijump_hasher.print_ijump_lookup(out_fd, true);
-    ijump_hasher.print_ijump_lookup(out_fd, false);
+    ijump_hasher.print_ijump_lookup(out_fd);
 
     compile_section(Section::RODATA);
     ijump_hasher.print_hash_func_ids(out_fd);
@@ -369,7 +370,7 @@ void Generator::compile_icall(const BasicBlock *block, const CfOp &op, const siz
     fprintf(out_fd, "add rsp, %zu\n", stack_size + 8);
 
     fprintf(out_fd, "mov rbx, rax\n");
-    fprintf(out_fd, "jmp icall_lookup\n");
+    fprintf(out_fd, "call ijump_lookup\n");
 
     assert(std::get<CfOp::ICallInfo>(op.info).continuation_block != nullptr);
     fprintf(out_fd, "jmp b%zu\n", std::get<CfOp::ICallInfo>(op.info).continuation_block->id);
@@ -436,6 +437,23 @@ void Generator::compile_entry() {
     fprintf(out_fd, "jmp b%zu\n", ir->entry_block);
     fprintf(out_fd, ".type _start,STT_FUNC\n");
     fprintf(out_fd, ".size _start,$-_start\n");
+}
+
+void Generator::compile_err_msgs() {
+    compile_section(Section::RODATA);
+
+    for (const auto &[type, block] : err_msgs) {
+        switch (type) {
+        case ErrType::unreachable:
+            fprintf(out_fd, "err_unreachable_b%zu: .ascii \"Reached unreachable code in block %zu\\n\\0\"\n", block->id, block->id);
+            break;
+        case ErrType::unresolved_ijump:
+            fprintf(out_fd, "err_unresolved_ijump_b%zu: .ascii \"Reached unresolved indirect jump in block%zu\\n\\0\"\n", block->id, block->id);
+            break;
+        }
+    }
+
+    err_msgs.clear();
 }
 
 void Generator::compile_vars(const BasicBlock *block) {
