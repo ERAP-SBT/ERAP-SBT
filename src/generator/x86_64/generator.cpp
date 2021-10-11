@@ -7,17 +7,17 @@ using namespace generator::x86_64;
 // TODO: imm handling is questionable at best here
 
 namespace {
-std::array<const char *, 4> op_reg_mapping_64 = {"rax", "rbx", "rcx", "rdx"};
+std::array<const char *, 5> op_reg_mapping_64 = {"rax", "rbx", "rcx", "rdx", "rdi"};
 
-std::array<const char *, 4> op_reg_mapping_32 = {"eax", "ebx", "ecx", "edx"};
+std::array<const char *, 5> op_reg_mapping_32 = {"eax", "ebx", "ecx", "edx", "edi"};
 
-std::array<const char *, 4> op_reg_mapping_16 = {"ax", "bx", "cx", "dx"};
+std::array<const char *, 5> op_reg_mapping_16 = {"ax", "bx", "cx", "dx", "di"};
 
-std::array<const char *, 4> op_reg_mapping_8 = {"al", "bl", "cl", "dl"};
+std::array<const char *, 5> op_reg_mapping_8 = {"al", "bl", "cl", "dl", "dil"};
 
-std::array<const char *, 4> op_reg_mapping_fp = {"xmm0", "xmm1", "xmm2", "xmm3"};
+std::array<const char *, 5> op_reg_mapping_fp = {"xmm0", "xmm1", "xmm2", "xmm3", "xmm4"};
 
-std::array<const char *, 4> &op_reg_map_for_type(const Type type) {
+std::array<const char *, 5> &op_reg_map_for_type(const Type type) {
     switch (type) {
     case Type::imm:
     case Type::i64:
@@ -584,6 +584,14 @@ void Generator::compile_vars(const BasicBlock *block) {
             in_regs[in_idx] = reg_str;
         }
 
+        // move dynamic rounding mode variable to rdi
+        if (std::holds_alternative<SSAVar *>(op->rounding_info)) {
+            const SSAVar *rounding_mode = std::get<SSAVar *>(op->rounding_info);
+            assert(is_integer(rounding_mode->type));
+            fprintf(out_fd, "xor rdi, rdi\n");
+            fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", op_reg_map_for_type(rounding_mode->type)[4], index_for_var(block, rounding_mode));
+        }
+
         auto set_if_op = [this, var, op, in_regs, arg_count](const char *cc_i_1, const char *cc_i_2, const char *cc_fp_1, const char *cc_fp_2, bool allow_fp = true) {
             assert(arg_count == 4);
             SSAVar *const in1 = op->in_vars[0];
@@ -608,6 +616,25 @@ void Generator::compile_vars(const BasicBlock *block) {
             }
             fprintf(out_fd, "cmov%s %s, %s\n", cc_1, rax_from_type(var->type), op_reg_map_for_type(var->type)[2]);
             fprintf(out_fd, "cmov%s %s, %s\n", cc_2, rax_from_type(var->type), op_reg_map_for_type(var->type)[3]);
+        };
+
+        const auto fma_op = [this, var, op, in_regs, arg_count](const char *fma_op, const char *second_op, const bool negate = false) {
+            assert(arg_count == 3);
+            assert(is_float(var->type));
+            assert(var->type == op->in_vars[0]->type && var->type == op->in_vars[1]->type && var->type == op->in_vars[2]->type);
+            const bool is_single_precision = var->type == Type::f32;
+            if (optimizations & OPT_ARCH_FMA3) {
+                fprintf(out_fd, "%s%s xmm0, xmm1, xmm2\n", fma_op, fp_op_size_from_type(var->type));
+            } else {
+                fprintf(out_fd, "muls%s xmm0, xmm1\n", fp_op_size_from_type(var->type));
+                if (negate) {
+                    // toggle the sign of the result (negate) of the product by using a mask and xor
+                    fprintf(out_fd, "mov rax, %s\n", is_single_precision ? "0x80000000" : "0x8000000000000000");
+                    fprintf(out_fd, "mov%s xmm3, rax\n", is_single_precision ? "d" : "q");
+                    fprintf(out_fd, "pxor xmm0, xmm3\n");
+                }
+                fprintf(out_fd, "%s%s xmm0, xmm2\n", second_op, fp_op_size_from_type(var->type));
+            }
         };
 
         switch (op->type) {
@@ -814,51 +841,21 @@ void Generator::compile_vars(const BasicBlock *block) {
             fprintf(out_fd, "sqrts%s xmm0, xmm0\n", fp_op_size_from_type(var->type));
             break;
         case Instruction::fmadd:
-            assert(arg_count == 3);
-            assert(is_float(var->type));
-            assert(var->type == op->in_vars[0]->type && var->type == op->in_vars[1]->type && var->type == op->in_vars[2]->type);
-            fprintf(out_fd, "muls%s xmm0, xmm1\n", fp_op_size_from_type(var->type));
-            fprintf(out_fd, "adds%s xmm0, xmm2\n", fp_op_size_from_type(var->type));
+            fma_op("vfmadd213s", "adds");
             break;
         case Instruction::fmsub:
-            assert(arg_count == 3);
-            assert(is_float(var->type));
-            assert(var->type == op->in_vars[0]->type && var->type == op->in_vars[1]->type && var->type == op->in_vars[2]->type);
-            fprintf(out_fd, "muls%s xmm0, xmm1\n", fp_op_size_from_type(var->type));
-            fprintf(out_fd, "subs%s xmm0, xmm2\n", fp_op_size_from_type(var->type));
+            fma_op("vfmsub213s", "subs");
             break;
-        case Instruction::fnmadd: {
-            assert(arg_count == 3);
-            assert(is_float(var->type));
-            assert(var->type == op->in_vars[0]->type && var->type == op->in_vars[1]->type && var->type == op->in_vars[2]->type);
-            const bool is_single_precision = var->type == Type::f32;
-            fprintf(out_fd, "muls%s xmm0, xmm1\n", fp_op_size_from_type(var->type));
-            // toggle the sign of the result (negate) of the product by using a mask and xor
-            fprintf(out_fd, "mov rax, %s\n", is_single_precision ? "0x80000000" : "0x8000000000000000");
-            fprintf(out_fd, "mov%s xmm3, rax\n", is_single_precision ? "d" : "q");
-            fprintf(out_fd, "pxor xmm0, xmm3\n");
-            fprintf(out_fd, "adds%s xmm0, xmm2\n", fp_op_size_from_type(var->type));
+        case Instruction::fnmadd:
+            fma_op("vfnmadd213s", "adds", true);
             break;
-        }
-        case Instruction::fnmsub: {
-            assert(arg_count == 3);
-            assert(is_float(var->type));
-            assert(var->type == op->in_vars[0]->type && var->type == op->in_vars[1]->type && var->type == op->in_vars[2]->type);
-            const bool is_single_precision = var->type == Type::f32;
-            fprintf(out_fd, "muls%s xmm0, xmm1\n", fp_op_size_from_type(var->type));
-            // toggle the sign of the result (negate) of the product by using a mask and xor
-            fprintf(out_fd, "mov rax, %s\n", is_single_precision ? "0x80000000" : "0x8000000000000000");
-            fprintf(out_fd, "mov%s xmm3, rax\n", is_single_precision ? "d" : "q");
-            fprintf(out_fd, "pxor xmm0, xmm3\n");
-            fprintf(out_fd, "subs%s xmm0, xmm2\n", fp_op_size_from_type(var->type));
+        case Instruction::fnmsub:
+            fma_op("vfnmsub213s", "subs", true);
             break;
-        }
         case Instruction::convert:
             assert(arg_count == 1);
             assert(is_float(var->type) || is_float(op->in_vars[0]->type));
-            if (is_integer(var->type)) {
-                compile_rounding_mode(var);
-            }
+            compile_rounding_mode(var);
             fprintf(out_fd, "cvt%s2%s %s, %s\n", convert_name_from_type(op->in_vars[0]->type), convert_name_from_type(var->type), (is_float(var->type) ? "xmm0" : rax_from_type(var->type)),
                     (is_float(op->in_vars[0]->type) ? "xmm0" : rax_from_type(op->in_vars[0]->type)));
             break;
@@ -866,35 +863,57 @@ void Generator::compile_vars(const BasicBlock *block) {
             assert(arg_count == 1);
             const Type in_var_type = op->in_vars[0]->type;
             assert(is_float(var->type) ^ is_float(in_var_type));
+            compile_rounding_mode(var);
             if (is_float(in_var_type)) {
-                compile_rounding_mode(var);
                 const bool is_single_precision = in_var_type == Type::f32;
                 // spread the sign bit of the floating point number to the length of the (result) integer.
                 // Negate this value and with an "and" operation set so the result to zero if the floating point value is negative
                 const char *help_reg_name = (is_single_precision ? "ebx" : "rbx");
                 fprintf(out_fd, "mov%s %s, xmm0\n", (is_single_precision ? "d" : "q"), help_reg_name);
                 fprintf(out_fd, "sar %s, %u\n", help_reg_name, (is_single_precision ? 31 : 63));
-                fprintf(out_fd, "not %s\n", help_reg_name);
                 if (is_single_precision && var->type == Type::i64) {
                     fprintf(out_fd, "movsxd rbx, ebx\n");
                 }
-                fprintf(out_fd, "cvt%s2%s %s, xmm0\n", convert_name_from_type(in_var_type), convert_name_from_type(var->type), rax_from_type(var->type));
+                fprintf(out_fd, "not rbx\n");
+                fprintf(out_fd, "cvt%s2si %s, xmm0\n", convert_name_from_type(in_var_type), rax_from_type(var->type));
                 fprintf(out_fd, "and rax, rbx\n");
             } else {
+                assert(in_var_type == Type::i32 || in_var_type == Type::i64);
                 if (in_var_type == Type::i32) {
                     // "zero extend" and then convert: use 64bit register
                     fprintf(out_fd, "mov eax, eax\n");
-                    fprintf(out_fd, "cvt%s2%s xmm0, rax\n", convert_name_from_type(Type::i32), convert_name_from_type(var->type));
+                    fprintf(out_fd, "cvtsi2%s xmm0, rax\n", convert_name_from_type(var->type));
                 } else if (in_var_type == Type::i64) {
-                    // method taken from gcc compiler
+                    // method taken from gcc compiler (except from the edge case handling)
+                    fprintf(out_fd, "test rax, rax\n");
+                    fprintf(out_fd, "js 0f\n");
+                    fprintf(out_fd, "cvtsi2%s xmm0, rax\n", convert_name_from_type(var->type));
+                    fprintf(out_fd, "jmp 2f\n");
+                    fprintf(out_fd, "0:\n");
+
+                    // test for edge case
+                    fprintf(out_fd, "cmp rax, -1\n");
+                    fprintf(out_fd, "je 1f\n");
+
+                    // use gcc method to convert unsigned values
                     fprintf(out_fd, "mov rbx, rax\n");
-                    fprintf(out_fd, "shr rax\n");
-                    fprintf(out_fd, "and rbx, 1\n");
+                    fprintf(out_fd, "shr rbx, 1\n");
+                    fprintf(out_fd, "and eax, 1\n");
                     fprintf(out_fd, "or rax, rbx\n");
-                    fprintf(out_fd, "cvt%s2%s xmm0, rax\n", convert_name_from_type(Type::i64), convert_name_from_type(var->type));
+                    fprintf(out_fd, "cvtsi2%s xmm0, rax\n", convert_name_from_type(var->type));
                     fprintf(out_fd, "adds%s xmm0, xmm0\n", fp_op_size_from_type(var->type));
-                } else {
-                    assert(0);
+                    fprintf(out_fd, "jmp 2f\n");
+
+                    fprintf(out_fd, "1:\n");
+                    // handle edge case
+                    if (var->type == Type::f32) {
+                        fprintf(out_fd, "mov ebx, 0x5f800000\n");
+                        fprintf(out_fd, "movd xmm0, ebx\n");
+                    } else {
+                        fprintf(out_fd, "mov rbx, 0x43F0000000000000\n");
+                        fprintf(out_fd, "movq xmm0, rbx\n");
+                    }
+                    fprintf(out_fd, "2:\n");
                 }
             }
             break;
@@ -920,40 +939,65 @@ void Generator::compile_vars(const BasicBlock *block) {
 
 void Generator::compile_rounding_mode(const SSAVar *var) {
     assert(std::holds_alternative<std::unique_ptr<Operation>>(var->info));
-    auto &rounding_mode_variant = std::get<std::unique_ptr<Operation>>(var->info).get()->rounding_info;
-    if (std::holds_alternative<SSAVar *>(rounding_mode_variant)) {
-        // TODO: Handle dynamic rounding
-        assert(0);
-    } else if (std::holds_alternative<RoundingMode>(rounding_mode_variant)) {
-        uint32_t x86_64_rounding_mode;
-        switch (std::get<RoundingMode>(rounding_mode_variant)) {
-        case RoundingMode::NEAREST:
-            x86_64_rounding_mode = 0x0000;
-            break;
-        case RoundingMode::DOWN:
-            x86_64_rounding_mode = 0x2000;
-            break;
-        case RoundingMode::UP:
-            x86_64_rounding_mode = 0x4000;
-            break;
-        case RoundingMode::ZERO:
-            x86_64_rounding_mode = 0x6000;
-            break;
-        default:
-            assert(0);
-            break;
+    auto *op = std::get<std::unique_ptr<Operation>>(var->info).get();
+    if (std::holds_alternative<SSAVar *>(op->rounding_info)) {
+        // let helper handle dynamic rounding, the rounding mode is already located in rdi
+        fprintf(out_fd, "push rax\npush rcx\npush rdx\n");
+        fprintf(out_fd, "call resolve_dynamic_rounding\n");
+        fprintf(out_fd, "pop rdx\npop rcx\npop rax\n");
+    } else if (std::holds_alternative<RoundingMode>(op->rounding_info)) {
+        const RoundingMode rounding_mode = std::get<RoundingMode>(op->rounding_info);
+        if (optimizations & Generator::OPT_ARCH_SSE4) {
+            const char *x86_64_rounding_mode;
+            switch (rounding_mode) {
+            case RoundingMode::NEAREST:
+                x86_64_rounding_mode = "0b00";
+                break;
+            case RoundingMode::DOWN:
+                x86_64_rounding_mode = "0b01";
+                break;
+            case RoundingMode::UP:
+                x86_64_rounding_mode = "0b10";
+                break;
+            case RoundingMode::ZERO:
+                x86_64_rounding_mode = "0b11";
+                break;
+            default:
+                assert(0);
+                break;
+            }
+            fprintf(out_fd, "rounds%s xmm0, xmm0, %s\n", fp_op_size_from_type(op->in_vars[0]->type), x86_64_rounding_mode);
+        } else {
+            uint32_t x86_64_rounding_mode;
+            switch (rounding_mode) {
+            case RoundingMode::NEAREST:
+                x86_64_rounding_mode = 0x0000;
+                break;
+            case RoundingMode::DOWN:
+                x86_64_rounding_mode = 0x2000;
+                break;
+            case RoundingMode::UP:
+                x86_64_rounding_mode = 0x4000;
+                break;
+            case RoundingMode::ZERO:
+                x86_64_rounding_mode = 0x6000;
+                break;
+            default:
+                assert(0);
+                break;
+            }
+            // clear rounding mode and set correctly
+            fprintf(out_fd, "sub rsp, 4\n");
+            fprintf(out_fd, "stmxcsr [rsp]\n");
+            fprintf(out_fd, "mov edi, [rsp]\n");
+            fprintf(out_fd, "and edi, 0xFFFF1FFF\n");
+            if (x86_64_rounding_mode != 0) {
+                fprintf(out_fd, "or edi, %u\n", x86_64_rounding_mode);
+            }
+            fprintf(out_fd, "mov [rsp], edi\n");
+            fprintf(out_fd, "ldmxcsr [rsp]\n");
+            fprintf(out_fd, "add rsp, 4\n");
         }
-        // clear rounding mode and set correctly
-        fprintf(out_fd, "sub rsp, 4\n");
-        fprintf(out_fd, "stmxcsr [rsp]\n");
-        fprintf(out_fd, "mov edi, [rsp]\n");
-        fprintf(out_fd, "and edi, 0xFFFF1FFF\n");
-        if (x86_64_rounding_mode != 0) {
-            fprintf(out_fd, "or edi, %u\n", x86_64_rounding_mode);
-        }
-        fprintf(out_fd, "mov [rsp], edi\n");
-        fprintf(out_fd, "ldmxcsr [rsp]\n");
-        fprintf(out_fd, "add rsp, 4\n");
     } else {
         assert(0);
     }
