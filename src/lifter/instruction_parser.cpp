@@ -471,32 +471,34 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_FCVTDS:
         lift_float_integer_conversion(bb, instr, mapping, ip, Type::f32, Type::f64, true);
         break;
-    case FRV_FCVTWD:
-        lift_float_integer_conversion(bb, instr, mapping, ip, Type::f64, Type::i32, true);
-        break;
-    case FRV_FCVTWUD:
-        lift_float_integer_conversion(bb, instr, mapping, ip, Type::f64, Type::i32, false);
-        break;
-    case FRV_FCVTLD:
-        lift_float_integer_conversion(bb, instr, mapping, ip, Type::f64, Type::i64, true);
-        break;
-    case FRV_FCVTLUD:
-        lift_float_integer_conversion(bb, instr, mapping, ip, Type::f64, Type::i64, false);
-        break;
-    case FRV_FCVTDW:
-        lift_float_integer_conversion(bb, instr, mapping, ip, Type::i32, Type::f64, true);
-        break;
-    case FRV_FCVTDWU:
-        lift_float_integer_conversion(bb, instr, mapping, ip, Type::i32, Type::f64, false);
-        break;
-    case FRV_FCVTDL:
-        lift_float_integer_conversion(bb, instr, mapping, ip, Type::i64, Type::f64, true);
-        break;
-    case FRV_FCVTDLU:
-        lift_float_integer_conversion(bb, instr, mapping, ip, Type::i64, Type::f64, false);
-        break;
+        /*case FRV_FCVTWD:
+            lift_float_integer_conversion(bb, instr, mapping, ip, Type::f64, Type::i32, true);
+            break;
+        case FRV_FCVTWUD:
+            lift_float_integer_conversion(bb, instr, mapping, ip, Type::f64, Type::i32, false);
+            break;
+        case FRV_FCVTLD:
+            lift_float_integer_conversion(bb, instr, mapping, ip, Type::f64, Type::i64, true);
+            break;
+        case FRV_FCVTLUD:
+            lift_float_integer_conversion(bb, instr, mapping, ip, Type::f64, Type::i64, false);
+            break;
+        case FRV_FCVTDW:
+            lift_float_integer_conversion(bb, instr, mapping, ip, Type::i32, Type::f64, true);
+            break;
+        case FRV_FCVTDWU:
+            lift_float_integer_conversion(bb, instr, mapping, ip, Type::i32, Type::f64, false);
+            break;
+        case FRV_FCVTDL:
+            lift_float_integer_conversion(bb, instr, mapping, ip, Type::i64, Type::f64, true);
+            break;
+        case FRV_FCVTDLU:
+            lift_float_integer_conversion(bb, instr, mapping, ip, Type::i64, Type::f64, false);
+            break;*/
 
     default:
+        lift_jump_interpreter(bb, instr, mapping, ip);
+        break;
         char instr_str[16];
         frv_format(&instr.instr, 16, instr_str);
 
