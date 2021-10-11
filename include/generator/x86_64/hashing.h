@@ -20,6 +20,9 @@ struct Bucket {
 
 // variation of the CHD algorithm described in http://cmph.sourceforge.net/papers/esa09.pdf "Hash, displace, and compress"
 struct HashtableBuilder {
+    uint32_t optimizations{0};
+    enum Optimization : uint32_t { OPT_UNUSED_STATIC = 1 << 0, OPT_MBRA = 1 << 1, OPT_MERGE_OP = 1 << 2, OPT_ARCH_BMI2 = 1 << 3, OPT_NO_TRANS_BBS = 1 << 4 };
+
     float load_factor = 1.0;
     size_t bucket_size = 19;
 

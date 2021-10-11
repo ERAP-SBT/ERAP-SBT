@@ -1,4 +1,5 @@
 #include <common/internal.h>
+#include <generator/x86_64/generator.h>
 #include <generator/x86_64/hashing.h>
 
 using namespace generator::x86_64::hashing;
@@ -142,13 +143,13 @@ void HashtableBuilder::print_hash_table(FILE *out_fd, IR *ir) {
     fprintf(out_fd, ".global ijump_hash_table\n");
     fprintf(out_fd, "ijump_hash_table:\n");
     for (uint64_t key : hash_table) {
-        fprintf(out_fd, ".8byte 0x%lx\n", key);
-
         BasicBlock *bb_at_addr = ir->bb_at_addr(key);
-        if (bb_at_addr != nullptr) {
+        if (bb_at_addr != nullptr && (!(optimizations & OPT_MBRA) || !(optimizations & OPT_NO_TRANS_BBS) || RegAlloc::is_block_jumpable(bb_at_addr))) {
+            fprintf(out_fd, ".8byte 0x%lx\n", key);
             fprintf(out_fd, ".8byte b%zu\n", bb_at_addr->id);
         } else {
-            fprintf(out_fd, ".8byte unresolved_ijump\n");
+            fprintf(out_fd, ".8byte 0x0\n");
+            fprintf(out_fd, ".8byte 0x0\n");
         }
     }
 }
@@ -210,10 +211,8 @@ void HashtableBuilder::print_ijump_lookup(FILE *out_fd) const {
     fprintf(out_fd, "cmp rdx, rbx\n");
     fprintf(out_fd, "jne 0f\n");
 
-    // reset rax for reg_alloc -> not for interpreter run
-    fprintf(out_fd, "mov rbx, rax\n");
-
     // jump to ijump entry point
+    fprintf(out_fd, "mov rbx, rax\n");
     fprintf(out_fd, "jmp [ijump_hash_table + rbx + 8]\n");
 
     // panic

@@ -447,9 +447,6 @@ void Generator::compile_err_msgs() {
         case ErrType::unreachable:
             fprintf(out_fd, "err_unreachable_b%zu: .ascii \"Reached unreachable code in block %zu\\n\\0\"\n", block->id, block->id);
             break;
-        case ErrType::unresolved_ijump:
-            fprintf(out_fd, "err_unresolved_ijump_b%zu: .ascii \"Reached unresolved indirect jump in block%zu\\n\\0\"\n", block->id, block->id);
-            break;
         }
     }
 
@@ -1020,21 +1017,8 @@ void Generator::compile_ret(const BasicBlock *block, const CfOp &op, const size_
     fprintf(out_fd, "mov rsp, [init_ret_stack_ptr]\n");
 
     // do ijump
-    /* turn absolute address into relative offset from start of first basicblock */
-    fprintf(out_fd, "sub rax, %zu\n", ir->virt_bb_start_addr);
-
-    fprintf(out_fd, "cmp rax, ijump_lookup_end - ijump_lookup\n");
-    fprintf(out_fd, "ja 0f\n");
-    fprintf(out_fd, "lea rdi, [rip + ijump_lookup]\n");
-    fprintf(out_fd, "mov rdi, [rdi + 4 * rax]\n");
-    fprintf(out_fd, "test rdi, rdi\n");
-    fprintf(out_fd, "je 0f\n");
-    fprintf(out_fd, "jmp rdi\n");
-    fprintf(out_fd, "0:\n");
-
-    /* Slow-path: unresolved IJump, call interpreter */
-    fprintf(out_fd, "lea rdi, [rax + %zu]\n", ir->virt_bb_start_addr);
-    fprintf(out_fd, "jmp unresolved_ijump\n");
+    fprintf(out_fd, "mov rbx, rax\n");
+    fprintf(out_fd, "jmp ijump_lookup\n");
 }
 
 void Generator::compile_cjump(const BasicBlock *block, const CfOp &cf_op, const size_t cond_idx, const size_t stack_size) {

@@ -1800,7 +1800,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
             load_val_in_reg(cur_time + 1 + info.mapping.size(), dst, REG_B);
             assert(dst->type == Type::imm || dst->type == Type::i64);
             print_asm("# destroy stack space\n");
-            print_asm("add rsp, %zu\n", max_stack_frame_size * 8);
+            print_asm("add rsp, %zu\n", max_stack_frame_size);
 
             print_asm("jmp ijump_lookup\n");
             break;
@@ -1886,9 +1886,11 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
             write_static_mapping(nullptr, cur_time, std::get<CfOp::RetInfo>(cf_op.info).mapping);
             // TODO: write out ret addr last and keep it in reg
             const auto ret_reg = load_val_in_reg(cur_time + std::get<CfOp::RetInfo>(cf_op.info).mapping.size(), cf_op.in_vars[0]);
+            const auto dst_reg_name = reg_names[ret_reg][0];
+
             print_asm("# destroy stack space\n");
             print_asm("add rsp, %zu\n", max_stack_frame_size);
-            print_asm("cmp [rsp + 8], %s\n", reg_names[ret_reg][0]);
+            print_asm("cmp [rsp + 8], %s\n", dst_reg_name);
             print_asm("jnz 0f\n");
             print_asm("ret\n");
             print_asm("0:\n");
@@ -1896,25 +1898,8 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
             print_asm("mov rsp, [init_ret_stack_ptr]\n");
 
             // do ijump
-            const auto dst_reg_name = reg_names[ret_reg][0];
-            const auto tmp_reg = alloc_reg(cur_time + std::get<CfOp::RetInfo>(cf_op.info).mapping.size(), REG_NONE, ret_reg);
-            const auto tmp_reg_name = reg_names[tmp_reg][0];
-
-            /* we trust the lifter that the ijump destination is already aligned */
-
-            /* turn absolute address into relative offset from start of first basicblock */
-            print_asm("sub %s, %zu\n", dst_reg_name, gen->ir->virt_bb_start_addr);
-
-            print_asm("cmp %s, ijump_lookup_end - ijump_lookup\n", dst_reg_name);
-            print_asm("ja 0f\n");
-            print_asm("lea %s, [rip + ijump_lookup]\n", tmp_reg_name);
-            print_asm("mov %s, [%s + 4 * %s]\n", tmp_reg_name, tmp_reg_name, dst_reg_name);
-            print_asm("test %s, %s\n", tmp_reg_name, tmp_reg_name);
-            print_asm("je 0f\n");
-            print_asm("jmp %s\n", tmp_reg_name);
-            print_asm("0:\n");
-            print_asm("lea rdi, [%s + %lu]\n", dst_reg_name, gen->ir->virt_bb_start_addr);
-            print_asm("jmp unresolved_ijump\n");
+            print_asm("mov rbx, %s\n", dst_reg_name);
+            print_asm("jmp ijump_lookup\n");
             break;
         }
         case CFCInstruction::icall: {
@@ -1922,13 +1907,11 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
             write_static_mapping((info.targets.empty() ? nullptr : info.targets[0]), cur_time, info.mapping);
             // TODO: we get a problem if the dst is in a static that has already been written out (so overwritten)
             auto *dst = cf_op.in_vars[0].get();
-            const auto dst_reg = load_val_in_reg(cur_time + 1 + info.mapping.size(), dst);
-            const auto tmp_reg = alloc_reg(cur_time + 1 + info.mapping.size(), REG_NONE, dst_reg);
+            const auto dst_reg = load_val_in_reg(cur_time + 1 + info.mapping.size(), dst, REG_B);
             const auto dst_reg_name = reg_names[dst_reg][0];
-            const auto tmp_reg_name = reg_names[tmp_reg][0];
             assert(dst->type == Type::imm || dst->type == Type::i64);
 
-            const auto overflow_reg = alloc_reg(cur_time + 1 + info.mapping.size(), REG_NONE, dst_reg, tmp_reg);
+            const auto overflow_reg = alloc_reg(cur_time + 1 + info.mapping.size(), REG_NONE, dst_reg);
             const auto of_reg_name = reg_names[overflow_reg][0];
             // prevent overflow
             print_asm("mov %s, [init_ret_stack_ptr]\n", of_reg_name);
@@ -1936,26 +1919,8 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
             print_asm("cmp rsp, stack_space + 524288\n"); // max depth ~65k
             print_asm("cmovb rsp, %s\n", of_reg_name);
 
-            /* we trust the lifter that the ijump destination is already aligned */
+            print_asm("call ijump_lookup\n");
 
-            /* turn absolute address into relative offset from start of first basicblock */
-            print_asm("sub %s, %zu\n", dst_reg_name, gen->ir->virt_bb_start_addr);
-
-            print_asm("cmp %s, ijump_lookup_end - ijump_lookup\n", dst_reg_name);
-            print_asm("ja 0f\n");
-            print_asm("lea %s, [rip + ijump_lookup]\n", tmp_reg_name);
-            print_asm("mov %s, [%s + 4 * %s]\n", tmp_reg_name, tmp_reg_name, dst_reg_name);
-            print_asm("test %s, %s\n", tmp_reg_name, tmp_reg_name);
-            print_asm("je 0f\n");
-            if (info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
-                print_asm("push %lu\n", info.continuation_block->virt_start_addr);
-            } else {
-                const auto tmp_reg = alloc_reg(cur_time + 1 + info.mapping.size());
-                print_asm("mov %s, %lu\n", reg_names[tmp_reg][0], info.continuation_block->virt_start_addr);
-                print_asm("push %s\n", reg_names[tmp_reg][0]);
-            }
-
-            print_asm("call %s\n", tmp_reg_name);
             print_asm("add rsp, 8\n");
             print_asm("jmp b%zu%s\n", info.continuation_block->id, is_block_top_level(info.continuation_block) ? "" : "_reg_alloc");
             print_asm("0:\n");

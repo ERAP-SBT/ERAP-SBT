@@ -155,6 +155,8 @@ int main(int argc, const char **argv) {
         time_pre_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
         generator::x86_64::Generator generator(&ir, binary_image_file.string(), assembler, interpreter_only);
         generator.optimizations = gen_optimizations;
+        generator.ijump_hasher.optimizations = gen_optimizations;
+
         generator.compile();
         time_post_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
     } else {
@@ -168,6 +170,8 @@ int main(int argc, const char **argv) {
         time_pre_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
         generator::x86_64::Generator generator(&ir, binary_image_file.string(), asm_out, interpreter_only);
         generator.optimizations = gen_optimizations;
+        generator.ijump_hasher.optimizations = gen_optimizations;
+
         generator.compile();
         time_post_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
         const auto file_size = ftell(asm_out);
