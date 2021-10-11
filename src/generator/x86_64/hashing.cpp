@@ -173,7 +173,6 @@ void HashtableBuilder::print_ijump_lookup(FILE *out_fd) const {
     fprintf(out_fd, "ijump_lookup:\n");
 
     // setup stack frame
-    fprintf(out_fd, "push rax\npush rdx\npush rdi\npush rsi\npush rcx\n");
     fprintf(out_fd, "sub rsp, 32\n");
 
     // hash function input parameters
@@ -204,17 +203,15 @@ void HashtableBuilder::print_ijump_lookup(FILE *out_fd) const {
 
     // destroy stack frame in advance
     fprintf(out_fd, "add rsp, 32\n");
-    fprintf(out_fd, "pop r9\npop rsi\npop rdi\n");
 
     // load address from hash table
     fprintf(out_fd, "shl rax, 4\n");
     fprintf(out_fd, "mov rdx, [ijump_hash_table + rax]\n");
     fprintf(out_fd, "cmp rdx, rbx\n");
-    fprintf(out_fd, "pop rdx\n");
     fprintf(out_fd, "jne 0f\n");
 
     // reset rax for reg_alloc -> not for interpreter run
-    fprintf(out_fd, "mov rbx, rax\npop rax\n");
+    fprintf(out_fd, "mov rbx, rax\n");
 
     // jump to ijump entry point
     fprintf(out_fd, "jmp [ijump_hash_table + rbx + 8]\n");
