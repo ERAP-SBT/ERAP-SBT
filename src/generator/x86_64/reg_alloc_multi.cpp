@@ -2048,8 +2048,7 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
         for (size_t i = 0; i < inputs.size(); ++i) {
             auto *input = inputs[i].get();
             input->gen_info.allocated_to_input = false;
-            if (input->is_static() && input->gen_info.location == SSAVar::GeneratorInfoX64::STATIC &&
-                input->gen_info.static_idx != target->inputs[i]->get_static()) {
+            if (input->is_static() && input->gen_info.location == SSAVar::GeneratorInfoX64::STATIC && input->gen_info.static_idx != target->inputs[i]->get_static()) {
                 // force into register because translation blocks might generate incorrect code otherwise
                 load_val_in_reg<false>(cur_time, input);
             }
