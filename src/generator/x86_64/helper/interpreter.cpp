@@ -164,7 +164,7 @@ size_t evaluate_csr_index(uint32_t csr_id) {
 /**
  * Evalutes what rounding mode must be used in x86_64 for a given RISC-V rounding mode.
  *
- * @param riscv_rounding_mode The rounding mode as defined by RISC-.
+ * @param riscv_rounding_mode The rounding mode as defined by RISC-V.
  * @param is_rm_field Whether the value is from an instructions rounding mode field.
  * @return uint32_t The corresponding x86_64 rounding mode value.
  */

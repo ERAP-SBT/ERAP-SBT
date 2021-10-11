@@ -16,7 +16,7 @@ echo -e "${TXT_BLUE}Cleaning up leftovers...${TXT_CLEAR}"
 set -x
 
 rm -rf build_amd64 build_rv64
-rm amd64_mandelbrot.txt rv64_mandelbrot.txt interpreter_mandelbrot.txt
+rm amd64_mandelbrot.txt amd64_mandelbrot_fma.txt rv64_mandelbrot.txt optimized_mandelbrot.txt interpreter_mandelbrot.txt fma3_optimized_mandelbrot.txt
 
 { set +x; } 2>/dev/null
 set -e
@@ -27,10 +27,10 @@ mkdir build_rv64
 
 set -x
 
-gcc -g -static -o build_amd64/mandelbrot mandelbrot.c  -Wall -Wextra -O3
+gcc -g -static -o build_amd64/mandelbrot mandelbrot.c -Wall -Wextra -O3
 # -march=native: generate fma3 instructions if supported
-gcc -march=native -g -static -o build_amd64/mandelbrot_fma mandelbrot.c  -Wall -Wextra -O3
-$1 -g -static -o build_rv64/mandelbrot mandelbrot.c -Wall -Wextra -O3
+gcc -march=native -g -static -o build_amd64/mandelbrot_fma mandelbrot.c -Wall -Wextra -O3
+$1 -g -static -o build_rv64/mandelbrot mandelbrot.c -Wall -Wextra -O3 -march=rv64g -mabi=lp64d
 
 { set +x; } 2>/dev/null
 
@@ -40,6 +40,8 @@ cd build_rv64
 set -x
 
 ../../../build/src/translate --debug=false --output=translated mandelbrot
+../../../build/src/translate --debug=false --output=optimized mandelbrot --optimize=all,!fma3 # dont use fma3 due to rounding issues and x86_64 also doesn't use it
+../../../build/src/translate --debug=false --output=fma3_optimized mandelbrot --optimize=all # use fma3 for comparison to x86_64 with fma
 ../../../build/src/translate --debug=false --output=interpreter mandelbrot --interpreter-only
 
 { set +x; } 2>/dev/null
@@ -52,9 +54,13 @@ set -x
 build_amd64/mandelbrot > amd64_mandelbrot.txt
 build_amd64/mandelbrot_fma > amd64_mandelbrot_fma.txt
 build_rv64/translated > rv64_mandelbrot.txt
+build_rv64/optimized > optimized_mandelbrot.txt
+build_rv64/fma3_optimized > fma3_optimized_mandelbrot.txt
 build_rv64/interpreter > interpreter_mandelbrot.txt
 
 cmp amd64_mandelbrot.txt rv64_mandelbrot.txt
+cmp amd64_mandelbrot.txt optimized_mandelbrot.txt
+cmp amd64_mandelbrot_fma.txt fma3_optimized_mandelbrot.txt
 cmp amd64_mandelbrot_fma.txt interpreter_mandelbrot.txt
 
 { set +x; } 2>/dev/null
@@ -65,7 +71,7 @@ echo -e "${TXT_BLUE}Cleaning up...${TXT_CLEAR}"
 set -x
 
 rm -rf build_amd64 build_rv64
-rm amd64_mandelbrot.txt amd64_mandelbrot_fma.txt rv64_mandelbrot.txt interpreter_mandelbrot.txt
+rm amd64_mandelbrot.txt amd64_mandelbrot_fma.txt rv64_mandelbrot.txt optimized_mandelbrot.txt interpreter_mandelbrot.txt fma3_optimized_mandelbrot.txt
 
 { set +x; } 2>/dev/null
 exit 0

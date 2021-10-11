@@ -147,26 +147,20 @@ class Lifter {
 
     void lift_csr_read_clear(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, bool with_immediate);
 
-    SSAVar *get_csr(reg_map &mapping, uint32_t csr_identifier);
+    SSAVar *get_csr(BasicBlock *bb, reg_map &mapping, const uint64_t ip, uint32_t csr_identifier);
 
-    void write_csr(reg_map &mapping, SSAVar *new_csr, uint32_t csr_identifier);
+    void write_csr(BasicBlock *bb, reg_map &mapping, SSAVar *new_value, const uint64_t ip, uint32_t csr_identifier);
 
     // floating points
 
+    std::variant<std::monostate, RoundingMode, SSAVar *> parse_rounding_mode(BasicBlock *bb, reg_map &mapping, const uint64_t ip, const uint8_t riscv_rm);
     void lift_float_two_operands(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size);
-
     void lift_float_sqrt(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size);
-
     void lift_float_fma(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size);
-
     void lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type from, const Type to, bool _signed);
-
     void lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size);
-
     void lift_float_move(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type from, const Type to);
-
     void lift_float_comparison(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Instruction instruction_type, const Type op_size);
-
     void lift_fclass(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size);
 
     // helpers for lifting and code reduction

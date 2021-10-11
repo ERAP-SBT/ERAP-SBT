@@ -1,5 +1,6 @@
 #include "generator/x86_64/generator.h"
 
+#include <iostream>
 #include <sstream>
 
 using namespace generator::x86_64;
@@ -21,6 +22,8 @@ std::array<std::array<const char *, 4>, REG_COUNT> reg_names = {
     {"r14", "r14d", "r14w", "r14b"},
     {"r15", "r15d", "r15w", "r15b"},
 };
+
+std::array<const char *, FP_REG_COUNT> fp_reg_names = {"xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13", "xmm14", "xmm15"};
 
 std::array<REGISTER, 6> call_reg = {REG_DI, REG_SI, REG_D, REG_C, REG_8, REG_9};
 
@@ -164,9 +167,11 @@ constexpr size_t BB_MERGE_TIL_ID = static_cast<size_t>(-1);
 
 void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max_stack_frame_size, std::vector<BasicBlock *> &compiled_blocks) {
     RegMap reg_map = {};
+    FPRegMap fp_reg_map = {};
     StackMap stack_map = {};
     cur_bb = bb;
     cur_reg_map = &reg_map;
+    cur_fp_reg_map = &fp_reg_map;
     cur_stack_map = &stack_map;
 
     // TODO: this hack is needed because syscalls have a continuation mapping so we cant create the input mapping in the previous' block
@@ -200,6 +205,9 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
             if (var->gen_info.location == SSAVar::GeneratorInfoX64::REGISTER) {
                 reg_map[var->gen_info.reg_idx].cur_var = var;
                 reg_map[var->gen_info.reg_idx].alloc_time = 0;
+            } else if (var->gen_info.location == SSAVar::GeneratorInfoX64::FP_REGISTER) {
+                fp_reg_map[var->gen_info.reg_idx].cur_var = var;
+                fp_reg_map[var->gen_info.reg_idx].alloc_time = 0;
             } else if (var->gen_info.location == SSAVar::GeneratorInfoX64::STACK_FRAME) {
                 const auto stack_slot = var->gen_info.stack_slot;
                 if (stack_map.size() <= stack_slot) {
@@ -232,6 +240,7 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
             asm_block.assembly = asm_buf;
             asm_buf.clear();
             asm_block.reg_map = reg_map;
+            asm_block.fp_reg_map = fp_reg_map;
             asm_block.stack_map = std::move(stack_map);
             assembled_blocks.push_back(std::move(asm_block));
         }
@@ -239,6 +248,7 @@ void RegAlloc::compile_block(BasicBlock *bb, const bool first_block, size_t &max
         cur_bb = nullptr;
         cur_stack_map = nullptr;
         cur_reg_map = nullptr;
+        cur_fp_reg_map = nullptr;
         bb->gen_info.compiled = true;
         compiled_blocks.push_back(bb);
 
@@ -321,6 +331,11 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
         }
 
         auto *op = std::get<std::unique_ptr<Operation>>(var->info).get();
+        if (is_float(op->lifter_info.in_op_size) || is_float(var->type)) {
+            compile_fp_op(var, cur_time);
+            continue;
+        }
+
         switch (op->type) {
         case Instruction::add:
             [[fallthrough]];
@@ -449,75 +464,77 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                         auto *next_var = bb->variables[var_idx + 1].get();
                         if (std::holds_alternative<std::unique_ptr<Operation>>(next_var->info)) {
                             auto *next_op = std::get<std::unique_ptr<Operation>>(next_var->info).get();
-                            if (next_op->type == Instruction::load && next_op->in_vars[0] == dst) {
-                                auto *load_dst = next_op->out_vars[0];
-                                // check for zero/sign-extend
-                                if (load_dst->ref_count == 1 && bb->variables.size() > var_idx + 2) {
-                                    auto *nnext_var = bb->variables[var_idx + 2].get();
-                                    if (std::holds_alternative<std::unique_ptr<Operation>>(nnext_var->info)) {
-                                        auto *nnext_op = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
-                                        if (nnext_op->in_vars[0] == load_dst && nnext_op->type == Instruction::zero_extend) {
-                                            auto *ext_dst = nnext_op->out_vars[0];
-                                            if (load_dst->type == Type::i32) {
-                                                print_asm("mov %s, [%s + %ld]\n", reg_names[dst_reg][1], in1_reg_name, imm_val);
-                                            } else {
-                                                print_asm("movzx %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                            if (!is_float(next_var->type) && !is_float(next_op->lifter_info.in_op_size)) {
+                                if (next_op->type == Instruction::load && next_op->in_vars[0] == dst) {
+                                    auto *load_dst = next_op->out_vars[0];
+                                    // check for zero/sign-extend
+                                    if (load_dst->ref_count == 1 && bb->variables.size() > var_idx + 2) {
+                                        auto *nnext_var = bb->variables[var_idx + 2].get();
+                                        if (std::holds_alternative<std::unique_ptr<Operation>>(nnext_var->info)) {
+                                            auto *nnext_op = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
+                                            if (nnext_op->in_vars[0] == load_dst && nnext_op->type == Instruction::zero_extend) {
+                                                auto *ext_dst = nnext_op->out_vars[0];
+                                                if (load_dst->type == Type::i32) {
+                                                    print_asm("mov %s, [%s + %ld]\n", reg_names[dst_reg][1], in1_reg_name, imm_val);
+                                                } else {
+                                                    print_asm("movzx %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                                                }
+                                                clear_reg(cur_time, dst_reg);
+                                                set_var_to_reg(cur_time, ext_dst, dst_reg);
+                                                load_dst->gen_info.already_generated = true;
+                                                ext_dst->gen_info.already_generated = true;
+                                                did_merge = true;
+                                            } else if (nnext_op->in_vars[0] == load_dst && nnext_op->type == Instruction::sign_extend) {
+                                                auto *ext_dst = nnext_op->out_vars[0];
+                                                if (load_dst->type == Type::i32) {
+                                                    assert(ext_dst->type == Type::i32 || ext_dst->type == Type::i64);
+                                                    print_asm("movsxd %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                                                } else {
+                                                    print_asm("movsx %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                                                }
+                                                clear_reg(cur_time, dst_reg);
+                                                set_var_to_reg(cur_time, ext_dst, dst_reg);
+                                                load_dst->gen_info.already_generated = true;
+                                                ext_dst->gen_info.already_generated = true;
+                                                did_merge = true;
                                             }
-                                            clear_reg(cur_time, dst_reg);
-                                            set_var_to_reg(cur_time, ext_dst, dst_reg);
-                                            load_dst->gen_info.already_generated = true;
-                                            ext_dst->gen_info.already_generated = true;
-                                            did_merge = true;
-                                        } else if (nnext_op->in_vars[0] == load_dst && nnext_op->type == Instruction::sign_extend) {
-                                            auto *ext_dst = nnext_op->out_vars[0];
-                                            if (load_dst->type == Type::i32) {
-                                                assert(ext_dst->type == Type::i32 || ext_dst->type == Type::i64);
-                                                print_asm("movsxd %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
-                                            } else {
-                                                print_asm("movsx %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
-                                            }
-                                            clear_reg(cur_time, dst_reg);
-                                            set_var_to_reg(cur_time, ext_dst, dst_reg);
-                                            load_dst->gen_info.already_generated = true;
-                                            ext_dst->gen_info.already_generated = true;
-                                            did_merge = true;
                                         }
                                     }
-                                }
 
-                                if (!did_merge) {
-                                    // merge add and load
-                                    print_asm("mov %s, [%s + %ld]\n", reg_name(dst_reg, load_dst->type), in1_reg_name, imm_val);
-                                    clear_reg(cur_time, dst_reg);
-                                    set_var_to_reg(cur_time, load_dst, dst_reg);
-                                    load_dst->gen_info.already_generated = true;
+                                    if (!did_merge) {
+                                        // merge add and load
+                                        print_asm("mov %s, [%s + %ld]\n", reg_name(dst_reg, load_dst->type), in1_reg_name, imm_val);
+                                        clear_reg(cur_time, dst_reg);
+                                        set_var_to_reg(cur_time, load_dst, dst_reg);
+                                        load_dst->gen_info.already_generated = true;
+                                        did_merge = true;
+                                    }
+                                } else if (next_op->type == Instruction::cast) {
+                                    // detect add/cast/store sequence
+                                    auto *cast_var = next_op->out_vars[0];
+                                    if (cast_var->ref_count == 1 && bb->variables.size() > var_idx + 2) {
+                                        auto *nnext_var = bb->variables[var_idx + 2].get();
+                                        if (std::holds_alternative<std::unique_ptr<Operation>>(nnext_var->info)) {
+                                            auto *nnext_op = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
+                                            if (nnext_op->type == Instruction::store && nnext_op->in_vars[0] == dst && nnext_op->in_vars[1] == cast_var) {
+                                                auto *store_dst = nnext_op->out_vars[0]; // should be == nnext_var
+                                                // load source of cast
+                                                const auto cast_reg = load_val_in_reg(cur_time, next_op->in_vars[0].get());
+                                                print_asm("mov [%s + %ld], %s\n", in1_reg_name, imm_val, reg_name(cast_reg, cast_var->type));
+                                                cast_var->gen_info.already_generated = true;
+                                                store_dst->gen_info.already_generated = true;
+                                                did_merge = true;
+                                            }
+                                        }
+                                    }
+                                } else if (next_op->type == Instruction::store && next_op->in_vars[0].get() == dst) {
+                                    // merge add/store
+                                    auto *store_src = next_op->in_vars[1].get();
+                                    const auto src_reg = load_val_in_reg(cur_time, store_src);
+                                    print_asm("mov [%s + %ld], %s\n", in1_reg_name, imm_val, reg_name(src_reg, store_src->type));
+                                    next_op->out_vars[0]->gen_info.already_generated = true;
                                     did_merge = true;
                                 }
-                            } else if (next_op->type == Instruction::cast) {
-                                // detect add/cast/store sequence
-                                auto *cast_var = next_op->out_vars[0];
-                                if (cast_var->ref_count == 1 && bb->variables.size() > var_idx + 2) {
-                                    auto *nnext_var = bb->variables[var_idx + 2].get();
-                                    if (std::holds_alternative<std::unique_ptr<Operation>>(nnext_var->info)) {
-                                        auto *nnext_op = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
-                                        if (nnext_op->type == Instruction::store && nnext_op->in_vars[0] == dst && nnext_op->in_vars[1] == cast_var) {
-                                            auto *store_dst = nnext_op->out_vars[0]; // should be == nnext_var
-                                            // load source of cast
-                                            const auto cast_reg = load_val_in_reg(cur_time, next_op->in_vars[0].get());
-                                            print_asm("mov [%s + %ld], %s\n", in1_reg_name, imm_val, reg_name(cast_reg, cast_var->type));
-                                            cast_var->gen_info.already_generated = true;
-                                            store_dst->gen_info.already_generated = true;
-                                            did_merge = true;
-                                        }
-                                    }
-                                }
-                            } else if (next_op->type == Instruction::store && next_op->in_vars[0].get() == dst) {
-                                // merge add/store
-                                auto *store_src = next_op->in_vars[1].get();
-                                const auto src_reg = load_val_in_reg(cur_time, store_src);
-                                print_asm("mov [%s + %ld], %s\n", in1_reg_name, imm_val, reg_name(src_reg, store_src->type));
-                                next_op->out_vars[0]->gen_info.already_generated = true;
-                                did_merge = true;
                             }
                         }
                     } else if ((gen->optimizations & Generator::OPT_ARCH_BMI2) && op->type == Instruction::_and && op->in_vars[1]->type == Type::imm) {
@@ -529,7 +546,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                             auto *next_var = bb->variables[var_idx + 1].get();
                             if (next_var->ref_count == 1 && next_var->type == Type::i32 && std::holds_alternative<std::unique_ptr<Operation>>(next_var->info)) {
                                 auto *next_op = std::get<std::unique_ptr<Operation>>(next_var->info).get();
-                                if (next_op->type == Instruction::cast) {
+                                if (next_op->type == Instruction::cast && !is_float(next_var->type) && !is_float(next_op->lifter_info.in_op_size)) {
                                     // check for shift
                                     auto *nnext_var = bb->variables[var_idx + 2].get();
                                     if (std::holds_alternative<std::unique_ptr<Operation>>(nnext_var->info)) {
@@ -559,7 +576,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                             auto *next_var = bb->variables[var_idx + 1].get();
                             if (std::holds_alternative<std::unique_ptr<Operation>>(next_var->info)) {
                                 auto *next_op = std::get<std::unique_ptr<Operation>>(next_var->info).get();
-                                if (next_op->type == Instruction::shl || next_op->type == Instruction::shr || next_op->type == Instruction::sar) {
+                                if ((next_op->type == Instruction::shl || next_op->type == Instruction::shr || next_op->type == Instruction::sar) && !is_float(next_var->type)) {
                                     // check if the shift operand is 64bit and we shift the anded value
                                     if (next_op->in_vars[0]->type == Type::i64 && next_op->in_vars[1] == dst) {
                                         const auto shift_reg = load_val_in_reg(cur_time, next_op->in_vars[0].get());
@@ -586,11 +603,12 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                 }
 
                 const auto op_with_imm32 = [imm_val, this, in1_reg_name, cur_time, in1](const char *op_str) {
-                    if (std::abs(imm_val) <= 0x7FFF'FFFF) {
-                        print_asm("%s %s, %ld\n", op_str, in1_reg_name, imm_val);
+                    // 0x8000'0000'0000'0000 cannot be represented as uint64_t
+                    if (imm_val != INT64_MIN && std::abs(imm_val) <= 0x7FFF'FFFF) {
+                        print_asm("%s %s, 0x%lx\n", op_str, in1_reg_name, imm_val);
                     } else {
                         auto imm_reg = alloc_reg(cur_time);
-                        print_asm("mov %s, %ld\n", reg_names[imm_reg][0], imm_val);
+                        print_asm("mov %s, 0x%lx\n", reg_names[imm_reg][0], imm_val);
                         print_asm("%s %s, %s\n", op_str, in1_reg_name, reg_name(imm_reg, choose_type(in1->type, Type::imm)));
                     }
                 };
@@ -599,7 +617,7 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                     if (dst_reg == in1_reg) {
                         op_with_imm32("add");
                     } else {
-                        if (std::abs(imm_val) <= 0x7FFF'FFFF) {
+                        if (imm_val != INT64_MIN && std::abs(imm_val) <= 0x7FFF'FFFF) {
                             print_asm("lea %s, [%s + %ld]\n", dst_reg_name, in1_reg_name, imm_val);
                         } else {
                             auto imm_reg = alloc_reg(cur_time);
@@ -879,6 +897,8 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
             set_var_to_reg(cur_time, dst, val_reg);
             break;
         }
+        case Instruction::seq:
+            [[fallthrough]];
         case Instruction::slt:
             [[fallthrough]];
         case Instruction::sltu: {
@@ -897,7 +917,8 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                 const auto &val1_info = std::get<SSAVar::ImmInfo>(val1->info);
                 const auto &val2_info = std::get<SSAVar::ImmInfo>(val2->info);
                 if (val1_info.val == 1 && !val1_info.binary_relative && val2_info.val == 0 && !val2_info.binary_relative) {
-                    if (cmp2->type == Type::imm && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative) {
+                    if (cmp2->type == Type::imm && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative && std::get<SSAVar::ImmInfo>(cmp2->info).val != INT64_MIN &&
+                        std::abs(std::get<SSAVar::ImmInfo>(cmp2->info).val) < 0x7FFF'FFFF) {
                         const auto type = cmp1->type == Type::imm ? Type::i64 : cmp1->type;
                         print_asm("cmp %s, %ld\n", reg_name(cmp1_reg, type), std::get<SSAVar::ImmInfo>(cmp2->info).val);
                     } else {
@@ -910,7 +931,9 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                         // dont need to clear if we know the register holds a value that fits into 1 byte
                         print_asm("mov %s, 0\n", reg_names[cmp1_reg][0]);
                     }
-                    if (op->type == Instruction::slt) {
+                    if (op->type == Instruction::seq) {
+                        print_asm("sete %s\n", reg_names[cmp1_reg][3]);
+                    } else if (op->type == Instruction::slt) {
                         print_asm("setl %s\n", reg_names[cmp1_reg][3]);
                     } else {
                         print_asm("setb %s\n", reg_names[cmp1_reg][3]);
@@ -924,7 +947,8 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
             const auto val1_reg = load_val_in_reg(cur_time, val1);
             const auto val2_reg = load_val_in_reg(cur_time, val2);
 
-            if (cmp2->type == Type::imm && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative && std::abs(std::get<SSAVar::ImmInfo>(cmp2->info).val) <= 0x7FFFFFFF) {
+            if (cmp2->type == Type::imm && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative && std::get<SSAVar::ImmInfo>(cmp2->info).val != INT64_MIN &&
+                std::abs(std::get<SSAVar::ImmInfo>(cmp2->info).val) <= 0x7FFFFFFF) {
                 const auto type = cmp1->type == Type::imm ? Type::i64 : cmp1->type;
                 print_asm("cmp %s, %ld\n", reg_name(cmp1_reg, type), std::get<SSAVar::ImmInfo>(cmp2->info).val);
             } else {
@@ -933,7 +957,10 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                 print_asm("cmp %s, %s\n", reg_name(cmp1_reg, type), reg_name(cmp2_reg, type));
             }
 
-            if (op->type == Instruction::slt) {
+            if (op->type == Instruction::seq) {
+                print_asm("cmove %s, %s\n", reg_name(cmp1_reg, dst->type), reg_name(val1_reg, dst->type));
+                print_asm("cmovne %s, %s\n", reg_name(cmp1_reg, dst->type), reg_name(val2_reg, dst->type));
+            } else if (op->type == Instruction::slt) {
                 print_asm("cmovl %s, %s\n", reg_name(cmp1_reg, dst->type), reg_name(val1_reg, dst->type));
                 print_asm("cmovge %s, %s\n", reg_name(cmp1_reg, dst->type), reg_name(val2_reg, dst->type));
             } else {
@@ -1032,6 +1059,275 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
     }
 }
 
+void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
+    const auto *op = std::get<std::unique_ptr<Operation>>(var->info).get();
+    SSAVar *in1 = op->in_vars[0];
+    // handles binary fp operations
+    auto bin_op = [this, var, op, in1, cur_time](const char *instruction) {
+        assert(is_float(var->type) && var->type == op->in_vars[0]->type && var->type == op->in_vars[1]->type);
+        const FP_REGISTER in1_reg = load_val_in_fp_reg(cur_time, op->in_vars[0]);
+        const FP_REGISTER in2_reg = load_val_in_fp_reg(cur_time, op->in_vars[1]);
+        if (in1->gen_info.last_use_time > cur_time) {
+            save_fp_reg(in1_reg);
+        }
+        print_asm("%s%s %s, %s\n", instruction, Generator::fp_op_size_from_type(var->type), fp_reg_names[in1_reg], fp_reg_names[in2_reg]);
+        clear_fp_reg(cur_time, in1_reg);
+        set_var_to_fp_reg(cur_time, var, in1_reg);
+    };
+
+    // handles fused multiply add operations
+    auto fma_op = [this, var, op, in1, cur_time](const char *fma_instruction, const char *second_instruction, const bool negate_mul_res = false) {
+        assert(is_float(var->type) && var->type == in1->type && var->type == op->in_vars[1]->type && var->type == op->in_vars[2]->type);
+        const FP_REGISTER in1_reg = load_val_in_fp_reg(cur_time, in1);
+        const FP_REGISTER in2_reg = load_val_in_fp_reg(cur_time, op->in_vars[1]);
+        const FP_REGISTER in3_reg = load_val_in_fp_reg(cur_time, op->in_vars[2]);
+        if (in1->gen_info.last_use_time > cur_time) {
+            save_fp_reg(in1_reg);
+        }
+        if (gen->optimizations & Generator::OPT_ARCH_FMA3) {
+            print_asm("%s%s %s, %s, %s\n", fma_instruction, Generator::fp_op_size_from_type(var->type), fp_reg_names[in1_reg], fp_reg_names[in2_reg], fp_reg_names[in3_reg]);
+        } else {
+            assert(is_float(var->type) && var->type == in1->type && var->type == op->in_vars[1]->type && var->type == op->in_vars[2]->type);
+            print_asm("muls%s %s, %s\n", Generator::fp_op_size_from_type(var->type), fp_reg_names[in1_reg], fp_reg_names[in2_reg]);
+            if (negate_mul_res) {
+                const REGISTER tempr_reg = alloc_reg(cur_time);
+                print_asm("mov %s, %lu\n", reg_name(tempr_reg, Type::i64), (var->type == Type::f32 ? 0x8000'0000 : 0x8000'0000'0000'0000));
+                print_asm("push %s\n", reg_name(tempr_reg, Type::i64));
+                print_asm("push QWORD PTR 0\n");
+                print_asm("pxor %s, [rsp]\n", fp_reg_names[in1_reg]);
+                print_asm("add rsp, 16\n");
+            }
+            print_asm("%s%s %s, %s\n", second_instruction, Generator::fp_op_size_from_type(var->type), fp_reg_names[in1_reg], fp_reg_names[in3_reg]);
+        }
+        clear_fp_reg(cur_time, in1_reg);
+        set_var_to_fp_reg(cur_time, var, in1_reg);
+    };
+
+    auto cmp_op = [this, var, op, in1, cur_time](const char *cc) {
+        SSAVar *cmp2 = op->in_vars[1];
+        SSAVar *val1 = op->in_vars[2];
+        SSAVar *val2 = op->in_vars[3];
+        assert(is_float(in1->type) && in1->type == cmp2->type && val1->type == Type::imm && val2->type == Type::imm);
+        FP_REGISTER cmp1_reg = load_val_in_fp_reg(cur_time, in1);
+        FP_REGISTER cmp2_reg = load_val_in_fp_reg(cur_time, cmp2);
+        REGISTER val1_reg = load_val_in_reg(cur_time, val1);
+        REGISTER val2_reg = load_val_in_reg(cur_time, val2);
+        if (val1->gen_info.last_use_time > cur_time) {
+            save_reg(val1_reg);
+        }
+        print_asm("comis%s %s, %s\n", Generator::fp_op_size_from_type(in1->type), fp_reg_names[cmp1_reg], fp_reg_names[cmp2_reg]);
+        print_asm("cmov%s %s, %s\n", cc, reg_name(val1_reg, var->type), reg_name(val2_reg, var->type));
+        clear_reg(cur_time, val1_reg);
+        set_var_to_reg(cur_time, var, val1_reg);
+    };
+
+    switch (op->type) {
+    case Instruction::min:
+        bin_op("mins");
+        break;
+    case Instruction::max:
+        bin_op("maxs");
+        break;
+    case Instruction::add:
+        bin_op("adds");
+        break;
+    case Instruction::sub:
+        bin_op("subs");
+        break;
+    case Instruction::fmul:
+        bin_op("muls");
+        break;
+    case Instruction::fdiv:
+        bin_op("divs");
+        break;
+    case Instruction::fmadd:
+        fma_op("vfmadd213s", "adds");
+        break;
+    case Instruction::fmsub:
+        fma_op("vfmsub213s", "subs");
+        break;
+    case Instruction::fnmadd:
+        fma_op("vfnmadd213s", "adds", true);
+        break;
+    case Instruction::fnmsub:
+        fma_op("vfnmsub213s", "subs", true);
+        break;
+    case Instruction::fsqrt: {
+        assert(is_float(var->type) && var->type == in1->type);
+        const FP_REGISTER in1_reg = load_val_in_fp_reg(cur_time, in1);
+        const FP_REGISTER dest_reg = alloc_fp_reg(cur_time);
+        print_asm("sqrts%s %s, %s\n", Generator::fp_op_size_from_type(var->type), fp_reg_names[dest_reg], fp_reg_names[in1_reg]);
+        clear_fp_reg(cur_time, dest_reg);
+        set_var_to_fp_reg(cur_time, var, dest_reg);
+        break;
+    }
+    case Instruction::slt:
+        cmp_op("ae");
+        break;
+    case Instruction::sle:
+        cmp_op("a");
+        break;
+    case Instruction::seq:
+        cmp_op("ne");
+        break;
+    case Instruction::load: {
+        assert(in1->type == Type::i64 || in1->type == Type::imm);
+        const REGISTER addr_reg = load_val_in_reg(cur_time, in1);
+        if (in1->gen_info.last_use_time > cur_time) {
+            save_reg(addr_reg);
+        }
+        const FP_REGISTER dest_reg = alloc_fp_reg(cur_time);
+        print_asm("mov%s %s, [%s]\n", (var->type == Type::f32 ? "d" : "q"), fp_reg_names[dest_reg], reg_names[addr_reg][0]);
+        set_var_to_fp_reg(cur_time, var, dest_reg);
+        break;
+    }
+    case Instruction::store: {
+        auto *val = op->in_vars[1].get();
+        assert(in1->type == Type::imm || in1->type == Type::i64);
+        assert(is_float(val->type));
+        const REGISTER addr_reg = load_val_in_reg(cur_time, in1);
+        const FP_REGISTER val_reg = load_val_in_fp_reg(cur_time, val);
+        print_asm("mov%s [%s], %s\n", (val->type == Type::f32 ? "d" : "q"), reg_names[addr_reg][0], fp_reg_names[val_reg]);
+        break;
+    }
+    case Instruction::zero_extend:
+        assert(is_float(var->type) && is_float(in1->type));
+        [[fallthrough]];
+    case Instruction::cast: {
+        assert(is_float(var->type) || is_float(in1->type));
+        if (is_float(in1->type)) {
+            if (is_float(var->type)) {
+                const FP_REGISTER dst_reg = load_val_in_fp_reg(cur_time, in1);
+                if (in1->gen_info.last_use_time > cur_time) {
+                    save_fp_reg(dst_reg);
+                }
+                clear_fp_reg(cur_time, dst_reg);
+                set_var_to_fp_reg(cur_time, var, dst_reg);
+            } else {
+                const FP_REGISTER in_reg = load_val_in_fp_reg(cur_time, in1);
+                const REGISTER dest_reg = alloc_reg(cur_time);
+                print_asm("mov%s %s, %s\n", (in1->type == Type::f32 ? "d" : "q"), reg_name(dest_reg, var->type), fp_reg_names[in_reg]);
+                set_var_to_reg(cur_time, var, dest_reg);
+            }
+        } else {
+            const REGISTER in_reg = load_val_in_reg(cur_time, in1);
+            const FP_REGISTER dest_reg = alloc_fp_reg(cur_time);
+            print_asm("mov%s %s, %s\n", (var->type == Type::f32 ? "d" : "q"), fp_reg_names[dest_reg], reg_name(in_reg, in1->type));
+            set_var_to_fp_reg(cur_time, var, dest_reg);
+        }
+        break;
+    }
+    case Instruction::convert: {
+        assert(is_float(var->type) || is_float(in1->type));
+        // evalute convert names
+        const char *conv_name_1 = Generator::convert_name_from_type(in1->type);
+        const char *conv_name_2 = Generator::convert_name_from_type(var->type);
+        if (is_float(in1->type)) {
+            FP_REGISTER in_reg = load_val_in_fp_reg(cur_time, in1);
+            // floating point -> integer
+            if (is_float(var->type)) {
+                // floating point -> floating point
+                const FP_REGISTER dest_reg = alloc_fp_reg(cur_time);
+                compile_rounding_mode(cur_time, op, alloc_reg(cur_time));
+                print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, fp_reg_names[dest_reg], fp_reg_names[in_reg]);
+                set_var_to_fp_reg(cur_time, var, dest_reg);
+                break;
+            } else {
+                const REGISTER dest_reg = alloc_reg(cur_time);
+                in_reg = compile_rounding_mode(cur_time, op, dest_reg, true, in_reg);
+                // compile_rounding_mode(cur_time, op, dest_reg);
+                print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, reg_name(dest_reg, var->type), fp_reg_names[in_reg]);
+                set_var_to_reg(cur_time, var, dest_reg);
+            }
+        } else {
+            // integer -> floating point
+            compile_rounding_mode(cur_time, op, alloc_reg(cur_time));
+            const REGISTER in_reg = load_val_in_reg(cur_time, in1);
+            const FP_REGISTER dest_reg = alloc_fp_reg(cur_time);
+            print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, fp_reg_names[dest_reg], reg_name(in_reg, in1->type));
+            set_var_to_fp_reg(cur_time, var, dest_reg);
+        }
+        break;
+    }
+    case Instruction::uconvert: {
+        assert(is_float(in1->type) ^ is_float(var->type));
+        compile_rounding_mode(cur_time, op, alloc_reg(cur_time));
+        const char *conv_name_1 = Generator::convert_name_from_type(in1->type);
+        const char *conv_name_2 = Generator::convert_name_from_type(var->type);
+        if (is_float(in1->type)) {
+            // floating point -> unsigned integer
+            assert(var->type == Type::i32 || var->type == Type::i64);
+            const FP_REGISTER in_reg = load_val_in_fp_reg(cur_time, in1);
+            const REGISTER dest_reg = alloc_reg(cur_time);
+            const bool single_precision = in1->type == Type::f32;
+            const char *dest_reg_name = reg_name(dest_reg, var->type);
+            print_asm("cvt%s2si %s, %s\n", conv_name_1, dest_reg_name, fp_reg_names[in_reg]);
+            print_asm("mov%s %s, %s\n", (single_precision ? "d" : "q"), (single_precision ? "ebp" : "rbp"), fp_reg_names[in_reg]);
+            print_asm("sar rbp, %d\n", (single_precision ? 31 : 63));
+            if (var->type == Type::i64 && single_precision) {
+                print_asm("movsxd rbp, ebp\n");
+            }
+            print_asm("not rbp\n");
+            print_asm("and %s, %s\n", dest_reg_name, (var->type == Type::i32 ? "ebp" : "rbp"));
+            print_asm("xor rbp, rbp\n");
+            set_var_to_reg(cur_time, var, dest_reg);
+        } else {
+            // unsigned integer -> floating point
+            assert(in1->type == Type::i32 || in1->type == Type::i64);
+            const REGISTER in_reg = load_val_in_reg(cur_time, in1);
+            const FP_REGISTER dest_reg = alloc_fp_reg(cur_time);
+            const REGISTER help_reg = alloc_reg(cur_time, REG_NONE, in_reg);
+            if (in1->type == Type::i32) {
+                // "zero extend" and then convert: use 64bit register
+                print_asm("mov %s, %s\n", reg_names[in_reg][1], reg_names[in_reg][1]);
+                print_asm("cvt%s2%s %s, %s\n", Generator::convert_name_from_type(Type::i64), conv_name_2, fp_reg_names[dest_reg], reg_names[in_reg][0]);
+            } else if (in1->type == Type::i64) {
+                // method taken from gcc compiler
+                const char *in_reg_name = reg_names[in_reg][0], *help_reg_name = reg_names[help_reg][0], *dest_reg_name = fp_reg_names[dest_reg];
+                // test if msb is set: if set, then handle else use normal (signed) convert
+                print_asm("test %s, %s\n", in_reg_name, in_reg_name);
+                print_asm("js 0f\n");
+                print_asm("cvtsi2%s %s, %s\n", conv_name_2, dest_reg_name, in_reg_name);
+                print_asm("jmp 2f\n");
+                print_asm("0:\n");
+
+                // test for edge case
+                print_asm("mov %s, -1\n", help_reg_name);
+                print_asm("cmp %s, %s\n", in_reg_name, help_reg_name);
+                print_asm("je 1f\n");
+
+                // use gcc method to convert unsigned values
+                print_asm("mov %s, %s\n", help_reg_name, in_reg_name);
+                print_asm("shr %s, 1\n", help_reg_name);
+                print_asm("and %s, 1\n", reg_name(in_reg, Type::i32));
+                print_asm("or %s, %s\n", in_reg_name, help_reg_name);
+                print_asm("cvtsi2%s %s, %s\n", conv_name_2, dest_reg_name, in_reg_name);
+                print_asm("adds%s %s, %s\n", Generator::fp_op_size_from_type(var->type), dest_reg_name, dest_reg_name);
+                print_asm("jmp 2f\n");
+
+                print_asm("1:\n");
+                // handle edge case
+                if (var->type == Type::f32) {
+                    print_asm("mov %s, 0x5f800000\n", reg_name(help_reg, Type::i32));
+                    print_asm("movd %s, %s\n", dest_reg_name, reg_name(help_reg, Type::i32));
+                } else {
+                    print_asm("mov %s, 0x43F0000000000000\n", help_reg_name);
+                    print_asm("movq %s, %s\n", dest_reg_name, help_reg_name);
+                }
+
+                print_asm("2:\n");
+            }
+            set_var_to_fp_reg(cur_time, var, dest_reg);
+        }
+        break;
+    }
+    default:
+        fprintf(stderr, "Encountered a unknown floating point instruction in the generator!\n");
+        assert(0);
+        break;
+    }
+}
+
 bool RegAlloc::merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg) {
     // we know the current var has an operation and two inputs which are both in registers
     auto *op = std::get<std::unique_ptr<Operation>>(cur_bb->variables[var_idx]->info).get();
@@ -1052,6 +1348,11 @@ bool RegAlloc::merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg) {
                 return false;
 
             auto *next_op = std::get<std::unique_ptr<Operation>>(next_var->info).get();
+
+            if (is_float(next_var->type) || is_float(next_op->lifter_info.in_op_size)) {
+                return false;
+            }
+
             if (next_op->type == Instruction::load) {
                 if (next_op->in_vars[0] != dst) {
                     return false;
@@ -1144,6 +1445,82 @@ bool RegAlloc::merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg) {
     return false;
 }
 
+FP_REGISTER RegAlloc::compile_rounding_mode(size_t cur_time, const Operation *op, const REGISTER help_reg, const bool use_rounds, const FP_REGISTER fp_in_reg) {
+    if (std::holds_alternative<RoundingMode>(op->rounding_info)) {
+        const RoundingMode rounding_mode = std::get<RoundingMode>(op->rounding_info);
+        SSAVar *in1 = op->in_vars[0];
+        if (use_rounds && gen->optimizations & Generator::OPT_ARCH_SSE4) {
+            const char *x86_64_rounding_mode;
+            switch (rounding_mode) {
+            case RoundingMode::NEAREST:
+                x86_64_rounding_mode = "0b00";
+                break;
+            case RoundingMode::DOWN:
+                x86_64_rounding_mode = "0b01";
+                break;
+            case RoundingMode::UP:
+                x86_64_rounding_mode = "0b10";
+                break;
+            case RoundingMode::ZERO:
+                x86_64_rounding_mode = "0b11";
+                break;
+            default:
+                assert(0);
+                break;
+            }
+            const FP_REGISTER help_fp_reg = alloc_fp_reg(cur_time);
+
+            assert(fp_in_reg != FP_REG_NONE);
+            print_asm("rounds%s %s, %s, %s\n", Generator::fp_op_size_from_type(in1->type), fp_reg_names[help_fp_reg], fp_reg_names[fp_in_reg], x86_64_rounding_mode);
+            return help_fp_reg;
+        } else {
+            uint32_t x86_64_rounding_mode;
+            switch (std::get<RoundingMode>(op->rounding_info)) {
+            case RoundingMode::NEAREST:
+                x86_64_rounding_mode = 0x0000;
+                break;
+            case RoundingMode::DOWN:
+                x86_64_rounding_mode = 0x2000;
+                break;
+            case RoundingMode::UP:
+                x86_64_rounding_mode = 0x4000;
+                break;
+            case RoundingMode::ZERO:
+                x86_64_rounding_mode = 0x6000;
+                break;
+            default:
+                assert(0);
+                break;
+            }
+            // use dest_reg to set mxcsr
+            const char *round_reg_name = reg_name(help_reg, Type::i32);
+            print_asm("sub rsp, 4\n");
+            print_asm("stmxcsr [rsp]\n");
+            print_asm("mov %s, [rsp]\n", round_reg_name);
+            print_asm("and %s, 0xFFFF1FFF\n", round_reg_name);
+            if (x86_64_rounding_mode != 0) {
+                print_asm("or %s, %d\n", round_reg_name, x86_64_rounding_mode);
+            }
+            print_asm("mov [rsp], %s\n", round_reg_name);
+            print_asm("ldmxcsr [rsp]\n");
+            print_asm("add rsp, 4\n");
+            return fp_in_reg;
+        }
+    } else if (std::holds_alternative<SSAVar *>(op->rounding_info)) {
+        // let helper handle dynamic rounding
+        SSAVar *rm_var = std::get<SSAVar *>(op->rounding_info);
+        const REGISTER reg = load_val_in_reg(cur_time, rm_var, REG_DI);
+        assert(reg == REG_DI);
+        clear_reg(cur_time, REG_DI);
+        // TODO: Stack alignment?
+        print_asm("push rax\npush rcx\npush rdx\npush rsi\n");
+        print_asm("call resolve_dynamic_rounding\n");
+        print_asm("pop rsi\npop rdx\npop rcx\npop rax\n");
+        return fp_in_reg;
+    }
+    return FP_REG_NONE;
+}
+
 void RegAlloc::prepare_cf_ops(BasicBlock *bb) {
     // just set the input maps when the cf-op targets do not yet have a input mapping
     for (auto &cf_op : bb->control_flow_ops) {
@@ -1181,11 +1558,13 @@ void RegAlloc::prepare_cf_ops(BasicBlock *bb) {
     }
 }
 
-void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_map, size_t max_stack_frame_size, BasicBlock *next_bb, std::vector<BasicBlock *> &compiled_blocks) {
+void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_map, StackMap &stack_map, size_t max_stack_frame_size, BasicBlock *next_bb,
+                              std::vector<BasicBlock *> &compiled_blocks) {
     // TODO: when there is one cfop and it's a jump we can already omit the jmp bX_reg_alloc if the block isn't compiled yet
     // since it will get compiled straight after
 
     auto reg_map_bak = reg_map;
+    auto fp_reg_map_bak = fp_reg_map;
     auto stack_map_bak = stack_map;
     std::vector<SSAVar::GeneratorInfoX64> gen_infos;
     for (auto &var : bb->variables) {
@@ -1198,6 +1577,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
         // clear_after_alloc_time(cur_time);
         if (cf_idx != 0) {
             reg_map = reg_map_bak;
+            fp_reg_map = fp_reg_map_bak;
             stack_map = stack_map_bak;
             for (size_t i = 0; i < bb->variables.size(); ++i) {
                 bb->variables[i]->gen_info = gen_infos[i];
@@ -1215,6 +1595,9 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
             auto *cmp1 = cf_op.in_vars[0].get();
             auto *cmp2 = cf_op.in_vars[1].get();
 
+            assert(!is_float(cmp1->type));
+            assert(!is_float(cmp2->type));
+
             const auto cmp1_reg = load_val_in_reg(cur_time, cmp1);
             const auto type = choose_type(cmp1->type, cmp2->type);
             if (cmp2->type == Type::imm && !std::get<SSAVar::ImmInfo>(cmp2->info).binary_relative) {
@@ -1227,6 +1610,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, StackMap &stack_m
 
             gen_infos.clear();
             reg_map_bak = reg_map;
+            fp_reg_map_bak = fp_reg_map;
             stack_map_bak = stack_map;
             for (auto &var : bb->variables) {
                 gen_infos.emplace_back(var->gen_info);
@@ -1614,13 +1998,15 @@ void RegAlloc::write_assembled_blocks(size_t max_stack_frame_size, std::vector<B
         asm_buf.clear();
         cur_bb = block.bb;
         cur_reg_map = &block.reg_map;
+        cur_fp_reg_map = &block.fp_reg_map;
         cur_stack_map = &block.stack_map;
         auto *next_bb = (i + 1 >= assembled_blocks.size()) ? nullptr : assembled_blocks[i + 1].bb;
-        compile_cf_ops(block.bb, block.reg_map, block.stack_map, max_stack_frame_size, next_bb, compiled_blocks);
+        compile_cf_ops(block.bb, block.reg_map, block.fp_reg_map, block.stack_map, max_stack_frame_size, next_bb, compiled_blocks);
         fprintf(gen->out_fd, "%s\n", asm_buf.c_str());
     }
     cur_bb = nullptr;
     cur_reg_map = nullptr;
+    cur_fp_reg_map = nullptr;
     cur_stack_map = nullptr;
 }
 
@@ -1649,6 +2035,9 @@ void RegAlloc::generate_translation_block(BasicBlock *bb) {
                 break;
             }
             print_asm("mov %s, [s%zu]\n", reg_names[input_info.reg_idx][0], src_static);
+            break;
+        case BasicBlock::GeneratorInfo::InputInfo::FP_REGISTER:
+            print_asm("movq %s, [s%zu]\n", fp_reg_names[input_info.reg_idx], src_static);
             break;
         case BasicBlock::GeneratorInfo::InputInfo::STACK:
             print_asm("mov rax, [s%zu]\n", src_static);
@@ -1680,6 +2069,7 @@ void RegAlloc::generate_translation_block(BasicBlock *bb) {
 void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar>> &inputs) {
     // TODO: when there are multiple blocks that follow only generate an input mapping once
     auto &reg_map = *cur_reg_map;
+    auto &fp_reg_map = *cur_fp_reg_map;
     const auto cur_time = cur_bb->variables.size();
     // fix for immediate inputs
     for (size_t i = 0; i < inputs.size(); ++i) {
@@ -1700,12 +2090,17 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
         // cheap fix to force single block register allocation
         set_bb_inputs_from_static(target);
     } else {
-        for (auto &input : inputs) {
-            input.get()->gen_info.allocated_to_input = false;
+        for (size_t i = 0; i < inputs.size(); ++i) {
+            auto *input = inputs[i].get();
+            input->gen_info.allocated_to_input = false;
+            if (std::holds_alternative<size_t>(input->info) && input->gen_info.location == SSAVar::GeneratorInfoX64::STATIC &&
+                input->gen_info.static_idx != std::get<size_t>(target->inputs[i]->info)) {
+                // force into register because translation blocks might generate incorrect code otherwise
+                load_val_in_reg<false>(cur_time, input);
+            }
         }
-
-        bool rax_used = false;
-        SSAVar *rax_input;
+        bool rax_used = false, xmm0_used = false;
+        SSAVar *rax_input, *xmm0_input;
         // just write input locations, compile the input map and we done
         for (size_t i = 0; i < inputs.size(); ++i) {
             auto *input_var = inputs[i].get();
@@ -1725,6 +2120,27 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
                 // move var to stack slot
                 if (input_var->gen_info.location == SSAVar::GeneratorInfoX64::REGISTER) {
                     print_asm("mov [rsp + 8 * %zu], %s\n", stack_slot, reg_names[input_var->gen_info.reg_idx][0]);
+                } else if (input_var->gen_info.location == SSAVar::GeneratorInfoX64::FP_REGISTER) {
+                    print_asm("movq [rsp + 8 * %zu], %s\n", stack_slot, fp_reg_names[input_var->gen_info.reg_idx]);
+                } else if (is_float(input_var->type)) {
+                    FP_REGISTER reg = FP_REG_NONE;
+                    // find free/unused register
+                    for (size_t i = 0; i < FP_REG_COUNT; ++i) {
+                        if (fp_reg_map[i].cur_var == nullptr || fp_reg_map[i].cur_var->gen_info.last_use_time < cur_time) {
+                            reg = static_cast<FP_REGISTER>(i);
+                            break;
+                        }
+                    }
+                    if (reg == FP_REG_NONE) {
+                        // use xmm0 to transfer
+                        reg = REG_XMM0;
+                        if (xmm0_used) {
+                            save_fp_reg(REG_XMM0);
+                            clear_fp_reg(cur_time, REG_XMM0);
+                        }
+                        load_val_in_fp_reg(cur_time, input_var, REG_XMM0);
+                    }
+                    print_asm("movq [rsp + 8 * %zu], %s\n", stack_slot, fp_reg_names[reg]);
                 } else {
                     auto reg = REG_NONE;
                     // find free/unused register
@@ -1744,6 +2160,10 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
                         load_val_in_reg(cur_time, input_var, REG_A);
                     }
                     print_asm("mov [rsp + 8 * %zu], %s\n", stack_slot, reg_names[reg][0]);
+                    if (!input_var->gen_info.saved_in_stack) {
+                        input_var->gen_info.saved_in_stack = true;
+                        input_var->gen_info.stack_slot = stack_slot;
+                    }
                 }
                 continue;
             }
@@ -1764,11 +2184,22 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
                 rax_used = true;
                 rax_input = input_var;
             }
+
+            if (input_var->gen_info.location == SSAVar::GeneratorInfoX64::FP_REGISTER && input_var->gen_info.reg_idx == REG_XMM0) {
+                xmm0_used = true;
+                xmm0_input = input_var;
+            }
         }
         if (rax_used && rax_input->gen_info.location != SSAVar::GeneratorInfoX64::REGISTER) {
             assert(reg_map[REG_A].cur_var->gen_info.saved_in_stack);
             clear_reg(cur_time, REG_A);
             load_val_in_reg(cur_time, rax_input, REG_A);
+        }
+
+        if (xmm0_used && xmm0_input->gen_info.location != SSAVar::GeneratorInfoX64::FP_REGISTER) {
+            assert(fp_reg_map[REG_XMM0].cur_var->gen_info.saved_in_stack);
+            clear_fp_reg(cur_time, REG_XMM0);
+            load_val_in_fp_reg(cur_time, xmm0_input, REG_XMM0);
         }
 
         generate_input_map(target);
@@ -1808,12 +2239,15 @@ void RegAlloc::generate_input_map(BasicBlock *bb) {
 
         InputInfo info;
         const auto var_loc = var->gen_info.location;
-        assert(var_loc == GenInfo::REGISTER || var_loc == GenInfo::STACK_FRAME || var_loc == GenInfo::STATIC);
+        assert(var_loc == GenInfo::REGISTER || var_loc == GenInfo::FP_REGISTER || var_loc == GenInfo::STACK_FRAME || var_loc == GenInfo::STATIC);
         if (var_loc == GenInfo::STATIC) {
             info.location = InputInfo::STATIC;
             info.static_idx = var->gen_info.static_idx;
         } else if (var_loc == GenInfo::REGISTER) {
             info.location = InputInfo::REGISTER;
+            info.reg_idx = var->gen_info.reg_idx;
+        } else if (var_loc == GenInfo::FP_REGISTER) {
+            info.location = InputInfo::FP_REGISTER;
             info.reg_idx = var->gen_info.reg_idx;
         } else if (var_loc == GenInfo::STACK_FRAME) {
             info.location = InputInfo::STACK;
@@ -1845,7 +2279,11 @@ void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_
             continue;
         }
 
-        load_val_in_reg(cur_time, var);
+        if (is_float(var->type)) {
+            load_val_in_fp_reg(cur_time, var);
+        } else {
+            load_val_in_reg(cur_time, var);
+        }
     }
 
     // write out all registers
@@ -1854,7 +2292,9 @@ void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_
         if (var->type == Type::mt) {
             continue;
         }
-        if (var->gen_info.location != SSAVar::GeneratorInfoX64::REGISTER) {
+
+        auto location = var->gen_info.location;
+        if (location != SSAVar::GeneratorInfoX64::REGISTER && location != SSAVar::GeneratorInfoX64::FP_REGISTER) {
             continue;
         }
         if (std::holds_alternative<size_t>(var->info)) {
@@ -1872,6 +2312,10 @@ void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_
                 continue;
             }
         }
+        if (location == SSAVar::GeneratorInfoX64::FP_REGISTER) {
+            print_asm("movq [s%zu], %s\n", pair.second, fp_reg_names[var->gen_info.reg_idx]);
+            continue;
+        }
 
         print_asm("mov [s%zu], %s\n", pair.second, reg_names[var->gen_info.reg_idx][0]);
     }
@@ -1884,7 +2328,9 @@ void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_
         }
         const auto static_idx = mapping[var_idx].second;
 
-        if (var->gen_info.location == SSAVar::GeneratorInfoX64::REGISTER || var->gen_info.location == SSAVar::GeneratorInfoX64::STATIC) {
+        auto loc = var->gen_info.location;
+
+        if (loc == SSAVar::GeneratorInfoX64::REGISTER || loc == SSAVar::GeneratorInfoX64::FP_REGISTER || loc == SSAVar::GeneratorInfoX64::STATIC) {
             continue;
         }
 
@@ -1906,8 +2352,13 @@ void RegAlloc::write_static_mapping([[maybe_unused]] BasicBlock *bb, size_t cur_
 
         // TODO: cant do that here since the syscall cfop needs some vars later on
         // TODO: really need to fix this time management
-        const auto reg = load_val_in_reg(cur_time /*+ var_idx*/, var);
-        print_asm("mov [s%zu], %s\n", static_idx, reg_names[reg][0]);
+        if (is_float(var->type)) {
+            const auto reg = load_val_in_fp_reg(cur_time, var);
+            print_asm("movq [s%zu], %s\n", static_idx, fp_reg_names[reg]);
+        } else {
+            const auto reg = load_val_in_reg(cur_time /*+ var_idx*/, var);
+            print_asm("mov [s%zu], %s\n", static_idx, reg_names[reg][0]);
+        }
     }
 }
 
@@ -1962,6 +2413,7 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
     set_use_times(BasicBlock::GeneratorInfo::InputInfo::STACK);
     // registers last
     set_use_times(BasicBlock::GeneratorInfo::InputInfo::REGISTER);
+    set_use_times(BasicBlock::GeneratorInfo::InputInfo::FP_REGISTER);
 
     // figure out static conflicts
     for (size_t i = 0; i < inputs.size(); ++i) {
@@ -1986,7 +2438,11 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
         }
 
         // just load it in a register
-        load_val_in_reg(cur_time, inputs[i].get());
+        if (is_float(inputs[i].get()->type)) {
+            load_val_in_fp_reg(cur_time, inputs[i].get());
+        } else {
+            load_val_in_reg(cur_time, inputs[i].get());
+        }
     }
 
     // stack conflicts
@@ -2013,9 +2469,15 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
         }
 
         // load in register, delete stack slot and save again
-        const auto reg = load_val_in_reg(cur_time, var);
-        var->gen_info.saved_in_stack = false;
-        save_reg(reg);
+        if (is_float(var->type)) {
+            const auto reg = load_val_in_fp_reg(cur_time, var);
+            var->gen_info.saved_in_stack = false;
+            save_fp_reg(reg);
+        } else {
+            const auto reg = load_val_in_reg(cur_time, var);
+            var->gen_info.saved_in_stack = false;
+            save_reg(reg);
+        }
     }
 
     cur_write_time = cur_time + 1;
@@ -2051,8 +2513,13 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
             }
         }
 
-        const auto reg = load_val_in_reg(cur_write_time, var);
-        print_asm("mov [s%zu], %s\n", input_map[var_idx].static_idx, reg_names[reg][0]);
+        if (is_float(var->type)) {
+            const auto reg = load_val_in_fp_reg(cur_write_time, var);
+            print_asm("movq [s%zu], %s\n", input_map[var_idx].static_idx, fp_reg_names[reg]);
+        } else {
+            const auto reg = load_val_in_reg(cur_write_time, var);
+            print_asm("mov [s%zu], %s\n", input_map[var_idx].static_idx, reg_names[reg][0]);
+        }
         cur_write_time++;
     }
 
@@ -2068,8 +2535,13 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
             continue;
         }
 
-        const auto reg = load_val_in_reg(cur_write_time, input);
-        print_asm("mov [rsp + 8 * %zu], %s\n", info.stack_slot, reg_names[reg][0]);
+        if (is_float(input->type)) {
+            const auto reg = load_val_in_fp_reg(cur_write_time, input);
+            print_asm("movq [rsp + 8 * %zu], %s\n", info.stack_slot, fp_reg_names[reg]);
+        } else {
+            const auto reg = load_val_in_reg(cur_write_time, input);
+            print_asm("mov [rsp + 8 * %zu], %s\n", info.stack_slot, reg_names[reg][0]);
+        }
         cur_write_time++;
     }
 
@@ -2102,6 +2574,36 @@ void RegAlloc::write_target_inputs(BasicBlock *target, size_t cur_time, const st
         }
         cur_write_time++;
     }
+
+    // write out fp registers
+    auto &fp_reg_map = *cur_fp_reg_map;
+    for (size_t var_idx = 0; var_idx < inputs.size(); ++var_idx) {
+        if (input_map[var_idx].location != BasicBlock::GeneratorInfo::InputInfo::FP_REGISTER) {
+            continue;
+        }
+
+        const auto reg = static_cast<FP_REGISTER>(input_map[var_idx].reg_idx);
+        auto *input = inputs[var_idx].get();
+
+        if (input->gen_info.location == SSAVar::GeneratorInfoX64::FP_REGISTER) {
+            if (input->gen_info.reg_idx == reg) {
+                cur_write_time++;
+                continue;
+            }
+
+            // just emit a mov and evict the other var
+            if (fp_reg_map[reg].cur_var && fp_reg_map[reg].cur_var->gen_info.last_use_time > cur_write_time) {
+                save_fp_reg(reg);
+            }
+            clear_fp_reg(cur_write_time, reg);
+            print_asm("movq %s, %s\n", fp_reg_names[reg], fp_reg_names[input->gen_info.reg_idx]);
+            fp_reg_map[reg].cur_var = input;
+            fp_reg_map[reg].alloc_time = cur_write_time;
+        } else {
+            load_val_in_fp_reg(cur_write_time, input, reg);
+        }
+        cur_write_time++;
+    }
 }
 
 void RegAlloc::init_time_of_use(BasicBlock *bb) {
@@ -2118,6 +2620,12 @@ void RegAlloc::init_time_of_use(BasicBlock *bb) {
             }
             input->gen_info.last_use_time = i; // max(last_use_time, i)?
             input->gen_info.uses.push_back(i);
+        }
+
+        if (std::holds_alternative<SSAVar *>(op->rounding_info)) {
+            SSAVar *rounding_info = std::get<SSAVar *>(op->rounding_info);
+            rounding_info->gen_info.last_use_time = i;
+            rounding_info->gen_info.uses.push_back(i);
         }
     }
 
@@ -2270,6 +2778,93 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::alloc_reg(size_t
     return reg;
 }
 
+template <typename... Args> FP_REGISTER RegAlloc::alloc_fp_reg(size_t cur_time, FP_REGISTER only_this_reg, Args... clear_regs) {
+
+    static_assert((std::is_same_v<Args, FP_REGISTER> && ...));
+    auto &reg_map = *cur_fp_reg_map;
+
+    if (only_this_reg != FP_REG_NONE) {
+        auto &cur_var = reg_map[only_this_reg].cur_var;
+        if (cur_var != nullptr) {
+            save_fp_reg(only_this_reg);
+            cur_var->gen_info.location = SSAVar::GeneratorInfoX64::STACK_FRAME;
+            cur_var = nullptr;
+        }
+        return only_this_reg;
+    }
+
+    FP_REGISTER reg = FP_REG_NONE;
+    // try to find free register
+    for (size_t i = 0; i < FP_REG_COUNT; ++i) {
+        if (((i == clear_regs) || ...)) {
+            continue;
+        }
+
+        if (reg_map[i].cur_var == nullptr) {
+            reg = static_cast<FP_REGISTER>(i);
+            break;
+        }
+    }
+
+    if (reg == FP_REG_NONE) {
+        // try to find reg with unused var
+        for (size_t i = 0; i < FP_REG_COUNT; ++i) {
+            if (((i == clear_regs) || ...)) {
+                continue;
+            }
+
+            if (reg_map[i].cur_var->gen_info.last_use_time < cur_time) {
+                reg = static_cast<FP_REGISTER>(i);
+                break;
+            }
+        }
+
+        if (reg == FP_REG_NONE) {
+            // find var that's the farthest from being used again
+            // TODO: prefer variables that are used less often so that the stack ptr for example stays in a register
+            size_t farthest_use_time = 0;
+            FP_REGISTER farthest_use_reg = FP_REG_NONE;
+            for (size_t i = 0; i < FP_REG_COUNT; ++i) {
+                if (((i == clear_regs) || ...)) {
+                    continue;
+                }
+
+                size_t next_use = 0;
+                for (const auto use_time : reg_map[i].cur_var->gen_info.uses) {
+                    if (use_time == cur_time) {
+                        // var is used in this step so don't reuse it
+                        next_use = 0;
+                        break;
+                    }
+                    if (use_time > cur_time) {
+                        next_use = use_time;
+                        break;
+                    }
+                }
+
+                if (next_use == 0) {
+                    // var is needed in this step
+                    continue;
+                }
+                if (farthest_use_time < next_use) {
+                    farthest_use_time = next_use;
+                    farthest_use_reg = static_cast<FP_REGISTER>(i);
+                }
+            }
+            assert(farthest_use_reg != FP_REG_NONE);
+
+            reg = farthest_use_reg;
+            // in cfops imms need to be saved to stack cause there's not other means to pass them
+            save_fp_reg(farthest_use_reg);
+        }
+    }
+
+    clear_fp_reg(cur_time, reg);
+    reg_map[reg].cur_var = nullptr;
+    reg_map[reg].alloc_time = cur_time;
+    return reg;
+}
+
 template <bool evict_imms, typename... Args> REGISTER RegAlloc::load_val_in_reg(size_t cur_time, SSAVar *var, REGISTER only_this_reg, Args... clear_regs) {
     static_assert((std::is_same_v<Args, REGISTER> && ...));
     auto &reg_map = *cur_reg_map;
@@ -2293,10 +2888,11 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::load_val_in_reg(
         // TODO: add a thing in the regmap that tells the allocater that the var may only be in this register
         // TODO: this will bug out when you alloc a reg and then alloc one if only_this_reg and they end up in the same register
         if (auto *other_var = reg_map[only_this_reg].cur_var; other_var && other_var->gen_info.last_use_time >= cur_time) {
-            print_asm("xchg %s, %s\n", reg_names[only_this_reg][0], reg_names[var->gen_info.reg_idx][0]);
+            /*print_asm("xchg %s, %s\n", reg_names[only_this_reg][0], reg_names[var->gen_info.reg_idx][0]);
             std::swap(reg_map[only_this_reg], reg_map[var->gen_info.reg_idx]);
             std::swap(var->gen_info.reg_idx, other_var->gen_info.reg_idx);
-            return only_this_reg;
+            return only_this_reg; */
+            save_reg(only_this_reg);
         }
         clear_reg(cur_time, only_this_reg);
         print_asm("mov %s, %s\n", reg_names[only_this_reg][0], reg_names[var->gen_info.reg_idx][0]);
@@ -2331,6 +2927,63 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::load_val_in_reg(
     return reg;
 }
 
+template <typename... Args> FP_REGISTER RegAlloc::load_val_in_fp_reg(size_t cur_time, SSAVar *var, FP_REGISTER only_this_reg, Args... clear_regs) {
+    static_assert((std::is_same_v<Args, FP_REGISTER> && ...));
+    auto &reg_map = *cur_fp_reg_map;
+    assert(var->gen_info.location != SSAVar::GeneratorInfoX64::REGISTER);
+
+    if (var->gen_info.location == SSAVar::GeneratorInfoX64::FP_REGISTER) {
+        if (only_this_reg == FP_REG_NONE || var->gen_info.reg_idx == only_this_reg) {
+            if (((var->gen_info.reg_idx == clear_regs) || ...)) {
+                // clear_regs take precedent over only_this_reg though it should never happen
+                assert(((only_this_reg != clear_regs) && ...));
+                const auto new_reg = alloc_fp_reg(cur_time, FP_REG_NONE, clear_regs...);
+                print_asm("movq %s, %s\n", fp_reg_names[new_reg], fp_reg_names[var->gen_info.reg_idx]);
+                reg_map[var->gen_info.reg_idx].cur_var = nullptr;
+                reg_map[new_reg].cur_var = var;
+                reg_map[new_reg].alloc_time = cur_time;
+                var->gen_info.reg_idx = new_reg;
+                return new_reg;
+            }
+            return static_cast<FP_REGISTER>(var->gen_info.reg_idx);
+        }
+
+        // TODO: add a thing in the regmap that tells the allocater that the var may only be in this register
+        // TODO: this will bug out when you alloc a reg and then alloc one if only_this_reg and they end up in the same register
+        if (auto *other_var = reg_map[only_this_reg].cur_var; other_var && other_var->gen_info.last_use_time >= cur_time) {
+            // swap register contents
+            /*print_asm("pxor %s, %s\n", fp_reg_names[only_this_reg], fp_reg_names[var->gen_info.reg_idx]);
+            print_asm("pxor %s, %s\n", fp_reg_names[var->gen_info.reg_idx], fp_reg_names[only_this_reg]);
+            print_asm("pxor %s, %s\n", fp_reg_names[only_this_reg], fp_reg_names[var->gen_info.reg_idx]);
+            std::swap(reg_map[only_this_reg], reg_map[var->gen_info.reg_idx]);
+            std::swap(var->gen_info.reg_idx, other_var->gen_info.reg_idx);
+            return only_this_reg; */
+            save_fp_reg(only_this_reg);
+        }
+        clear_fp_reg(cur_time, only_this_reg);
+        print_asm("movq %s, %s\n", fp_reg_names[only_this_reg], fp_reg_names[var->gen_info.reg_idx]);
+        reg_map[var->gen_info.reg_idx].cur_var = nullptr;
+        reg_map[only_this_reg].cur_var = var;
+        var->gen_info.reg_idx = only_this_reg;
+        return only_this_reg;
+    }
+
+    const auto reg = alloc_fp_reg(cur_time, only_this_reg, clear_regs...);
+
+    // non-immediates should have been calculated before
+    assert(var->gen_info.location != SSAVar::GeneratorInfoX64::NOT_CALCULATED);
+    if (var->gen_info.location == SSAVar::GeneratorInfoX64::STATIC) {
+        print_asm("movq %s, [s%zu]\n", fp_reg_names[reg], var->gen_info.static_idx);
+    } else {
+        print_asm("movq %s, [rsp + 8 * %zu]\n", fp_reg_names[reg], var->gen_info.stack_slot);
+    }
+
+    reg_map[reg].cur_var = var;
+    var->gen_info.location = SSAVar::GeneratorInfoX64::FP_REGISTER;
+    var->gen_info.reg_idx = reg;
+    return reg;
+}
+
 void RegAlloc::clear_reg(size_t cur_time, REGISTER reg, bool imm_to_stack) {
     auto &reg_map = *cur_reg_map;
     auto *var = reg_map[reg].cur_var;
@@ -2346,6 +2999,23 @@ void RegAlloc::clear_reg(size_t cur_time, REGISTER reg, bool imm_to_stack) {
     } else {
         // var that was never saved on stack and is not needed anymore
         // TODO: <?
+        assert(var->gen_info.last_use_time <= cur_time);
+        var->gen_info.location = SSAVar::GeneratorInfoX64::NOT_CALCULATED;
+    }
+    reg_map[reg].cur_var = nullptr;
+}
+
+void RegAlloc::clear_fp_reg(size_t cur_time, FP_REGISTER reg) {
+    auto &reg_map = *cur_fp_reg_map;
+    auto *var = reg_map[reg].cur_var;
+    if (!var) {
+        return;
+    }
+
+    if (var->gen_info.saved_in_stack) {
+        var->gen_info.location = SSAVar::GeneratorInfoX64::STACK_FRAME;
+    } else {
+        // var that was never saved on stack and is not needed anymore
         assert(var->gen_info.last_use_time <= cur_time);
         var->gen_info.location = SSAVar::GeneratorInfoX64::NOT_CALCULATED;
     }
@@ -2402,6 +3072,28 @@ void RegAlloc::save_reg(REGISTER reg, bool imm_to_stack) {
     } else {
         print_asm("mov [rsp + 8 * %zu], %s\n", stack_slot, reg_name(reg, var->type));
     }
+    var->gen_info.saved_in_stack = true;
+    var->gen_info.stack_slot = stack_slot;
+}
+
+void RegAlloc::save_fp_reg(FP_REGISTER reg) {
+    auto &reg_map = *cur_fp_reg_map;
+
+    auto *var = reg_map[reg].cur_var;
+    if (!var) {
+        return;
+    }
+
+    if (var->gen_info.saved_in_stack) {
+        // var was already saved, no need to save it again
+        return;
+    }
+
+    // find slot for var
+    size_t stack_slot = allocate_stack_slot(var);
+
+    print_asm("movq [rsp + 8 * %zu], %s\n", stack_slot, fp_reg_names[reg]);
+
     var->gen_info.saved_in_stack = true;
     var->gen_info.stack_slot = stack_slot;
 }

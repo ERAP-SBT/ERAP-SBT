@@ -31,6 +31,7 @@ echo -e "${TXT_BLUE}Translating...${TXT_CLEAR}"
 set -x
 
 ../../build/src/translate --debug=false --output=translated fclass_test
+../../build/src/translate --debug=false --output=opt_translated --optimize=all fclass_test
 
 { set +x; } 2>/dev/null
 
@@ -40,7 +41,9 @@ echo -e "${TXT_BLUE}Testing for the right result...${TXT_CLEAR}"
 set -x
 
 ./translated > test_results.txt
+./opt_translated > opt_test_results.txt
 cmp correct_results.txt test_results.txt
+cmp correct_results.txt opt_test_results.txt
 
 { set +x; } 2>/dev/null
 
@@ -49,7 +52,7 @@ echo -e "${TXT_BLUE}Cleaning up...${TXT_CLEAR}"
 
 set -x
 
-rm fclass_test translated test_results.txt
+rm fclass_test translated test_results.txt opt_translated opt_test_results.txt
 
 { set +x; } 2>/dev/null
 exit 0

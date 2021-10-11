@@ -98,12 +98,14 @@ size_t index_for_var(const BasicBlock *block, const SSAVar *var) {
     exit(1);
 }
 
-const char *fp_op_size_from_type(const Type type) {
+} // namespace
+
+const char *Generator::fp_op_size_from_type(const Type type) {
     assert(is_float(type));
     return type == Type::f32 ? "s" : "d";
 }
 
-constexpr const char *convert_name_from_type(const Type type) {
+const char *Generator::convert_name_from_type(const Type type) {
     switch (type) {
     case Type::i32:
     case Type::i64:
@@ -120,8 +122,6 @@ constexpr const char *convert_name_from_type(const Type type) {
 }
 
 constexpr bool compatible_types(const Type t1, const Type t2) { return (t1 == t2) || ((t1 == Type::imm || t2 == Type::imm) && (is_integer(t1) || is_integer(t2))); }
-
-} // namespace
 
 void Generator::compile() {
     assert(err_msgs.empty());
@@ -470,6 +470,8 @@ void Generator::compile_entry() {
     compile_section(Section::TEXT);
     fprintf(out_fd, ".global _start\n");
     fprintf(out_fd, "_start:\n");
+    // create zero
+    fprintf(out_fd, "xor rbp, rbp\n");
     fprintf(out_fd, "mov rbx, offset param_passing\n");
     fprintf(out_fd, "mov rdi, rsp\n");
     fprintf(out_fd, "mov rsi, offset stack_space_end\n");
@@ -872,7 +874,7 @@ void Generator::compile_vars(const BasicBlock *block) {
         case Instruction::uconvert: {
             assert(arg_count == 1);
             const Type in_var_type = op->in_vars[0]->type;
-            assert(is_float(var->type) || is_float(in_var_type));
+            assert(is_float(var->type) ^ is_float(in_var_type));
             if (is_float(in_var_type)) {
                 compile_rounding_mode(var);
                 const bool is_single_precision = in_var_type == Type::f32;
@@ -952,13 +954,14 @@ void Generator::compile_rounding_mode(const SSAVar *var) {
         }
         // clear rounding mode and set correctly
         fprintf(out_fd, "sub rsp, 4\n");
-        fprintf(out_fd, "STMXCSR [rsp]\n");
+        fprintf(out_fd, "stmxcsr [rsp]\n");
         fprintf(out_fd, "mov edi, [rsp]\n");
         fprintf(out_fd, "and edi, 0xFFFF1FFF\n");
         if (x86_64_rounding_mode != 0) {
             fprintf(out_fd, "or edi, %u\n", x86_64_rounding_mode);
         }
         fprintf(out_fd, "mov [rsp], edi\n");
+        fprintf(out_fd, "ldmxcsr [rsp]\n");
         fprintf(out_fd, "add rsp, 4\n");
     } else {
         assert(0);
