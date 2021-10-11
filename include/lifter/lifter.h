@@ -1,5 +1,6 @@
 #pragma once
 
+#include <deque>
 #include <ir/ir.h>
 #include <lifter/program.h>
 #include <unordered_set>
@@ -190,6 +191,8 @@ class Lifter {
     std::vector<std::array<int64_t, 4>> load_input_vars(BasicBlock *bb, Operation *op, std::vector<SSAVar *> &parsed_vars);
     void register_jump_address(BasicBlock *jump_bb, uint64_t jmp_addr, ELF64File *elf_base);
     void process_ijumps(std::vector<CfOp *> &unprocessed_ijumps, ELF64File *elf_base);
+
+    bool is_jump_table_jump(const BasicBlock *bb, CfOp &cfOp, const RV64Inst &instr, const Program *prog);
 
     /**
      * Returns the corresponding value from the mapping: If `is_floating_point_register == true` the slots for the floating points are accessed, if not the slots for the general purpose/integer

@@ -18,13 +18,19 @@ void Lifter::lift(Program *prog) {
         for (auto &prog_hdr : prog->elf_base->program_headers) {
             if (prog_hdr.p_type == PT_LOAD && prog_hdr.p_flags & PF_X && prog_hdr.p_flags & PF_R) {
                 prog->load_instrs(prog->elf_base->file_content.data() + prog_hdr.p_offset, prog_hdr.p_filesz, prog_hdr.p_vaddr);
+            } else if (prog_hdr.p_type == PT_LOAD && prog_hdr.p_flags & PF_W && prog_hdr.p_flags & PF_R) {
+                prog->load_instrs(prog->elf_base->file_content.data() + prog_hdr.p_offset, prog_hdr.p_filesz, prog_hdr.p_vaddr);
             }
         }
     } else {
         // parse all executable sections (only if section information is contained in the elf binary)
         for (auto &sh_hdr : prog->elf_base->section_headers) {
-            if (sh_hdr.sh_type & SHT_PROGBITS && sh_hdr.sh_flags & SHF_EXECINSTR) {
-                prog->load_instrs(prog->elf_base->file_content.data() + sh_hdr.sh_offset, sh_hdr.sh_size, sh_hdr.sh_addr);
+            if (sh_hdr.sh_type & SHT_PROGBITS && sh_hdr.sh_flags & SHF_ALLOC) {
+                if (sh_hdr.sh_flags & SHF_EXECINSTR) {
+                    prog->load_instrs(prog->elf_base->file_content.data() + sh_hdr.sh_offset, sh_hdr.sh_size, sh_hdr.sh_addr);
+                } else {
+                    prog->load_data(prog->elf_base->file_content.data() + sh_hdr.sh_offset, sh_hdr.sh_size, sh_hdr.sh_addr);
+                }
             }
         }
     }
@@ -138,10 +144,9 @@ void Lifter::lift(Program *prog) {
                 continue;
             }
 
-            uint64_t jmp_addr = std::get<CfOp::LifterInfo>(cf_op.lifter_info).jump_addr;
             BasicBlock *next_bb;
-
-            if (jmp_addr == 0) {
+            uint64_t jmp_addr = std::get<CfOp::LifterInfo>(cf_op.lifter_info).jump_addr;
+            if (is_jump_table_jump(cur_bb, cf_op, instr, prog) || jmp_addr == 0) {
                 next_bb = dummy;
             } else {
                 next_bb = get_bb(jmp_addr);

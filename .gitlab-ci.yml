@@ -73,6 +73,10 @@ zip-utility:
     - tests/simple_zip/test.sh /toolchain/bin/riscv64-linux-gnu-gcc
   tags:
     - mem_intensive
+  artifacts:
+    when: always
+    paths:
+      - "build/src/translate"
 
 mandelbrot:
   stage: test
