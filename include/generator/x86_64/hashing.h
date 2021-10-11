@@ -20,8 +20,8 @@ struct Bucket {
 
 // variation of the CHD algorithm described in http://cmph.sourceforge.net/papers/esa09.pdf "Hash, displace, and compress"
 struct HashtableBuilder {
-    float load_factor = 0.95;
-    size_t bucket_size = 3;
+    float load_factor = 1.0;
+    size_t bucket_size = 19;
 
     size_t hash_table_size{};
     size_t bucket_number{};

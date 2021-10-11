@@ -179,7 +179,8 @@ void Generator::compile_ijump_lookup() {
     using namespace hashing;
     while (!ijump_hasher.build()) {
         ijump_hasher.load_factor -= 0.1;
-        if (ijump_hasher.load_factor < 0.25) {
+        ijump_hasher.bucket_size -= 2;
+        if (ijump_hasher.load_factor <= 0.20) {
             std::cerr << "Unable to calculate valid hash function!" << std::endl;
             assert(0);
             exit(1);
