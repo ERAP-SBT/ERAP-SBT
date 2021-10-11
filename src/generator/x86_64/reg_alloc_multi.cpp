@@ -1254,24 +1254,14 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
         const char *conv_name_1 = Generator::convert_name_from_type(in1->type);
         const char *conv_name_2 = Generator::convert_name_from_type(var->type);
         if (is_float(in1->type)) {
+            // floating point -> unsigned integer
             assert(var->type == Type::i32 || var->type == Type::i64);
             const FP_REGISTER in_reg = load_val_in_fp_reg(cur_time, in1);
             const REGISTER dest_reg = alloc_reg(cur_time);
-            if (var->type == Type::i64) {
-                const REGISTER help_reg = alloc_reg(cur_time, REG_NONE, dest_reg);
-                const bool single_precision = in1->type == Type::f32;
-                const char *help_reg_name = reg_name(help_reg, single_precision ? Type::i32 : Type::i64);
-                print_asm("cvt%s2si %s, %s\n", conv_name_1, reg_names[dest_reg][0], fp_reg_names[in_reg]);
-                print_asm("mov%s %s, %s\n", (single_precision ? "d" : "q"), help_reg_name, fp_reg_names[in_reg]);
-                print_asm("sar %s, %d\n", help_reg_name, (single_precision ? 31 : 63));
-                if (single_precision) {
-                    print_asm("movsxd %s, %s\n", reg_names[help_reg][0], help_reg_name);
-                }
-                print_asm("not %s\n", reg_names[help_reg][0]);
-                print_asm("and %s, %s\n", reg_names[dest_reg][0], reg_names[help_reg][0]);
-            } else {
-                print_asm("cvt%s2si %s, %s\n", conv_name_1, reg_names[dest_reg][0], fp_reg_names[in_reg]);
-            }
+            const char *dest_reg_name = reg_name(dest_reg, var->type);
+            print_asm("cvt%s2si %s, %s\n", conv_name_1, dest_reg_name, fp_reg_names[in_reg]);
+            print_asm("cmp %s, 0\n", dest_reg_name);
+            print_asm("cmovl %s, %s\n", dest_reg_name, (var->type == Type::i32 ? "ebp" : "rbp"));
             set_var_to_reg(cur_time, var, dest_reg);
         } else {
             // unsigned integer -> floating point

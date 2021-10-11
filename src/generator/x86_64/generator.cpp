@@ -470,6 +470,8 @@ void Generator::compile_entry() {
     compile_section(Section::TEXT);
     fprintf(out_fd, ".global _start\n");
     fprintf(out_fd, "_start:\n");
+    // create zero
+    fprintf(out_fd, "xor rbp, rbp\n");
     fprintf(out_fd, "mov rbx, offset param_passing\n");
     fprintf(out_fd, "mov rdi, rsp\n");
     fprintf(out_fd, "mov rsi, offset stack_space_end\n");

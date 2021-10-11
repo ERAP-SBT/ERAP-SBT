@@ -104,7 +104,7 @@ void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr
     SSAVar *const src = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, from);
 
     // create the result variable
-    SSAVar *const dest = bb->add_var(to, ip);
+    SSAVar *dest = bb->add_var(to, ip);
 
     // create the operation and assign in- and outputs
     auto op = std::make_unique<Operation>(_signed ? Instruction::convert : Instruction::uconvert);
@@ -113,6 +113,16 @@ void Lifter::lift_float_integer_conversion(BasicBlock *bb, const RV64Inst &instr
     op->set_inputs(src);
     op->set_outputs(dest);
     dest->set_op(std::move(op));
+
+    if (cast_dir(to, Type::i64) == 1) {
+        SSAVar *extended_dest = bb->add_var(Type::i64, ip);
+        auto op = std::make_unique<Operation>(Instruction::sign_extend);
+        op->lifter_info.in_op_size = Type::i32;
+        op->set_inputs(dest);
+        op->set_outputs(extended_dest);
+        extended_dest->set_op(std::move(op));
+        dest = extended_dest;
+    }
 
     write_to_mapping(mapping, dest, instr.instr.rd, is_to_floating_point);
 }
