@@ -1223,7 +1223,7 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
         const char *conv_name_1 = Generator::convert_name_from_type(in1->type);
         const char *conv_name_2 = Generator::convert_name_from_type(var->type);
         if (is_float(in1->type)) {
-            const FP_REGISTER in_reg = load_val_in_fp_reg(cur_time, in1);
+            FP_REGISTER in_reg = load_val_in_fp_reg(cur_time, in1);
             // floating point -> integer
             if (is_float(var->type)) {
                 // floating point -> floating point
@@ -1234,7 +1234,8 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
                 break;
             } else {
                 const REGISTER dest_reg = alloc_reg(cur_time);
-                compile_rounding_mode(cur_time, op, dest_reg, true, in_reg);
+                in_reg = compile_rounding_mode(cur_time, op, dest_reg, true, in_reg);
+                // compile_rounding_mode(cur_time, op, dest_reg);
                 print_asm("cvt%s2%s %s, %s\n", conv_name_1, conv_name_2, reg_name(dest_reg, var->type), fp_reg_names[in_reg]);
                 set_var_to_reg(cur_time, var, dest_reg);
             }
@@ -1437,35 +1438,34 @@ bool RegAlloc::merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg) {
     return false;
 }
 
-void RegAlloc::compile_rounding_mode(size_t cur_time, const Operation *op, const REGISTER help_reg, const bool use_rounds, const FP_REGISTER fp_in_reg) {
+FP_REGISTER RegAlloc::compile_rounding_mode(size_t cur_time, const Operation *op, const REGISTER help_reg, const bool use_rounds, const FP_REGISTER fp_in_reg) {
     if (std::holds_alternative<RoundingMode>(op->rounding_info)) {
         const RoundingMode rounding_mode = std::get<RoundingMode>(op->rounding_info);
-        // if (cur_rounding_mode != rounding_mode) {
         SSAVar *in1 = op->in_vars[0];
         if (use_rounds && gen->optimizations & Generator::OPT_ARCH_SSE4) {
-            uint8_t x86_64_rounding_mode;
+            const char *x86_64_rounding_mode;
             switch (rounding_mode) {
             case RoundingMode::NEAREST:
-                x86_64_rounding_mode = 0x0B;
+                x86_64_rounding_mode = "0b00";
                 break;
             case RoundingMode::DOWN:
-                x86_64_rounding_mode = 0x1B;
+                x86_64_rounding_mode = "0b01";
                 break;
             case RoundingMode::UP:
-                x86_64_rounding_mode = 0x2B;
+                x86_64_rounding_mode = "0b10";
                 break;
             case RoundingMode::ZERO:
-                x86_64_rounding_mode = 0x3B;
+                x86_64_rounding_mode = "0b11";
                 break;
             default:
                 assert(0);
                 break;
             }
-            if (in1->gen_info.last_use_time > cur_time) {
-                save_fp_reg(fp_in_reg);
-            }
+            const FP_REGISTER help_fp_reg = alloc_fp_reg(cur_time);
+
             assert(fp_in_reg != FP_REG_NONE);
-            print_asm("rounds%s %s, %s, %d\n", Generator::fp_op_size_from_type(in1->type), fp_reg_names[fp_in_reg], fp_reg_names[fp_in_reg], x86_64_rounding_mode);
+            print_asm("rounds%s %s, %s, %s\n", Generator::fp_op_size_from_type(in1->type), fp_reg_names[help_fp_reg], fp_reg_names[fp_in_reg], x86_64_rounding_mode);
+            return help_fp_reg;
         } else {
             uint32_t x86_64_rounding_mode;
             switch (std::get<RoundingMode>(op->rounding_info)) {
@@ -1497,6 +1497,7 @@ void RegAlloc::compile_rounding_mode(size_t cur_time, const Operation *op, const
             print_asm("mov [rsp], %s\n", round_reg_name);
             print_asm("ldmxcsr [rsp]\n");
             print_asm("add rsp, 4\n");
+            return fp_in_reg;
         }
     } else if (std::holds_alternative<SSAVar *>(op->rounding_info)) {
         // let helper handle dynamic rounding
@@ -1508,6 +1509,7 @@ void RegAlloc::compile_rounding_mode(size_t cur_time, const Operation *op, const
         print_asm("push rax\npush rcx\npush rdx\npush rsi\n");
         print_asm("call resolve_dynamic_rounding\n");
         print_asm("pop rsi\npop rdx\npop rcx\npop rax\n");
+        return fp_in_reg;
     }
 }
 
