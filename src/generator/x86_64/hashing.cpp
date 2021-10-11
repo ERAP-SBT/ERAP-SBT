@@ -138,7 +138,7 @@ std::array<uint64_t, 3> HashtableBuilder::spookey_hash(uint64_t key) const {
     return {h0, h1, h2};
 }
 
-void HashtableBuilder::print_hash_table(_IO_FILE *out_fd, IR *ir) {
+void HashtableBuilder::print_hash_table(FILE *out_fd, IR *ir) {
     fprintf(out_fd, ".global ijump_hash_table\n");
     fprintf(out_fd, "ijump_hash_table:\n");
     for (uint64_t key : hash_table) {
@@ -153,7 +153,7 @@ void HashtableBuilder::print_hash_table(_IO_FILE *out_fd, IR *ir) {
     }
 }
 
-void HashtableBuilder::print_hash_func_ids(_IO_FILE *out_fd) {
+void HashtableBuilder::print_hash_func_ids(FILE *out_fd) {
     fprintf(out_fd, ".global ijump_hash_function_idxs\n");
     fprintf(out_fd, "ijump_hash_function_idxs:\n");
     for (uint16_t idx : hash_idxs) {
@@ -161,7 +161,7 @@ void HashtableBuilder::print_hash_func_ids(_IO_FILE *out_fd) {
     }
 }
 
-void HashtableBuilder::print_hash_constants(_IO_FILE *out_fd) const {
+void HashtableBuilder::print_hash_constants(FILE *out_fd) const {
     fprintf(out_fd, ".global ijump_hash_bucket_number\n");
     fprintf(out_fd, "ijump_hash_bucket_number:\n.quad %zu\n", bucket_number);
 
@@ -169,7 +169,7 @@ void HashtableBuilder::print_hash_constants(_IO_FILE *out_fd) const {
     fprintf(out_fd, "ijump_hash_table_size:\n.quad %zu\n", hash_table_size);
 }
 
-void HashtableBuilder::print_ijump_lookup(_IO_FILE *out_fd, bool print_call) const {
+void HashtableBuilder::print_ijump_lookup(FILE *out_fd, bool print_call) const {
     if (print_call) {
         fprintf(out_fd, "icall_lookup:\n");
     } else {
