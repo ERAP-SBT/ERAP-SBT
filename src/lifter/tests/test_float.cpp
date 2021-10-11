@@ -349,15 +349,27 @@ class TestFloatingPointLifting : public ::testing::Test {
         }
 
         auto *result = bb->variables[count_scanned_variables].get();
-
+        count_scanned_variables++;
         ASSERT_EQ(result->type, expected_to_type) << "The type of the result variable doesn't match the 'to' type!";
         ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(result->info)) << "The result variable doesn't have an operation!";
         auto *op = std::get<std::unique_ptr<Operation>>(result->info).get();
 
         ASSERT_EQ(op->type, expected_instruction) << "The operation doesn't have the expected instruction!";
         ASSERT_EQ(op->out_vars[0], result) << "The output of the operation isn't the result variable!";
-        ASSERT_EQ(result, mapping[instr.instr.rd + (is_float(expected_to_type) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)]) << "The result isn't written correctly to the mapping!";
         ASSERT_EQ(op->in_vars[0], input_var) << "The input of the operation isn't the expected input!";
+        if (expected_to_type == Type::i32) {
+            auto *extended = bb->variables[count_scanned_variables].get();
+            ASSERT_EQ(extended->type, Type::i64) << "The type of the extended result doesn't match!";
+            ASSERT_TRUE(std::holds_alternative<std::unique_ptr<Operation>>(extended->info)) << "The extended result doen't have an operation!";
+            auto *extend_op = std::get<std::unique_ptr<Operation>>(extended->info).get();
+            ASSERT_EQ(extend_op->type, Instruction::sign_extend) << "The operation of the sign extension isn't a sign extension!";
+            ASSERT_EQ(extend_op->out_vars[0], extended) << "The result of the operation isn't the extended result!";
+            ASSERT_EQ(extend_op->in_vars[0], result) << "The input of the extension isn't the result!";
+            ASSERT_EQ(extended, mapping[instr.instr.rd + (is_float(expected_to_type) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)]) << "The extended result isn't written correctly to the mapping!";
+            count_scanned_variables++;
+        } else {
+            ASSERT_EQ(result, mapping[instr.instr.rd + (is_float(expected_to_type) ? Lifter::START_IDX_FLOATING_POINT_STATICS : 0)]) << "The result isn't written correctly to the mapping!";
+        }
         RoundingMode expected_rounding_mode;
         switch (instr.instr.misc) {
         case 0:
@@ -380,8 +392,6 @@ class TestFloatingPointLifting : public ::testing::Test {
         }
         ASSERT_TRUE(std::holds_alternative<RoundingMode>(op->rounding_info)) << "The conversion operation should have an rounding mode set!";
         ASSERT_EQ(std::get<RoundingMode>(op->rounding_info), expected_rounding_mode) << "The rounding mode is the wrong one!";
-
-        count_scanned_variables++;
 
         ASSERT_LE(bb->variables.size(), count_scanned_variables) << "In the basic block are more variables than expected!";
         ASSERT_GE(bb->variables.size(), count_scanned_variables) << "In the basic block are less variables than expected!";
