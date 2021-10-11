@@ -327,7 +327,7 @@ void Generator::compile_block(const BasicBlock *block) {
 
                 fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
             }
-
+            fprintf(out_fd, "add rsp, %zu\n", stack_size);
             fprintf(out_fd, "mov rdi, %zu\n", std::get<CfOp::IJumpInfo>(cf_op.info).interpreter_target);
             fprintf(out_fd, "jmp unresolved_ijump\n");
             break;
@@ -628,6 +628,7 @@ void Generator::compile_vars(const BasicBlock *block) {
         // move dynamic rounding mode variable to rdi
         if (std::holds_alternative<SSAVar *>(op->rounding_info)) {
             const SSAVar *rounding_mode = std::get<SSAVar *>(op->rounding_info);
+            assert(rounding_mode != nullptr);
             assert(is_integer(rounding_mode->type));
             fprintf(out_fd, "xor rdi, rdi\n");
             fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", op_reg_map_for_type(rounding_mode->type)[4], index_for_var(block, rounding_mode));
