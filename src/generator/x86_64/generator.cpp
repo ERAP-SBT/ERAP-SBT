@@ -178,6 +178,12 @@ void Generator::compile() {
 }
 
 void Generator::compile_ijump_lookup() {
+    fprintf(out_fd, ".global ijump_use_hash_table\n");
+
+    fprintf(out_fd, ".global ijump_lookup_table_base\n");
+    fprintf(out_fd, ".global ijump_lookup_table\n");
+    fprintf(out_fd, ".global ijump_lookup_table_end\n");
+
     if (optimizations & OPT_HASH_LOOKUP) {
         using namespace hashing;
         while (!ijump_hasher.build()) {
@@ -197,6 +203,12 @@ void Generator::compile_ijump_lookup() {
         ijump_hasher.print_hash_func_ids(out_fd);
         ijump_hasher.print_hash_table(out_fd, ir);
         ijump_hasher.print_hash_constants(out_fd);
+
+        fprintf(out_fd, "ijump_use_hash_table:\n.byte 1\n");
+        // Lookup table stubs
+        fprintf(out_fd, "ijump_lookup_table:\n");
+        fprintf(out_fd, "ijump_lookup_table_end:\n");
+        fprintf(out_fd, "ijump_lookup_table_base:\n.8byte 0\n");
     } else {
         compile_section(Section::TEXT);
         fprintf(out_fd, "ijump_lookup:");
@@ -216,10 +228,6 @@ void Generator::compile_ijump_lookup() {
         fprintf(out_fd, "jmp unresolved_ijump\n");
 
         compile_section(Section::RODATA);
-
-        fprintf(out_fd, ".global ijump_lookup_table_base\n");
-        fprintf(out_fd, ".global ijump_lookup_table\n");
-        fprintf(out_fd, ".global ijump_lookup_table_end\n");
 
         fprintf(out_fd, "ijump_lookup_table_base:\n");
         fprintf(out_fd, ".8byte %zu\n", ir->virt_bb_start_addr);
@@ -242,6 +250,13 @@ void Generator::compile_ijump_lookup() {
         fprintf(out_fd, "ijump_lookup_table_end:\n");
         fprintf(out_fd, ".type ijump_lookup_table,STT_OBJECT\n");
         fprintf(out_fd, ".size ijump_lookup_table,ijump_lookup_table_end-ijump_lookup_table\n");
+
+        fprintf(out_fd, "ijump_use_hash_table:\n.byte 0\n");
+        // Hash stubs
+        fprintf(out_fd, ".global ijump_hash_function_idxs\nijump_hash_function_idxs:\n");
+        fprintf(out_fd, ".global ijump_hash_table\nijump_hash_table:\n");
+        fprintf(out_fd, ".global ijump_hash_bucket_number\nijump_hash_bucket_number:\n.quad 0\n");
+        fprintf(out_fd, ".global ijump_hash_table_size\nijump_hash_table_size:\n.quad 0\n");
     }
 }
 
