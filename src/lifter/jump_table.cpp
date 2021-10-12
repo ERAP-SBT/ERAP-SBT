@@ -114,9 +114,11 @@ bool Lifter::is_jump_table_jump(const BasicBlock *bb, CfOp &cf_op, const RV64Ins
                     break;
                 }
                 if (target_inputs) {
-                    cfop_found = true;
-                    loaded_addr_var = (*target_inputs)[input_idx];
-                    break;
+                    if (target_inputs->size() > input_idx) {
+                        cfop_found = true;
+                        loaded_addr_var = (*target_inputs)[input_idx];
+                        break;
+                    }
                 }
             }
             if (!cfop_found) {
@@ -169,7 +171,7 @@ bool Lifter::is_jump_table_jump(const BasicBlock *bb, CfOp &cf_op, const RV64Ins
     };
 
     auto &jmp_addrs = cf_op.type == CFCInstruction::ijump ? std::get<CfOp::IJumpInfo>(cf_op.info).jmp_addrs : std::get<CfOp::ICallInfo>(cf_op.info).jmp_addrs;
-    for (size_t i = addr_start_idx;; i += addr_step) {
+    for (size_t i = addr_start_idx; i < prog->addrs.size(); i += addr_step) {
         if (jt_end_addr != 0 && prog->addrs[i] >= jt_end_addr) {
             break;
         }

@@ -1917,11 +1917,10 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
             }
             write_static_mapping(info.target, cur_time, static_mapping);
 
+            print_asm("add rsp, %zu\n", max_stack_frame_size);
             // prevent overflow
-            print_asm("mov rax, [init_ret_stack_ptr]\n");
-            print_asm("lea rax, [rax - %zu]\n", max_stack_frame_size);
-            print_asm("cmp rsp, stack_space + 524288\n"); // max depth ~65k
-            print_asm("cmovb rsp, rax\n");
+            print_asm("cmp rsp, offset stack_space + 524288\n"); // max depth ~65k
+            print_asm("cmovb rsp, [init_ret_stack_ptr]\n");
 
             if (info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
                 print_asm("push %lu\n", info.continuation_block->virt_start_addr);
@@ -1933,14 +1932,14 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
             print_asm("call b%zu\n", info.target->id);
             if (bb->control_flow_ops.size() != 1 || info.continuation_block != next_bb || is_block_top_level(info.continuation_block)) {
                 if (is_block_top_level(info.continuation_block) || std::find(compiled_blocks.begin(), compiled_blocks.end(), info.continuation_block) == compiled_blocks.end()) {
-                    print_asm("add rsp, %zu\n", max_stack_frame_size + 8);
+                    print_asm("add rsp, 8\n");
                     print_asm("jmp b%zu\n", info.continuation_block->id);
                 } else {
-                    print_asm("add rsp, 8\n");
+                    print_asm("sub rsp, %zu\n", max_stack_frame_size - 8);
                     print_asm("jmp b%zu_reg_alloc\n", info.continuation_block->id);
                 }
             } else {
-                print_asm("add rsp, 8\n");
+                print_asm("sub rsp, %zu\n", max_stack_frame_size - 8);
             }
             break;
         }
@@ -1972,13 +1971,11 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
             const auto dst_reg = load_val_in_reg(cur_time + 1 + info.mapping.size(), dst, REG_B);
             assert(dst->type == Type::imm || dst->type == Type::i64);
 
-            const auto overflow_reg = alloc_reg(cur_time + 1 + info.mapping.size(), REG_NONE, dst_reg);
-            const auto of_reg_name = reg_names[overflow_reg][0];
+            print_asm("add rsp, %zu\n", max_stack_frame_size);
+
             // prevent overflow
-            print_asm("mov %s, [init_ret_stack_ptr]\n", of_reg_name);
-            print_asm("lea %s, [%s - %zu]\n", of_reg_name, of_reg_name, max_stack_frame_size);
-            print_asm("cmp rsp, stack_space + 524288\n"); // max depth ~65k
-            print_asm("cmovb rsp, %s\n", of_reg_name);
+            print_asm("cmp rsp, offset stack_space + 524288\n"); // max depth ~65k
+            print_asm("cmovb rsp, [init_ret_stack_ptr]\n");
 
             if (info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
                 print_asm("push %lu\n", info.continuation_block->virt_start_addr);
@@ -1995,11 +1992,11 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
                     print_asm("add rsp, %zu\n", max_stack_frame_size + 8);
                     print_asm("jmp b%zu\n", info.continuation_block->id);
                 } else {
-                    print_asm("add rsp, 8\n");
+                    print_asm("sub rsp, %zu\n", max_stack_frame_size - 8);
                     print_asm("jmp b%zu_reg_alloc\n", info.continuation_block->id);
                 }
             } else {
-                print_asm("add rsp, 8\n");
+                print_asm("sub rsp, %zu\n", max_stack_frame_size - 8);
             }
             break;
         }
