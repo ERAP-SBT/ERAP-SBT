@@ -1219,8 +1219,8 @@ TEST_F(TestFloatingPointLifting, test_fp_fsgnjns) {
 }
 
 TEST_F(TestFloatingPointLifting, test_fp_fsgnjnd) {
-    // create instruction: fsgnjn.d f7, f2, f2
-    const RV64Inst instr{FrvInst{FRV_FSGNJND, 7, 2, 2, 0, 0, 0}, 4};
+    // create instruction: fsgnjn.d f7, f2, f3
+    const RV64Inst instr{FrvInst{FRV_FSGNJND, 7, 2, 3, 0, 0, 0}, 4};
     test_sign_injection_lifting(instr);
 }
 
