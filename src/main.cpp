@@ -276,7 +276,7 @@ void print_help(bool usage_only) {
         std::cerr << "          - no_trans_bbs:         Register Allocation won't emit Translation Blocks (Should only be used with call_ret)\n";
         std::cerr << "      - lifter:\n";
         std::cerr << "          - call_ret:             Detect and replace RISC-V `call` and `return` instructions\n";
-        std::cerr << "          - hash_lookup           Use a hashtable for storing the lookup table\n";
+        std::cerr << "          - no_hash_lookup        Do not use a hashtable for storing the lookup table\n";
         std::cerr << "    --output:                 Set the output file name (by default, the input file path suffixed with `.translated`)\n";
         std::cerr << "    --print-ir:               Prints a textual representation of the IR (if no file is specified, prints to standard out)\n";
         std::cerr << "    --helper-path:            Set the path to the runtime helper library\n";
@@ -344,8 +344,8 @@ bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &li
             ir_opt_change = optimizer::OPT_CONST_FOLDING | optimizer::OPT_DCE; // Constant folding requires DCE
         } else if (opt_flag == "dedup") {
             ir_opt_change = optimizer::OPT_DEDUP;
-        } else if (opt_flag == "hash_lookup") {
-            gen_opt_change = generator::x86_64::Generator::OPT_HASH_LOOKUP;
+        } else if (opt_flag == "no_hash_lookup") {
+            gen_opt_change = generator::x86_64::Generator::OPT_NO_HASH_LOOKUP;
         } else {
             std::cerr << "Warning: Unknown optimization flag: '" << opt_flag << "'\n";
             return false;

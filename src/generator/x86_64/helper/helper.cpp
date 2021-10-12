@@ -500,7 +500,7 @@ extern "C" uint64_t ijump_lookup_table_end;
 size_t calc_target(uint64_t addr) {
     if (ijump_use_hash_table) {
         // required, because we otherwise divide by zero for calculating hashes (happens in interpreter-only runs)
-        if (ijump_hash_table_size == 0) {
+        if (ijump_hash_table_size <= 1) {
             return 0x0;
         }
 
@@ -520,7 +520,7 @@ size_t calc_target(uint64_t addr) {
 
         uint64_t index = (addr - ijump_lookup_table_base) / 2;
 
-        if (index >= static_cast<uint64_t>(&ijump_lookup_table_end - ijump_lookup_table)) {
+        if (index >= static_cast<uint64_t>(&ijump_lookup_table_end - ijump_lookup_table) / sizeof(uint64_t)) {
             return 0x0;
         }
 

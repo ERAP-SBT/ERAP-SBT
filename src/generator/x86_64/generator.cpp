@@ -184,7 +184,7 @@ void Generator::compile_ijump_lookup() {
     fprintf(out_fd, ".global ijump_lookup_table\n");
     fprintf(out_fd, ".global ijump_lookup_table_end\n");
 
-    if (optimizations & OPT_HASH_LOOKUP) {
+    if (!(optimizations & OPT_NO_HASH_LOOKUP)) {
         using namespace hashing;
         while (!ijump_hasher.build()) {
             ijump_hasher.load_factor -= 0.1;
@@ -197,6 +197,7 @@ void Generator::compile_ijump_lookup() {
             ijump_hasher.fill(ijump_hasher.keys);
         }
 
+        compile_section(Section::TEXT);
         ijump_hasher.print_ijump_lookup(out_fd);
 
         compile_section(Section::RODATA);
