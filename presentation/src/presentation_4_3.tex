@@ -292,7 +292,6 @@ block b1(/* inputs */) <= [/* predecessors */] {
 
 \begin{frame}
     \frametitle{Lifter}{RISC-V Instruktionen sequentiell in IR Code umwandeln}\\
-    \vspace{2cm}
     Wiederhole solange ungeliftete Instruktionen existieren:
     \begin{enumerate}
         \setlength{\itemsep}{1em}
@@ -303,7 +302,7 @@ block b1(/* inputs */) <= [/* predecessors */] {
                   \vspace{1em}
                   \setlength{\itemsep}{1em}
                   \item eine \textbf{Kontrollfluss ändernde Instruktion} auftritt
-                  \item der Start einesq
+                  \item der Start eines
                         neues Basic Blocks an der nächsten Instruktion registriert ist
               \end{enumerate}
         \item Beende Basic Block $\rightarrow$ markiere Start neuer Basic Blöcke an evtl. Sprungzielen
