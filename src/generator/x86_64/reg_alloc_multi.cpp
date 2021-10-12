@@ -530,10 +530,20 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                                 } else if (next_op->type == Instruction::store && next_op->in_vars[0].get() == dst) {
                                     // merge add/store
                                     auto *store_src = next_op->in_vars[1].get();
-                                    const auto src_reg = load_val_in_reg(cur_time, store_src);
-                                    print_asm("mov [%s + %ld], %s\n", in1_reg_name, imm_val, reg_name(src_reg, store_src->type));
-                                    next_op->out_vars[0]->gen_info.already_generated = true;
-                                    did_merge = true;
+                                    if (store_src->is_immediate() && !store_src->get_immediate().binary_relative) {
+                                        const auto store_imm_val = store_src->get_immediate().val;
+                                        if (store_imm_val != INT64_MIN && std::abs(store_imm_val) < 0x7FFFFFFF) {
+                                            print_asm("mov %s [%s + %ld], %ld\n", mem_size(next_op->lifter_info.in_op_size), in1_reg_name, imm_val, store_imm_val);
+                                            next_op->out_vars[0]->gen_info.already_generated = true;
+                                            did_merge = true;
+                                        }
+                                    }
+                                    if (!did_merge) {
+                                        const auto src_reg = load_val_in_reg(cur_time, store_src);
+                                        print_asm("mov [%s + %ld], %s\n", in1_reg_name, imm_val, reg_name(src_reg, store_src->type));
+                                        next_op->out_vars[0]->gen_info.already_generated = true;
+                                        did_merge = true;
+                                    }
                                 }
                             }
                         }
@@ -877,7 +887,13 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
 
             // TODO: when addr is a (binary-relative) immediate this can be omitted sometimes
             const auto addr_reg = load_val_in_reg(cur_time, addr);
-            // TODO: when val is a non-binary-relative immediate this can be omitted sometimes (if val <= 0xFFFFFFFF)
+            if (val->is_immediate() && !val->get_immediate().binary_relative) {
+                const auto imm_val = val->get_immediate().val;
+                if (imm_val != INT64_MIN && std::abs(imm_val) < 0x7FFFFFFF) {
+                    print_asm("mov %s [%s], %ld\n", mem_size(op->lifter_info.in_op_size), reg_names[addr_reg][0], imm_val);
+                    break;
+                }
+            }
             const auto val_reg = load_val_in_reg(cur_time, val);
             print_asm("mov [%s], %s\n", reg_names[addr_reg][0], reg_name(val_reg, op->lifter_info.in_op_size));
             break;
@@ -1410,6 +1426,15 @@ bool RegAlloc::merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg) {
                 const auto *in1_reg_name = reg_names[in1->gen_info.reg_idx][0];
                 const auto *in2_reg_name = reg_names[in2->gen_info.reg_idx][0];
 
+                if (val_src->is_immediate() && !val_src->get_immediate().binary_relative) {
+                    const auto store_imm_val = val_src->get_immediate().val;
+                    if (store_imm_val != INT64_MIN && std::abs(store_imm_val) < 0x7FFFFFFF) {
+                        print_asm("mov %s [%s + %s], %ld\n", mem_size(next_op->lifter_info.in_op_size), in1_reg_name, in2_reg_name, store_imm_val);
+                        next_op->out_vars[0]->gen_info.already_generated = true;
+                        return true;
+                    }
+                }
+
                 const auto val_reg = load_val_in_reg(cur_time, val_src);
                 print_asm("mov [%s + %s], %s\n", in1_reg_name, in2_reg_name, reg_name(val_reg, next_op->lifter_info.in_op_size));
                 next_op->out_vars[0]->gen_info.already_generated = true;
@@ -1434,6 +1459,7 @@ bool RegAlloc::merge_op_bin(size_t cur_time, size_t var_idx, REGISTER dst_reg) {
                 const auto cast_reg = load_val_in_reg(cur_time, next_op->in_vars[0].get());
                 print_asm("mov [%s + %s], %s\n", in1_reg_name, in2_reg_name, reg_name(cast_reg, cast_var->type));
                 store_op->out_vars[0]->gen_info.already_generated = true;
+                cast_var->gen_info.already_generated = true;
                 return true;
             }
 
@@ -1510,6 +1536,9 @@ FP_REGISTER RegAlloc::compile_rounding_mode(size_t cur_time, const Operation *op
         // let helper handle dynamic rounding
         SSAVar *rm_var = std::get<RefPtr<SSAVar>>(op->rounding_info).get();
         const REGISTER reg = load_val_in_reg(cur_time, rm_var, REG_DI);
+        if (rm_var->gen_info.last_use_time > cur_time) {
+            save_reg(REG_DI);
+        }
         assert(reg == REG_DI);
         clear_reg(cur_time, REG_DI);
         // TODO: Stack alignment?
@@ -2103,7 +2132,7 @@ void RegAlloc::set_bb_inputs(BasicBlock *target, const std::vector<RefPtr<SSAVar
                             save_reg(REG_A);
                             clear_reg(cur_time, REG_A);
                         }
-                        load_val_in_reg(cur_time, input_var, REG_A);
+                        load_val_in_reg<false>(cur_time, input_var, REG_A);
                     }
                     print_asm("mov [rsp + 8 * %zu], %s\n", stack_slot, reg_names[reg][0]);
                     if (!input_var->gen_info.saved_in_stack) {
@@ -2652,7 +2681,7 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::alloc_reg(size_t
     if (only_this_reg != REG_NONE) {
         auto &cur_var = reg_map[only_this_reg].cur_var;
         if (cur_var != nullptr) {
-            save_reg(only_this_reg);
+            save_reg(only_this_reg, !evict_imms);
             cur_var->gen_info.location = SSAVar::GeneratorInfoX64::STACK_FRAME;
             cur_var = nullptr;
         }

@@ -776,6 +776,45 @@ void const_fold(IR *ir) {
     for (auto &bb : ir->basic_blocks) {
         pass.process_block(bb.get());
     }
+
+    for (auto &bb : ir->basic_blocks) {
+        for (auto &var : bb->variables) {
+            if (!var->is_operation()) {
+                continue;
+            }
+            auto &op = var->get_operation();
+            switch (op.type) {
+            case Instruction::add:
+                [[fallthrough]];
+            case Instruction::_or:
+                [[fallthrough]];
+            case Instruction::_and:
+                [[fallthrough]];
+            case Instruction::_xor:
+                [[fallthrough]];
+            case Instruction::umax:
+                [[fallthrough]];
+            case Instruction::umin:
+                [[fallthrough]];
+            case Instruction::max:
+                [[fallthrough]];
+            case Instruction::min:
+                [[fallthrough]];
+            case Instruction::mul_l:
+                [[fallthrough]];
+            case Instruction::ssmul_h:
+                [[fallthrough]];
+            case Instruction::uumul_h: {
+                if (op.in_vars[0]->is_immediate() && !op.in_vars[1]->is_immediate()) {
+                    std::swap(op.in_vars[0], op.in_vars[1]);
+                }
+                break;
+            }
+            default:
+                break;
+            }
+        }
+    }
 }
 
 } // namespace optimizer
