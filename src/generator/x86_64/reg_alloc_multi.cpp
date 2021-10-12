@@ -1973,6 +1973,14 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
             print_asm("cmp rsp, stack_space + 524288\n"); // max depth ~65k
             print_asm("cmovb rsp, %s\n", of_reg_name);
 
+            if (info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
+                print_asm("push %lu\n", info.continuation_block->virt_start_addr);
+            } else {
+                const auto tmp_reg = alloc_reg(cur_time + 1 + info.mapping.size());
+                print_asm("mov %s, %lu\n", reg_names[tmp_reg][0], info.continuation_block->virt_start_addr);
+                print_asm("push %s\n", reg_names[tmp_reg][0]);
+            }
+
             print_asm("call ijump_lookup\n");
 
             print_asm("add rsp, 8\n");
