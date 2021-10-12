@@ -135,6 +135,18 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
     // handle psudoinstructions
     if (instr.instr.rs1 == instr.instr.rs2) {
         switch (instr.instr.mnem) {
+        case FRV_FSGNJS:
+        case FRV_FSGNJD: {
+            SSAVar *rs1 = get_from_mapping(bb, mapping, instr.instr.rs1, ip, true);
+            SSAVar *result = bb->add_var(op_size, ip);
+            auto op = std::make_unique<Operation>(Instruction::cast);
+            op->lifter_info.in_op_size = op_size;
+            op->set_inputs(rs1);
+            op->set_outputs(result);
+            result->set_op(std::move(op));
+            write_to_mapping(mapping, result, instr.instr.rd, true);
+            return;
+        }
         case FRV_FSGNJNS:
         case FRV_FSGNJND: {
             // load mask to toggle sign bit
