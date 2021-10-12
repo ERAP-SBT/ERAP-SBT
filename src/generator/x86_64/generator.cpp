@@ -663,13 +663,21 @@ void Generator::compile_vars(const BasicBlock *block) {
             break;
         case Instruction::_or:
             assert(arg_count == 2);
-            assert(!is_float(var->type));
-            fprintf(out_fd, "or rax, rbx\n");
+            if (is_float(var->type)) {
+                assert(var->type == op->in_vars[0]->type && var->type == op->in_vars[1]->type);
+                fprintf(out_fd, "por xmm0, xmm1\n");
+            } else {
+                fprintf(out_fd, "or rax, rbx\n");
+            }
             break;
         case Instruction::_and:
             assert(arg_count == 2);
-            assert(!is_float(var->type));
-            fprintf(out_fd, "and rax, rbx\n");
+            if (is_float(var->type)) {
+                assert(var->type == op->in_vars[0]->type && var->type == op->in_vars[1]->type);
+                fprintf(out_fd, "pand xmm0, xmm1\n");
+            } else {
+                fprintf(out_fd, "and rax, rbx\n");
+            }
             break;
         case Instruction::_not:
             assert(arg_count == 1);
@@ -678,8 +686,12 @@ void Generator::compile_vars(const BasicBlock *block) {
             break;
         case Instruction::_xor:
             assert(arg_count == 2);
-            assert(!is_float(var->type));
-            fprintf(out_fd, "xor rax, rbx\n");
+            if (is_float(var->type)) {
+                assert(var->type == op->in_vars[0]->type && var->type == op->in_vars[1]->type);
+                fprintf(out_fd, "pxor xmm0, xmm1\n");
+            } else {
+                fprintf(out_fd, "xor rax, rbx\n");
+            }
             break;
         case Instruction::cast:
             assert(arg_count == 1);

@@ -132,6 +132,63 @@ void Lifter::lift_float_sign_injection(BasicBlock *bb, const RV64Inst &instr, re
 
     const bool is_single_precision = op_size == Type::f32;
 
+    // handle psudoinstructions
+    if (instr.instr.rs1 == instr.instr.rs2) {
+        switch (instr.instr.mnem) {
+        case FRV_FSGNJNS:
+        case FRV_FSGNJND: {
+            // load mask to toggle sign bit
+            SSAVar *mask = bb->add_var_imm(is_single_precision ? 0x8000'0000 : 0x8000'0000'0000'0000, ip);
+            SSAVar *fp_mask = bb->add_var(op_size, ip);
+            {
+                auto op = std::make_unique<Operation>(Instruction::cast);
+                op->lifter_info.in_op_size = is_single_precision ? Type::i32 : Type::i64;
+                op->set_inputs(mask);
+                op->set_outputs(fp_mask);
+                fp_mask->set_op(std::move(op));
+            }
+            // negate value
+            SSAVar *rs1 = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, op_size);
+            SSAVar *result = bb->add_var(op_size, ip);
+            {
+                auto op = std::make_unique<Operation>(Instruction::_xor);
+                op->lifter_info.in_op_size = op_size;
+                op->set_inputs(rs1, fp_mask);
+                op->set_outputs(result);
+                result->set_op(std::move(op));
+            }
+            write_to_mapping(mapping, result, instr.instr.rd, true);
+            return;
+        }
+        case FRV_FSGNJXS:
+        case FRV_FSGNJXD: {
+            SSAVar *mask = bb->add_var_imm(is_single_precision ? 0x7FFF'FFFF : 0x7FFF'FFFF'FFFF'FFFF, ip);
+            SSAVar *fp_mask = bb->add_var(op_size, ip);
+            {
+                auto op = std::make_unique<Operation>(Instruction::cast);
+                op->lifter_info.in_op_size = is_single_precision ? Type::i32 : Type::i64;
+                op->set_inputs(mask);
+                op->set_outputs(fp_mask);
+                fp_mask->set_op(std::move(op));
+            }
+            // caluclate absolute value
+            SSAVar *rs1 = get_from_mapping_and_shrink(bb, mapping, instr.instr.rs1, ip, op_size);
+            SSAVar *result = bb->add_var(op_size, ip);
+            {
+                auto op = std::make_unique<Operation>(Instruction::_and);
+                op->lifter_info.in_op_size = op_size;
+                op->set_inputs(rs1, fp_mask);
+                op->set_outputs(result);
+                result->set_op(std::move(op));
+            }
+            write_to_mapping(mapping, result, instr.instr.rd, true);
+            return;
+        }
+        default:
+            break;
+        }
+    }
+
     // create mask to extract sign bit
     SSAVar *const sign_bit_extraction_mask = bb->add_var_imm(is_single_precision ? 0x80000000 : 0x8000000000000000, ip);
     SSAVar *const sign_zero_mask = bb->add_var_imm(is_single_precision ? 0x7FFFFFFF : 0x7FFFFFFFFFFFFFFF, ip);

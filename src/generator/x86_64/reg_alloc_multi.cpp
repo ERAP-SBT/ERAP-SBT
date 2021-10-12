@@ -1063,7 +1063,7 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
     const auto *op = std::get<std::unique_ptr<Operation>>(var->info).get();
     SSAVar *in1 = op->in_vars[0];
     // handles binary fp operations
-    auto bin_op = [this, var, op, in1, cur_time](const char *instruction) {
+    const auto bin_op = [this, var, op, in1, cur_time](const char *instruction) {
         assert(is_float(var->type) && var->type == op->in_vars[0]->type && var->type == op->in_vars[1]->type);
         const FP_REGISTER in1_reg = load_val_in_fp_reg(cur_time, op->in_vars[0]);
         const FP_REGISTER in2_reg = load_val_in_fp_reg(cur_time, op->in_vars[1]);
@@ -1075,8 +1075,20 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
         set_var_to_fp_reg(cur_time, var, in1_reg);
     };
 
+    const auto logical_bin_op = [this, var, op, in1, cur_time](const char *instruction) {
+        assert(is_float(var->type) && var->type == op->in_vars[0]->type && var->type == op->in_vars[1]->type);
+        const FP_REGISTER in1_reg = load_val_in_fp_reg(cur_time, op->in_vars[0]);
+        const FP_REGISTER in2_reg = load_val_in_fp_reg(cur_time, op->in_vars[1]);
+        if (in1->gen_info.last_use_time > cur_time) {
+            save_fp_reg(in1_reg);
+        }
+        print_asm("%s %s, %s\n", instruction, fp_reg_names[in1_reg], fp_reg_names[in2_reg]);
+        clear_fp_reg(cur_time, in1_reg);
+        set_var_to_fp_reg(cur_time, var, in1_reg);
+    };
+
     // handles fused multiply add operations
-    auto fma_op = [this, var, op, in1, cur_time](const char *fma_instruction, const char *second_instruction, const bool negate_mul_res = false) {
+    const auto fma_op = [this, var, op, in1, cur_time](const char *fma_instruction, const char *second_instruction, const bool negate_mul_res = false) {
         assert(is_float(var->type) && var->type == in1->type && var->type == op->in_vars[1]->type && var->type == op->in_vars[2]->type);
         const FP_REGISTER in1_reg = load_val_in_fp_reg(cur_time, in1);
         const FP_REGISTER in2_reg = load_val_in_fp_reg(cur_time, op->in_vars[1]);
@@ -1103,7 +1115,7 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
         set_var_to_fp_reg(cur_time, var, in1_reg);
     };
 
-    auto cmp_op = [this, var, op, in1, cur_time](const char *cc) {
+    const auto cmp_op = [this, var, op, in1, cur_time](const char *cc) {
         SSAVar *cmp2 = op->in_vars[1];
         SSAVar *val1 = op->in_vars[2];
         SSAVar *val2 = op->in_vars[3];
@@ -1122,6 +1134,15 @@ void RegAlloc::compile_fp_op(SSAVar *var, size_t cur_time) {
     };
 
     switch (op->type) {
+    case Instruction::_and:
+        logical_bin_op("pand");
+        break;
+    case Instruction::_or:
+        logical_bin_op("por");
+        break;
+    case Instruction::_xor:
+        logical_bin_op("pxor");
+        break;
     case Instruction::min:
         bin_op("mins");
         break;
@@ -2834,10 +2855,6 @@ template <bool evict_imms, typename... Args> REGISTER RegAlloc::load_val_in_reg(
         // TODO: add a thing in the regmap that tells the allocater that the var may only be in this register
         // TODO: this will bug out when you alloc a reg and then alloc one if only_this_reg and they end up in the same register
         if (auto *other_var = reg_map[only_this_reg].cur_var; other_var && other_var->gen_info.last_use_time >= cur_time) {
-            /*print_asm("xchg %s, %s\n", reg_names[only_this_reg][0], reg_names[var->gen_info.reg_idx][0]);
-            std::swap(reg_map[only_this_reg], reg_map[var->gen_info.reg_idx]);
-            std::swap(var->gen_info.reg_idx, other_var->gen_info.reg_idx);
-            return only_this_reg; */
             save_reg(only_this_reg);
         }
         clear_reg(cur_time, only_this_reg);
@@ -2898,12 +2915,6 @@ template <typename... Args> FP_REGISTER RegAlloc::load_val_in_fp_reg(size_t cur_
         // TODO: this will bug out when you alloc a reg and then alloc one if only_this_reg and they end up in the same register
         if (auto *other_var = reg_map[only_this_reg].cur_var; other_var && other_var->gen_info.last_use_time >= cur_time) {
             // swap register contents
-            /*print_asm("pxor %s, %s\n", fp_reg_names[only_this_reg], fp_reg_names[var->gen_info.reg_idx]);
-            print_asm("pxor %s, %s\n", fp_reg_names[var->gen_info.reg_idx], fp_reg_names[only_this_reg]);
-            print_asm("pxor %s, %s\n", fp_reg_names[only_this_reg], fp_reg_names[var->gen_info.reg_idx]);
-            std::swap(reg_map[only_this_reg], reg_map[var->gen_info.reg_idx]);
-            std::swap(var->gen_info.reg_idx, other_var->gen_info.reg_idx);
-            return only_this_reg; */
             save_fp_reg(only_this_reg);
         }
         clear_fp_reg(cur_time, only_this_reg);
