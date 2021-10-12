@@ -450,6 +450,11 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
     case FRV_FSGNJXD:
         lift_float_sign_injection(bb, instr, mapping, ip, Type::f64);
         break;
+#if 1
+    default:
+        lift_jump_interpreter(bb, instr, mapping, ip);
+        break;
+#else
     case FRV_FMIND:
         lift_float_two_operands(bb, instr, mapping, ip, Instruction::min, Type::f64);
         break;
@@ -505,6 +510,7 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         DEBUG_LOG(str.str());
 
         // TODO: add unreachable instruction
+#endif
     }
 }
 
