@@ -355,8 +355,10 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
     cur_rounding_mode = 0;
     uint64_t return_addr;
 
+    bool is_cfop;
     do {
         bool jump = false;
+        is_cfop = false;
         FrvInst instr;
         const int r = frv_decode(0x1000, reinterpret_cast<const uint8_t *>(pc), FRV_RV64, &instr);
 
@@ -545,6 +547,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
             }
             pc += static_cast<int64_t>(instr.imm);
             jump = true;
+            is_cfop = true;
             break;
         case FRV_JALR: {
             uint64_t jmp_addr = (register_file[instr.rs1] + static_cast<int64_t>(instr.imm)) & 0xFFFF'FFFF'FFFF'FFFE;
@@ -553,6 +556,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
             }
             pc = jmp_addr;
             jump = true;
+            is_cfop = true;
             break;
         }
         case FRV_BEQ:
@@ -560,36 +564,42 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
                 pc += static_cast<int64_t>(instr.imm);
                 jump = true;
             }
+            is_cfop = true;
             break;
         case FRV_BNE:
             if (register_file[instr.rs1] != register_file[instr.rs2]) {
                 pc += static_cast<int64_t>(instr.imm);
                 jump = true;
             }
+            is_cfop = true;
             break;
         case FRV_BLT:
             if (static_cast<int64_t>(register_file[instr.rs1]) < static_cast<int64_t>(register_file[instr.rs2])) {
                 pc += static_cast<int64_t>(instr.imm);
                 jump = true;
             }
+            is_cfop = true;
             break;
         case FRV_BLTU:
             if (register_file[instr.rs1] < register_file[instr.rs2]) {
                 pc += static_cast<int64_t>(instr.imm);
                 jump = true;
             }
+            is_cfop = true;
             break;
         case FRV_BGE:
             if (static_cast<int64_t>(register_file[instr.rs1]) >= static_cast<int64_t>(register_file[instr.rs2])) {
                 pc += static_cast<int64_t>(instr.imm);
                 jump = true;
             }
+            is_cfop = true;
             break;
         case FRV_BGEU:
             if (register_file[instr.rs1] >= register_file[instr.rs2]) {
                 pc += static_cast<int64_t>(instr.imm);
                 jump = true;
             }
+            is_cfop = true;
             break;
 
         /* 2.6 Load and Store Instructions */
@@ -1472,7 +1482,7 @@ extern "C" uint64_t unresolved_ijump_handler(uint64_t pc) {
         if (!jump) {
             pc += r; // FIXME: is increment PC a pre or post operation ?
         }
-    } while (ijump_hash_table_size == 1 || (return_addr = calc_target(pc)) == 0);
+    } while (!is_cfop || ijump_hash_table_size <= 1 || (return_addr = calc_target(pc)) == 0);
 
     /* At this point we have found a valid entry point back into
      * the compiled BasicBlocks

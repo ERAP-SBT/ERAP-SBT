@@ -120,18 +120,22 @@ bool Lifter::is_jump_table_jump(const BasicBlock *bb, CfOp &cf_op, const RV64Ins
         return value_at_addr;
     };
 
+    auto &jmp_addrs = cf_op.type == CFCInstruction::ijump ? std::get<CfOp::IJumpInfo>(cf_op.info).jmp_addrs : std::get<CfOp::ICallInfo>(cf_op.info).jmp_addrs;
     for (size_t i = addr_start_idx;; i += addr_step) {
-        if (jt_end_addr && prog->addrs[i] >= jt_end_addr) {
+        if (jt_end_addr != 0 && prog->addrs[i] >= jt_end_addr) {
             break;
         }
         uint64_t value_at_addr = next_addr(i);
         if (value_at_addr >= ir->virt_bb_start_addr && value_at_addr <= ir->virt_bb_end_addr) {
             needs_bb_start[(value_at_addr - ir->virt_bb_start_addr) / 2] = true;
-        } else {
+            jmp_addrs.emplace_back(value_at_addr);
+        } else if (jt_end_addr == 0) {
             break;
         }
     }
 
-    std::get<CfOp::LifterInfo>(cf_op.lifter_info).jump_addr = next_addr(addr_start_idx);
+    if (!jmp_addrs.empty()) {
+        std::get<CfOp::LifterInfo>(cf_op.lifter_info).jump_addr = jmp_addrs.front();
+    }
     return true;
 }
