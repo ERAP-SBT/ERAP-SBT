@@ -41,12 +41,20 @@ rsync -e 'ssh -J hettwer@login.caps.in.tum.de' -va "$PWD/toolchains" hettwer@tim
 
 ```bash
 # Setup
+git clone "https://gitlab.lrz.de/lrr-tum/students/eragp-sbt-2021.git"
+rm -rf build-sbt
 
 # Configure
+podman run --init --rm -it --network=host --userns=keep-id -v "$PWD:/u/home/hettwer:rw" -w "/u/home/hettwer" time-x-base \
+    meson setup build-sbt eragp-sbt-2021 -Dprefix=/u/home/hettwer/sbt -Dbuildtype=release
 
 # Building
+# --verbose: verify cppflags used
+podman run --init --rm -it --network=host --userns=keep-id -v "$PWD:/u/home/hettwer:rw" -w "/u/home/hettwer" time-x-base \
+    ninja -C build-sbt --verbose install
 
 # Uploading to time-x
+rsync -e 'ssh -J hettwer@login.caps.in.tum.de' -va "$PWD/sbt" hettwer@time-x.caps.in.tum.de:
 ```
 
 ## Building ria-jit
