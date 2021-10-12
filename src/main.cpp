@@ -120,9 +120,12 @@ int main(int argc, const char **argv) {
     // support floating points if the flag isn't set or the provided value isn't equal to true
     const bool fp_support = !args.has_argument("disable-fp") || (args.get_argument("disable-fp") != "" && !args.get_value_as_bool("disable-fp"));
 
-    auto lifter = lifter::RV64::Lifter(&ir, fp_support, interpreter_only, lifter_optimizations);
-    lifter.lift(&prog);
-    const auto time_post_lift = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+    uint64_t time_post_lift;
+    {
+        auto lifter = lifter::RV64::Lifter(&ir, fp_support, interpreter_only, lifter_optimizations);
+        lifter.lift(&prog);
+        time_post_lift = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+    }
 
     signal(SIGPIPE, SIG_IGN);
 
@@ -188,14 +191,19 @@ int main(int argc, const char **argv) {
         }
 
         time_pre_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
-        generator::x86_64::Generator generator(&ir, binary_image_file.string(), asm_out, interpreter_only);
-        generator.optimizations = gen_optimizations;
-        generator.ijump_hasher.optimizations = gen_optimizations;
+        {
+            generator::x86_64::Generator generator(&ir, binary_image_file.string(), asm_out, interpreter_only);
+            generator.optimizations = gen_optimizations;
+            generator.ijump_hasher.optimizations = gen_optimizations;
 
-        generator.compile();
-        time_post_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+            generator.compile();
+            time_post_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+        }
         const auto file_size = ftell(asm_out);
         fclose(asm_out);
+
+        // free memory
+        ir = {};
 
         asm_out = fopen(asm_file.c_str(), "r");
         if (!asm_out) {
