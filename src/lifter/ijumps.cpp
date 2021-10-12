@@ -12,11 +12,15 @@ void Lifter::process_ijumps(std::vector<CfOp *> &unprocessed_ijumps, ELF64File *
     // store jump addresses with their corresponding hit basic blocks which should be split
     std::vector<std::pair<uint64_t, BasicBlock *>> to_split;
 
-    for (auto jump : unprocessed_ijumps) {
+    for (auto *jump : unprocessed_ijumps) {
         auto &jump_targets = jump->type == CFCInstruction::ijump ? std::get<CfOp::IJumpInfo>(jump->info).targets : std::get<CfOp::ICallInfo>(jump->info).targets;
         auto &jump_addrs = jump->type == CFCInstruction::ijump ? std::get<CfOp::IJumpInfo>(jump->info).jmp_addrs : std::get<CfOp::ICallInfo>(jump->info).jmp_addrs;
 
         auto addrs = backtrace_jmp_addrs(jump, jump->source);
+        auto &jmp_addrs = (jump->type == CFCInstruction::ijump ? std::get<CfOp::IJumpInfo>(jump->info).jmp_addrs : std::get<CfOp::ICallInfo>(jump->info).jmp_addrs);
+        for (auto addr : jmp_addrs) {
+            addrs.emplace(addr);
+        }
         if (addrs.empty()) {
             if (jump_targets.empty()) {
                 addrs.emplace(0);
@@ -44,6 +48,7 @@ void Lifter::process_ijumps(std::vector<CfOp *> &unprocessed_ijumps, ELF64File *
                 DEBUG_LOG("Couldn't find a basic block at an indirect jump location, skipping.");
                 continue;
             }
+            jump_bb->gen_info.needs_trans_bb = true;
             register_jump_address(jump_bb, jmp_addr, elf_base);
         }
     }
