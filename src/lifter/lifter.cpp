@@ -39,7 +39,15 @@ void Lifter::lift(Program *prog) {
 
     needs_bb_start.clear();
     needs_bb_start.resize(ir->virt_bb_ptrs.size());
-    needs_bb_start[(prog->elf_base->header.e_entry - ir->virt_bb_start_addr)] = true;
+    needs_bb_start[(prog->elf_base->header.e_entry - ir->virt_bb_start_addr) / 2] = true;
+
+    needs_bb_start[(0x1f522 - ir->virt_bb_start_addr) / 2] = true;
+    needs_bb_start[(0x277f2 - ir->virt_bb_start_addr) / 2] = true;
+    needs_bb_start[(0x48b7a - ir->virt_bb_start_addr) / 2] = true;
+    needs_bb_start[(0xae484 - ir->virt_bb_start_addr) / 2] = true;
+    needs_bb_start[(0xae52a - ir->virt_bb_start_addr) / 2] = true;
+    needs_bb_start[(0xae388 - ir->virt_bb_start_addr) / 2] = true;
+    needs_bb_start[(0xaee3c - ir->virt_bb_start_addr) / 2] = true;
 
     add_statics();
 
