@@ -79,6 +79,16 @@ struct rv64_epoll_event_t {
     epoll_data_t data;
 };
 
+extern "C" void add_stack(uint64_t val) {
+    print_hex16(val);
+    puts(" ADD\n");
+}
+
+extern "C" void sub_stack(uint64_t val) {
+    print_hex16(val);
+    puts(" SUB\n");
+}
+
 // TODO: make a bitmap which syscalls are passthrough, which are not implemented
 extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
     if (id <= static_cast<uint64_t>(RISCV_SYSCALL_ID::SYSCALL_ID_MAX)) {
@@ -436,7 +446,7 @@ struct Hashes {
 inline uint64_t rot_64(uint64_t x, int k) { return (x << k) | (x >> (64 - k)); }
 
 // taken from https://www.burtleburtle.net/bob/c/SpookyV2.h
-extern "C" Hashes spookey_hash(uint64_t key) {
+/*extern "C" Hashes spookey_hash(uint64_t key) {
     // "random" seeds
     uint64_t h0 = 42;
     uint64_t h1 = 0xbeef;
@@ -487,11 +497,18 @@ extern "C" Hashes spookey_hash(uint64_t key) {
     h1 %= ijump_hash_table_size;
     h2 %= ijump_hash_table_size;
     return {h0, h1, h2};
-}
+}*/
 
 // returns the target basic block start address for valid input risc-v addresses and return 0x0 otherwise.
 size_t calc_target(uint64_t addr) {
-    // required, because we otherwise divide by zero for calculating hashes (happens in interpreter-only runs)
+    const uint64_t *const entry = &ijump_lookup_table[(addr - ijump_lookup_table_base) / 0x2];
+    if (entry >= &ijump_lookup_table_end) {
+        return 0x0;
+    } else {
+        return *entry;
+    }
+
+    /*// required, because we otherwise divide by zero for calculating hashes (happens in interpreter-only runs)
     if (ijump_hash_table_size == 0) {
         return 0x0;
     }
@@ -504,6 +521,6 @@ size_t calc_target(uint64_t addr) {
     if (result_tuple.addr == addr) {
         return result_tuple.target;
     }
-    return 0x0;
+    return 0x0;*/
 }
 } // namespace helper

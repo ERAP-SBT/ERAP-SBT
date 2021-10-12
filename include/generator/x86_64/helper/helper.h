@@ -29,7 +29,11 @@ struct HashTableTuple {
     uint64_t addr, target;
 };
 
-extern "C" const HashTableTuple ijump_hash_table[];
+//extern "C" const HashTableTuple ijump_hash_table[];
+extern "C" const uint64_t ijump_lookup_table_base;
+extern "C" const uint64_t ijump_lookup_table[];
+extern "C" const uint64_t ijump_lookup_table_end;
+
 extern "C" const uint16_t ijump_hash_function_idxs[];
 extern "C" const size_t ijump_hash_bucket_number;
 extern "C" const size_t ijump_hash_table_size;

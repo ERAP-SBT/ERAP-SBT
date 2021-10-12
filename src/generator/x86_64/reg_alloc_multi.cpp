@@ -1922,6 +1922,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
             print_asm("lea rax, [rax - %zu]\n", max_stack_frame_size);
             print_asm("cmp rsp, stack_space + 524288\n"); // max depth ~65k
             print_asm("cmovb rsp, rax\n");
+            print_asm("add rsp, %zu\n", max_stack_frame_size);
 
             if (info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
                 print_asm("push %lu\n", info.continuation_block->virt_start_addr);
@@ -1930,10 +1931,20 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
                 print_asm("push rax\n");
             }
 
-            print_asm("call b%zu\nadd rsp, 8\n", info.target->id);
-            if (bb->control_flow_ops.size() != 1 || info.continuation_block != next_bb) {
-                print_asm("jmp b%zu%s\n", info.continuation_block->id, is_block_top_level(info.continuation_block) ? "" : "_reg_alloc");
-            }
+            print_asm("call b%zu\n", info.target->id);
+            print_asm("add rsp, 8\n");
+            print_asm("jmp b%zu\n", info.continuation_block->id);
+            /*if (bb->control_flow_ops.size() != 1 || info.continuation_block != next_bb) {
+                if (is_block_top_level(info.continuation_block)) {
+                    print_asm("add rsp, %zu\n", max_stack_frame_size + 8);
+                    print_asm("jmp b%zu\n", info.continuation_block->id);
+                } else {
+                    print_asm("add rsp, 8\n");
+                    print_asm("jmp b%zu_reg_alloc\n", info.continuation_block->id);
+                }
+            } else if (is_block_top_level(info.continuation_block)) {
+                print_asm("add rsp, %zu\n", max_stack_frame_size);
+            }*/
             break;
         }
         case CFCInstruction::_return: {
@@ -1972,6 +1983,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
             print_asm("lea %s, [%s - %zu]\n", of_reg_name, of_reg_name, max_stack_frame_size);
             print_asm("cmp rsp, stack_space + 524288\n"); // max depth ~65k
             print_asm("cmovb rsp, %s\n", of_reg_name);
+            print_asm("add rsp, %zu\n", max_stack_frame_size);
 
             if (info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
                 print_asm("push %lu\n", info.continuation_block->virt_start_addr);
@@ -1983,11 +1995,16 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
 
             print_asm("call ijump_lookup\n");
 
+            //print_asm("add rsp, %zu\n", max_stack_frame_size + 8);
             print_asm("add rsp, 8\n");
-            print_asm("jmp b%zu%s\n", info.continuation_block->id, is_block_top_level(info.continuation_block) ? "" : "_reg_alloc");
-            print_asm("0:\n");
-            print_asm("lea rdi, [%s + %lu]\n", dst_reg_name, gen->ir->virt_bb_start_addr);
-            print_asm("jmp unresolved_ijump\n");
+            print_asm("jmp b%zu\n", info.continuation_block->id);
+            /*if (is_block_top_level(info.continuation_block)) {
+                print_asm("add rsp, %zu\n", max_stack_frame_size + 8);
+                print_asm("jmp b%zu\n", info.continuation_block->id);
+            } else {
+                print_asm("add rsp, 8\n");
+                print_asm("jmp b%zu_reg_alloc\n", info.continuation_block->id);
+            }*/
             break;
         }
         default: {
