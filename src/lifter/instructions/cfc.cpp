@@ -107,6 +107,13 @@ void Lifter::lift_jal(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, u
     cf_operation.set_inputs(jump_addr_variable);
 }
 
+void Lifter::lift_jump_interpreter(BasicBlock *bb, [[maybe_unused]] const RV64Inst &instr, [[maybe_unused]] reg_map &mapping, uint64_t ip) {
+    CfOp &cf_operation = bb->add_cf_op(CFCInstruction::jump_interpreter, nullptr, ip);
+    std::get<CfOp::IJumpInfo>(cf_operation.info).interpreter_target = ip;
+
+    (void)cf_operation;
+}
+
 void Lifter::lift_jalr(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, uint64_t next_addr) {
     // detect indirect jumps that are just returns
     if ((optimizations & OPT_CALL_RET) && instr.instr.imm == 0 && is_link_reg(instr.instr.rs1) && instr.instr.rd == 0) {
