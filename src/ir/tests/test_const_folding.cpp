@@ -305,7 +305,7 @@ INSTANTIATE_TEST_SUITE_P(DoubleInst, DoubleFoldTest,
                              DoubleTestCase{Instruction::sub, 4, Side::Right, Instruction::sub, 5, Side::Right, Instruction::sub, 9, Side::Right},
                              DoubleTestCase{Instruction::sub, 6, Side::Left, Instruction::sub, 4, Side::Right, Instruction::sub, 2, Side::Left},
                              DoubleTestCase{Instruction::sub, 3, Side::Right, Instruction::sub, 2, Side::Left, Instruction::sub, 5, Side::Left},
-                             DoubleTestCase{Instruction::sub, 6, Side::Left, Instruction::sub, 9, Side::Left, Instruction::add, 3, Side::Left},
+                             DoubleTestCase{Instruction::sub, 6, Side::Left, Instruction::sub, 9, Side::Left, Instruction::add, 3, Side::Any},
 
                              DoubleTestCase{Instruction::sub, 4, Side::Right, Instruction::sub, 6, Side::Right, Instruction::sub, 10, Side::Right, BinaryRelative::Second},
                              DoubleTestCase{Instruction::sub, 4, Side::Left, Instruction::sub, 6, Side::Left, Instruction::add, 2, Side::Any, BinaryRelative::Second},
