@@ -111,9 +111,9 @@ extern "C" uint64_t syscall_impl(uint64_t id, uint64_t arg0, uint64_t arg1, uint
             switch (static_cast<RISCV_SYSCALL_ID>(id)) {
             case RISCV_SYSCALL_ID::EXIT:
             case RISCV_SYSCALL_ID::EXIT_GROUP: {
-#if INTERPRETER_DUMP_PERF_STATS_AT_EXIT
-                helper::interpreter::interpreter_dump_perf_stats();
-#endif
+                if constexpr (INTERPRETER_DUMP_PERF_STATS_AT_EXIT) {
+                    helper::interpreter::interpreter_dump_perf_stats();
+                }
                 return syscall1(info.translated_id, arg0);
             }
             case RISCV_SYSCALL_ID::EPOLL_CTL: {

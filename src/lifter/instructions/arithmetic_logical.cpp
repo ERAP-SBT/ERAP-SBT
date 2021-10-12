@@ -72,7 +72,7 @@ void Lifter::lift_arithmetical_logical_immediate(BasicBlock *bb, const RV64Inst 
     SSAVar *source_one = get_from_mapping(bb, mapping, instr.instr.rs1, ip);
 
     // test for invalid operand sizes and don't check immediates op_size
-    if (!source_one->const_evaluable && source_one->type != op_size) {
+    if (!source_one->is_immediate() && source_one->type != op_size) {
         auto cast = convert_type(bb, ip, source_one, op_size);
         if (cast.has_value()) {
             source_one = cast.value();

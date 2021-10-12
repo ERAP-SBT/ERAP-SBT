@@ -370,7 +370,14 @@ void Generator::compile_icall(const BasicBlock *block, const CfOp &op, const siz
     fprintf(out_fd, "add rsp, %zu\n", stack_size + 8);
 
     fprintf(out_fd, "mov rbx, rax\n");
-    fprintf(out_fd, "call ijump_lookup\n");
+    if (icall_info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
+        fprintf(out_fd, "push %lu\n", icall_info.continuation_block->virt_start_addr);
+    } else {
+        fprintf(out_fd, "mov rax, %lu\n", icall_info.continuation_block->virt_start_addr);
+        fprintf(out_fd, "push rax\n");
+    }
+
+    fprintf(out_fd, "call ijump_lookup\nadd rsp, 8\n");
 
     assert(std::get<CfOp::ICallInfo>(op.info).continuation_block != nullptr);
     fprintf(out_fd, "jmp b%zu\n", std::get<CfOp::ICallInfo>(op.info).continuation_block->id);
@@ -499,9 +506,7 @@ void Generator::compile_vars(const BasicBlock *block) {
         }
 
         assert(var->info.index() != 2);
-        if (var->type == Type::imm) {
-            assert(var->info.index() == 1);
-
+        if (var->info.index() == 1) {
             const auto &info = std::get<SSAVar::ImmInfo>(var->info);
             if (info.binary_relative) {
                 fprintf(out_fd, "lea rax, [binary + %ld]\n", info.val);
@@ -885,7 +890,7 @@ void Generator::compile_vars(const BasicBlock *block) {
 void Generator::compile_rounding_mode(const SSAVar *var) {
     assert(std::holds_alternative<std::unique_ptr<Operation>>(var->info));
     auto &rounding_mode_variant = std::get<std::unique_ptr<Operation>>(var->info).get()->rounding_info;
-    if (std::holds_alternative<SSAVar *>(rounding_mode_variant)) {
+    if (std::holds_alternative<RefPtr<SSAVar>>(rounding_mode_variant)) {
         // TODO: Handle dynamic rounding
         assert(0);
     } else if (std::holds_alternative<RoundingMode>(rounding_mode_variant)) {
@@ -925,14 +930,15 @@ void Generator::compile_rounding_mode(const SSAVar *var) {
 
 void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op, const size_t stack_size) {
     const auto *target = cf_op.target();
-    if (target->inputs.size() != cf_op.target_inputs().size()) {
+    const auto &target_inputs = cf_op.target_inputs();
+    if (target->inputs.size() != target_inputs.size()) {
         std::cout << "target->inputs.size() = " << target->inputs.size() << "\n";
-        std::cout << "cf_op.target_inputs().size() = " << cf_op.target_inputs().size() << "\n";
+        std::cout << "cf_op.target_inputs().size() = " << target_inputs.size() << "\n";
     }
-    assert(target->inputs.size() == cf_op.target_inputs().size());
-    for (size_t i = 0; i < cf_op.target_inputs().size(); ++i) {
+    assert(target->inputs.size() == target_inputs.size());
+    for (size_t i = 0; i < target_inputs.size(); ++i) {
         const auto *target_var = target->inputs[i];
-        const auto &source_var = cf_op.target_inputs()[i];
+        const auto *source_var = target_inputs[i];
 
         assert(target_var->type != Type::imm && target_var->info.index() > 1);
 

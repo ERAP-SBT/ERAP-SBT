@@ -60,8 +60,8 @@ bool BasicBlock::verify(std::vector<std::string> &messages_out) const {
             ok = false;
         }
 
-        if (auto op = std::get_if<std::unique_ptr<Operation>>(&var->info)) {
-            for (const auto &param : (*op)->in_vars) {
+        if (auto *op = var->maybe_get_operation()) {
+            for (const auto &param : op->in_vars) {
                 // Operation parameters must be declared before the operation itself
                 if (param) {
                     if (variable_ids.find(param->id) == variable_ids.end()) {
@@ -221,7 +221,9 @@ void BasicBlock::print(std::ostream &stream, const IR *ir) const {
     }
     stream << "] {";
     if (!dbg_name.empty()) {
-        stream << " // " << dbg_name;
+        stream << " // " << dbg_name << " at 0x" << std::hex << virt_start_addr << "-0x" << virt_end_addr << std::dec;
+    } else {
+        stream << " // at 0x" << std::hex << virt_start_addr << "-0x" << virt_end_addr << std::dec;
     }
     stream << '\n';
 

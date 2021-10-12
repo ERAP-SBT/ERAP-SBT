@@ -56,10 +56,10 @@ std::unordered_set<SSAVar *> Lifter::get_last_static_assignments(size_t idx, Bas
                 } else if (cfOp.target() == des_target) {
                     // syscalls place their result in registers x10 and x11 and therefore invalidate the variables in these registers.
                     if (cfOp.type != CFCInstruction::syscall || (idx != 10 && idx != 11)) {
-                        for (RefPtr<SSAVar> ti : cfOp.target_inputs()) {
+                        for (SSAVar *ti : cfOp.target_inputs()) {
                             // The target input is a possible predecessor if it is not a static variable and it has the correct static index
-                            if (!std::holds_alternative<size_t>(ti->info) && std::get<SSAVar::LifterInfo>(ti->lifter_info).static_id == idx && possible_preds.find(ti.get()) == possible_preds.end()) {
-                                possible_preds.emplace(ti.release());
+                            if (!ti->is_static() && std::get<SSAVar::LifterInfo>(ti->lifter_info).static_id == idx && possible_preds.find(ti) == possible_preds.end()) {
+                                possible_preds.emplace(ti);
                                 if (!FULL_BACKTRACKING) {
                                     break;
                                 }
@@ -183,18 +183,18 @@ std::unordered_set<int64_t> Lifter::get_var_values(const std::vector<SSAVar *> &
 
         for (auto back_var : backtrack_vars) {
             // immediates can be resolved immediately
-            if (std::holds_alternative<SSAVar::ImmInfo>(back_var->info)) {
-                return_values.emplace(std::get<SSAVar::ImmInfo>(back_var->info).val);
+            if (back_var->is_immediate()) {
+                return_values.emplace(back_var->get_immediate().val);
                 continue;
             }
 
             // There shouldn't be any static variables at this point, if there are any, we need to skip them.
-            if (!std::holds_alternative<std::unique_ptr<Operation>>(back_var->info)) {
+            if (!back_var->is_operation()) {
                 DEBUG_LOG("Only operation result variables are expected to exist at this point. Backtracking continues, but you might miss jump targets.");
                 continue;
             }
 
-            Operation *op = std::get<std::unique_ptr<Operation>>(back_var->info).get();
+            Operation *op = &back_var->get_operation();
 
             std::vector<std::array<int64_t, 4>> resolved_vars_combs;
 

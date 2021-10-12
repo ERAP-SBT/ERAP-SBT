@@ -2,6 +2,10 @@
 #include "common/internal.h"
 #include "generator/x86_64/generator.h"
 #include "ir/ir.h"
+#include "ir/optimizer/common.h"
+#include "ir/optimizer/const_folding.h"
+#include "ir/optimizer/dce.h"
+#include "ir/optimizer/dedup.h"
 #include "lifter/elf_file.h"
 #include "lifter/lifter.h"
 
@@ -18,7 +22,7 @@ namespace {
 using std::filesystem::path;
 
 void print_help(bool usage_only);
-bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &lifter_optimizations);
+bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &lifter_optimizations, uint32_t &ir_optimizations);
 void dump_elf(const ELF64File *);
 std::optional<path> create_temp_directory();
 bool find_runtime_dependencies(const path &exec_dir, const Args &args, path &out_helper_lib, path &out_linker_script);
@@ -53,9 +57,8 @@ int main(int argc, const char **argv) {
         return EXIT_FAILURE;
     }
 
-    uint32_t gen_optimizations = 0;
-    uint32_t lifter_optimizations = 0;
-    if (!parse_opt_flags(args, gen_optimizations, lifter_optimizations)) {
+    uint32_t gen_optimizations = 0, lifter_optimizations = 0, ir_optimizations = 0;
+    if (!parse_opt_flags(args, gen_optimizations, lifter_optimizations, ir_optimizations)) {
         return EXIT_FAILURE;
     }
 
@@ -117,9 +120,41 @@ int main(int argc, const char **argv) {
     // support floating points if the flag isn't set or the provided value isn't equal to true
     const bool fp_support = !args.has_argument("disable-fp") || (args.get_argument("disable-fp") != "" && !args.get_value_as_bool("disable-fp"));
 
-    auto lifter = lifter::RV64::Lifter(&ir, fp_support, interpreter_only, lifter_optimizations);
-    lifter.lift(&prog);
-    const auto time_post_lift = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+    uint64_t time_post_lift;
+    {
+        auto lifter = lifter::RV64::Lifter(&ir, fp_support, interpreter_only, lifter_optimizations);
+        lifter.lift(&prog);
+        time_post_lift = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+    }
+
+    signal(SIGPIPE, SIG_IGN);
+
+    {
+        if (ir_optimizations & optimizer::OPT_CONST_FOLDING) {
+            optimizer::const_fold(&ir);
+        }
+        if (ir_optimizations & optimizer::OPT_DCE) {
+            optimizer::dce(&ir);
+        }
+        if (ir_optimizations & optimizer::OPT_DEDUP) {
+            optimizer::dedup(&ir);
+        }
+    }
+
+    {
+        std::vector<std::string> verification_messages;
+        if (!ir.verify(verification_messages)) {
+            std::cerr << "WARNING: IR irregularities have been found:\n";
+            for (const auto &message : verification_messages) {
+                std::cerr << "  " << message << '\n';
+            }
+            if (args.get_value_as_bool("allow-inconsistency")) {
+                std::cerr << "Ignoring inconsistencies as told, but this might lead to errors later on\n";
+            } else {
+                return EXIT_FAILURE;
+            }
+        }
+    }
 
     if (args.has_argument("print-ir")) {
         if (auto file = args.get_argument("print-ir"); !file.empty()) {
@@ -132,18 +167,6 @@ int main(int argc, const char **argv) {
             std::cout << "------------------------------------------------------------\n";
         }
     }
-
-    {
-        std::vector<std::string> verification_messages;
-        if (!ir.verify(verification_messages)) {
-            std::cerr << "WARNING: IR irregularities have been found:\n";
-            for (const auto &message : verification_messages) {
-                std::cerr << "  " << message << '\n';
-            }
-        }
-    }
-
-    signal(SIGPIPE, SIG_IGN);
 
     auto output_object = temp_dir / "translated.o";
     FILE *assembler = open_assembler(output_object);
@@ -168,14 +191,19 @@ int main(int argc, const char **argv) {
         }
 
         time_pre_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
-        generator::x86_64::Generator generator(&ir, binary_image_file.string(), asm_out, interpreter_only);
-        generator.optimizations = gen_optimizations;
-        generator.ijump_hasher.optimizations = gen_optimizations;
+        {
+            generator::x86_64::Generator generator(&ir, binary_image_file.string(), asm_out, interpreter_only);
+            generator.optimizations = gen_optimizations;
+            generator.ijump_hasher.optimizations = gen_optimizations;
 
-        generator.compile();
-        time_post_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+            generator.compile();
+            time_post_gen = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+        }
         const auto file_size = ftell(asm_out);
         fclose(asm_out);
+
+        // free memory
+        ir = {};
 
         asm_out = fopen(asm_file.c_str(), "r");
         if (!asm_out) {
@@ -234,6 +262,10 @@ void print_help(bool usage_only) {
         std::cerr << "    --interpreter-only:       Only uses the interpreter to translate the binary (dynamic binary translation). (default: false)\n";
         std::cerr << "    --optimize:               Set optimization flags, comma-seperated list. Specifying a group enables all flags in that group. Appending '!' before disables a single flag\n";
         std::cerr << "    Optimization Flags:\n";
+        std::cerr << "      - ir:\n";
+        std::cerr << "          - dce: Dead Code Elimination\n";
+        std::cerr << "          - const_folding: Fold and propagage constant values\n";
+        std::cerr << "          - dedup: Deduplicate variables\n";
         std::cerr << "      - generator:\n";
         std::cerr << "          - reg_alloc:            Register Allocation\n";
         std::cerr << "          - merge_ops:            Merge multiple IR-Operations into a single native op\n";
@@ -249,6 +281,7 @@ void print_help(bool usage_only) {
         std::cerr << "    --helper-path:            Set the path to the runtime helper library\n";
         std::cerr << "    --linkerscript-path:      Set the path to the linker script\n";
         std::cerr << "                              (The above two are only required if the translator can't find these by itself)\n\n";
+        std::cerr << "    --allow-inconsistency:    Allow inconsistencies in the IR (not recommended).\n";
         std::cerr << '\n';
         std::cerr << "Environment variables:\n";
         std::cerr << "    AS: Override the assembler binary (by default, the system `as` is used)\n";
@@ -256,7 +289,7 @@ void print_help(bool usage_only) {
     }
 }
 
-bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &lifter_optimizations) {
+bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &lifter_optimizations, uint32_t &ir_optimizations) {
     if (!args.has_argument("optimize")) {
         // TODO: turn on flags by default?
         return true;
@@ -273,23 +306,25 @@ bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &li
         }
 
         auto disable_flag = false;
-        if (opt_flag[0] == '!') {
+        if (opt_flag[0] == '!' || opt_flag[0] == '-') {
             disable_flag = true;
             opt_flag.remove_prefix(1);
         }
-        uint32_t gen_opt_change = 0;
-        uint32_t lifter_opt_change = 0;
+        uint32_t gen_opt_change = 0, lifter_opt_change = 0, ir_opt_change = 0;
         if (opt_flag == "all") {
             gen_opt_change = 0xFFFFFFFF;
             lifter_opt_change = 0xFFFFFFFF;
+            ir_opt_change = 0xFFFFFFFF;
         } else if (opt_flag == "generator") {
             gen_opt_change = 0xFFFFFFFF;
         } else if (opt_flag == "lifter") {
             lifter_opt_change = 0xFFFFFFFF;
+        } else if (opt_flag == "ir") {
+            ir_opt_change = 0xFFFFFFFF;
         } else if (opt_flag == "reg_alloc") {
-            gen_opt_change |= generator::x86_64::Generator::OPT_MBRA;
+            gen_opt_change = generator::x86_64::Generator::OPT_MBRA;
         } else if (opt_flag == "unused_statics") {
-            gen_opt_change |= generator::x86_64::Generator::OPT_UNUSED_STATIC;
+            gen_opt_change = generator::x86_64::Generator::OPT_UNUSED_STATIC;
         } else if (opt_flag == "merge_ops") {
             gen_opt_change |= generator::x86_64::Generator::OPT_MERGE_OP;
         } else if (opt_flag == "no_trans_bbs") {
@@ -302,15 +337,23 @@ bool parse_opt_flags(const Args &args, uint32_t &gen_optimizations, uint32_t &li
             gen_opt_change |= generator::x86_64::Generator::OPT_ARCH_SSE4;
         } else if (opt_flag == "call_ret") {
             lifter_opt_change = lifter::RV64::Lifter::OPT_CALL_RET;
+        } else if (opt_flag == "dce") {
+            ir_opt_change = optimizer::OPT_DCE;
+        } else if (opt_flag == "const_folding") {
+            ir_opt_change = optimizer::OPT_CONST_FOLDING | optimizer::OPT_DCE; // Constant folding requires DCE
+        } else if (opt_flag == "dedup") {
+            ir_opt_change = optimizer::OPT_DEDUP;
         } else {
             std::cerr << "Warning: Unknown optimization flag: '" << opt_flag << "'\n";
             return false;
         }
 
         if (disable_flag) {
+            ir_optimizations &= ~ir_opt_change;
             gen_optimizations &= ~gen_opt_change;
             lifter_optimizations &= ~lifter_opt_change;
         } else {
+            ir_optimizations |= ir_opt_change;
             gen_optimizations |= gen_opt_change;
             lifter_optimizations |= lifter_opt_change;
         }

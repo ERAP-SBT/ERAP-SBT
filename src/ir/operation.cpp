@@ -11,23 +11,13 @@ template <typename T> static size_t count_non_null(const T &container) {
 }
 
 void Operation::set_inputs(SSAVar *in1, SSAVar *in2, SSAVar *in3, SSAVar *in4) {
-    assert(count_non_null(in_vars) == 0);
     in_vars[0] = in1;
     in_vars[1] = in2;
     in_vars[2] = in3;
     in_vars[3] = in4;
-
-    const_evaluable = true;
-    for (auto &var : in_vars) {
-        if (var) {
-            if (!var->const_evaluable)
-                const_evaluable = false;
-        }
-    }
 }
 
 void Operation::set_outputs(SSAVar *out1, SSAVar *out2, SSAVar *out3) {
-    assert(count_non_null(out_vars) == 0);
     out_vars[0] = out1;
     out_vars[1] = out2;
     out_vars[2] = out3;
@@ -60,9 +50,9 @@ void Operation::print(std::ostream &stream, const IR *ir) const {
             in->print_type_name(stream, ir);
         }
     }
-    if (std::holds_alternative<SSAVar *>(rounding_info)) {
+    if (std::holds_alternative<RefPtr<SSAVar>>(rounding_info)) {
         stream << "(rm = ";
-        std::get<SSAVar *>(rounding_info)->print_type_name(stream, ir);
+        std::get<RefPtr<SSAVar>>(rounding_info)->print_type_name(stream, ir);
         stream << ")";
     } else if (std::holds_alternative<RoundingMode>(rounding_info)) {
         stream << "(rm = " << static_cast<uint32_t>(std::get<RoundingMode>(rounding_info)) << ")";
@@ -338,35 +328,49 @@ BasicBlock *CfOp::target() const {
     return nullptr;
 }
 
-const std::vector<RefPtr<SSAVar>> &CfOp::target_inputs() const {
-    static auto vec = std::vector<RefPtr<SSAVar>>{};
+const std::vector<SSAVar *> &CfOp::target_inputs() const {
+    static std::vector<SSAVar *> vec{};
     vec.clear();
 
-    switch (type) {
-    case CFCInstruction::jump:
-        return std::get<JumpInfo>(info).target_inputs;
-    case CFCInstruction::cjump:
-        return std::get<CJumpInfo>(info).target_inputs;
-    case CFCInstruction::call:
-        return std::get<CallInfo>(info).target_inputs;
-    case CFCInstruction::syscall:
-        for (auto &var : std::get<SyscallInfo>(info).continuation_mapping) {
-            vec.emplace_back(var.first);
-        }
-        return vec;
-    case CFCInstruction::icall:
-        for (auto &var : std::get<ICallInfo>(info).mapping) {
-            vec.emplace_back(var.first);
-        }
-        return vec;
-    case CFCInstruction::ijump:
-        for (auto &var : std::get<IJumpInfo>(info).mapping) {
-            vec.emplace_back(var.first);
-        }
-        return vec;
-    default:
-        assert(0);
-    }
+    std::visit(
+        [](auto &i) {
+            using T = std::decay_t<decltype(i)>;
+            if constexpr (std::is_same_v<T, JumpInfo> || std::is_same_v<T, CJumpInfo> || std::is_same_v<T, CallInfo>) {
+                vec.reserve(i.target_inputs.size());
+                for (auto &var : i.target_inputs) {
+                    vec.push_back(var.get());
+                }
+            } else if constexpr (std::is_same_v<T, SyscallInfo>) {
+                vec.reserve(i.continuation_mapping.size());
+                for (auto &var : i.continuation_mapping) {
+                    vec.push_back(var.first.get());
+                }
+            } else if constexpr (std::is_same_v<T, IJumpInfo> || std::is_same_v<T, ICallInfo>) {
+                vec.reserve(i.mapping.size());
+                for (auto &var : i.mapping) {
+                    vec.push_back(var.first.get());
+                }
+            }
+        },
+        info);
+    return vec;
+}
+
+size_t CfOp::target_input_count() const {
+    return std::visit(
+        [](auto &i) -> size_t {
+            using T = std::decay_t<decltype(i)>;
+            if constexpr (std::is_same_v<T, JumpInfo> || std::is_same_v<T, CJumpInfo> || std::is_same_v<T, CallInfo>) {
+                return i.target_inputs.size();
+            } else if constexpr (std::is_same_v<T, SyscallInfo>) {
+                return i.continuation_mapping.size();
+            } else if constexpr (std::is_same_v<T, IJumpInfo> || std::is_same_v<T, ICallInfo>) {
+                return i.mapping.size();
+            } else {
+                return 0;
+            }
+        },
+        info);
 }
 
 void CfOp::print(std::ostream &stream, const IR *ir) const {
@@ -400,6 +404,17 @@ void CfOp::print(std::ostream &stream, const IR *ir) const {
                     var->print_type_name(stream, ir);
                 }
             }
+        }
+    } else {
+        auto first = true;
+        for (auto &[var, idx] : std::get<CfOp::IJumpInfo>(info).mapping) {
+            if (!first) {
+                stream << ", ";
+            } else {
+                first = false;
+            }
+            stream << "s" << idx << " <- ";
+            var->print_type_name(stream, ir);
         }
     }
     stream << "]";

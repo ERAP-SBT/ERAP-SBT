@@ -16,10 +16,7 @@ struct Operation {
     std::array<RefPtr<SSAVar>, 4> in_vars = {};
     std::array<SSAVar *, 3> out_vars = {};
     // nothing (not rounded), static rounding mode, dynamic rounding with this variable
-    std::variant<std::monostate, RoundingMode, SSAVar *> rounding_info = {};
-
-    // TODO: do we need that here?
-    bool const_evaluable = false;
+    std::variant<std::monostate, RoundingMode, RefPtr<SSAVar>> rounding_info = {};
 
     struct LifterInfo {
         Type in_op_size;
@@ -147,7 +144,15 @@ struct CfOp {
     void set_target(BasicBlock *target);
 
     BasicBlock *target() const;
-    const std::vector<RefPtr<SSAVar>> &target_inputs() const;
+
+    /**
+     * @brief Returns a list of target inputs, depending on the type.
+     *
+     * Note that changing target inputs (e.g. by calling @ref add_target_input) does not update
+     * previously returned references until this method is called again.
+     */
+    const std::vector<SSAVar *> &target_inputs() const;
+    size_t target_input_count() const;
 
     void print(std::ostream &, const IR *) const;
 };
