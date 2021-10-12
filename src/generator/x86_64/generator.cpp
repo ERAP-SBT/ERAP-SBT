@@ -190,6 +190,7 @@ void Generator::compile_ijump_lookup() {
         ijump_hasher.fill(ijump_hasher.keys);
     }
 
+    compile_section(Section::TEXT);
     ijump_hasher.print_ijump_lookup(out_fd);
 
     compile_section(Section::RODATA);
