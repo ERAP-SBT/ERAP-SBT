@@ -959,7 +959,7 @@ void Generator::compile_rounding_mode(const SSAVar *var) {
         fprintf(out_fd, "pop rdx\npop rcx\npop rax\n");
     } else if (std::holds_alternative<RoundingMode>(op->rounding_info)) {
         const RoundingMode rounding_mode = std::get<RoundingMode>(op->rounding_info);
-        if (optimizations & Generator::OPT_ARCH_SSE4) {
+        if ((optimizations & Generator::OPT_ARCH_SSE4) && is_float(op->in_vars[0]->type)) {
             const char *x86_64_rounding_mode;
             switch (rounding_mode) {
             case RoundingMode::NEAREST:
@@ -1017,10 +1017,6 @@ void Generator::compile_rounding_mode(const SSAVar *var) {
 
 void Generator::compile_cf_args(const BasicBlock *block, const CfOp &cf_op, const size_t stack_size) {
     const auto *target = cf_op.target();
-    if (target->inputs.size() != cf_op.target_inputs().size()) {
-        std::cout << "target->inputs.size() = " << target->inputs.size() << "\n";
-        std::cout << "cf_op.target_inputs().size() = " << cf_op.target_inputs().size() << "\n";
-    }
     assert(target->inputs.size() == cf_op.target_inputs().size());
     for (size_t i = 0; i < cf_op.target_inputs().size(); ++i) {
         const auto *target_var = target->inputs[i];
