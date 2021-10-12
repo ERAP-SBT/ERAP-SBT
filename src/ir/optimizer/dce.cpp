@@ -24,6 +24,44 @@ template <typename Container> void remove_indices_sorted(Container &container, c
     }
 }
 
+bool is_valid_predecessor(BasicBlock *pred, BasicBlock *target) {
+    bool found_cf = false;
+    for (auto &cf_op : pred->control_flow_ops) {
+        switch (cf_op.type) {
+        case CFCInstruction::jump: {
+            if (std::get<CfOp::JumpInfo>(cf_op.info).target == target) {
+                found_cf = true;
+            }
+            break;
+        }
+        case CFCInstruction::cjump: {
+            if (std::get<CfOp::CJumpInfo>(cf_op.info).target == target) {
+                found_cf = true;
+            }
+            break;
+        }
+        case CFCInstruction::syscall: {
+            if (std::get<CfOp::SyscallInfo>(cf_op.info).continuation_block == target) {
+                found_cf = true;
+            }
+            break;
+        }
+        case CFCInstruction::call: {
+            if (std::get<CfOp::CallInfo>(cf_op.info).target == target) {
+                found_cf = true;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+        if (found_cf) {
+            break;
+        }
+    }
+    return found_cf;
+}
+
 bool check_target_input_removable(const BasicBlock *block, const BasicBlock *target) {
     assert(block && target);
 
@@ -44,26 +82,8 @@ bool check_target_input_removable(const BasicBlock *block, const BasicBlock *tar
                 found_cf = true;
             break;
         }
-        case CFCInstruction::ijump: {
-            const auto &info = std::get<CfOp::IJumpInfo>(cf.info);
-            if (info.targets.size() > 1) {
-                // Ignore ijumps with multiple targets for now
-                return false;
-            } else if (info.targets.size() == 1 && info.targets[0] == target) {
-                found_cf = true;
-            }
-            break;
-        }
-        case CFCInstruction::icall: {
-            const auto &info = std::get<CfOp::ICallInfo>(cf.info);
-            if (info.targets.size() > 1) {
-                // Ignore icalls with multiple targets for now
-                return false;
-            } else if (info.targets.size() == 1 && info.targets[0] == target) {
-                found_cf = true;
-            }
-            break;
-        }
+        case CFCInstruction::ijump:
+        case CFCInstruction::icall:
         case CFCInstruction::_return:
             return false;
         case CFCInstruction::unreachable:
@@ -103,21 +123,6 @@ bool remove_target_inputs(BasicBlock *block, const BasicBlock *target, const std
             remove_indices_sorted(info.continuation_mapping, indices);
             break;
         }
-        case CFCInstruction::ijump: {
-            auto &info = std::get<CfOp::IJumpInfo>(cf.info);
-            bool ijump_has_target = false;
-            for (auto *ijump_target : info.targets) {
-                if (ijump_target == target) {
-                    ijump_has_target = true;
-                    break;
-                }
-            }
-            if (!ijump_has_target)
-                continue;
-            assert(info.mapping.size() == target->inputs.size());
-            remove_indices_sorted(info.mapping, indices);
-            break;
-        }
         case CFCInstruction::call: {
             auto &info = std::get<CfOp::CallInfo>(cf.info);
             if (info.target != target)
@@ -126,14 +131,8 @@ bool remove_target_inputs(BasicBlock *block, const BasicBlock *target, const std
             remove_indices_sorted(info.target_inputs, indices);
             break;
         }
-        case CFCInstruction::icall: {
-            auto &info = std::get<CfOp::ICallInfo>(cf.info);
-            if (std::find(info.targets.begin(), info.targets.end(), target) == info.targets.end())
-                continue;
-            assert(info.mapping.size() == target->inputs.size());
-            remove_indices_sorted(info.mapping, indices);
-            break;
-        }
+        case CFCInstruction::ijump:
+        case CFCInstruction::icall:
         case CFCInstruction::_return:
         case CFCInstruction::unreachable:
             continue;
@@ -200,19 +199,6 @@ bool propagate_from_successors(const BasicBlock *current, std::vector<std::vecto
             }
             break;
         }
-        case CFCInstruction::ijump: {
-            auto &info = std::get<CfOp::IJumpInfo>(cf.info);
-            for (auto *target : info.targets) {
-                auto &target_marks = mark_vec[target->id];
-                assert(info.mapping.size() == target->inputs.size());
-                for (size_t i = 0; i < info.mapping.size(); i++) {
-                    if (target_marks[target->inputs[i]->id]) {
-                        has_changed |= mark(info.mapping[i].first.get(), current_marks, &visit_queue);
-                    }
-                }
-            }
-            break;
-        }
         case CFCInstruction::call: {
             auto &info = std::get<CfOp::CallInfo>(cf.info);
             const BasicBlock *target = info.target;
@@ -225,19 +211,8 @@ bool propagate_from_successors(const BasicBlock *current, std::vector<std::vecto
             }
             break;
         }
-        case CFCInstruction::icall: {
-            auto &info = std::get<CfOp::ICallInfo>(cf.info);
-            for (auto *target : info.targets) {
-                auto &target_marks = mark_vec[target->id];
-                assert(info.mapping.size() == target->inputs.size());
-                for (size_t i = 0; i < info.mapping.size(); i++) {
-                    if (target_marks[target->inputs[i]->id]) {
-                        has_changed |= mark(info.mapping[i].first.get(), current_marks, &visit_queue);
-                    }
-                }
-            }
-            break;
-        }
+        case CFCInstruction::ijump:
+        case CFCInstruction::icall:
         case CFCInstruction::_return:
         case CFCInstruction::unreachable:
             continue;
@@ -332,6 +307,9 @@ void dce(IR *ir) {
         bool queue_preds = false;
         bool can_remove = true;
         for (auto *pred : bb->predecessors) {
+            if (!is_valid_predecessor(pred, bb.get())) {
+                continue;
+            }
             if (!check_target_input_removable(pred, bb.get())) {
                 can_remove = false;
                 for (auto *input : bb->inputs) {
@@ -346,6 +324,9 @@ void dce(IR *ir) {
 
             if (can_remove) {
                 for (auto *pred : bb->predecessors) {
+                    if (!is_valid_predecessor(pred, bb.get())) {
+                        continue;
+                    }
                     if (!remove_target_inputs(pred, bb.get(), unused_indices)) {
                         panic("Target input removal failed, even though it shouldn't");
                     }
@@ -368,6 +349,9 @@ void dce(IR *ir) {
 
         if (queue_preds) {
             for (auto *pred : bb->predecessors) {
+                if (!is_valid_predecessor(pred, bb.get())) {
+                    continue;
+                }
                 pending_blocks.insert(pred);
             }
         }
@@ -411,6 +395,9 @@ void dce(IR *ir) {
 
         if (queue_preds) {
             for (auto *pred : block->predecessors) {
+                if (!is_valid_predecessor(pred, block)) {
+                    continue;
+                }
                 pending_blocks.insert(pred);
             }
         }
@@ -432,6 +419,9 @@ void dce(IR *ir) {
             bool can_remove = true;
 
             for (auto *pred : block->predecessors) {
+                if (!is_valid_predecessor(pred, block.get())) {
+                    continue;
+                }
                 if (!check_target_input_removable(pred, block.get())) {
                     can_remove = false;
                     for (auto *input : block->inputs) {
@@ -443,6 +433,9 @@ void dce(IR *ir) {
 
             if (can_remove) {
                 for (auto *pred : block->predecessors) {
+                    if (!is_valid_predecessor(pred, block.get())) {
+                        continue;
+                    }
                     if (!remove_target_inputs(pred, block.get(), unused_indices)) {
                         panic("Could not find cfop with this block as target");
                     }
