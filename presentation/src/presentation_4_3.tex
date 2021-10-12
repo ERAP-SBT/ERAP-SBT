@@ -413,6 +413,23 @@ block b1(/* inputs */) <= [/* predecessors */] {
 \end{frame}
 \clearpage
 
+%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Call / Return %%
+%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+    \frametitle{Lifter Subroutinen}{Erkennung der Assembler Pseudoinstruktionen \texttt{call} und \texttt{ret}.}
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item RISC-V Subroutinen Aufrufe funktionieren anders als bei x86\_64
+        \item Standard Calling Convention definiert \texttt{x1} und \texttt{x5} als \textit{Linkregister}
+        \item \texttt{JAL} := \textit{Jump and Link}
+        \item \texttt{JAL (x1 | x5), ..., ...} $\equiv$ \texttt{call}
+        \item \texttt{JALR x0, x1, 0} $\equiv$ \texttt{ret}
+        \item Laufzeitüberprüfung der Rücksprungziele durch Returnadressen-Stack 
+    \end{itemize}
+\end{frame}
+\clearpage
+
 %%%%%%%%%%%%%%%%%%%%%
 %% Generator Folie %%
 %%%%%%%%%%%%%%%%%%%%%
