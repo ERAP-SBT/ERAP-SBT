@@ -336,7 +336,8 @@ void Lifter::postprocess(Program *prog) {
     for (auto &bb : ir->basic_blocks) {
         for (auto &var : bb->variables) {
             if (var->is_immediate() && var->get_immediate().binary_relative) {
-                var->get_immediate().val -= ir->base_addr;
+                // var->get_immediate().val -= ir->base_addr;
+                var->get_immediate().binary_relative = false;
             }
         }
     }
