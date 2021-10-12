@@ -474,10 +474,19 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                                             auto *nnext_op = std::get<std::unique_ptr<Operation>>(nnext_var->info).get();
                                             if (nnext_op->in_vars[0] == load_dst && nnext_op->type == Instruction::zero_extend) {
                                                 auto *ext_dst = nnext_op->out_vars[0];
-                                                if (load_dst->type == Type::i32) {
-                                                    print_asm("mov %s, [%s + %ld]\n", reg_names[dst_reg][1], in1_reg_name, imm_val);
+                                                if (imm_val != INT64_MIN && std::abs(imm_val) < 0x7FFFFFFF) {
+                                                    if (load_dst->type == Type::i32) {
+                                                        print_asm("mov %s, [%s + %ld]\n", reg_names[dst_reg][1], in1_reg_name, imm_val);
+                                                    } else {
+                                                        print_asm("movzx %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                                                    }
                                                 } else {
-                                                    print_asm("movzx %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                                                    const auto imm_reg = load_val_in_reg(cur_time, in2);
+                                                    if (load_dst->type == Type::i32) {
+                                                        print_asm("mov %s, [%s + %s]\n", reg_names[dst_reg][1], in1_reg_name, reg_names[imm_reg][0]);
+                                                    } else {
+                                                        print_asm("movzx %s, %s [%s + %s]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, reg_names[imm_reg][0]);
+                                                    }
                                                 }
                                                 clear_reg(cur_time, dst_reg);
                                                 set_var_to_reg(cur_time, ext_dst, dst_reg);
@@ -486,11 +495,21 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
                                                 did_merge = true;
                                             } else if (nnext_op->in_vars[0] == load_dst && nnext_op->type == Instruction::sign_extend) {
                                                 auto *ext_dst = nnext_op->out_vars[0];
-                                                if (load_dst->type == Type::i32) {
-                                                    assert(ext_dst->type == Type::i32 || ext_dst->type == Type::i64);
-                                                    print_asm("movsxd %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                                                if (imm_val != INT64_MIN && std::abs(imm_val) < 0x7FFFFFFF) {
+                                                    if (load_dst->type == Type::i32) {
+                                                        assert(ext_dst->type == Type::i32 || ext_dst->type == Type::i64);
+                                                        print_asm("movsxd %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                                                    } else {
+                                                        print_asm("movsx %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                                                    }
                                                 } else {
-                                                    print_asm("movsx %s, %s [%s + %ld]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, imm_val);
+                                                    const auto imm_reg = load_val_in_reg(cur_time, in2);
+                                                    if (load_dst->type == Type::i32) {
+                                                        assert(ext_dst->type == Type::i32 || ext_dst->type == Type::i64);
+                                                        print_asm("movsxd %s, %s [%s + %s]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, reg_names[imm_reg][0]);
+                                                    } else {
+                                                        print_asm("movsx %s, %s [%s + %s]\n", reg_name(dst_reg, ext_dst->type), mem_size(load_dst->type), in1_reg_name, reg_names[imm_reg][0]);
+                                                    }
                                                 }
                                                 clear_reg(cur_time, dst_reg);
                                                 set_var_to_reg(cur_time, ext_dst, dst_reg);
@@ -503,7 +522,12 @@ void RegAlloc::compile_vars(BasicBlock *bb) {
 
                                     if (!did_merge) {
                                         // merge add and load
-                                        print_asm("mov %s, [%s + %ld]\n", reg_name(dst_reg, load_dst->type), in1_reg_name, imm_val);
+                                        if (imm_val != INT64_MIN && std::abs(imm_val) < 0x7FFFFFFF) {
+                                            print_asm("mov %s, [%s + %ld]\n", reg_name(dst_reg, load_dst->type), in1_reg_name, imm_val);
+                                        } else {
+                                            const auto imm_reg = load_val_in_reg(cur_time, in2);
+                                            print_asm("mov %s, [%s + %s]\n", reg_name(dst_reg, load_dst->type), in1_reg_name, reg_names[imm_reg][0]);
+                                        }
                                         clear_reg(cur_time, dst_reg);
                                         set_var_to_reg(cur_time, load_dst, dst_reg);
                                         load_dst->gen_info.already_generated = true;
