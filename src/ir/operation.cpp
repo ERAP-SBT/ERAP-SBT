@@ -17,10 +17,9 @@ void Operation::set_inputs(SSAVar *in1, SSAVar *in2, SSAVar *in3, SSAVar *in4) {
     in_vars[3] = in4;
 }
 
-void Operation::set_outputs(SSAVar *out1, SSAVar *out2, SSAVar *out3) {
+void Operation::set_outputs(SSAVar *out1, SSAVar *out2) {
     out_vars[0] = out1;
     out_vars[1] = out2;
-    out_vars[2] = out3;
 }
 
 void Operation::set_inputs(std::initializer_list<SSAVar *> inputs) {

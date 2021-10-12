@@ -14,7 +14,7 @@ struct BasicBlock;
 struct Operation {
     Instruction type;
     std::array<RefPtr<SSAVar>, 4> in_vars = {};
-    std::array<SSAVar *, 3> out_vars = {};
+    std::array<SSAVar *, 2> out_vars = {};
     // nothing (not rounded), static rounding mode, dynamic rounding with this variable
     std::variant<std::monostate, RoundingMode, RefPtr<SSAVar>> rounding_info = {};
 
@@ -26,7 +26,7 @@ struct Operation {
     explicit Operation(const Instruction type) : type(type) {}
 
     void set_inputs(SSAVar *in1 = nullptr, SSAVar *in2 = nullptr, SSAVar *in3 = nullptr, SSAVar *in4 = nullptr);
-    void set_outputs(SSAVar *out1 = nullptr, SSAVar *out2 = nullptr, SSAVar *out3 = nullptr);
+    void set_outputs(SSAVar *out1 = nullptr, SSAVar *out2 = nullptr);
 
     void set_rounding_mode(RoundingMode mode) { rounding_info = mode; }
 
