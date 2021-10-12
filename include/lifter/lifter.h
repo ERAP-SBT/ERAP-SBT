@@ -107,6 +107,8 @@ class Lifter {
 
     void lift_ecall(BasicBlock *bb, reg_map &mapping, uint64_t ip, uint64_t next_addr);
 
+    void lift_jump_interpreter(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip);
+
     void lift_load(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size, bool sign_extend);
 
     void lift_store(BasicBlock *bb, const RV64Inst &instr, reg_map &mapping, uint64_t ip, const Type op_size);

@@ -292,6 +292,41 @@ void Generator::compile_block(const BasicBlock *block) {
         case CFCInstruction::ijump:
             compile_ijump(block, cf_op, stack_size);
             break;
+        case CFCInstruction::jump_interpreter: {
+            fprintf(out_fd, "# Jump Interpreter Mapping\n");
+
+            const auto &ijump_info = std::get<CfOp::IJumpInfo>(cf_op.info);
+
+            for (const auto &[var, s_idx] : ijump_info.mapping) {
+                if (var->type == Type::mt) {
+                    continue;
+                }
+
+                fprintf(out_fd, "# s%zu from var v%zu\n", s_idx, var->id);
+
+                if (optimizations & OPT_UNUSED_STATIC && std::holds_alternative<size_t>(var->info)) {
+                    const auto orig_static_idx = std::get<size_t>(var->info);
+                    if (orig_static_idx == s_idx) {
+                        fprintf(out_fd, "# Skipped\n");
+                        continue;
+                    }
+                    fprintf(out_fd, "xor rax, rax\n");
+                    fprintf(out_fd, "mov %s, [s%zu]\n", rax_from_type(var->type), orig_static_idx);
+                } else {
+                    fprintf(out_fd, "xor rax, rax\n");
+                    fprintf(out_fd, "mov %s, [rsp + 8 * %zu]\n", rax_from_type(var->type), index_for_var(block, var));
+                }
+
+                fprintf(out_fd, "mov [s%zu], rax\n", s_idx);
+            }
+
+            fprintf(out_fd, "# destroy stack space\n");
+            fprintf(out_fd, "add rsp, %zu\n", stack_size);
+
+            fprintf(out_fd, "mov rdi, %zu\n", std::get<CfOp::IJumpInfo>(cf_op.info).interpreter_target);
+            fprintf(out_fd, "jmp unresolved_ijump\n");
+            break;
+        }
         case CFCInstruction::unreachable:
             err_msgs.emplace_back(ErrType::unreachable, block);
             fprintf(out_fd, "lea rdi, [rip + err_unreachable_b%zu]\n", block->id);

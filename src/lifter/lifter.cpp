@@ -239,7 +239,7 @@ void Lifter::postprocess(Program *prog) {
     // set all jump targets and remove guessed ijumps
     for (auto &bb : ir->basic_blocks) {
         for (auto &cf_op : bb->control_flow_ops) {
-            if (cf_op.type == CFCInstruction::unreachable || cf_op.type == CFCInstruction::_return) {
+            if (cf_op.type == CFCInstruction::unreachable || cf_op.type == CFCInstruction::_return || cf_op.type == CFCInstruction::jump_interpreter) {
                 continue;
             }
 
