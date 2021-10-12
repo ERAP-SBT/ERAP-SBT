@@ -32,11 +32,18 @@ bool check_target_input_removable(const BasicBlock *block, const BasicBlock *tar
         switch (cf.type) {
         case CFCInstruction::jump:
         case CFCInstruction::cjump:
-        case CFCInstruction::call:
         case CFCInstruction::syscall:
             if (cf.target() == target)
                 found_cf = true;
             break;
+        case CFCInstruction::call: {
+            const auto &info = std::get<CfOp::CallInfo>(cf.info);
+            if (info.continuation_block == target)
+                return false; // The target is the continuation block; do not remove anything
+            if (info.target == target)
+                found_cf = true;
+            break;
+        }
         case CFCInstruction::ijump: {
             const auto &info = std::get<CfOp::IJumpInfo>(cf.info);
             if (info.targets.size() > 1) {
@@ -149,91 +156,84 @@ bool mark(SSAVar *var, std::vector<bool> &track_buf, std::queue<SSAVar *> *visit
     return false;
 }
 
-bool propagate_from_successor(const BasicBlock *successor, const std::vector<bool> &successor_marks, const BasicBlock *current, std::vector<bool> &current_marks, std::queue<SSAVar *> *visit_queue) {
-    assert(successor && successor_marks.size() >= successor->inputs.size());
+bool propagate_from_successors(const BasicBlock *current, std::vector<std::vector<bool>> &mark_vec, std::queue<SSAVar *> &visit_queue) {
+    auto &current_marks = mark_vec[current->id];
     assert(current && current_marks.size() >= current->inputs.size());
 
     bool has_changed = false;
 
-    bool found_cf = false;
     for (auto &cf : current->control_flow_ops) {
         switch (cf.type) {
         case CFCInstruction::jump: {
             auto &info = std::get<CfOp::JumpInfo>(cf.info);
-            if (info.target != successor)
-                continue;
-            assert(info.target_inputs.size() == successor->inputs.size());
+            const BasicBlock *target = info.target;
+            auto &target_marks = mark_vec[target->id];
+            assert(info.target_inputs.size() == target->inputs.size());
             for (size_t i = 0; i < info.target_inputs.size(); i++) {
-                if (successor_marks[successor->inputs[i]->id]) {
-                    has_changed |= mark(info.target_inputs[i].get(), current_marks, visit_queue);
+                if (target_marks[target->inputs[i]->id]) {
+                    has_changed |= mark(info.target_inputs[i].get(), current_marks, &visit_queue);
                 }
             }
             break;
         }
         case CFCInstruction::cjump: {
             auto &info = std::get<CfOp::CJumpInfo>(cf.info);
-            if (info.target != successor)
-                continue;
-            assert(info.target_inputs.size() == successor->inputs.size());
+            const BasicBlock *target = info.target;
+            auto &target_marks = mark_vec[target->id];
+            assert(info.target_inputs.size() == target->inputs.size());
             for (size_t i = 0; i < info.target_inputs.size(); i++) {
-                if (successor_marks[successor->inputs[i]->id]) {
-                    has_changed |= mark(info.target_inputs[i].get(), current_marks, visit_queue);
+                if (target_marks[target->inputs[i]->id]) {
+                    has_changed |= mark(info.target_inputs[i].get(), current_marks, &visit_queue);
                 }
             }
             break;
         }
         case CFCInstruction::syscall: {
             auto &info = std::get<CfOp::SyscallInfo>(cf.info);
-            if (info.continuation_block != successor)
-                continue;
-            assert(info.continuation_mapping.size() == successor->inputs.size());
+            const BasicBlock *target = info.continuation_block;
+            auto &target_marks = mark_vec[target->id];
+            assert(info.continuation_mapping.size() == target->inputs.size());
             for (size_t i = 0; i < info.continuation_mapping.size(); i++) {
-                if (successor_marks[successor->inputs[i]->id]) {
-                    has_changed |= mark(info.continuation_mapping[i].first.get(), current_marks, visit_queue);
+                if (target_marks[target->inputs[i]->id]) {
+                    has_changed |= mark(info.continuation_mapping[i].first.get(), current_marks, &visit_queue);
                 }
             }
             break;
         }
         case CFCInstruction::ijump: {
             auto &info = std::get<CfOp::IJumpInfo>(cf.info);
-            if (info.targets.size() != 1 || info.targets[0] != successor)
-                continue;
-            assert(info.mapping.size() == successor->inputs.size());
-            for (size_t i = 0; i < info.mapping.size(); i++) {
-                if (successor_marks[successor->inputs[i]->id]) {
-                    has_changed |= mark(info.mapping[i].first.get(), current_marks, visit_queue);
+            for (auto *target : info.targets) {
+                auto &target_marks = mark_vec[target->id];
+                assert(info.mapping.size() == target->inputs.size());
+                for (size_t i = 0; i < info.mapping.size(); i++) {
+                    if (target_marks[target->inputs[i]->id]) {
+                        has_changed |= mark(info.mapping[i].first.get(), current_marks, &visit_queue);
+                    }
                 }
             }
             break;
         }
         case CFCInstruction::call: {
             auto &info = std::get<CfOp::CallInfo>(cf.info);
-            if (info.continuation_block == successor) {
-                found_cf = true;
-                continue;
-            }
-            if (info.target != successor)
-                continue;
-            assert(info.target_inputs.size() == successor->inputs.size());
+            const BasicBlock *target = info.target;
+            auto &target_marks = mark_vec[target->id];
+            assert(info.target_inputs.size() == target->inputs.size());
             for (size_t i = 0; i < info.target_inputs.size(); i++) {
-                if (successor_marks[successor->inputs[i]->id]) {
-                    has_changed |= mark(info.target_inputs[i].get(), current_marks, visit_queue);
+                if (target_marks[target->inputs[i]->id]) {
+                    has_changed |= mark(info.target_inputs[i].get(), current_marks, &visit_queue);
                 }
             }
             break;
         }
         case CFCInstruction::icall: {
             auto &info = std::get<CfOp::ICallInfo>(cf.info);
-            if (info.continuation_block == successor) {
-                found_cf = true;
-                continue;
-            }
-            if (info.targets.size() != 1 || info.targets[0] != successor)
-                continue;
-            assert(info.mapping.size() == successor->inputs.size());
-            for (size_t i = 0; i < info.mapping.size(); i++) {
-                if (successor_marks[successor->inputs[i]->id]) {
-                    has_changed |= mark(info.mapping[i].first.get(), current_marks, visit_queue);
+            for (auto *target : info.targets) {
+                auto &target_marks = mark_vec[target->id];
+                assert(info.mapping.size() == target->inputs.size());
+                for (size_t i = 0; i < info.mapping.size(); i++) {
+                    if (target_marks[target->inputs[i]->id]) {
+                        has_changed |= mark(info.mapping[i].first.get(), current_marks, &visit_queue);
+                    }
                 }
             }
             break;
@@ -242,10 +242,7 @@ bool propagate_from_successor(const BasicBlock *successor, const std::vector<boo
         case CFCInstruction::unreachable:
             continue;
         }
-
-        found_cf = true;
     }
-    assert(found_cf);
 
     return has_changed;
 }
@@ -288,17 +285,6 @@ bool visit_cf_and_mark_side_effects(const BasicBlock *block, std::vector<bool> &
     return has_changed;
 }
 
-void fixup_block_predecessors(std::vector<BasicBlock *> &predecessors, size_t bb_id) {
-    // TODO this should be fixed in the lifter
-    std::set<BasicBlock *> preds_dedup;
-    for (auto *pred : predecessors) {
-        preds_dedup.insert(pred);
-    }
-    if (preds_dedup.size() != predecessors.size()) {
-        std::cerr << "Warning: Duplicate predecessor in block b" << bb_id << '\n';
-    }
-}
-
 } // namespace
 
 void dce(IR *ir) {
@@ -335,8 +321,6 @@ void dce(IR *ir) {
             }
         }
 
-        fixup_block_predecessors(bb->predecessors, bb->id);
-
         std::vector<size_t> unused_indices;
         for (size_t i = 0; i < bb->inputs.size(); i++) {
             auto *input = bb->inputs[i];
@@ -346,14 +330,19 @@ void dce(IR *ir) {
         }
 
         bool queue_preds = false;
-        if (!unused_indices.empty()) {
-            bool can_remove = true;
-            for (auto *pred : bb->predecessors) {
-                if (!check_target_input_removable(pred, bb.get())) {
-                    can_remove = false;
-                    break;
+        bool can_remove = true;
+        for (auto *pred : bb->predecessors) {
+            if (!check_target_input_removable(pred, bb.get())) {
+                can_remove = false;
+                for (auto *input : bb->inputs) {
+                    // Prevent non-removable inputs from being removed later
+                    track_buf[input->id] = true;
                 }
+                queue_preds = true;
+                break;
             }
+        }
+        if (!unused_indices.empty()) {
 
             if (can_remove) {
                 for (auto *pred : bb->predecessors) {
@@ -377,7 +366,7 @@ void dce(IR *ir) {
             }
         }
 
-        if (queue_preds || true) {
+        if (queue_preds) {
             for (auto *pred : bb->predecessors) {
                 pending_blocks.insert(pred);
             }
@@ -393,9 +382,7 @@ void dce(IR *ir) {
 
         std::queue<SSAVar *> var_visit;
 
-        for (const auto *succ : block->successors) {
-            propagate_from_successor(succ, usage[succ->id], block, side_effects, &var_visit);
-        }
+        propagate_from_successors(block, usage, var_visit);
 
         bool queue_preds = false;
 
@@ -405,14 +392,17 @@ void dce(IR *ir) {
 
             // `store`s have already been marked
             if (var->is_operation()) {
-                if (!side_effects[var->id])
-                    continue;
+                auto &op = var->get_operation();
 
-                for (auto &in : var->get_operation().in_vars) {
+                for (auto &in : op.in_vars) {
                     if (!in)
                         continue;
 
                     mark(in.get(), side_effects, &var_visit);
+                }
+
+                if (auto *rm = std::get_if<RefPtr<SSAVar>>(&op.rounding_info)) {
+                    mark(rm->get(), side_effects, &var_visit);
                 }
             } else if (var->is_static()) {
                 queue_preds = true;
@@ -433,10 +423,7 @@ void dce(IR *ir) {
         std::vector<size_t> unused_indices;
         for (size_t i = 0; i < block->inputs.size(); i++) {
             auto *input = block->inputs[i];
-            if (input->ref_count == 0) {
-                assert(!side_effects[input->id]);
-                unused_indices.push_back(i);
-            } else if (!side_effects[input->id]) {
+            if (!side_effects[input->id]) {
                 unused_indices.push_back(i);
             }
         }
@@ -447,6 +434,9 @@ void dce(IR *ir) {
             for (auto *pred : block->predecessors) {
                 if (!check_target_input_removable(pred, block.get())) {
                     can_remove = false;
+                    for (auto *input : block->inputs) {
+                        side_effects[input->id] = true;
+                    }
                     break;
                 }
             }
@@ -465,16 +455,14 @@ void dce(IR *ir) {
 
     // Do another ref-count removal
     for (auto &block : ir->basic_blocks) {
+        const auto &side_effects = usage[block->id];
+
         for (size_t i = block->variables.size(); i > 0; i--) {
             const auto *var = block->variables[i - 1].get();
 
-            if (var->ref_count == 0) {
+            if (var->ref_count == 0 && !side_effects[var->id]) {
                 if (var->is_operation() && var->get_operation().type == Instruction::store)
                     continue;
-
-                assert(!usage[block->id][var->id]);
-
-                // if a static has a ref-count of 0, it should not be an input anymore by now.
 
                 block->variables.erase(std::next(block->variables.begin(), i - 1));
             }
