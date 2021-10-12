@@ -370,7 +370,14 @@ void Generator::compile_icall(const BasicBlock *block, const CfOp &op, const siz
     fprintf(out_fd, "add rsp, %zu\n", stack_size + 8);
 
     fprintf(out_fd, "mov rbx, rax\n");
-    fprintf(out_fd, "call ijump_lookup\n");
+    if (icall_info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
+        fprintf(out_fd, "push %lu\n", icall_info.continuation_block->virt_start_addr);
+    } else {
+        fprintf(out_fd, "mov rax, %lu\n", icall_info.continuation_block->virt_start_addr);
+        fprintf(out_fd, "push rax\n");
+    }
+
+    fprintf(out_fd, "call ijump_lookup\nadd rsp, 8\n");
 
     assert(std::get<CfOp::ICallInfo>(op.info).continuation_block != nullptr);
     fprintf(out_fd, "jmp b%zu\n", std::get<CfOp::ICallInfo>(op.info).continuation_block->id);

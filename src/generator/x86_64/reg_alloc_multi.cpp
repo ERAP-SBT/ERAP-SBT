@@ -1930,9 +1930,17 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
                 print_asm("push rax\n");
             }
 
-            print_asm("call b%zu\nadd rsp, 8\n", info.target->id);
-            if (bb->control_flow_ops.size() != 1 || info.continuation_block != next_bb) {
-                print_asm("jmp b%zu%s\n", info.continuation_block->id, is_block_top_level(info.continuation_block) ? "" : "_reg_alloc");
+            print_asm("call b%zu\n", info.target->id);
+            if (bb->control_flow_ops.size() != 1 || info.continuation_block != next_bb || is_block_top_level(info.continuation_block)) {
+                if (is_block_top_level(info.continuation_block) || std::find(compiled_blocks.begin(), compiled_blocks.end(), info.continuation_block) == compiled_blocks.end()) {
+                    print_asm("add rsp, %zu\n", max_stack_frame_size + 8);
+                    print_asm("jmp b%zu\n", info.continuation_block->id);
+                } else {
+                    print_asm("add rsp, 8\n");
+                    print_asm("jmp b%zu_reg_alloc\n", info.continuation_block->id);
+                }
+            } else {
+                print_asm("add rsp, 8\n");
             }
             break;
         }
@@ -1962,7 +1970,6 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
             // TODO: we get a problem if the dst is in a static that has already been written out (so overwritten)
             auto *dst = cf_op.in_vars[0].get();
             const auto dst_reg = load_val_in_reg(cur_time + 1 + info.mapping.size(), dst, REG_B);
-            const auto dst_reg_name = reg_names[dst_reg][0];
             assert(dst->type == Type::imm || dst->type == Type::i64);
 
             const auto overflow_reg = alloc_reg(cur_time + 1 + info.mapping.size(), REG_NONE, dst_reg);
@@ -1983,11 +1990,17 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
 
             print_asm("call ijump_lookup\n");
 
-            print_asm("add rsp, 8\n");
-            print_asm("jmp b%zu%s\n", info.continuation_block->id, is_block_top_level(info.continuation_block) ? "" : "_reg_alloc");
-            print_asm("0:\n");
-            print_asm("lea rdi, [%s + %lu]\n", dst_reg_name, gen->ir->virt_bb_start_addr);
-            print_asm("jmp unresolved_ijump\n");
+            if (bb->control_flow_ops.size() != 1 || info.continuation_block != next_bb || is_block_top_level(info.continuation_block)) {
+                if (is_block_top_level(info.continuation_block) || std::find(compiled_blocks.begin(), compiled_blocks.end(), info.continuation_block) == compiled_blocks.end()) {
+                    print_asm("add rsp, %zu\n", max_stack_frame_size + 8);
+                    print_asm("jmp b%zu\n", info.continuation_block->id);
+                } else {
+                    print_asm("add rsp, 8\n");
+                    print_asm("jmp b%zu_reg_alloc\n", info.continuation_block->id);
+                }
+            } else {
+                print_asm("add rsp, 8\n");
+            }
             break;
         }
         default: {
