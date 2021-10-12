@@ -1209,7 +1209,8 @@ to manipulate the sign bit and to check in which category\footnote{For example, 
                     width=0.9\textwidth,
                     height=0.5\textwidth,
                     ybar,
-                    bar width = 5pt,
+                    % bar width = 5pt,
+                    bar width = 4pt,
                     ylabel={Execution time normalised to native (less is better)},
                     symbolic x coords = {
                         600.perlbench,
@@ -1222,7 +1223,7 @@ to manipulate the sign bit and to check in which category\footnote{For example, 
                         641.leela,
                         648.exchange2,
                         657.xz,
-                        average
+                        average % TODO: find a way to automatically compute this row
                     },
                     xticklabel style = {
                         anchor = east,
@@ -1234,13 +1235,16 @@ to manipulate the sign bit and to check in which category\footnote{For example, 
                     legend style = { at={(0.95, 0.95)}, anchor=north east}, % place the graph legend at the top-right
                 ]
 
-                \addplot[fill=green] table[x=benchmark, y expr=\thisrow{native}/\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                \addplot[fill=orange] table[x=benchmark, y expr=\thisrow{qemu}  /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                \addplot table[x=benchmark, y expr=\thisrow{test1} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                \addplot table[x=benchmark, y expr=\thisrow{test2} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                \addplot table[x=benchmark, y expr=\thisrow{ria}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=green]  table[x=benchmark, y expr=\thisrow{native} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=orange] table[x=benchmark, y expr=\thisrow{qemu}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=yellow] table[x=benchmark, y expr=\thisrow{ria}    /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=red]    table[x=benchmark, y expr=\thisrow{master} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{test3}  /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+%                \addplot table[x=benchmark, y expr=\thisrow{test2} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+%                \addplot table[x=benchmark, y expr=\thisrow{ria}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
 
-                \legend{native, qemu, test1, test2, ria}
+%                \legend{native, qemu, test1, test2, ria}
+                \legend{native,qemu,ria,master, test3}
             \end{axis}
         \end{tikzpicture}
         \caption{Benchmark Results}\label{benchmark_results1}
