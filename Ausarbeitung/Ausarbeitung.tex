@@ -1226,7 +1226,7 @@ to manipulate the sign bit and to check in which category\footnote{For example, 
                     },
                     xticklabel style = {
                         anchor = east,
-                        rotate=45
+                        rotate = 45 + 15
                     },
                     xtick = data, % make a tick at every symbolic x coordinate
                     ytick distance = 1, % make a tick every 1
@@ -1243,8 +1243,14 @@ to manipulate the sign bit and to check in which category\footnote{For example, 
                 \legend{native, qemu, test1, test2, ria}
             \end{axis}
         \end{tikzpicture}
+        \caption{Benchmark Results}\label{benchmark_results1}
     \end{centering}
 \end{figure}
+
+\ref{benchmark_results1}
+
+Due to bugs in the ria-jit rv64fd implementation, namely the lack of dynamic rounding support % TODO: verify
+the xz benchmark did not complete successfully.
 
 \subsection{Our Solution}
 \subsection{Optimizations (Analysis)}
