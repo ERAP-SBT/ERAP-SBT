@@ -178,68 +178,71 @@ void Generator::compile() {
 }
 
 void Generator::compile_ijump_lookup() {
-    compile_section(Section::TEXT);
-    fprintf(out_fd, "ijump_lookup:");
-    fprintf(out_fd, "sub rbx, %zu\n", ir->virt_bb_start_addr);
-
-    fprintf(out_fd, "cmp rbx, ijump_lookup_table_end - ijump_lookup_table\n");
-    fprintf(out_fd, "ja 0f\n");
-    fprintf(out_fd, "lea rdi, [rip + ijump_lookup_table]\n");
-    fprintf(out_fd, "mov rdi, [rdi + 4 * rbx]\n");
-    fprintf(out_fd, "test rdi, rdi\n");
-    fprintf(out_fd, "je 0f\n");
-    fprintf(out_fd, "jmp rdi\n");
-    fprintf(out_fd, "0:\n");
-
-    /* Slow-path: unresolved IJump, call interpreter */
-    fprintf(out_fd, "lea rdi, [rbx + %zu]\n", ir->virt_bb_start_addr);
-    fprintf(out_fd, "jmp unresolved_ijump\n");
-
-    compile_section(Section::RODATA);
-
-    fprintf(out_fd, ".global ijump_lookup_table_base\n");
-    fprintf(out_fd, ".global ijump_lookup_table\n");
-    fprintf(out_fd, ".global ijump_lookup_table_end\n");
-
-    fprintf(out_fd, "ijump_lookup_table_base:\n");
-    fprintf(out_fd, ".8byte %zu\n", ir->virt_bb_start_addr);
-
-    fprintf(out_fd, "ijump_lookup_table:\n");
-
-    assert(ir->virt_bb_start_addr <= ir->virt_bb_end_addr);
-
-    /* Incredibly space inefficient but also O(1) fast */
-    for (uint64_t i = ir->virt_bb_start_addr; i < ir->virt_bb_end_addr; i += 2) {
-        const auto bb = ir->bb_at_addr(i);
-        fprintf(out_fd, "/* 0x%#.8lx: */", i);
-        if (bb != nullptr && bb->virt_start_addr == i && (!(optimizations & OPT_MBRA) || !(optimizations & OPT_NO_TRANS_BBS) || RegAlloc::is_block_jumpable(bb))) {
-            fprintf(out_fd, ".8byte b%zu\n", bb->id);
-        } else {
-            fprintf(out_fd, ".8byte 0x0\n");
+    if (optimizations & OPT_HASH_LOOKUP) {
+        using namespace hashing;
+        while (!ijump_hasher.build()) {
+            ijump_hasher.load_factor -= 0.1;
+            ijump_hasher.bucket_size -= 1;
+            if (ijump_hasher.load_factor <= 0.05) {
+                std::cerr << "Unable to calculate valid hash function!" << std::endl;
+                assert(0);
+                exit(1);
+            }
+            ijump_hasher.fill(ijump_hasher.keys);
         }
-    }
 
-    fprintf(out_fd, "ijump_lookup_table_end:\n");
-    fprintf(out_fd, ".type ijump_lookup_table,STT_OBJECT\n");
-    fprintf(out_fd, ".size ijump_lookup_table,ijump_lookup_table_end-ijump_lookup_table\n");
-    /*using namespace hashing;
-    while (!ijump_hasher.build()) {
-        ijump_hasher.load_factor -= 0.1;
-        ijump_hasher.bucket_size -= 1;
-        if (ijump_hasher.load_factor <= 0.05) {
-            std::cerr << "Unable to calculate valid hash function!" << std::endl;
-            assert(0);
-            exit(1);
+        ijump_hasher.print_ijump_lookup(out_fd);
+
+        compile_section(Section::RODATA);
+        ijump_hasher.print_hash_func_ids(out_fd);
+        ijump_hasher.print_hash_table(out_fd, ir);
+        ijump_hasher.print_hash_constants(out_fd);
+    } else {
+        compile_section(Section::TEXT);
+        fprintf(out_fd, "ijump_lookup:");
+        fprintf(out_fd, "sub rbx, %zu\n", ir->virt_bb_start_addr);
+
+        fprintf(out_fd, "cmp rbx, ijump_lookup_table_end - ijump_lookup_table\n");
+        fprintf(out_fd, "ja 0f\n");
+        fprintf(out_fd, "lea rdi, [rip + ijump_lookup_table]\n");
+        fprintf(out_fd, "mov rdi, [rdi + 4 * rbx]\n");
+        fprintf(out_fd, "test rdi, rdi\n");
+        fprintf(out_fd, "je 0f\n");
+        fprintf(out_fd, "jmp rdi\n");
+        fprintf(out_fd, "0:\n");
+
+        /* Slow-path: unresolved IJump, call interpreter */
+        fprintf(out_fd, "lea rdi, [rbx + %zu]\n", ir->virt_bb_start_addr);
+        fprintf(out_fd, "jmp unresolved_ijump\n");
+
+        compile_section(Section::RODATA);
+
+        fprintf(out_fd, ".global ijump_lookup_table_base\n");
+        fprintf(out_fd, ".global ijump_lookup_table\n");
+        fprintf(out_fd, ".global ijump_lookup_table_end\n");
+
+        fprintf(out_fd, "ijump_lookup_table_base:\n");
+        fprintf(out_fd, ".8byte %zu\n", ir->virt_bb_start_addr);
+
+        fprintf(out_fd, "ijump_lookup_table:\n");
+
+        assert(ir->virt_bb_start_addr <= ir->virt_bb_end_addr);
+
+        /* Incredibly space inefficient but also O(1) fast */
+        for (uint64_t i = ir->virt_bb_start_addr; i < ir->virt_bb_end_addr; i += 2) {
+            const auto bb = ir->bb_at_addr(i);
+            fprintf(out_fd, "/* 0x%#.8lx: */", i);
+            if (bb != nullptr && bb->virt_start_addr == i && (!(optimizations & OPT_MBRA) || !(optimizations & OPT_NO_TRANS_BBS) || RegAlloc::is_block_jumpable(bb))) {
+                fprintf(out_fd, ".8byte b%zu\n", bb->id);
+            } else {
+                fprintf(out_fd, ".8byte 0x0\n");
+            }
         }
-        ijump_hasher.fill(ijump_hasher.keys);
+
+        fprintf(out_fd, "ijump_lookup_table_end:\n");
+        fprintf(out_fd, ".type ijump_lookup_table,STT_OBJECT\n");
+        fprintf(out_fd, ".size ijump_lookup_table,ijump_lookup_table_end-ijump_lookup_table\n");
     }
-
-    ijump_hasher.print_ijump_lookup(out_fd);
-
-    compile_section(Section::RODATA);
-    ijump_hasher.print_hash_func_ids(out_fd);
-    ijump_hasher.print_hash_table(out_fd, ir);
-    ijump_hasher.print_hash_constants(out_fd);*/
 }
 
 void Generator::compile_statics() {

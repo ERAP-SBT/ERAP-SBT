@@ -179,6 +179,7 @@ struct Generator {
         OPT_ARCH_BMI2 = 1 << 4,
         OPT_ARCH_FMA3 = 1 << 5,
         OPT_ARCH_SSE4 = 1 << 6,
+        OPT_HASH_LOOKUP = 1 << 7,
     };
 
     // Optimization Warnings:
