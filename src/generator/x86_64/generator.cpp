@@ -215,7 +215,13 @@ void Generator::compile_ijump_lookup() {
         fprintf(out_fd, "ijump_lookup:");
         fprintf(out_fd, "sub rbx, %zu\n", ir->virt_bb_start_addr);
 
-        fprintf(out_fd, "cmp rbx, ijump_lookup_table_end - ijump_lookup_table\n");
+        size_t size = ir->virt_bb_end_addr - ir->virt_bb_start_addr;
+        if (size < 0x8000'0000) {
+            fprintf(out_fd, "cmp rbx, %zu\n", size);
+        } else {
+            fprintf(out_fd, "mov rdi, %zu\n", size);
+            fprintf(out_fd, "cmp rbx, rdi\n");
+        }
         fprintf(out_fd, "ja 0f\n");
         fprintf(out_fd, "lea rdi, [rip + ijump_lookup_table]\n");
         fprintf(out_fd, "mov rdi, [rdi + 4 * rbx]\n");
