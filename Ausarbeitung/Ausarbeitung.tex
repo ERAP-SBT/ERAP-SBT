@@ -39,11 +39,11 @@
 
 % TODO: Ahead Of Time
 
-In order to natively execute machine code, one needs a processor which runs this machine code. But there are
-many different processor families with different instruction set architectures (ISA) for which programs are
-developed. For running a program which is written for an ISA one does not have access to a
-system running this ISA, e.g. RISC-V, one can translate it and execute it on another system,
-e.g.\ x86\_64. There are three main approaches:
+In order to natively execute machine code, a processor which runs this machine code is needed. But
+there are many different processor families with different instruction set architectures (ISA) for
+which programs are developed. To run a program which is written for an ISA one does not have access
+to a system running this ISA, one can translate it and execute it on another system. There are three
+main approaches to do this:
 
 \par
 
@@ -69,20 +69,32 @@ approach is called static binary translation (SBT).~\cite{binary_translation}
 
 \par
 
-%The difference between SBT and DBT is comparable to the difference between compiled and interpreted
-%programs. But whilst compilers and interpreters are working on high level programming languages,
-%e.g. C, C++ or Python, SBT and DBT are used to translate machine language files.
+The current rise of RISC-V processors makes it probable that we will see a need for RISC-V to
+x86\_64 binary translation in the near future. Even though x86\_64 is still a more widely used ISA
+than RISC-V, a lot of companies invest in a shift towards the RISC-V ISA. This revolution makes ISA
+incompatibilities a future problem we want to solve today.~\cite{riscv_rises}
 
 \par
 
-This project aims to describe the development of a static binary translator which translates RISC-V binaries to x86\_64
-machine code. The current rise of RISC-V processors makes it probable that we will see a need for 
-RISC-V to x86\_64 binary translation in the near future. Even though x86\_64
-is still a more widely used ISA than RISC-V, a lot of companies invest in a shift towards the
-RISC-V ISA. This revolution makes ISA incompatibilities a future problem for which
-we are able to present a solution today.~\cite{riscv_rises}
+Therefore we developed a static binary translator from RISC-V to x86\_64 which uses an intermediate
+representation (IR). The instruction decoding and code generation are separated by using as the IR
+as a abstract data structure. Our aim is to be faster than the popular dynamic binary translator
+QEMU therefore we created some optimizations performed on the IR.
 
-\section{Background}
+\par
+
+The following chapters will provide some background information for the RISC-V and the differences
+to x86\_64 relevant for the design of our translator (Section~\ref{sec:background}) and our general
+approach (Section~\ref{sec:approach}). After that the distinct parts of the translator, namely our
+intermediate representation (Section~\ref{sec:ir}), the RISC-V lifter
+(Section~\ref{sec:riscv_lifter}), the optimizer (Section~\ref{sec:optimizations}), and the x86\_64
+code generator (Section~\ref{sec:generator}), are further explained.
+Section~\ref{sec:floating_point} describes our approach and the occurring difficulties to support
+floating points RISC-V instructions. Finally, the last section (Section~\ref{sec:evaluation}) will
+evaluate the quality and performance of our implementation using benchmarks tests for comparisons to
+different approaches.
+
+\section{Background}\label{sec:background}
 \subsection{Short Overview of RISC-V}
 
 According to the RISC-V specification, RISC-V is an open and freely accessible ISA
@@ -92,10 +104,10 @@ option to implement custom extensions. The RISC-V ISA is available for building 
 applications and operating system kernels. Because of its minimalistic nature, is is well suited for
 custom hardware implementations.~\cite{rvspec}
 
-\par 
+\par
 
 As the name suggests, the
-RISC-V ISA describes a \emph{Reduced Instruction Set Computer}. This kind of microprocessor is 
+RISC-V ISA describes a \emph{Reduced Instruction Set Computer}. This kind of microprocessor is
 characterized by a larger number of
 registers, its load/store architecture, fixed-length instruction words and a generally limited
 amount of instructions and instruction formats.~\cite{RISCvCISC}
@@ -122,7 +134,7 @@ does not have this restriction and defines arithmetic and logical instructions w
 directly on memory. Also, RISC-V base instructions are currently always
 32-bit wide (16-bit for compressed instructions) which makes loading big
 immediates difficult. These are either combined by two or more separate immediate loading operations
-or loaded relative to the current instruction pointer.~\cite{rvspec} In comparison, x86\_64 instructions 
+or loaded relative to the current instruction pointer.~\cite{rvspec} In comparison, x86\_64 instructions
 can contain immediate values which are up to 64-bit wide, because
 of their variable instruction lengths~\cite{intel2017man}.
 
@@ -150,7 +162,7 @@ Our IR's features are inspired by the LLVM assembly language with the parallels 
 typing, single static assignment (SSA) variables (Section~\ref{ssa}) and machine-instruction-like operations.
 
 
-\section{Approach}\label{approach_section}
+\section{Approach}\label{sec:approach}
 
 We divided the translation process in three main parts: lifting, optimization, and generation. We
 made this division to structure the program and to simplify the implementation of optimizations.
@@ -192,9 +204,9 @@ conforms to the System V ABI\footnote{Application Binary Interface}. This define
 system call IDs and the calling convention. These prerequisites are checked, using the metadata
 contained in the ELF-file, before translating the file for debugging and assertion purposes.
 
-\section{Intermediate Representation}\label{IR}
+\section{Intermediate Representation}\label{sec:ir}
 
-As explained in Section~\ref{approach_section}, we use an IR to create a platform-independent
+As explained in Section~\ref{sec:approach}, we use an IR to create a platform-independent
 representation of the translated program's logic. This is not only useful to support different input
 and output languages in the future, but also to be able to optimize the more abstract representation.
 By parsing control flow and program structures we can run optimizations like
@@ -241,7 +253,7 @@ assigned to a static mapper.
 
 Each basic block ends with CfOps which redirect the control flow to other basic blocks. Every CfOp
 stores its target block(s) together with a mapping which combines variables from their source basic
-block with corresponding static mappers. This tells the code generator (Section~\ref{generator}) which SSA variables
+block with corresponding static mappers. This tells the code generator (Section~\ref{sec:generator}) which SSA variables
 should be transferred between basic blocks.
 
 \par
@@ -261,7 +273,7 @@ general purpose registers (statics 0 to 31) and \texttt{f64} for floating point 
 to 65). The concrete implementation of statics is not defined by IR and can thus be freely
 decided by the generator.
 
-\section{RISC-V Lifter}
+\section{RISC-V Lifter}\label{sec:riscv_lifter}
 \subsection{General Method}
 
 % Bullet Points:
@@ -317,30 +329,24 @@ immediate values. For each of the instructions, a variable amount of variables a
 the IR to replicate the original program's behavior.
 % TODO: Add example for lifting an instruction here
 
-\par
 
-
-Figure \ref{fig:lifting_example_riscv} shows an example RISC-V program and Figure
-\ref{fig:lifting_example_ir} shows the resulting IR parts. For simplicity, some parts are not shown in
-their entirety if they are duplicated or unnecessary for the explanation.
-
-\begin{figure}[ht]
+\begin{figure}[H]
     \centering
     \begin{lstlisting}[language={[RISC-V]Assembler}]
         start:
             [...]
         loop:
 0xb0:       addi a0, a0, -1
-0xb4:       beq a0, zero, b1
+0xb4:       beq a0, zero, loop
         continuation:
 0xa8:       sll a1, a1, a2
             [...]
     \end{lstlisting}
-    \caption{Example of lifting a short sequence of RISC-V instructions}
+    \caption{RISC-V assembly sequence used in example for the lifter. }
     \label{fig:lifting_example_riscv}
 \end{figure}
 
-\begin{figure}[ht]
+\begin{figure}[H]
     \centering
     \begin{lstlisting}
 [...]
@@ -354,7 +360,7 @@ block b1(/*input list */) <= [/* predecessors */] { // loop
     imm v36 <- immediate 0
     imm v37 <- immediate 0xb0
     imm v38 <- immediate 0xb8
-} => [(cjump, [b1, /* outputs */], v35, v36, v37), (jump, [b2, /* output */], v38)]
+} => [(cjump, [b1, /* target inputs */], v35, v36, v37, eq), (jump, [b2, /* target inputs */], v38)]
 
 block b2(/* input list */) <= [b1, /* other predecessors */] { // continuation
     [...]
@@ -366,13 +372,21 @@ block b2(/* input list */) <= [b1, /* other predecessors */] { // continuation
 
 [...]
     \end{lstlisting}
-    \caption{The lifted IR instructions}
+    \caption{The IR created by the lifter from the RISC-V assembly in Figure
+        ~\ref{fig:lifting_example_riscv}. \\
+        Some duplicated or unnecessary parts, e.g. predecessors list, variables from statics, target
+        inputs and control flow operations, are omitted.}
     \label{fig:lifting_example_ir}
 \end{figure}
 
 \par
 
-As explained in the IR chapter (Section~\ref{IR}), our IR is subdivided into basic blocks which contain
+Figure \ref{fig:lifting_example_riscv} shows an example RISC-V assembly sequence and Figure
+\ref{fig:lifting_example_ir} shows the resulting IR parts.
+
+\par
+
+As explained in the IR chapter (Section~\ref{sec:ir}), our IR is subdivided into basic blocks which contain
 consecutive instructions without a change in control flow. As soon as a control flow changing
 instruction is discovered, it is lifted and set as the basic block's CfOp. A control flow changing
 instruction can be assembled of more CfOps, e.g. RISC-V branches which consist of a conditional
@@ -552,8 +566,8 @@ Figure~\ref{backtracking_graph} shows an example for such a dependency tree.
     \end{tikzpicture}
     \caption{
         Schematic dependency graph of an indirect jump target address variable (\textbf{v37}). The basic block \textbf{bb24} ends
-with an indirect jump, jumping to the address stored in \texttt{v37}. \texttt{ADD} and \texttt{SHL}
-are operations, names starting with \textbf{x} are names of static mappers.\\
+        with an indirect jump, jumping to the address stored in \texttt{v37}. \texttt{ADD} and \texttt{SHL}
+        are operations, names starting with \textbf{x} are names of static mappers.\\
     }\label{backtracking_graph}
 \end{figure}
 
@@ -611,7 +625,7 @@ extract the jump target addresses and use them as entry points for new basic blo
 for switch-statements which are compiled into a combination of jump tables and branch-based search
 trees.
 
-\section{Optimizations}
+\section{Optimizations}\label{sec:optimizations}
 \subsection{Dead Code Elimination}\label{dead_code_elimination}
 
 There are cases in compiled programs, where a value is written to a register, but never read from again.
@@ -673,7 +687,7 @@ Common subexpression elimination is mostly useful for eliminating duplicate imme
 the Constant folding pass. Since input binaries are often already optimized, duplicate operations are rather uncommon.
 
 
-\section{Generator}\label{generator}
+\section{Generator}\label{sec:generator}
 The generator has two tasks.
 Firstly, it needs to assemble all basic blocks which means assembling all variables with their associated operations,
 preparing the inputs for the next basic block and creating the control flow operations.
@@ -944,7 +958,7 @@ compared their strengths and weaknesses:
           The hashing helps reduce the required storage space to the hash table size and the hash function
           indices table size. (Figure~\ref{hashing_figure}) The storage size optimizations mean however that
           every access takes, although its complexity is still constant, the additional time of calculating
-          the hash table index. This is effect can be observed in Figure 
+          the hash table index. This is effect can be observed in Figure
           % TODO: Fix this reference!!!
           %~\ref{time_x}.
 \end{enumerate}
@@ -1073,7 +1087,7 @@ instructions.
 
 \par
 
-\section{Floating Point Handling and Problems}
+\section{Floating Point Handling and Problems}\label{sec:floating_point}
 
 \subsection{Lifting and Generating}
 
@@ -1087,7 +1101,7 @@ types \emph{f32} and \emph{f64} which represents single and double precision num
 
 \par
 
-The code generator (Section~\ref{generator}) uses the x86\_64 floating point instructions provided by the
+The code generator (Section~\ref{sec:generator}) uses the x86\_64 floating point instructions provided by the
 \texttt{Streaming SIMD Extensions 2} (SSE2) which operates on the \texttt{xmm} registers. So SSE2 is
 a requirement when translating programs using floating point arithmetics, but this is not a problem
 as SSE2 was released in 2000 and therefore almost all currently used x86\_64-based CPUs have
@@ -1130,7 +1144,7 @@ every instruction except conversions between integers and floating points as wel
 and double precision floating points. We made this exception as it makes a great difference when
 rounding to integers. For example, the difference rounding \emph{25,5} towards positive infinity or
 towards negative infinity, resulting in \emph{26} respectively \emph{25}, makes a huge difference.
-Also the the later on used benchmarks (Section~\ref{performance}) require to respect the rounding mode of
+Also the the later on used benchmarks (Section~\ref{sec:evaluation}) require to respect the rounding mode of
 conversion instructions.
 
 \par
@@ -1218,7 +1232,7 @@ The sign injection and floating point classify instruction are implemented by us
 to manipulate the sign bit and to check in which category\footnote{For example, sNaN, qNaN, negative
     infinity, negative normal number, etc.} the floating point value fits, respectively.
 
-\section{Performance}\label{performance}
+\section{Performance}\label{sec:evaluation}
 
 \begin{figure}
     \begin{centering}
@@ -1231,22 +1245,22 @@ to manipulate the sign bit and to check in which category\footnote{For example, 
                     bar width = 4pt,
                     ylabel={Execution time normalised to native (less is better)},
                     symbolic x coords = {
-                        600.perlbench,
-                        602.gcc,
-                        605.mcf,
-                        620.omnetpp,
-                        623.xalancbmk,
-                        625.x264,
-                        631.deepsjeng,
-                        641.leela,
-                        648.exchange2,
-                        657.xz,
-                        average % TODO: find a way to automatically compute this row
-                    },
+                            600.perlbench,
+                            602.gcc,
+                            605.mcf,
+                            620.omnetpp,
+                            623.xalancbmk,
+                            625.x264,
+                            631.deepsjeng,
+                            641.leela,
+                            648.exchange2,
+                            657.xz,
+                            average % TODO: find a way to automatically compute this row
+                        },
                     xticklabel style = {
-                        anchor = east,
-                        rotate = 45 + 15
-                    },
+                            anchor = east,
+                            rotate = 45 + 15
+                        },
                     xtick = data, % make a tick at every symbolic x coordinate
                     ytick distance = 1, % make a tick every 1
                     ymajorgrids = true, % display horizontal guide lines
@@ -1258,10 +1272,10 @@ to manipulate the sign bit and to check in which category\footnote{For example, 
                 \addplot[fill=yellow] table[x=benchmark, y expr=\thisrow{ria}    /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 \addplot[fill=red]    table[x=benchmark, y expr=\thisrow{master} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 \addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{test3}  /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-%                \addplot table[x=benchmark, y expr=\thisrow{test2} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-%                \addplot table[x=benchmark, y expr=\thisrow{ria}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                %                \addplot table[x=benchmark, y expr=\thisrow{test2} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                %                \addplot table[x=benchmark, y expr=\thisrow{ria}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
 
-%                \legend{native, qemu, test1, test2, ria}
+                %                \legend{native, qemu, test1, test2, ria}
                 \legend{native,qemu,ria,master, test3}
             \end{axis}
         \end{tikzpicture}
