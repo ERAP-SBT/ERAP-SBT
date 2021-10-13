@@ -163,7 +163,6 @@ void Generator::compile() {
 
     fprintf(out_fd, "init_stack_ptr: .quad 0\n");
     fprintf(out_fd, "init_ret_stack_ptr: .quad 0\n");
-    fprintf(out_fd, "max_ret_stack_ptr: .quad 0\n");
 
     if (interpreter_only) {
         compile_interpreter_only_entry();
@@ -384,7 +383,7 @@ void Generator::compile_call(const BasicBlock *block, const CfOp &op, const size
     compile_cf_args(block, op, stack_size);
 
     // prevent overflow
-    fprintf(out_fd, "cmp rsp, [max_ret_stack_ptr]\n"); // max depth ~65k
+    fprintf(out_fd, "cmp rsp, offset stack_space + 524288\n"); // max depth ~65k
     fprintf(out_fd, "cmovb rsp, [init_ret_stack_ptr]\n");
 
     // return address
@@ -442,7 +441,7 @@ void Generator::compile_icall(const BasicBlock *block, const CfOp &op, const siz
     fprintf(out_fd, "mov rbx, rax\n");
 
     // prevent overflow
-    fprintf(out_fd, "cmp rsp, [max_ret_stack_ptr]\n"); // max depth ~65k
+    fprintf(out_fd, "cmp rsp, offset stack_space + 524288\n"); // max depth ~65k
     fprintf(out_fd, "cmovb rsp, [init_ret_stack_ptr]\n");
 
     if (icall_info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
@@ -516,8 +515,6 @@ void Generator::compile_entry() {
     fprintf(out_fd, "mov [init_stack_ptr], rax\n");
     fprintf(out_fd, "push 0\npush 0\n");
     fprintf(out_fd, "mov [init_ret_stack_ptr], rsp\n");
-    fprintf(out_fd, "lea rax, [rsp - 524288]\n");
-    fprintf(out_fd, "mov [max_ret_stack_ptr], rax\n");
     fprintf(out_fd, "jmp b%zu\n", ir->entry_block);
     fprintf(out_fd, ".type _start,STT_FUNC\n");
     fprintf(out_fd, ".size _start,$-_start\n");
