@@ -622,19 +622,19 @@ To do so we group together blocks which closely represent functions of the origi
 for variables and pass them between the blocks. As such we keep often used vars in registers and prevent spilling of variables to statics at the end of each basic block.
 The achieve this we first mark all blocks which are targets of call-cfops, then iterate all basic blocks, check if they are either the target of a call-cfop or have no known predecessors
 and start the register allocation for the group of this block.
-This will then compile the starting block while allocating registers and stack slots for the variables, evaluate the cfops and check whether the target of a cfop is part of the current group 
+This will then compile the starting block while allocating registers and stack slots for the variables, evaluate the cfops and check whether the target of a cfop is part of the current group
 (which in essence just means that it is not a call-target) and if so create an input mapping for the target which specify where each input variable is located or, when the block has already been compiled,
 emit a sequence of instructions which move the variables to the position at which the target block expects them.
 After this the handling of the current block is finished and if any of the targets of the block's cfops are part of the current group they are recursively compiled as well.
 
 \par
 
-The process of generating instructions for the basic block itself are also relatively simple. First, a rough (because cfops might need reshuffling, see later) estimate of the time-of-uses of each variable is created, 
+The process of generating instructions for the basic block itself are also relatively simple. First, a rough (because cfops might need reshuffling, see later) estimate of the time-of-uses of each variable is created,
 after which each operation in the basic block is then iterated, the inputs for it are loaded into registers if they are located in a static or on the stack frame and a destination register is chosen.
 Here, if possible a seperate destination register than the input registers is used if the inputs are still needed later. Otherwise one of the input registers is simply overwritten.
 When choosing a register to place a variable into, registers without a variable in them or registers with variables which aren't used anymore are preferred. If all registers contain variables which are still needed
 the variable which is the farthest away from being used again (so the time of next use is the greatest) is chosen to be evicted to the stack.
-A possible improvement here could be to create a preference for a register for each variable if it is needed at a fixed location (e.g. it is used as an input for an already compiled basic block) 
+A possible improvement here could be to create a preference for a register for each variable if it is needed at a fixed location (e.g. it is used as an input for an already compiled basic block)
 and take it into account when choosing a register to place a variable into. Though because of time-constraints we didn't have time to implement this.
 
 \par
@@ -652,7 +652,7 @@ Also, when generating the cfops and the target is a block not part of the curren
 One problem that is encountered when employing register allocation on groups of basic blocks is that the programm cannot simply jump to them using indirect jumps anymore because the basic block might expect variables to be in registers
 and not in statics and the stack frame, which is set up at the first block of a group, would be missing. To still make it possible for indirect jumps to jump to basic blocks which are register-allocated translation blocks need to be generated.
 These translation blocks will set up the stack frame and move the inputs for the basic block to the registers or stack slots at which it expects them before jumping to them.
-A problem with these blocks is that they need to be generated for a lot of basic blocks and take up a lot of space in the finished binary (sometimes even more than 30\% of the .text section) while also being rarely used 
+A problem with these blocks is that they need to be generated for a lot of basic blocks and take up a lot of space in the finished binary (sometimes even more than 30\% of the .text section) while also being rarely used
 since most indirect jumps will end up at function starts which we recognize with relatively good accuracy and blocks after a function call which will be returned to.
 So by only generating translation blocks for targets of function returns the binary size can be drastically reduced while also having a negliable impact on performance.
 \subsection{Merging operations}
@@ -662,7 +662,7 @@ So by only generating translation blocks for targets of function returns the bin
 \subsection{Indirect jump resolution}
 When encountering an indirect jump, the jump's input variable contains the jump target address in the
 original RISC-V binary address space. We try to statically identify most of the indirect jump target
-addresses during lifting and are thus able to start new basic blocks at such addresses. 
+addresses during lifting and are thus able to start new basic blocks at such addresses.
 This however means we need to translate the original binary's addresses to basic block start
 addresses in the translated binary, at runtime. We also need a way to identify
 indirect jump target addresses which aren't the start address of any lifted basic block. We can only
@@ -671,7 +671,7 @@ binary and the original binary overlap at known addresses. In case we encounter 
 target address, we switch to the \nameref{interpreter} to interpret the original RISC-V code
 just-in-time until the next start of a basic block is reached.
 
-\par 
+\par
 
 Mapping the RISC-V indirect jump target addresses to translated basic blocks requires a
 dictionary-like data structure.
@@ -682,67 +682,125 @@ jump target address is not a valid basic block start address. We developed the d
 iterations:
 
 \begin{enumerate}
-\item For the naive implementation, we store a specific 64-bit wide number for each lifted RISC-V address
-in the \texttt{.ro\_data} section. This recreates part of the original binary's address
-space with a known offset. The numbers are either 0 if no basic block with the given start address
-exists or the address of the basic block which starts with instructions from this RISC-V address.
-The latter is done by using the basic block labels, with the assembler calculating the actual
-address numbers.
-\par
-This method has the advantage of having a constant access time with barely no calculation overhead. It
-however means that we need to store additional information in our output assembly file in the size of the
-lifted instructions section of the original binary. This could be part of the problem of the
-assembler AS requiring a lot of memory for assembling the output assembly.
+    \item For the naive implementation, we store a specific 64-bit wide number for each lifted RISC-V address
+          in the \texttt{.ro\_data} section. This recreates part of the original binary's address
+          space with a known offset. The numbers are either 0 if no basic block with the given start address
+          exists or the address of the basic block which starts with instructions from this RISC-V address.
+          The latter is done by using the basic block labels, with the assembler calculating the actual
+          address numbers.
+          \par
+          This method has the advantage of having a constant access time with barely no calculation overhead. It
+          however means that we need to store additional information in our output assembly file in the size of the
+          lifted instructions section of the original binary. This could be part of the problem of the
+          assembler AS requiring a lot of memory for assembling the output assembly.
 
-\item To reduce this size overhead, we implemented a method for creating a nearly perfect hash table with a
-process called ``Hash, displace, and compress''\cite{CHD}. The process consist of a two-stage hash
-function which first sorts the items into buckets and later generates a hash function for each
-bucket. The hashed values are stored in one common hash table. The calculation starts with a load
-factor ($\alpha$) of 100\% and a bucket size of 19 elements ($\lambda$) per bucket in average. These values are lowered
-incrementally by 10\% and 2 elements respectively if no valid hash function could be found for the
-existing constraints.
-While a lower average bucket size decreases the translation time (because hash functions have fewer
-collision constraints), a higher average bucket size decreases the translated binary's size (because
-every bucket needs to store its own hash function).
-The bucket-level hash functions only need a 16-bit index to be reconstructed and can
-thus
-be stored memory efficiently. These bucket hash function indices are stored in a separate table in
-the \texttt{.ro\_data} section, together with the hash table.
+    \item To reduce this size overhead, we implemented a method for creating a nearly perfect hash table with a
+          process called ``Hash, displace, and compress''\cite{CHD}. The process consist of a two-stage hash
+          function which first sorts the items into buckets and later generates a hash function for each
+          bucket. The hashed values are stored in one common hash table. The calculation starts with a load
+          factor ($\alpha$) of 100\% and a bucket size of 19 elements ($\lambda$) per bucket in average. These values are lowered
+          incrementally by 10\% and 2 elements respectively if no valid bucket-level hash function could be found for the
+          existing constraints.
+          While a lower average bucket size decreases the translation time (because hash functions have fewer
+          collision constraints), a higher average bucket size decreases the translated binary's size (because
+          every bucket needs to store its own hash function).
+          The bucket-level hash functions only need a 16-bit index to be reconstructed and can
+          thus
+          be stored memory efficiently. These bucket hash function indices are stored in a separate table in
+          the \texttt{.ro\_data} section, together with the hash table.
 
-\par
+          \par
 
-For the hash function generation, we didn't use truly random hash functions. The authors of the ``Hash,
-displace, and compress'' perfect hashing method suggest using a ``heuristic hash
-function''\cite{CHD}, one of Bob Jenkins' first published hash functions.\cite{jenkins_hash_1} For
-our implementation, we use one of his latest hash functions which is supposed to be faster than his
-first proposals.\cite{jenkins_hash_2} Because we are only interested in hashing 64-bit addresses, we
-only need part of his hash function which generates hashes for byte arrays of variable sizes. 
+          For the hash function generation, we didn't use truly random hash functions. The authors of the ``Hash,
+          displace, and compress'' perfect hashing method suggest using a ``heuristic hash
+          function''\cite{CHD}, one of Bob Jenkins' first published hash functions.\cite{jenkins_hash_1} For
+          our implementation, we use one of his latest hash functions which is supposed to be faster than his
+          first proposals.\cite{jenkins_hash_2} Because we are only interested in hashing 64-bit addresses, we
+          only need part of his hash function which generates hashes for byte arrays of variable sizes.
 
-\par
+          \par
 
-The hashing algorithm is used in the generator for building the hash table and finding the required
-hash functions. It is also implemented in the \nameref{helper} for providing hashes for addresses
-which are only available during runtime. 
+          The hashing algorithm is used in the generator for building the hash table and finding the required
+          hash functions. It is also implemented in the \nameref{helper} for providing hashes for addresses
+          which are only available during runtime.
 
-\par 
+          \par
 
-With the generated hash table and hash functions, every key is assigned an index in the hash table,
-no matter if it is a valid key which was used to build the hash table or not. That's why we store
-both the key and the value, which is the target basic block label in this case, in the hash table.
-For key validation, we first load the key from the calculated index and compare it to the input key.
-If they don't match, we know that no basic block exists for the supplied RISC-V address. Otherwise,
-we load the value from the table which is placed just 64-bits after the key.
+          With the generated hash table and hash functions, every key is assigned an index in the hash table,
+          no matter if it is a valid key which was used to build the hash table or not. That's why we store
+          both the key and the value, which is the target basic block label in this case, in the hash table.
+          For key validation, we first load the key from the calculated index and compare it to the input key.
+          If they don't match, we know that no basic block exists for the supplied RISC-V address. Otherwise,
+          we load the value from the table which is placed just 64-bits after the key.
 
-\par
+          \par
 
-The hashing helps reduce the required storage space to the hash table size and the hash function
-indices table size. The storage size optimizations mean however that
-every access takes, although it's complexity is still constant, the additional time of calculating
-the hash table index.
+          The hashing helps reduce the required storage space to the hash table size and the hash function
+          indices table size. The storage size optimizations mean however that
+          every access takes, although it's complexity is still constant, the additional time of calculating
+          the hash table index.
 
 \end{enumerate}
 
-% TODO: provide examples for assembly size reduction
+\begin{figure}
+    \begin{centering}
+        \begin{tikzpicture}
+            \begin{axis}[
+                    width=0.9\textwidth,
+                    height=0.5\textwidth,
+                    tick align=inside,
+                    unbounded coords=jump,
+                    xmin=0,
+                    xmax=110,
+                    ymin=-1,
+                    ymax=22,
+                    point meta min=90,
+                    point meta max=108,
+                    colorbar horizontal,
+                    colorbar style={
+                        xlabel={Assembly file size in $\frac{1}{100}\cdot \textit{Binary size without hashing}$},
+                    },
+                    colormap={reverse viridis}{
+                            indices of colormap={\pgfplotscolormaplastindexof{viridis},...,0 of viridis}
+                        },
+                    xlabel={Load factor in percent},
+                    ylabel={Average bucket size in $\frac{1}{\text{Bucket}}$},
+                ]
+                \addplot[
+                    mark=square*,
+                    only marks,
+                    scatter,
+                    scatter src=explicit,
+                    mark size=3,
+                ]
+                table[meta=z] from {./tikz_src/hashing_assembly_size.txt};
+            \end{axis}
+        \end{tikzpicture}
+        \caption{Effects of average bucket size and hash table load factor on final assembly file size.}\label{hashing_figure}
+    \end{centering}
+\end{figure}
+
+In figure \ref{hashing_figure} we show the effects of the two major parameters for the used hashing
+algorithm. Missing data points mean that the hash function algorithm was not able to find all valid
+bucket-level hash functions within the 16-bit per-bucket storage limit.  The load factor is the fraction (in percent) of the
+final hash table which is filled with
+hashed entries. The average bucket size is used to calculate the number of buckets and therefore
+directly effects the number of bucket-level hash functions required. 
+
+\par
+
+The test was conducted on the translated binary of a simple zip program. Sources are located in the
+\texttt{tests} project folder. The test was only performed once because the hashing algorithm and
+the translator itself are both strictly deterministic.
+
+\par 
+
+The analysis shows that
+the amount of storage required for bucket-level hash functions does not have a noticeable impact on
+the final assembly size. It also shows that finding all valid bucket-level hash functions is more
+likely with a lower average number of elements per bucket. This leads to the conclusion that using 
+smaller buckets sizes can improve bucket-level hash function generation times while not noticeably
+increasing the output assembly size.
 
 \section{Floating point handling \& problems}
 

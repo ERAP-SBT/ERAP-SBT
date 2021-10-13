@@ -28,6 +28,7 @@
 \RequirePackage{float}
 \RequirePackage{microtype}
 \RequirePackage{tikz}
+\RequirePackage{pgfplots}
 \RequirePackage{tikzit}
 \RequirePackage{tabularx}
 \RequirePackage{hyperref}
@@ -37,6 +38,7 @@
 
 \usetikzlibrary{shapes,positioning}
 \input{tikz_src/graph.tikzstyles}
+\usepgfplotslibrary{colormaps}
 
 \SetupKeyvalOptions{
   family=aspdoc,
