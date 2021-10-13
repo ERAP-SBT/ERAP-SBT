@@ -6,7 +6,7 @@ FROM ubuntu:20.04
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
-        meson \
+        meson cmake \
         libmpfr-dev libmpc-dev zlib1g zlib1g-dev \
         gawk bison \
         linux-libc-dev-riscv64-cross \
