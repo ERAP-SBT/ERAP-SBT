@@ -671,7 +671,16 @@ These translation blocks will set up the stack frame and move the inputs for the
 A problem with these blocks is that they need to be generated for a lot of basic blocks and take up a lot of space in the finished binary (sometimes even more than 30\% of the .text section) while also being rarely used
 since most indirect jumps will end up at function starts which we recognize with relatively good accuracy and blocks after a function call which will be returned to.
 So by only generating translation blocks for targets of function returns the binary size can be drastically reduced while also having a negliable impact on performance.
-\subsection{Merging operations}
+\subsubsection{Merging operations}
+As x86 is a CISC-Architecture it offers a lot more sophisticated instructions than RISC-V or our IR. As such multiple operations in the IR can be merged into a single x86-Instruction under two conditions:
+The sequence of operations must be mergeable and the intermediate results of these operations are not needed later.
+Mergeable sequences include:
+\begin{itemize}
+    \item add,(cast),store: Can be merged to a single store with the add embedded in the memory operand and the cast expressed as the store width
+    \item add,load,sign-/zero-extend: Can be merged into a single movsx/movzx with the add embedded in the memory operand
+    \item and with 0x1f/0x3f,(cast),shr/shl/sar: Can be merged into a single shift instructions since they mask the count operand by themselves
+\end{itemize}
+Merging these operations not only reduces the binary size since fewer instructions need to be encoded but also increase performance significantly.
 \subsection{Interpreter}\label{interpreter}
 \subsection{Helper library}\label{helper}
 
