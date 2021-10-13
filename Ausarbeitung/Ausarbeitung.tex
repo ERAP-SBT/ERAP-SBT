@@ -752,7 +752,7 @@ block b2(i64 v0, i64 v1) <= [b1] {
     i64 v1 <- @1 (0)
 } => [/* control flow operations */];
 \end{lstlisting}
-    \caption{Example IR: The value in parenthesis after each variable is its reference count}\label{fig:dce_example_before}
+    \caption{Example IR before DCE: The value in parenthesis after each variable is its reference count}\label{fig:dce_example_before}
 \end{figure}
 
 \begin{figure}[H]
@@ -769,7 +769,7 @@ block b2(i64 v0) <= [b1] {
     i64 v0 <- @0 (1)
 } => [/* control flow operations */];
 \end{lstlisting}
-    \caption{Example IR after Dead Code Elimination}\label{fig:dce_example_after}
+    \caption{Example IR after DCE}\label{fig:dce_example_after}
 \end{figure}
 
 Figure~\ref{fig:dce_example_before} shows an example IR which has not been optimized. Figure~\ref{fig:dce_example_after}
@@ -790,7 +790,7 @@ In our implementation, Constant Folding, Constant Propagation, and operation sim
 pass.  As such, they are further referred to collectively as Constant Folding.
 
 This optimization pass is done by visiting each operation in a BasicBlock in order, making the pass run in linear time.
-Depending on the inputs of an operation, one of several actions can be performed.
+If the variable is an integer arithmetic, logic or conditional set operation, one of several actions can be performed.
 
 In the simplest case, all inputs are immediates. The result of the operation can be computed, and the variable is
 replaced with the resulting immediate value. One exception to this are binary-relative immediates---immediates which are
@@ -826,7 +826,7 @@ block b1(i64 v0) <= [/* predecessors */] {
     i64 v9 <- add i64 v7, imm v8
 } => [/* control flow operations */]
 \end{lstlisting}
-    \caption{Example IR}\label{fig:const_folding_example_before}
+    \caption{Example IR before Constant Folding}\label{fig:const_folding_example_before}
 \end{figure}
 
 \begin{figure}[H]
@@ -877,7 +877,7 @@ block b1(i64 v0, i64 v1) <= [/* predecessors */] {
     i64 v6 <- add i64 v1, i64 v5
 } => [/* control flow operations */]
 \end{lstlisting}
-    \caption{Example IR}\label{fig:cse_example_before}
+    \caption{Example IR before Common Subexpression Elimination}\label{fig:cse_example_before}
 \end{figure}
 
 \begin{figure}[H]
