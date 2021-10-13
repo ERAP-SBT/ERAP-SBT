@@ -1601,6 +1601,13 @@ However with floating point support additional optimizations~\footnote{\texttt{f
 Due to bugs in the ria-jit rv64fd implementation, namely the lack of dynamic rounding support % TODO: verify
 the xz benchmark did not complete successfully.
 
+\subsection{Effectivness of different Optimizations}
+
+\subsection{Hashtable}
+
+\subsection{Performance of Translation Blocks}
+
+\subsection{Floatingpoint accuracy}
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/x86_diff.png}
@@ -1637,12 +1644,6 @@ it. This again has an impact on the accuracy, because the intermediate result in
 instructions is not rounded~\cite{intel2017man}. But as shown by
 Figure~\ref{fig:mandelbrot_diff_fma3} this causes the result to be more similar to the RISC-V result
 than the assembled version.
-
-\subsection{Effectivness of different Optimizations}
-
-\subsection{Hashtable}
-
-\subsection{Performance of Translation Blocks}
 
 \section{Summary}
 
