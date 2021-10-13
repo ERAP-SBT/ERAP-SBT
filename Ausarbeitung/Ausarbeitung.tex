@@ -362,7 +362,7 @@ machine code is lifted up to a more abstract representation at a higher level, t
 
 The translator starts with the ELF input binary file which is supplied by the user. After checking the
 validity of the binary file and whether it is suited for being translated by the program, the
-RISC-V lifter decodes all instructions. 
+RISC-V lifter decodes all instructions.
 
 \par
 
@@ -371,7 +371,7 @@ headers} and \textit{section headers}. Both header types store information about
 spaces, allocation details and access flags. However, \textit{section headers} hold finer and more detailed information
 about program sections than the \textit{program headers} and are therefore preferred. The ELF-file specification does not guarantee that every ELF
 binary defines \textit{sections}~\cite{elf_spec}. The lifter therefore supports instruction
-detection using either \textit{program headers} or \textit{section headers}. 
+detection using either \textit{program headers} or \textit{section headers}.
 
 \par
 
