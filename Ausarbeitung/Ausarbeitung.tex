@@ -621,6 +621,60 @@ from the stack frame and either calls a helper routine or directly jumps to the 
 \subsection{Interpreter}\label{interpreter}
 \subsection{Helper library}\label{helper}
 
+\subsection{Indirect jump resolution}
+When encountering an indirect jump, the input variable contains the jump target address in the
+original RISC-V binary, at runtime. We try to statically identify most of the indirect jump target
+addresses during lifting and are thus able to start new basic blocks at such addresses. 
+This means we need a helper function which translates RISC-V
+addresses into basic block addresses in the generated assembly. We also need a way to identify
+target addresses which aren't the start address of any existing basic block. This situation is
+handled by a panic function, defined in the \nameref{helper}. It prints a supplied panic string to
+the standard error output and exits the program with a non-zero exit code. 
+
+\par 
+
+For mapping the RISC-V indirect jump target addresses to translated basic blocks, we implemented two
+different methods:
+
+\begin{itemize}
+\item For the naive implementation, we store a 64-bit wide number for each RISC-V address, after
+some label in the \texttt{.ro\_data} section. This recreates part of the original binary's address
+space with a known offset. The numbers are either 0 if no basic block with the given start address
+exists or the address of the basic block which starts with instructions from this RISC-V address.
+The latter is done by using the basic block labels, with the assembler calculating the actual
+numbers.
+\par
+This method has the advantage of having a constant access time with no calculation overhead. It
+however means that we need to store additional information in our output assembly file in the size of the
+lifted instructions section of the original binary. This could be part of the problem of the
+assembler AS requiring a lot of memory for assembling the output assembly.
+
+\item To reduce this overhead, we implemented a method for creating a perfect hash table with a
+process called ``Hash, displace, and compress''\cite{CHD}. The process consist of a two-stage hash
+function which first sorts the items into buckets and later generates a hash function for each
+bucket. The hashed values are stored in one hash table with a load factor of 0.95 and an average bucket size
+of 3 elements. The bucket-level hash functions only need a 16-bit index to be reconstructed and can thus
+be stored memory efficiently. These bucket hash function indices are stored in a separate table in
+the \texttt{.ro\_data} section, together with the hash table.
+
+\par
+
+For the hash function generation, we didn't use truly random hash functions. The authors of the ``Hash,
+displace, and compress'' perfect hashing method suggest using a ``heuristic hash
+function''\cite[CHD], on of Bob Jenkins' first published hash functions.\cite{jenkins_hash_1} For
+our implementation, we use one of his latest hash functions which is supposed to be faster than his
+first proposals.\cite{jenkins_hash_2} Because we are only interested in hashing 64-bit addresses, we
+don't need most of his hash function which generates hashes for byte arrays of variable sizes. 
+
+\par
+
+The hashing algorithm is used in the generator for building the hash table and finding the required
+hash functions. It is also implemented in the \nameref{helper} for providing hashes for runtime
+addresses. This helps reduce the required storage space to the hash table size (which is the amount
+of basic blocks divided by the load factor) and the hash function indices table size (which is the
+hash table size divided by the amount of buckets).
+\end{itemize}
+
 \section{Floating point handling \& problems}
 
 \subsection{Lifting and generating}
