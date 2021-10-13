@@ -368,7 +368,7 @@ optimizations can be made. This includes an call-ret optimization, an
 The lifter creates the IR based on the RISC-V binary. This process is called lifting because the
 machine code is lifted up to a more abstract representation at a higher level, the IR.
 
-\subsubsection{Program Decoding}
+\subsubsection{Program Decoding}\label{sec:program_decoding}
 
 The translator starts with the ELF input binary file which is supplied by the user. After checking the
 validity of the binary file and whether it is suited for being translated by the program, the
@@ -377,7 +377,7 @@ RISC-V lifter decodes all instructions.
 \par
 
 ELF binaries store information about what data is stored where in the binary using \textit{program
-headers} and \textit{section headers}. Both header types store information about the virtual address
+    headers} and \textit{section headers}. Both header types store information about the virtual address
 spaces, allocation details and access flags. However, \textit{section headers} hold finer and more detailed information
 about program sections than the \textit{program headers} and are therefore preferred. The ELF-file specification does not guarantee that every ELF
 binary defines \textit{sections}~\cite{elf_spec}. The lifter therefore supports instruction
@@ -423,7 +423,7 @@ the IR to replicate the original program's behavior.
             [...]
     \end{lstlisting}
     \caption{RISC-V assembly sequence used as example for the lifter. Decrements a0 by one in a loop until it is zero,
-             then shifts a1 by the amount stored in a2.}
+        then shifts a1 by the amount stored in a2.}
     \label{fig:lifting_example_riscv}
 \end{figure}
 
@@ -1355,38 +1355,47 @@ instructions.
 
 \section{Floating Point Handling and Problems}\label{sec:floating_point}
 
+Floating point arithmetic is special as it is affected by rounding and therefore depend on the
+implementation of the architecture. We decided to use the x86\_64 SSE instructions if possible and
+else assemble them because a bitwise correct implementation is slower. Due to rounding effects the
+result may not be equal to the RISC-V implementation.
+
 \subsection{Lifting and Generating}
 
 % TODO: Move footnote content into normal text?
 To support the \texttt{F} and \texttt{D}\footnote{The Q standard extension is not supported due to simplicity and lack of usage.}
 standard extensions, the mapping as well as the amount of statics have to be extended to include the
 floating point registers and the floating point control and status register (fcsr). To lift the
-RISC-V floating point, some operations are reused, e.g. \emph{add}, \emph{sub}, and some floating
+RISC-V floating point instructions, some operations are reused, e.g. \emph{add}, \emph{sub}, and some floating
 point specific are defined, e.g. \emph{fmul}, \emph{fsqrt}. The floating point variables have the
 types \emph{f32} and \emph{f64} which represents single and double precision numbers, respectively.
 
 \par
 
-The code generator (section~\ref{sec:generator}) uses the x86\_64 floating point instructions provided by the
-\texttt{Streaming SIMD Extensions 2} (SSE2) which operates on the \texttt{xmm} registers. So SSE2 is
-a requirement when translating programs using floating point arithmetics, but this is not a problem
-as SSE2 was released in 2000 and therefore almost all currently used x86\_64-based CPUs have
-implemented it. But the usage of other x86\_64 extensions like SSE3, SSE4, and \texttt{Fused Multiply
-    Add 3} (FMA3) have to be allowed using the optimize command line flag.
+The code generator (section~\ref{sec:generator}) uses the x86\_64 floating point instructions
+provided by the \texttt{Streaming SIMD Extensions 2} (SSE2) which operates on the \texttt{xmm}
+registers. As SSE2 is part of x86\_64 it can be assuemd that SSE2 instructions are usable. But the
+usage of other x86\_64 extensions like SSE4 or \texttt{Fused Multiply Add 3} (FMA3) have to
+be allowed using a optimize command line flag.
 
 \par
 
-The occurring floating point exceptions are not transferred to the variable representing the
-\emph{fcsr} due to performance reasons. It is too slow to check after each operation which
-exceptions were raised and then set the according flags. However it is not a problem because only
-very few programs depends on floating point exceptions.
+Due to performance reasons the occurring x86\_64 floating point exceptions are not transferred to
+the variable representing the \emph{fcsr} which contain the floating points exceptions on RISC-V
+processors. It is too slow to check after each operation which exceptions were raised and then set
+the according flags. A read from the fcsr value can possibly be redirected to a read from the MXCSR
+regsiter, but this would also take an implementation and performance overhead. However it is not a problem
+because only very few programs depends on floating point exceptions.
 
 \par
 
-The floating point support can be deactivated using a command line flag in order
-to prevent the lifter from adding the additional statics and to lift RISC-V floating point
-instructions. The advantage is a decrease in used memory because less static variables have to be
-stored.
+The floating point support can be deactivated using a command line flag in order to prevent the
+lifter from adding the additional statics and to lift RISC-V floating point instructions. The
+advantage is a decrease in used memory because less static variables have to be stored. The lifter
+then ignores all floating point instructions instead of throwing an error because the ELF parser
+cannot distinguish between instructions and constants as emphasized in Section
+\ref{sec:program_decoding}. So it is avoided to throw an error if a constant can be decoded as an
+instructions.
 
 \subsection{Rounding and Accuracy Problems}
 
@@ -1399,8 +1408,7 @@ instructions to provide an acceptable performance, some compromises have to be m
 Firstly, for each RISC-V floating point instruction a rounding mode can be specified which is used
 if the number cannot be expressed in the given number format. But as x86\_64 does not support such a
 feature, it is quite hard to implement this in a fast way, because the results are already rounded
-and therefore it is not possible to round the result of each operation afterwards. And also this
-would be the opposite of fast.
+and therefore it is not possible to round the result of each operation afterwards.
 
 \par
 
@@ -1415,60 +1423,32 @@ conversion instructions.
 
 \par
 
-There are two ways of implementing this specific rounding. The first one is to use the \texttt{roundss}
-instruction (respectively \texttt{roundsd} for double precision) and the according rounding mode as
-immediate input. But these instructions are part of SSE4 which is not implemented in every today used
-x86\_64-based CPU.~\cite{intel2017man} Therefore this way is only used if SSE4 is allowed.
+There are two ways of implementing this specific rounding.
+
+\begin{enumerate}
+    \item The first one is to use the \texttt{roundss} instruction (respectively \texttt{roundsd}
+          for double precision) and the according rounding mode as immediate input. But these
+          instructions are part of SSE4 which is not implemented in every today used x86\_64-based
+          CPU ~\cite{intel2017man}. Therefore the usage of SSE4 instructions must be allowed for this method.
+
+    \item The alternative way is to change the rounding mode in the \emph{MXCSR} register. The
+          x86\_64 convert instructions then round accordingly. But the disadvantage of this method
+          is that the only way to access the MXCSR register is using \texttt{STMXCSR} and
+          \texttt{LDMXCSR} instructions which only operates on memory operands and therefore is
+          slower as the first method. Additionally this method uses more instructions in our
+          implementation.~\cite{intel2017man}
+\end{enumerate}
 
 \par
 
-The alternative way is to change the rounding mode in the \emph{MXCSR} register. The x86\_64 convert
-instructions then round accordingly. But the disadvantage of this method is that the only way to
-access the MXCSR register is using \texttt{STMXCSR} and \texttt{LDMXCSR} instructions which only operates on
-memory operands and therefore is slower as the first method. Additionally this method uses 8
-instructions in our implementation vs 1.~\cite{intel2017man}
 
-\par
+A second problem is that there can be differences in rouding when assembling some instructions. For
+example, the fused multiply add instructions can be translated using the x86\_64 FMA3 instructions.
+But as this extension isn't supported by every x86\_64 CPU, it needs to be allowed. The alternative
+way is to assemble the instruction using multiplication and addition respectively
+subtraction~\footnote{For some fused mutliply adds, negating a floating point value is also
+needed.}. This can result in a different result due to rouding errors.
 
-To depict these rounding differences we use a simple mandelbrot set
-visualizer~\cite{mandelbrot_program}. The results provided in a textual form are transformed into a
-picture coloring the mandelbrot set in a light grey, differences between the implementations with
-yellow and the remainder in a dark grey. Figure~\ref{fig:mandelbrot_diff_native_x86} shows that even
-two native compiled versions produce different results. The translator also has these accuracy
-problems in a similar dimension, depicted by Figure~\ref{fig:mandelbrot_diff_translator}.
-
-\par
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/x86_diff.png}
-    \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
-        comparing native x86\_64 to RISC-V.}\label{fig:mandelbrot_diff_native_x86}
-\end{figure}
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/translated_diff.png}
-    \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
-        comparing the translator to RISC-V.}\label{fig:mandelbrot_diff_translator}
-\end{figure}
-
-\par
-
-A second problem can be observed when activating the usage of FMA3 and therefore allows the
-translation of RISC-V fused multiply add instruction to x86\_64 equivalents rather than using
-separate multiplication and addition respectively subtraction instructions. This again has an impact
-on the accuracy, because the intermediate result is not rounded~\cite{intel2017man}. But as shown by
-Figure~\ref{fig:mandelbrot_diff_fma3} this causes the result to be equal to the RISC-V result.
-
-\par
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/fma_diff.png}
-    \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
-        comparing the translator with all optimizations (especially FMA3) to RISC-V.}\label{fig:mandelbrot_diff_fma3}
-\end{figure}
 
 \subsection{Implementation Problems and Solutions}
 
@@ -1605,6 +1585,43 @@ However with floating point support additional optimizations~\footnote{\texttt{f
 
 Due to bugs in the ria-jit rv64fd implementation, namely the lack of dynamic rounding support % TODO: verify
 the xz benchmark did not complete successfully.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/x86_diff.png}
+    \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
+        comparing native x86\_64 to RISC-V.}\label{fig:mandelbrot_diff_native_x86}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/translated_diff.png}
+    \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
+        comparing the translator to RISC-V.}\label{fig:mandelbrot_diff_translator}
+\end{figure}
+
+To depict these rounding differences we use a simple mandelbrot set
+visualizer~\cite{mandelbrot_program}. The results provided in a textual form are transformed into a
+picture coloring the mandelbrot set in a light grey, differences between the implementations with
+yellow and the remainder in a dark grey. Figure~\ref{fig:mandelbrot_diff_native_x86} shows that even
+two native compiled versions produce different results. The translator also has these accuracy
+problems in a similar dimension, depicted by Figure~\ref{fig:mandelbrot_diff_translator}.
+
+\par
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/fma_diff.png}
+    \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
+        comparing the translator with all optimizations (especially FMA3) to RISC-V.}\label{fig:mandelbrot_diff_fma3}
+\end{figure}
+
+Another problem can be observed when activating the usage of FMA3 and therefore allows the
+translation of RISC-V fused multiply add instruction to x86\_64 equivalents rather than assembling
+it. This again has an impact on the accuracy, because the intermediate result in fused multiply add
+instructions is not rounded~\cite{intel2017man}. But as shown by
+Figure~\ref{fig:mandelbrot_diff_fma3} this causes the result to be more similar to the RISC-V result
+than the assembled version.
 
 \subsection{Effectivness of different Optimizations}
 
