@@ -322,39 +322,16 @@ program.
 \subsection{Static Mappers}\label{statics}
 
 To keep track of register contents between basic blocks, we introduced a concept called a
-\textit{static mapper} or a \textit{static} for short. When jumping between subroutines or labels in assembly,
-the registers hold their values and act like parameters and return values of functions. This means
-we have to keep track of input and output variables of basic blocks. To keep the IR platform
-independent, we define a variable amount of statics which represent the original ISA's registers and
-additional values which should be carried over between basic blocks.
+\textit{static mapper} or a \textit{static} for short.
+Variables which link to them can be used as inputs in basic blocks and signal to the generator that, if the control flow is transferred to the basic block from an unknown predecessor, the variable can be expected in this static.
+For control flow operations with an unknown target, a mapping from the output of the basic block to the static at which they should be stored is then created.
+
+\par
+
+The IR itself does not enforce a fixed set of statics but instead leaves it to the lifter to create as many statics as it needs to lift the source ISA.
 For RISC-V, these are 31 general purpose registers, one memory token, 32 floating point registers
 and one control and status flag register. The register \texttt{x0} is always zero and thus not
 assigned to a static mapper.
-
-\par
-
-Each basic block ends with control flow changing operation(s) which redirect the control flow to
-other basic blocks. Every such operation
-stores its target block(s) together with a mapping which combines variables from their source basic
-block with corresponding static mappers. This tells the code generator (section~\ref{sec:generator}) which SSA variables
-should be transferred between basic blocks.
-
-\par
-
-Variables can be the result of an operation, immediate values or bound to a static mapper. The
-latter tells the generator that the variable should contain the value which was last assigned to
-its bound static mapper. These kinds of variables are typically used to initialize the register file
-of new basic blocks with the register content of its predecessor.
-
-\par
-
-Static mappers do not have a type, because they are not variables themselves. They ca not store values
-and ca not be used inside basic blocks. A static is just a fixed annotation for SSA variables which
-makes transferring values between basic blocks easier. That is why variables assigned to static
-mappers usually have the standard size and type of the static's associated register, e.g. \texttt{i64} for
-general purpose registers (statics 0 to 31) and \texttt{f64} for floating point registers (statics 33
-to 65). The concrete implementation of statics is not defined by IR and can thus be freely
-decided by the generator.
 
 \section{RISC-V Lifter}\label{sec:riscv_lifter}
 \subsection{General Method}
