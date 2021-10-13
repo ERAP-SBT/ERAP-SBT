@@ -992,11 +992,11 @@ control flow changing operations are part of the current group they are recursiv
 
 \par
 
-The process of generating instructions for the basic block itself are also relatively simple. First,
+The process of generating instructions for the basic block itself is also relatively simple. First,
 a rough (because control flow changing operations might need reshuffling, see later) estimate of the time-of-uses of
 each variable is created,
 after which each operation in the basic block is then iterated, the inputs for it are loaded into registers if they are located in a static or on the stack frame and a destination register is chosen.
-Here, if possible a seperate destination register than the input registers is used if the inputs are still needed later. Otherwise one of the input registers is simply overwritten.
+If possible a seperate destination register than the input registers is used if the inputs are still needed later. Otherwise one of the input registers is simply overwritten.
 When choosing a register to place a variable into, registers without a variable in them or registers
 with variables which are not used anymore are preferred. If all registers contain variables which
 are still needed
@@ -1014,7 +1014,7 @@ lea rbx, [rax + 10] ; rbx is chosen as the destination since it is empty
 \end{lstlisting}
 \FloatBarrier
 
-When rbx contains a variable and it is used in the operation following the add rax is chosen as the destination as it is used after rbx:
+When rbx contains a variable and it is used in the operation following the add, rax is chosen as the destination as it is used after rbx:
 \begin{lstlisting}[language={[x86masm]Assembler},float=h]
 mov [rsp], rax      ; rax is saved to the stack frame to be retrievable later on
 add rax, 10         ; then overwrite it
@@ -1031,10 +1031,11 @@ lea rbx, [rax + 10] ; then overwrite it
 \par
 
 After all blocks in a group are compiled and the final stack-frame size is known the control-flow operations for each block can be assembled.
-The difference to the naive generator is that the inputs for the next block might not be written to statics but instead need to be placed in certain register or stack slots
-while not overwriting values that are currently stored in them and might be needed later which is why the initial time-calculation might be wrong for these cases as it is hard to predict when such
-conflicts might occur. The current approach taken is to place the input into statics first, then the stack slots, then the registers while storing values which may be overwritten in temporary locations.
-Also, when generating the control flow changing operations and the target is a block not part of the current group the stack frame size for it might be different and a such it needs to be adjusted as well to prevent stack over- or underflows.
+The difference to the simple generator is that the inputs for the next block might not be written to statics but instead need to be placed in certain register or stack slots
+while not overwriting values that are currently stored in them and might be needed later.
+This is why the initial time-calculation might be wrong for these cases as it is hard to predict when such
+conflicts might occur. The current approach taken is to place the input into statics first, then the stack slots, then the registers while storing values which may be overwritten in temporary stack slots.
+Also, when compiling the control flow operations and the target is a block not part of the current group the stack frame size for it might be different and a such it needs to be adjusted as well to prevent stack over- or underflows.
 
 \par
 
@@ -1076,16 +1077,16 @@ b1_cf_1:
 \end{figure}
 
 \subsubsection{Translation Blocks}\label{translation_blocks}
-One problem that is encountered when employing register allocation on groups of basic blocks is that the programm cannot simply jump to them using indirect jumps anymore because the basic block might expect variables to be in registers
-and not in statics and the stack frame, which is set up at the first block of a group, would be missing. To still make it possible for indirect jumps to jump to basic blocks which are register-allocated translation blocks need to be generated.
-These translation blocks will set up the stack frame and move the inputs for the basic block to the registers or stack slots at which it expects them before jumping to them.
+One problem that is encountered when employing register allocation on groups of basic blocks is that the programm cannot simply jump to them using indirect jumps anymore
+because the basic block might expect variables to be outside of statics and the stack frame, which is set up at the first block of a group, would be missing. To still make it possible for indirect jumps to jump to basic blocks which are register-allocated translation blocks need to be generated.
+These translation blocks will set up the stack frame and move the inputs for the basic block to the registers or stack slots at which they are expected before jumping to the register-allocated block.
 A problem with these blocks is that they need to be generated for a lot of basic blocks and take up a lot of space in the finished binary (sometimes even more than 30\% of the \.text section) while also being rarely used
 since most indirect jumps will end up at function starts which we recognize with relatively good accuracy and blocks after a function call which will be returned to.
 So by only generating translation blocks for targets of function returns the binary size can be drastically reduced while also having a negliable impact on performance.
 
 \subsubsection{Merging Operations}
-As x86 is a CISC-Architecture it offers a lot more sophisticated instructions than RISC-V or our IR. As such multiple operations in the IR can be merged into a single x86-Instruction under two conditions:
-The sequence of operations must be mergeable and the intermediate results of these operations are not needed later.
+As x86 is a CISC-Architecture it offers a lot more sophisticated instructions than RISC-V or our IR. As such multiple operations in the IR can be merged into a single x86-Instruction
+if the intermediate results of them are not needed later.
 Mergeable sequences include:
 \begin{itemize}
     \item add, (cast), store: Can be merged to a single store with the add embedded in the memory operand and the cast expressed as the store width
@@ -1093,6 +1094,7 @@ Mergeable sequences include:
     \item and with 0x1f/0x3f,(cast),shr/shl/sar: Can be merged into a single shift instructions since they mask the count operand by themselves
 \end{itemize}
 Merging these operations not only reduces the binary size since fewer instructions need to be encoded but also increase performance significantly.
+% TODO: test the performance diff for merging ops
 
 \subsection{Helper Library}\label{helper}
 
