@@ -1494,25 +1494,21 @@ For native benchmarks the GNU Compiler provided by the operating system was used
 version \texttt{9.3.0 (Ubuntu 9.3.0-17ubuntu1~20.04)}, and glibc version \texttt{2.31-0ubuntu9.2}.
 For RISC-V benchmarks the gnu toolchain provided by the RISC-V foundation is used, version 2021.09.21~\footnote{Repository \url{https://github.com/riscv-collab/riscv-gnu-toolchain}, Commit hash b39e36160aa0649ba0dfb9aa314d375900d610fb},
 it was configured with \texttt{--with-arch=rv64imafdc --with-abi=lp64d}.
-The QEMU version used was \texttt{1:4.2-3ubuntu6.17}.
 
 \par
 
+Our own translator was build from the latest master~\footnote{Commit hash 3c341ea7298555b7c34572bd355ca4765d7650df} at the time in release mode.
+The QEMU version used was \texttt{1:4.2-3ubuntu6.17}.
 For ria-jit a modified version by Alexis Engelke was used, adding support for RV64C over the original implementation.
 It was further modified to fix a bug with compressed instructions and to implement an additional system call required by the benchmarks.
 ~\footnote{Commit hash cff2c15e4b646dca8d839f4a5ee9c3ec89231ac6}
 
 \par
 
-Our own translator was build from the latest master~\footnote{Commit hash 3c341ea7298555b7c34572bd355ca4765d7650df} at the time in release mode.
-
-\par
-
 Due to lack of development tools, the toolchain, ria and sbt where compiled in a container similiar to \texttt{time-x} on another host and uploaded. % FIXME: remove because not useful ?
-All compiling of tools
 
 % TODO: ria-jit version (commit hash + changes to original paper, cite paper and reason we choose to compare against it, maybe "because it is faster than qemu" ?)
-% TODO: describe changes to the benchmark configuration for compile compatibility, see `diff config/Example... config/ourconfig.cfg` in time-x for details, ignore the __HASH__ things
+% TODO: describe changes to the benchmark configuration for compiler compatibility, see `diff config/Example... config/ourconfig.cfg` in time-x for details, ignore the __HASH__ things
 
 \subsection{Correctness}
 
