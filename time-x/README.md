@@ -65,6 +65,7 @@ The `config` directory contains a few configurations for running benchmarks:
 * `native.cfg`: Derived from `Example-gcc-linux-x86.cfg`, with additional fixes for gcc compatibility provided by Alexi Engelke
 
 ```bash
+rsync -e 'ssh -J hettwer@login.caps.in.tum.de' -va "$PWD/config/" hettwer@time-x.caps.in.tum.de:/u/home/hettwer/cpu2017/config/
 ```
 
 ## Running regression tests
@@ -79,8 +80,11 @@ The `config` directory contains a few configurations for running benchmarks:
 
 ## Running the benchmarks
 
-```bash
 
+### Native
+
+```bash
+runcpu --iterations=2 --size=refspeed --reportable --config native --action=run intspeed
 ```
 
 ## Results
