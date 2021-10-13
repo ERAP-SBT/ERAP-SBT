@@ -34,7 +34,7 @@
 %     execution time)
 % - comparable to difference between interpreted and compiled programs
 % - our problem: SBT from RISC-V to x86-64
-% - more academic problem, because most programs are available on x86-64 
+% - more academic problem, because most programs are available on x86-64
 
 In order to execute machine code, you need a processor which runs this machine code. But there are
 many different processor families and instruction set architectures (ISA) for which programs are
@@ -123,7 +123,7 @@ For example some instructions need to be assembled or can be merged to a single 
 
 We divided the translation process in three main parts: lifting, optimization and generation. We
 made this division to structure the program and to simplify the implementation of optimizations.
-%% --- im not 100% sure that this is right, please change it if its wrong --- %% 
+%% --- im not 100% sure that this is right, please change it if its wrong --- %%
 The parts are independent to at least theoretically save the opportunity to support other ISA as
 source or target. But this isn't the focus of this project.
 %% -------------------------------------- END ------------------------------- %%
@@ -333,9 +333,48 @@ for switch-statements which are compiled into a combination of jump tables and b
 trees.
 
 \section{Optimizations}
-\subsection{Constant Folding}\label{constant_folding}
-
 \subsection{Dead Code Elimination}\label{dead_code_elimination}
+
+There are cases in compiled programs, where a value is written to a register, but never read from again.
+When lifted, these register writes are found in the IR as unused variables, which can be removed.
+This is accomplished by visiting the variables in reverse order, and dropping them when their reference-count is zero.
+This also takes care of ``cascading'' deletes, as the reference-count for inputs of an operation is decreased once the
+operation is deleted.
+
+Another purpose of the Dead Code Elimination pass is to remove unused inputs from BasicBlocks. For this, the
+reference-count does not suffice, since there might be circular control flow (like in loops). Instead, the Dead Code
+Elimination pass marks each variable associated with side effects, i.e. variables used in \texttt{store}s,
+\texttt{syscall}s and jumps to unknown targets like \texttt{ijump}s. This marking is then propagated through the IR,
+until no more variables are reachable. Then, all unmarked variables and inputs can be deleted.
+
+\subsection{Constant Folding and Constant Propagation}\label{constant_folding}
+
+Constant Folding and Constant Propagation are closely related optimizations, where operations with known input values
+(i.e. immediate values) are computed, and immediate variables are propagated throughout BasicBlocks.
+In our implementation, Constant Folding, Constant Propagation and operation simplifications are grouped into the same
+pass.  As such, we'll further refer to these collectively as Constant Folding.
+
+This optimization pass is done by visiting each operation in a BasicBlock in order, making the pass run in linear time.
+Depending on the inputs of an operation, one of several actions can be performed.
+
+In the simplest case, all inputs are immediates. The result of the operation can be computed, and the variable is
+replaced with the resulting immediate value. One exception to this are binary-relative immediates---immediates which are
+offset at runtime by the base address of the binary. Hence, only addition and subtraction with one binary-relative and
+one non-binary-relative immediate operand are evaluable, and evaluating subtraction is only sensible if the
+binary-relative immediate is the first operand.
+
+The next case is one immediate input and one non-immediate (static or operation) input. Generally, this case allows for
+simplification of identity operations, like addition with zero. If the non-immediate operand is an operation with an
+immediate operand itself, the two immediates can be evaluated under the rules of associativity and commutativity
+(Exceptions for binary-relative immediates still apply).
+
+A simple example for the simplification is the \texttt{NOP}-pseudoinstruction in RISC-V, which is usually encoded as
+\texttt{ADDI x0, x0, 0}.\cite[p.~20]{rvspec} The addition with zero does not change the value, and all occurrences of
+the result variable can be replaced with the input variable (In practice, this simple case can already be detected in
+the lifting stage).
+
+This optimization is greatly simplified by the use of Static Single Assignment form in the IR, since variables can't be
+reassigned. This means that the value of a variable is known just by looking at the declaration of the variable.
 
 \clearpage
 
