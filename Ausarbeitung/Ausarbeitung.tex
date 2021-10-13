@@ -168,7 +168,7 @@ detected basic blocks. This is the case, because we can optimize (\ref{dead_code
 instructions (\ref{constant_folding}) inside basic blocks without altering the control flow or
 logic of the program and as such there might often not be a one-to-one correspondence of RISC-V to x86\_64-Instructions.
 Having a completely runnable program thus means detecting every basic block
-with their corresponding entrypoints (including their exit points). Although determining all possible 
+with their corresponding entry points (including their exit points). Although determining all possible 
 indirect jump targets statically is not possible (e.g. virtual function calls)
 % or not feasible (e.g. jump targets could be influenced by user input)
 , backtracking register contents during lifting can provide us with 
@@ -295,9 +295,42 @@ similar to indirect jumps and are backtracked in the same way. However, target d
 doesn't affect stack alignment. Even if we can't determine an indirect call target, we still perform
 an x86\_64 \emph{call} which pushes the instruction pointer onto the stack and jumps to the address
 in the supplied register. This works as long as we were able to identify the jump address as a basic
-block's entrypoint with the procedure described in the section\ \ref{backtracking}.
+block's entry point with the procedure described in the section\ \ref{backtracking}.
 
 \subsection{Jump table detection}
+
+As described in\ \cite{jump_table_paper}, n-conditional case statements, like the C programming
+language's switch-case statement, are often implemented by compilers using jump
+tables. A jump table is a pattern which enables efficient\footnote{Because the integer condition is
+used as the jump address selector, this is only efficient for switch-statements with small entry
+ranges (e.g.\ enum switching).} branching based
+on a stored set of addresses which are possible jump targets. This means we need to detect jump tables to find
+all possible basic block entry points. 
+
+\par
+
+The jump table pattern always involves consists of a particular set of RISC-V instructions.
+At the beginning, a bounds check is executed. A branching instruction is used to either jump to the
+default branch or the code after the switch if the switch condition (an integer) is above the
+highest case value. 
+
+\par 
+
+If this is not the case, the switch condition is multiplied by a factor of 4. 
+Using a combination of a \emph{lui} and an \emph{addi} instruction, it is possible to load a full
+32-bit constant\ \cite[p.~19]{rvspec} representing the start address of the jump table.
+This address is added to the integer condition. The resulting value is the memory address
+at which the desired jump address is stored. A 32-bit load is executed to load the value into a
+register. An indirect jump to this register's content is the final instruction, executing the case
+label jump. 
+
+\par 
+
+For the jump table detection, we just backtrack the previously described pattern for every
+encountered indirect jump. If the jump turns out to be part of a jump table configuration, we can
+extract the jump target addresses and use them as entry points for new basic blocks. This also works
+for switch-statements which are compiled into a combination of jump tables and branch-based search
+trees.
 
 \section{Optimizations}
 \subsection{Constant Folding}\label{constant_folding}
