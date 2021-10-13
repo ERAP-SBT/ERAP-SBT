@@ -1512,7 +1512,20 @@ Due to lack of development tools, the toolchain, ria and sbt where compiled in a
 
 \subsection{Correctness}
 
-\subsection{Comparision to QEMU and RIA}
+To verify that our translator produces correct binaries we used the testsuites of the SPEC CPU 2017 benchmarks.
+Especially the tests for the \texttt{600.perlbench} benchmark are ideal for this purpose, as they they test the perl interpreter and some popular perl packages.
+As a result they cover a wide range of operations, including many different system calls, floating point and string operations.
+Other benchmark tests cover compilation and compression.
+All together the tests cover many real use cases, any binary passing can be assumed to be correct in almost all cases.
+
+\par
+
+Using this methology we tested that the interpreter was implemented correctly.
+The translator also passes all tests when compiled without floating point support.
+However with floating point support additional optimizations~\footnote{\texttt{fma3} and \texttt{sse4} need to be enabled.} need to be enabled to achieve correct floating point results.
+% TODO: either say they need fixing or that this is due to wrong rounding (backref to floating chapter)
+
+\subsection{Comparision to QEMU and RIA-JIT}
 
 \begin{figure}
     \begin{centering}
