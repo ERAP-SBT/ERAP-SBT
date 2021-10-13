@@ -341,8 +341,9 @@ assigned to a static mapper.
 
 \section{RISC-V Lifter}\label{sec:riscv_lifter}
 
-This chapter describes where the instructions parsed from, how the lifter works and which
-optimizations can be made. This includes an call-ret optimization, an
+This chapter describes from where and how the RISC-V instructions are parsed, how they are lifted
+into the intermediate representation and which optimizations can be made during lifting. This
+includes the subroutine call optimization, indirect jump target backtracking and jump table detection.
 
 \subsection{General Method}
 
@@ -469,7 +470,7 @@ Figure \ref{fig:lifting_example_riscv} shows an example RISC-V assembly sequence
 
 As explained in the IR chapter (section~\ref{sec:ir}), our IR is subdivided into basic blocks which contain
 consecutive instructions without a change in control flow. As soon as a control flow changing
-instruction is discovered, it is lifted associated with the basic block. A basic block can be
+instruction is discovered, it is associated with the basic block. A basic block can be
 associated to one or more closing control flow changing
 instructions, e.g. RISC-V branches which consist of a conditional
 jump and a direct jump to the next block if the branch is not taken. The current basic block is finished and
@@ -479,19 +480,27 @@ to register the start of a new basic block.
 
 \par
 
-If the lifter did not already parse the instructions at the registered virtual target
-address\footnote{This is the case for forward jumps.}, the
-lifter remembers that at this address a basic block must start.
-Otherwise, if the lifter already parsed the instructions and did not start a new basic block at the
-jump target address, the block containing the jump address must be split up at the jump address.
+If the instructions at the virtual target address have not been parsed by the lifter
+yet\footnote{This is the case for forward jumps.}, the basic block entry address is stored.
+
+Otherwise, if the lifter already parsed the instruction at the target address without starting a new
+basic block, the block containing the jump address must be split up at the jump address.
 This is required because it is only possible to jump to the start of a basic block.
 
 \par
 
+Splitting basic blocks on backwards jumps is required because of the lifting methodology. The lifter
+runs over all instructions twice. Once for decoding them and a second time for lifting them into the
+IR. The second run includes detecting indirect jumps and parsing basic blocks at the same time. This
+causes every jump which would have changed the basic block parsing to be detected too late. It then has to
+change the already existing basic blocks by splitting them at the jump target address.
+
+\par
+
 When lifting instructions, the lifter stores their original virtual address. This is used for
-splitting basic blocks. All instructions with an original address lower than the split address are
+splitting basic blocks. During splitting, all instructions with an original address lower than the split address are
 sorted into the first block, the other ones into the second. Both blocks are connected using a
-direct jump. Also the predecessor and successor lists as well as some operation inputs need to be
+direct jump. The predecessor and successor lists as well as some operation inputs need to be
 adjusted.
 
 \par
@@ -506,8 +515,7 @@ handled by the helper library (section~\ref{helper}) by interpreting the RISC-V 
 
 \par
 
-In the rare case that a jump address target is inside an instruction, the lifter breaks as no
-correct jump target can be found.
+If a jump target address is inside a decoded instruction, the further behavior of the program is undefined.
 
 \par
 
@@ -540,6 +548,13 @@ blocks and adjust their predecessor and successor lists.
 The last step in lifting is to add an entry basic block that sets the RISC-V stack up and jumps to the
 basic block at the ELF-file's entry address. This virtual address is stored in the ELF program header
 \texttt{e\_entry} and specifies where the execution of the binary starts.\cite{elf_spec}
+
+\subsection{Atomic Instructions}
+
+To support programs using atomic instructions from the ``A'' standard extension, the lifter converts
+every atomic instruction into a set of non-atomic instructions which emulate the original
+instruction's behavior. This does not change the logic or validity of the program as long as the
+instructions are executed consecutively, without the need for atomic ressource access.  
 
 
 \subsection{Backtracking}\label{backtracking}
@@ -1638,8 +1653,6 @@ than the assembled version.
 
 \appendix
 \section{Appendix}
-
-\subsection{IR Instructions}
 
 \begin{center}
     \begin{longtable}{p{0.35\linewidth} | p{0.6\linewidth}}
