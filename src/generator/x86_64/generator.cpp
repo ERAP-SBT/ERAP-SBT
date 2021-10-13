@@ -126,6 +126,12 @@ constexpr bool compatible_types(const Type t1, const Type t2) { return (t1 == t2
 void Generator::compile() {
     assert(err_msgs.empty());
 
+    for (auto &bb : ir->basic_blocks) {
+        for (auto &var : bb->variables) {
+            var->aux_info = SSAVar::GeneratorInfoX64{};
+        }
+    }
+
     fprintf(out_fd, ".intel_syntax noprefix\n\n");
     if (!binary_filepath.empty()) {
         /* TODO: extract read-write-execute information from source ELF program headers */

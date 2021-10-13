@@ -56,7 +56,7 @@ struct BasicBlock {
 
     SSAVar *add_var(const Type type, uint64_t assign_addr, size_t reg = SIZE_MAX) {
         auto var = std::make_unique<SSAVar>(cur_ssa_id++, type);
-        var->lifter_info = SSAVar::LifterInfo{assign_addr, reg};
+        var->aux_info = SSAVar::LifterInfo{assign_addr, reg};
         const auto ptr = var.get();
         variables.push_back(std::move(var));
         return ptr;
@@ -64,7 +64,7 @@ struct BasicBlock {
 
     SSAVar *add_var_imm(const int64_t imm, uint64_t assign_addr, const bool binary_relative = false, size_t reg = SIZE_MAX) {
         auto var = std::make_unique<SSAVar>(cur_ssa_id++, imm, binary_relative);
-        var->lifter_info = SSAVar::LifterInfo{assign_addr, reg};
+        var->aux_info = SSAVar::LifterInfo{assign_addr, reg};
         const auto ptr = var.get();
         variables.push_back(std::move(var));
         return ptr;

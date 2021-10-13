@@ -59,13 +59,11 @@ struct SSAVar : Refable {
     // immediate, static idx, op
     std::variant<std::monostate, ImmInfo, size_t, std::unique_ptr<Operation>> info;
 
-    // Lifter-specific information which can be cleared afterwards
-    std::variant<std::monostate, LifterInfo> lifter_info;
-    // TODO: merge with lifter_info
-    GeneratorInfoX64 gen_info;
+    // Subsystem-specific information which can be cleared afterwards
+    std::variant<std::monostate, LifterInfo, GeneratorInfoX64> aux_info;
 
     SSAVar(const size_t id, const Type type) : id(id), type(type), info(std::monostate{}) {}
-    SSAVar(const size_t id, const Type type, const size_t static_idx) : id(id), type(type), info(static_idx), lifter_info(LifterInfo{0, static_idx}) {}
+    SSAVar(const size_t id, const Type type, const size_t static_idx) : id(id), type(type), info(static_idx), aux_info(LifterInfo{0, static_idx}) {}
     SSAVar(const size_t id, const int64_t imm, const bool binary_relative = false) : id(id), type(Type::imm), info(ImmInfo{imm, binary_relative}) {}
 
     void set_op(std::unique_ptr<Operation> &&ptr);
@@ -84,6 +82,9 @@ struct SSAVar : Refable {
     size_t get_static() const { return std::get<size_t>(info); }
 
     constexpr bool is_uninitialized() const { return std::holds_alternative<std::monostate>(info); }
+
+    constexpr LifterInfo &lifter_info() { return std::get<LifterInfo>(aux_info); }
+    constexpr GeneratorInfoX64 &gen_info() { return std::get<GeneratorInfoX64>(aux_info); }
 
     void print(std::ostream &, const IR *) const;
     void print_type_name(std::ostream &, const IR *) const;

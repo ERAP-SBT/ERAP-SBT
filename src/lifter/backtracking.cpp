@@ -44,7 +44,7 @@ std::unordered_set<SSAVar *> Lifter::get_last_static_assignments(size_t idx, Bas
                     if (std::find(info.targets.begin(), info.targets.end(), des_target) != info.targets.end()) {
                         // search possible predecessors in target mapping
                         for (auto &input_pair : info.mapping) {
-                            if (!std::holds_alternative<size_t>(input_pair.first->info) && std::get<SSAVar::LifterInfo>(input_pair.first->lifter_info).static_id == idx &&
+                            if (!std::holds_alternative<size_t>(input_pair.first->info) && input_pair.first->lifter_info().static_id == idx &&
                                 possible_preds.find(input_pair.first.get()) == possible_preds.end()) {
                                 possible_preds.emplace(input_pair.first.release());
                                 if (!FULL_BACKTRACKING) {
@@ -58,7 +58,7 @@ std::unordered_set<SSAVar *> Lifter::get_last_static_assignments(size_t idx, Bas
                     if (cfOp.type != CFCInstruction::syscall || (idx != 10 && idx != 11)) {
                         for (SSAVar *ti : cfOp.target_inputs()) {
                             // The target input is a possible predecessor if it is not a static variable and it has the correct static index
-                            if (!ti->is_static() && std::get<SSAVar::LifterInfo>(ti->lifter_info).static_id == idx && possible_preds.find(ti) == possible_preds.end()) {
+                            if (!ti->is_static() && ti->lifter_info().static_id == idx && possible_preds.find(ti) == possible_preds.end()) {
                                 possible_preds.emplace(ti);
                                 if (!FULL_BACKTRACKING) {
                                     break;
@@ -174,7 +174,7 @@ std::unordered_set<int64_t> Lifter::get_var_values(const std::vector<SSAVar *> &
         std::unordered_set<SSAVar *> backtrack_vars = {start_var};
 
         if (std::holds_alternative<size_t>(start_var->info)) {
-            backtrack_vars = get_last_static_assignments(std::get<SSAVar::LifterInfo>(start_var->lifter_info).static_id, bb);
+            backtrack_vars = get_last_static_assignments(start_var->lifter_info().static_id, bb);
             if (backtrack_vars.empty()) {
                 DEBUG_LOG("Couldn't resolve static variable via backtracking. Skipping this branch.");
                 continue;

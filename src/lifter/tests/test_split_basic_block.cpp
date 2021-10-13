@@ -233,7 +233,7 @@ TEST(SPLIT_BASIC_BLOCK_TEST, test_big) {
             SSAVar *var = mapping[i];
             if (var != nullptr) {
                 cfop.add_target_input(var, i);
-                std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = i;
+                var->lifter_info().static_id = i;
             }
         }
 

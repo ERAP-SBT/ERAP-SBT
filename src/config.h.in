@@ -1,0 +1,5 @@
+#define VERSION_STR "@version@"
+
+// Binary and runtime directories, relative to the install directory
+#define BINARY_DIRECTORY "@binary_dir@"
+#define RUNTIME_DEPENDENCY_DIRECTORY "@runtime_dep_dir@"

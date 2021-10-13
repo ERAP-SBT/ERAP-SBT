@@ -136,16 +136,16 @@ struct RegAlloc {
         auto &reg_map = *cur_reg_map;
         reg_map[reg].cur_var = var;
         reg_map[reg].alloc_time = cur_time;
-        var->gen_info.location = SSAVar::GeneratorInfoX64::REGISTER;
-        var->gen_info.reg_idx = reg;
+        var->gen_info().location = SSAVar::GeneratorInfoX64::REGISTER;
+        var->gen_info().reg_idx = reg;
     }
 
     void set_var_to_fp_reg(size_t cur_time, SSAVar *var, FP_REGISTER fp_reg) {
         auto &fp_reg_map = *cur_fp_reg_map;
         fp_reg_map[fp_reg].cur_var = var;
         fp_reg_map[fp_reg].alloc_time = cur_time;
-        var->gen_info.location = SSAVar::GeneratorInfoX64::FP_REGISTER;
-        var->gen_info.reg_idx = fp_reg;
+        var->gen_info().location = SSAVar::GeneratorInfoX64::FP_REGISTER;
+        var->gen_info().reg_idx = fp_reg;
     }
 
     // doesn't save

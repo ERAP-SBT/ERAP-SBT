@@ -91,7 +91,7 @@ void Lifter::write_to_mapping(reg_map &mapping, SSAVar *var, uint64_t reg_id, bo
 
     const uint64_t actual_reg_id = reg_id + (is_floating_point_register ? START_IDX_FLOATING_POINT_STATICS : 0);
 
-    std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = actual_reg_id;
+    var->lifter_info().static_id = actual_reg_id;
     mapping[actual_reg_id] = var;
 }
 
@@ -104,7 +104,7 @@ void Lifter::zero_extend_all_f32(BasicBlock *bb, reg_map &mapping, uint64_t ip) 
             op->set_inputs(mapping[i]);
             op->set_outputs(extended_var);
             extended_var->set_op(std::move(op));
-            std::get<SSAVar::LifterInfo>(extended_var->lifter_info).static_id = i;
+            extended_var->lifter_info().static_id = i;
             mapping[i] = extended_var;
         }
     }

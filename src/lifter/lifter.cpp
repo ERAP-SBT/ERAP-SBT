@@ -60,7 +60,7 @@ void Lifter::lift(Program *prog) {
                 auto var = mapping[i];
                 if (var != nullptr) {
                     cf_op.add_target_input(var, i);
-                    std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = i;
+                    var->lifter_info().static_id = i;
                 }
             }
             assert(cf_op.target_inputs().size() == count_used_static_vars - 1);
@@ -138,7 +138,7 @@ void Lifter::lift(Program *prog) {
                     auto var = mapping[i];
                     if (var != nullptr) {
                         cf_op.add_target_input(var, i);
-                        std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = i;
+                        var->lifter_info().static_id = i;
                     }
                 }
                 continue;
@@ -181,7 +181,7 @@ void Lifter::lift(Program *prog) {
                     auto var = mapping[i];
                     if (var != nullptr) {
                         cf_op.add_target_input(var, i);
-                        std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = i;
+                        var->lifter_info().static_id = i;
                     }
                 }
             }

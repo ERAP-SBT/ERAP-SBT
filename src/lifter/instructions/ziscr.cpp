@@ -106,7 +106,7 @@ void Lifter::write_csr(BasicBlock *bb, reg_map &mapping, SSAVar *new_value, cons
             new_fcsr->set_op(std::move(op));
         }
         mapping[FCSR_IDX] = new_fcsr;
-        std::get<SSAVar::LifterInfo>(new_fcsr->lifter_info).static_id = FCSR_IDX;
+        new_fcsr->lifter_info().static_id = FCSR_IDX;
         break;
     }
     case 2: {
@@ -140,13 +140,13 @@ void Lifter::write_csr(BasicBlock *bb, reg_map &mapping, SSAVar *new_value, cons
             new_fcsr->set_op(std::move(op));
         }
         mapping[FCSR_IDX] = new_fcsr;
-        std::get<SSAVar::LifterInfo>(new_fcsr->lifter_info).static_id = FCSR_IDX;
+        new_fcsr->lifter_info().static_id = FCSR_IDX;
         break;
     }
     case 3:
         assert(floating_point_support && "Please activate the floating point support!");
         mapping[FCSR_IDX] = new_value;
-        std::get<SSAVar::LifterInfo>(new_value->lifter_info).static_id = FCSR_IDX;
+        new_value->lifter_info().static_id = FCSR_IDX;
         break;
     default:
 

@@ -10,25 +10,19 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
     // Additionally, reset all static mappings where variables were mapped to a static mapper (not received from one)
     for (int i = (int)bb->variables.size() - 1; i >= 0; --i) {
         auto &var = bb->variables[i];
-        if (var->lifter_info.index() == 1) {
-            auto &lifterInfo = std::get<SSAVar::LifterInfo>(var->lifter_info);
-            if (lifterInfo.assign_addr < addr) {
-                first_bb_vars.push_back(var.get());
-            } else {
-                second_bb_vars.push_back(std::move(bb->variables[i]));
-                bb->variables.erase(std::next(bb->variables.begin(), i));
-            }
+        auto &lifterInfo = var->lifter_info();
+        if (lifterInfo.assign_addr < addr) {
+            first_bb_vars.push_back(var.get());
+        } else {
+            second_bb_vars.push_back(std::move(bb->variables[i]));
+            bb->variables.erase(std::next(bb->variables.begin(), i));
         }
     }
 
     // recreate the register mapping at the given address
     reg_map mapping{};
     for (auto *var : first_bb_vars) {
-        if (var->lifter_info.index() != 1) {
-            continue;
-        }
-
-        const auto static_id = std::get<SSAVar::LifterInfo>(var->lifter_info).static_id;
+        const auto static_id = var->lifter_info().static_id;
 
         // skip variables which aren't assigned to a register
         if (static_id == SIZE_MAX) {
@@ -59,7 +53,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
 
     // correct the start and end addresses
     new_bb->set_virt_end_addr(bb->virt_end_addr);
-    bb->set_virt_end_addr(std::get<SSAVar::LifterInfo>(first_bb_vars.front()->lifter_info).assign_addr);
+    bb->set_virt_end_addr(first_bb_vars.front()->lifter_info().assign_addr);
 
     // fix jump references
     const auto new_virt_start_addr = new_bb->virt_start_addr;
@@ -195,7 +189,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
                 if (i != 0) {
                     cf_op.add_target_input(mapping[i], i);
                 }
-                assert(std::get<SSAVar::LifterInfo>(mapping[i]->lifter_info).static_id == i);
+                assert(mapping[i]->lifter_info().static_id == i);
             }
             if (i != ZERO_IDX) {
                 new_mapping[i] = new_bb->add_var_from_static(i, addr);
@@ -219,7 +213,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
                     continue;
                 }
 
-                auto &in_var_lifter_info = std::get<SSAVar::LifterInfo>(in_var->lifter_info);
+                auto &in_var_lifter_info = in_var->lifter_info();
 
                 // the input must only be changed if the input variable is in the first BasicBlock
                 if (in_var_lifter_info.assign_addr < addr) {
@@ -230,7 +224,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
                         new_var = new_mapping[in_var_lifter_info.static_id];
                     }
                     if ((in_var->type == Type::imm && operation->type != Instruction::cast && new_var->type != operation->lifter_info.in_op_size) || cast_dir(in_var->type, new_var->type) == 1) {
-                        SSAVar *const casted_value = new_bb->add_var(operation->lifter_info.in_op_size, std::get<SSAVar::LifterInfo>(var->lifter_info).assign_addr);
+                        SSAVar *const casted_value = new_bb->add_var(operation->lifter_info.in_op_size, var->lifter_info().assign_addr);
                         auto op = std::make_unique<Operation>(Instruction::cast);
                         op->lifter_info.in_op_size = new_var->type;
                         op->set_inputs(new_var);
@@ -250,7 +244,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
         // add variable to the new BasicBlock
         new_bb->variables.push_back(std::move(*it));
 
-        const auto static_id = std::get<SSAVar::LifterInfo>(var->lifter_info).static_id;
+        const auto static_id = var->lifter_info().static_id;
         if (static_id != ZERO_IDX && static_id != SIZE_MAX) {
             new_mapping[static_id] = var;
         }
@@ -266,7 +260,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
                 continue;
             }
 
-            const auto &lifter_info = std::get<SSAVar::LifterInfo>(var->lifter_info);
+            const auto &lifter_info = var->lifter_info();
             if (lifter_info.assign_addr < addr) {
                 // TODO: this if should be unnecessary
                 var.reset(new_mapping[lifter_info.static_id]);
@@ -304,7 +298,7 @@ BasicBlock *Lifter::split_basic_block(BasicBlock *bb, uint64_t addr, ELF64File *
             auto var = new_mapping[j];
             if (var != nullptr) {
                 cf_op.add_target_input(var, j);
-                std::get<SSAVar::LifterInfo>(var->lifter_info).static_id = j;
+                var->lifter_info().static_id = j;
             }
         }
     }
