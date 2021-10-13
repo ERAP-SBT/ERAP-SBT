@@ -140,9 +140,11 @@ runcpu --iterations=2 --size=refspeed --noreportable --config qemu-user --action
 ### RIA-JIT
 
 The tests don't work, because perlbench is missing the clone syscall.
+625.x264 fails due to floating point operations, so it was repeated with a softfp toolchain
 
 ```bash
 runcpu --iterations=2 --size=refspeed --noreportable --config ria-jit --action=run intspeed
+runcpu --iterations=2 --size=refspeed --noreportable --config ria-jit-nofloats --action=run 625.x264_s
 ```
 
 ### SBT
