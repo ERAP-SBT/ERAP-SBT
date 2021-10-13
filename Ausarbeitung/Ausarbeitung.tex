@@ -99,7 +99,7 @@ and for control and status registers (Ziscr). More standard extensions are plann
 In contrast to RISC-V, the x86\_64 ISA describes a CISC, a \emph{Complex Instruction Set Computer}.
 Its processors have a limited number of registers, richer instruction sets and variable length
 instructions. Because of the complex instruction functions and formats, logic is often implemented
-in mix between microcode and hard coded logic, executing instructions over a number of CPU clock
+in a mix between microcode and hard coded logic, executing instructions over a number of CPU clock
 cycles.\cite{RISCvCISC}
 
 \par
@@ -115,7 +115,7 @@ used for performing jumps.\cite [p.~20]{rvspec}
 
 \par
 
-For the translation this differences are necessary knowledge to be able to generate efficient and
+For the translation these differences are necessary knowledge to be able to generate efficient and
 optimized code. For example some instructions need to be assembled or can be merged to a single
 instruction in x86\_64.
 
@@ -126,7 +126,7 @@ intermediate representation (IR) instead of developing our own. The existing lan
 being integrated into the LLVM ecosystem with existing compiler backends and a well defined language reference. In
 the end, we decided to build our own IR with less complicated features to only support our use case.
 Our IR's features are inspired by the LLVM assembly language with the parallels being the static
-typing, SSA variables (\ref{ssa}) and machine-instruction-like operations. 
+typing, single static assignment (SSA) variables (\ref{ssa}) and machine-instruction-like operations. 
 
 
 \section{Approach}\label{approach_section}
@@ -134,14 +134,14 @@ typing, SSA variables (\ref{ssa}) and machine-instruction-like operations.
 We divided the translation process in three main parts: lifting, optimization and generation. We
 made this division to structure the program and to simplify the implementation of optimizations.
 %% --- im not 100% sure that this is right, please change it if its wrong --- %%
-The parts are independent to at least theoretically save the opportunity to support other ISA as
+The parts are independent to at least theoretically save the opportunity to support another ISA as
 source or target. But this isn't the focus of this project.
 %% -------------------------------------- END ------------------------------- %%
 
 \par
 
 The lifter reads the instructions from the binary file and decodes the opcodes using
-frvdec\cite{frvdec}. The resulting instructions are used to disassemble the RISC-V binary into basic
+\texttt{frvdec}\cite{frvdec}. The resulting instructions are used to disassemble the RISC-V binary into basic
 blocks, operations and variables in the IR. It contains the logic of
 the input binary in an architecture-neutral form which generic optimization passes can be applied
 on. They reduce the number of operations required without altering the program's behavior. The
@@ -177,14 +177,14 @@ contained in the ELF-file, before translating the file for debugging and asserti
 As explained in the \nameref{approach_section} section, we use an IR to create a platform-independent
 representation of the translated program's logic. This is not only useful to support different input
 and output languages in the future, but also to be able to optimize the more abstract representation.
-By parsing control flow and program structures like basic blocks, we can run optimizations like
+By parsing control flow and program structures we can run optimizations like
 \nameref{dead_code_elimination}, \nameref{constant_folding}.
 
 The IR is structured into functions which contain basic blocks. Basic blocks are blocks of code
 which don't contain a control flow changing operation (CfOp). CfOps are jumps, subroutine calls,
 return statements and system calls. They are used to connect basic blocks with each other. Each
 basic block consists of a vector of variables. Each variable is an SSA (\ref{ssa}) variable which is
-only assigned a value once by an operation.
+only being assigned to once.
 
 \subsection{Single static assignment form}\label{ssa}
 
@@ -196,7 +196,7 @@ stores its source operation (if it is the result of an operation). This enables 
 backtrace variable origins and e.g.\ replace variables which can be evaluated statically with constant
 immediates (\ref{constant_folding}) or eliminate any unused variables (\ref{dead_code_elimination}).
 
-We introduce a \emph{memory token} which is a required input for operations which read from memory and the
+We introduce a \emph{memory token}, a required input for operations which read from memory and the
 result of operations which write to memory. It creates a dependency between operations that store
 and operations that load data. This should be used to keep the memory access operations
 in their correct order when reordering operations inside basic blocks and functions. A writing
@@ -219,7 +219,7 @@ assigned to a static mapper.
 
 \par 
 
-Each basic block ends with cfOps which redirect the control flow to other basic blocks. Every cfOp
+Each basic block ends with CfOps which redirect the control flow to other basic blocks. Every CfOp
 stores its target block(s) together with a mapping which combines variables from their source basic 
 block with corresponding static mappers. This tells the \nameref{generator} which SSA variables
 should be transferred between basic blocks. 
@@ -280,7 +280,7 @@ specify parts of the underlying binary which are actually loaded to the final pr
 We only parse instructions from the program headers which are marked as \emph{readable} and
 \emph{executable}.
 
-Due the memory architecture of modern computers, instructions and data are mostly stored in the same
+Due to the memory architecture of modern computers, instructions and data are mostly stored in the same
 memory. This concept, which was first introduced by John von Neumann in 1945\cite{vna}, makes it
 hard to statically distinguish between instructions and data. That is why we rely on the additional
 information stored in the section- and program headers which identifies certain parts of the binary
@@ -290,11 +290,11 @@ use executable sections for storing instructions.
 \subsubsection{IR generation}
 
 After loading the data form the binary, the lifter runs sequentially through the discovered
-instructions which are decoded using frvdec.\cite{frvdec} The resulting instructions are c-structs,
+instructions which are decoded using \texttt{frvdec}.\cite{frvdec} The resulting instructions are C-structs,
 filled with the parsed content of the binary instruction code. This is a
 more generic and easier processable form with direct access to involved register numbers and
 immediate values. For each of the instructions, a variable amount of variables and operations is added to
-the IR to replicate the origin program's behavior.
+the IR to replicate the original program's behavior.
 % TODO: Add example for lifting an instruction here
 
 \par
@@ -302,10 +302,10 @@ the IR to replicate the origin program's behavior.
 As explained in the IR chapter (\ref{IR}), our IR is subdivided into basic blocks which contain
 consecutive instructions without a change in control flow. As soon as a control flow changing
 instruction is discovered, it is lifted and set as the basic block's CfOp. A control flow changing
-instruction can be assembled of more CfOps, e.g. RISC-V branches which consists of a conditional
+instruction can be assembled of more CfOps, e.g. RISC-V branches which consist of a conditional
 jump and a jump to the next block if the branch isn't taken. The current basic block is finished and
 a new one is created. If the jump address can be inferred from the instruction using
-\nameref{backtracking} or it is directly encoded, like in branch instructions, this address is used
+\nameref{backtracking} or if it is directly encoded, like in branch instructions, this address is used
 to register the start of a new basic block.
 
 \par
@@ -321,17 +321,17 @@ This is required because it is only possible to jump to the start of a basic blo
 
 When lifting instructions, the lifter stores their original virtual address. This is used for
 splitting basic blocks. All instructions with an original address lower than the split address are
-sorted into the first block, all others into the second. Both blocks are connected using a
+sorted into the first block, the other ones into the second. Both blocks are connected using a
 direct jump.
 
 \par
 
 If the jump address cannot be extracted from the instruction, the backtracking (\ref{backtracking})
 is used to infer possible addresses which are processed with the same procedure as described before.
-Using the command line flag ``--full-backtracking'' the user can control whether all possible
-address should be found or the first one is used. If no jump address can be inferred, a dummy
-basic block which indicates an unresolved jump target, is set as target block. The jump address then
-needs to be evaluated at runtime and jumps to an address at which no basic block begins needs to be
+Using the command line flag ``\texttt{--full-backtracking}'' the user can control whether all possible
+addresses should be found or the first one is used. If no jump address can be inferred, a dummy
+basic block which indicates an unresolved jump target, is set as the target block. The jump address then
+needs to be evaluated at runtime and jumps to an address where no basic block begins need to be
 handled by the helper library (\ref{helper}) by interpreting the RISC-V instructions.
 
 \par
@@ -339,14 +339,14 @@ handled by the helper library (\ref{helper}) by interpreting the RISC-V instruct
 While lifting the instructions a register file, called \emph{mapping}, keeps track of the variables
 which represents the content of all registers, the memory token and the control and status registers
 (csr). This is required to determine the inputs of the operations based on the input registers of
-the instructions. For example, when lifting an RISC-V instruction which has the registers \texttt{x13}
+the instructions. For example, when lifting a RISC-V instruction which has the registers \texttt{x13}
 and \texttt{x14} as inputs, the input variables are taken from the mapping at the corresponding
 indices.
 
 \par
 
 At the start of a basic block the mapping is initialized
-with variables from \nameref{statics}. The register with the index zero is hard wired zero in
+with variables from \nameref{statics}. The register with the index zero is a hard wired zero in
 RISC-V and therefore not initialized. Furthermore, each read from the mapping at index zero is handled by adding an immediate
 variable with value zero. Each write to the zero register is ignored, as it is specified for the \texttt{x0}
 register.\cite{rvspec}
@@ -362,7 +362,7 @@ blocks and adjust their predecessor and successor lists.
 
 \par
 
-The last step in lifting is to add an entry basis block which sets the RISC-V stack up and jumps to the
+The last step in lifting is to add an entry basic block that sets the RISC-V stack up and jumps to the
 basic block at the ELF-file's entry address. This virtual address is stored in the ELF program header
 \texttt{e\_entry} and specifies where the execution of the binary starts.\cite[p.~5]{elf_spec}
 
@@ -373,12 +373,12 @@ basic block at the ELF-file's entry address. This virtual address is stored in t
 Although indirect jump addresses can be evaluated at runtime, we can only jump to the beginning of
 detected basic blocks. This is the case, because we can optimize (\ref{dead_code_elimination}) and fold
 instructions (\ref{constant_folding}) inside basic blocks without altering the control flow or
-logic of the program and as such there might often not be a one-to-one correspondence of RISC-V to x86\_64-Instructions.
+logic of the program. That's why there might often not be a one-to-one correspondence of RISC-V to x86\_64-Instructions.
 Having a completely runnable program thus means detecting every basic block
 with their corresponding entry points (including their exit points). Although determining all possible
-indirect jump targets statically is not possible (e.g. virtual function calls)
+indirect jump targets statically is not possible (e.g. virtual function calls),
 % or not feasible (e.g. jump targets could be influenced by user input)
-, backtracking register contents during lifting can provide us with
+backtracking register contents during lifting can provide us with
 an approximation of the target set.
 
 \par
@@ -600,7 +600,7 @@ Helper-Library.
 \subsection{Naive implementation}
 
 For assembly generation, the generator operates in two distinct modes which we refer to as the
-"naive" implementation and register allocation.
+``naive'' implementation and register allocation.
 
 \par
 
