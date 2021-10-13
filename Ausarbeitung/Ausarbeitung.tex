@@ -167,13 +167,14 @@ instruction in x86\_64.
 
 \subsection{Inspiration for the Intermediate Representation}
 
-When planning the project, we first evaluated the LLVM assembly language as a higher level
-intermediate representation (IR) instead of developing our own. The existing language has the great advantage of
-being integrated into the LLVM ecosystem with existing compiler backends and a well defined language reference. In
-the end, we decided to build our own IR with less complicated features to only support our use case.
-Our IR's features are inspired by the LLVM assembly language with the parallels being the static
-typing, single static assignment (SSA) variables (Section~\ref{ssa}) and machine-instruction-like operations.
-
+Languages for intermediate representations (IR) are often used in compilers, which means that highly
+advanced concepts already exist. The LLVM assembly language is a established IR, known for its deep
+integration into the LLVM ecosystem with existing compiler and debugger backends and its well
+defined language reference. These advantages however have a price. The LLVM assembly language is a
+complex IR with a lot of features which are not required for the purposes of this project. The used IR
+is inspired by the LLVM assembly language, tailored to serve the use case of lifting binaries. The
+parallels between our IR and the LLVM assembly language are the static
+typing, single static assignment (SSA) variables and machine-instruction-like operations.  
 
 \section{Approach}\label{sec:approach}
 
@@ -225,11 +226,33 @@ and output languages in the future, but also to be able to optimize the more abs
 By parsing control flow and program structures we can run optimizations like
 \nameref{dead_code_elimination}, \nameref{constant_folding}.
 
-The IR is structured into functions which contain basic blocks. Basic blocks are blocks of code
-which do not contain a control flow changing operation (CfOp). CfOps are jumps, subroutine calls,
-return statements and system calls. They are used to connect basic blocks with each other. Each
-basic block consists of a vector of variables. Each variable is an SSA (Section~\ref{ssa}) variable which is
-only being assigned to once.
+\begin{figure}
+    \begin{center}
+        \begin{tabular}{||c | c | c||} 
+            \hline
+            Integers & Floats & Special \\ [0.5ex] 
+            \hline\hline
+            i64 & f64 & mt\\ 
+            \hline
+            i32 & f32 & \\
+            \hline
+            i16 & & \\
+            \hline
+            i8 & & \\
+            \hline
+        \end{tabular}
+        \caption{Types defined for the IR variables.}\label{ir:types:figure}
+    \end{center}
+\end{figure}
+
+The IR consists of variables which are statically typed. The types are shown in
+Figure~\ref{ir:types:figure}. The variables follow a single static assignment form, which makes them
+immutable after they are initialized. Operations take variables as inputs and assign values to
+new output variables. Every operation performs one of the available instructions. These are abstract
+instructions defining arithmetic, logical and other operations which are normally executed using a
+CPU. Variables and their operations are grouped into basic blocks. These are blocks of code
+which do not contain a control flow changing operation. These special operations are jumps and
+system calls. The control flow changing operations act as connectors between basic blocks.
 
 \subsection{Single Static Assignment Form}\label{ssa}
 

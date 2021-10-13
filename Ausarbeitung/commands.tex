@@ -24,7 +24,7 @@
 % draws a color legend for the program scheme
 % posX, posY (left, top coordinate)
 \newcommand{\colorLegend}[2] {
-    \colorLegendEntry{orange}{Static translator parts}{#1}{#2}
+    \colorLegendEntry{black!30!orange}{Static translator parts}{#1}{#2}
     \colorLegendEntry{blue}{Intermediate representation (IR)}{#1}{#2-1.5}
     \colorLegendEntry{purple}{Machine code / ELF file}{#1}{#2-3}
 }
@@ -45,7 +45,7 @@
         \node[align=center, color=white] at (0,0) (riscv_text) {\fontsize{#2}{#2} \selectfont RISC-V};
 
         % lifter arrow
-        \TikZArrowX{orange}{2}{0}{6}{1.5}
+        \TikZArrowX{black!30!orange}{2}{0}{6}{1.5}
         % arrow label
         \node[align=center, color=white] at (4.5,0) (lifter_text) {\fontsize{#2}{#2} \selectfont Lifter};
 
@@ -58,7 +58,7 @@
         \node[align=center, color=white] at (10,0) (ir_text_1) {\fontsize{#2}{#2} \selectfont IR};
 
         % optimizer arrow
-        \TikZArrowX{orange}{12}{0}{6}{1.5}
+        \TikZArrowX{black!30!orange}{12}{0}{6}{1.5}
         % arrow label
         \node[align=center, color=white] at (14.5,0) (optimizer_text) {\fontsize{#2}{#2} \selectfont Optimizer};
 
@@ -71,7 +71,7 @@
         \node[align=center, color=white] at (20,0) (ir_text_2) {\fontsize{#2}{#2} \selectfont IR};
 
         % compiler arrow
-        \TikZArrowX{orange}{22}{0}{6}{1.5}
+        \TikZArrowX{black!30!orange}{22}{0}{6}{1.5}
         % arrow label
         \node[align=center, color=white] at (24.5,0) (generator_text) {\fontsize{#2}{#2} \selectfont Generator};
 
