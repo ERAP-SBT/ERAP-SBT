@@ -119,6 +119,22 @@ For example some instructions need to be assembled or can be merged to a single 
 
 \section{Approach}
 
+We divided the translation process in three main parts: lifting, optimization and generation. We
+made this division to structure the program and to simplify the usage of optimizations. The parts
+are independent to at least theoretically save the opportunity to support other ISA as source
+or target. But this isn't the focus of this project.
+
+\par
+
+The lifter reads the instructions from the binary file using frvdec\cite{frvdec} to disassemble the
+RISC-V binary and creates operations and variables in the intermediate representation (IR). This is
+a data structure we defined for the usage in this project. It contains the logic of the input binary
+in a form we can optimize. This optimizations are performed by optimizer and are used to
+reduce the execution time of the output binary. This binary is created by the generator translating
+the IR variables and operations to x86\_64 assembly. To produce an executable binary we use the GNU
+assembler (GAS)\cite{gnu_binutils} and link our helper library to it using the GNU linker
+(LD)\cite{gnu_binutils}. For further explanation see the following chapters.
+
 \section{Intermediate representation}
 
 \section{Lifter}
@@ -147,7 +163,7 @@ backtracking register contents during lifting gives us a good approximation of t
 \subsection{Interpreter}
 \subsection{Naive implementation}
 \subsection{Register allocation}
-\subsection{Helper library}
+\subsection{Helper library}\label{helper}
 
 \section{Performance}
 \subsection{Our solution}
@@ -156,7 +172,7 @@ backtracking register contents during lifting gives us a good approximation of t
 \subsection{Dynamic translator last year}
 \subsection{Native x86\_64}
 
-\section{Fazit}
+\section{Summary}
 
 % TODO: Fuegen Sie Ihre Quellen der Datei Ausarbeitung.bib hinzu Referenzieren Sie diese dann mit
 % \cite{}. Beispiel: CR2 ist ein Register der x86-Architektur~\cite{intel2017man}.
