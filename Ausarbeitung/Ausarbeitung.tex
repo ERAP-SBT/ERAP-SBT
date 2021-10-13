@@ -119,7 +119,15 @@ For the translation this differences are necessary knowledge to be able to gener
 optimized code. For example some instructions need to be assembled or can be merged to a single
 instruction in x86\_64.
 
-\subsection{Inspiration}
+\subsection{Inspiration for the intermediate representation}
+
+When planning the project, we first evaluated the LLVM assembly language as a higher level
+intermediate representation (IR) instead of developing our own. The existing language has the great advantage of
+being integrated into the LLVM ecosystem with existing compiler backends and a well defined language reference. In
+the end, we decided to build our own IR with less complicated features to only support our use case.
+Our IR's features are inspired by the LLVM assembly language with the parallels being the static
+typing, SSA variables (\ref{ssa}) and machine-instruction-like operations. 
+
 
 \section{Approach}\label{approach_section}
 
@@ -134,7 +142,7 @@ source or target. But this isn't the focus of this project.
 
 The lifter reads the instructions from the binary file and decodes the opcodes using
 frvdec\cite{frvdec}. The resulting instructions are used to disassemble the RISC-V binary into basic
-blocks, operations and variables in the intermediate representation (IR). It contains the logic of
+blocks, operations and variables in the IR. It contains the logic of
 the input binary in an architecture-neutral form which generic optimization passes can be applied
 on. They reduce the number of operations required without altering the program's behavior. The
 generator compiles the IR program to x86\_64 assembly. To assemble an executable binary we use the
