@@ -164,7 +164,7 @@ system call IDs and the calling convention. These prerequisites are checked, usi
 contained in the ELF-file, before translating the file in order to print meaningful debug messages
 and to stop the translation.
 
-\section{Intermediate representation}
+\section{Intermediate representation}\label{IR}
 
 \subsection{Static mappers}\label{statics}
 
@@ -192,6 +192,15 @@ stores its source operation (if it is the result of an operation). This enables 
 backtrace variable origins and e.g.\ replace variables which can be evaluated statically with constant
 immediates (\ref{constant_folding}) or eliminate any unused variables (\ref{dead_code_elimination}).
 
+% TODO: Moved from lifter general method chapter, needs to be integrated here 
+We introduce a \emph{memory token} which is a required input for operations which read from memory and the
+result of operations which write to memory. It creates a dependency between storing and loading
+operations. This should be used to keep the memory access operations
+in their correct order when reordering operations inside basic blocks and functions. A writing
+operations acts as a separator of reading operations, where reading operations can be swapped freely
+with each other. This insures a valid memory access ordering and therefore the correctness of the
+program.
+% 
 
 \section{Lifter}
 \subsection{General method}
@@ -220,7 +229,7 @@ machine code is lifted up to a more abstract representation at a higher level, t
 
 \par
 
-\subsection{Program Loading}
+\subsubsection{Program decoding}
 
 The ELF-file loader parses instructions from the \emph{SHT\_PROGBITS}-type sections of the binary
 which are marked with the flags
@@ -229,12 +238,10 @@ process execution''\cite[p.~14]{elf_spec} and ``contains executable machine
 instructions''\cite[p.~14]{elf_spec}. According to the ELF-file specification, only ``files used
 during linking''\cite[p.~2]{elf_spec} must have a \emph{section header table} which holds section
 information. In case there are no sections in the ELF file\footnote{e.g.\ memory dumps.} we use the
-program loader information, stored in the \emph{program header table}. The stored program headers
-specify parts of the underlying binary which are actually loaded to the final program.\footnote{Program header type ``PT\_LOAD''.} 
+program loader information, stored in the \emph{program header table}. The program headers
+specify parts of the underlying binary which are actually loaded to the final program.\footnote{Program header type ``PT\_LOAD''.}
 We only parse instructions from the program headers which are marked as \emph{readable} and
 \emph{executable}.
-
-\par
 
 Due the memory architecture of modern computers, instructions and data are mostly stored in the same
 memory. This concept, which was first introduced by John von Neumann in 1945\cite{vna}, makes it
@@ -243,56 +250,70 @@ information stored in the section- and program headers which identifies certain 
 as executable instructions. This however means we rely on the compiler and the programmer to only
 use executable sections for storing instructions.
 
-\subsection{Register file}
+\subsubsection{IR generation}
 
-While lifting the instructions a register file, called \emph{mapping}, emulates changes to RISC-V
-registers and stores their state. This is required for tracking register contents between
-instructions. At the start of a basic block the mapping is initialized
-with variables from \nameref{statics}. The register with the index zero is hard wired zero in
-RISC-V and therefore not initialized. Furthermore, each read from the mapping at index zero is handled by adding an immediate
-variable with value zero. Each write to the zero register as ignored, as it is specified for the \emph{x0}
-register.\cite{rvspec}
-
-\subsection{Memory tokens}
-
-% TODO: is this paragraph part of IR or Lifter?
-We introduce a \emph{memory token} which is a required input for operations which read from memory and the
-result of operations which write to memory. It creates a dependency between storing and loading
-operations. This should be used to keep the memory access operations
-in their correct order when reordering operations inside basic blocks and functions. A writing
-operations acts as a separator of reading operations, where reading operations can be swapped freely
-with each other. This insures a valid memory access ordering and therefore the correctness of the
-program. 
-
-\subsection{Generating the IR}
-
-For each discovered instruction a sequence of variables connected through operations is added to the
-IR. These variables represents the functionality of the instruction as defined by the RISC-V manual.
+After loading the data form the binary, the lifter runs sequentially through the discovered
+instructions which are disassembled using frvdec.\cite{frvdec} The result of this disassembly is a
+more generic and easier processable form, e.g. direct access to the input and output registers and
+immediate values. For each of the instructions a sequence of variables and operations is added to
+the IR. This sequence depicts the functionality of the instruction.
 % TODO: Add example for lifting an instruction here
 
 \par
 
-When a control flow changing instruction is discovered, it is added to the current basic block as
-well as the variables needed for this instruction, e.g. calculating the jump address. If the jump
-address can be inferred from the instruction, in particular considering \emph{jal} and branch
-instructions where the jump address is the sum of the address of the instruction and an offset, this
-address can be used to define the start of a new basic block. If the instruction at
-the jump address isn't processed yet, the lifter remembers that at this address is the start of a
-basic block. But in the other case, it needs to be checked whether at this address a basic block starts and
-otherwise this block must be split up at the jump address.
+As explained in the IR chapter (\ref{IR}) our IR is subdivided into basic blocks which depicts
+consecutive instructions without any control flow change. When a control flow changing instruction
+is discovered, it is added to the current basic block as well as the variables needed for this
+instruction, e.g. calculating the jump address. If the jump address can be inferred from the
+instruction, in particular considering \emph{jal} and branch instructions where the jump address is
+the sum of the address of the instruction and an offset, this address is used to define the start of
+a new basic block. In the case that the instruction at the jump address isn't processed yet, the
+lifter remembers that at this address a basic block must start. But in the other case, it needs to
+be checked whether at this address a basic block already starts and otherwise the block containing
+the jump address must be split up at the jump address. This is required because it is only possible
+to jump to the start of an basic block.
 
 \par
 
 If the jump address cannot be extracted from the instruction, the backtracking (\ref{backtracking})
 is used to infer possible addresses which are processed with the same procedure as described before.
 Using the command line flag ``--full-backtracking'' the user can control whether all possible
-address should be found or the first one found is used. If no jump address can be inferred, a dummy
-basic block which indicates an unresolved CfOp, is set as target block. The jump address then needs
-to be evaluated at runtime and jumps to an address at which no basic block begins needs to be
-handled by the helper library (\ref{helper}).
+address should be found or the first one is used. If no jump address can be inferred, a dummy
+basic block which indicates an unresolved jump target, is set as target block. The jump address then
+needs to be evaluated at runtime and jumps to an address at which no basic block begins needs to be
+handled by the helper library (\ref{helper}) by interpreting the RISC-V instructions.
+
+\par
+
+While lifting the instructions a register file, called \emph{mapping}, keeps track of the variables
+which represents the content of the registers. This is required to determine the inputs of the
+operations based on the input registers of the instructions. For example, when lifting an RISC-V
+instruction which has the registers \emph{x13} and \emph{x14} as inputs, the input variables are
+taken from the mapping at the corresponding indices.
+
+\par
+
+At the start of a basic block the mapping is initialized
+with variables from \nameref{statics}. The register with the index zero is hard wired zero in
+RISC-V and therefore not initialized. Furthermore, each read from the mapping at index zero is handled by adding an immediate
+variable with value zero. Each write to the zero register is ignored, as it is specified for the \emph{x0}
+register.\cite{rvspec}
+
+\subsubsection{Postprocessing}
+
+After all instructions are processed, the jump targets of the basic blocks which jump to a later
+created basic block needs to be assigned. Also the predecessor and successor lists of the involved
+basic blocks are fixed.
+
+\par
+
+The last step in lifting is to add a basis block which setups the RISC-V stack and then jumps to the
+basic block which starts at the entry address. This address is stored in the program header
+\emph{e\_entry} and specifies where the execution of the binary starts.\cite{man_elf}
 
 
 \subsection{Floating point support}
+
 \subsection{Backtracking}\label{backtracking}
 Although indirect jump addresses can be evaluated at runtime, we can only jump to the beginning of
 detected basic blocks. This is the case, because we can optimize (\ref{dead_code_elimination}) and fold
