@@ -152,12 +152,117 @@ translating the file in order to print meaningful debug messages.
 \subsection{Floating point support}
 \subsection{Backtracking}
 Although indirect jump addresses can be evaluated at runtime, we can only jump to the beginning of
-detected basic blocks. This is because we can optimize \nameref{dead_code_elimination} and fold
-instructions \nameref{constant_folding} inside basic blocks without altering the control flow or
+detected basic blocks. This is the case, because we can optimize (\ref{dead_code_elimination}) and fold
+instructions (\ref{constant_folding}) inside basic blocks without altering the control flow or
 logic of the program. Having a completely runnable program thus means detecting every basic block
-with their corresponding entrypoints. Although determining all possible indirect jump targets
-statically is not possible or not feasible (e.g.\ jump targets could be influenced by user input),
-backtracking register contents during lifting gives us a good approximation of the target set.
+with their corresponding entrypoints (including their exit points). Although determining all possible 
+indirect jump targets statically is not possible or not feasible (e.g.\ jump targets could be 
+influenced by user input), backtracking register contents during lifting can provide us with 
+an approximation of the target set.
+
+\par
+
+To statically determine indirect jump target addresses, we need to evaluate possible contents of
+the jump's input register operand. Each variable stores its origin, being either the result of an
+operation, an immediate value or bound to a static mapper. This enables us to backtrack the value of
+any variable in the call tree until we reached a variable which can't be backtracked or until we evaluated
+all possible values. 
+
+\par
+
+Registers keep their values between jumps and calls. We model this behavior using static mappers
+which bind variables to their registers in between basic blocks. For backtracking, this means a 
+variable which is bound to a static mapper can have any value that the variable mapped to the same
+static mapper in its basic block's predecessors has. This opens up a room of variables which
+influence the jump target, growing with the amount of predecessors and operation inputs.
+
+\par
+
+Figure~\ref{backtracking_graph} shows an example for such a call tree. The basic block \emph{bb24} ends
+with an indirect jump, jumping to the address stored in \emph{v37}. \emph{ADD} and \emph{SHL} are operations. 
+
+\begin{figure}
+    \centering
+    \begin{tikzpicture}
+        \begin{pgfonlayer}{nodelayer}
+            \node [style=BB] (0) at (-3.75, 0) {bb24};
+            \node [style=VAR] (1) at (-2.25, 0) {v37};
+            \node [style=OP] (2) at (-0.75, 0) {ADD};
+            \node [style=VAR] (3) at (0.5, 1.5) {v36};
+            \node [style=VAR] (4) at (0.5, -1.5) {v34};
+            \node [style=OP] (5) at (2, -1.5) {SHL};
+            \node [style=VAR] (6) at (3.5, 0.25) {v15};
+            \node [style=VAR] (7) at (3.5, -1.5) {v22};
+            \node [style=STATIC] (8) at (5, 0.25) {x14};
+            \node [style=STATIC] (9) at (5, -1.5) {x21};
+            \node [style=BB] (10) at (6.5, 1) {bb42};
+            \node [style=BB] (11) at (6.5, -1) {bb23};
+            \node [style=BB] (12) at (6.5, 2) {bb8};
+            \node [style=BB] (13) at (6.5, 0) {bb17};
+            \node [style=BB] (14) at (6.5, -2.25) {bb127};
+            \node [style=VALUE] (15) at (2, 1.5) {-2};
+            \node [style=VAR] (16) at (7.75, 2) {};
+            \node [style=VAR] (18) at (7.75, 0) {};
+            \node [style=VAR] (19) at (7.75, -1) {};
+            \node [style=BB] (23) at (9.75, 1) {};
+            \node [style=BB] (24) at (9.75, -2.25) {};
+            \node [style=OP] (25) at (8.75, 0) {};
+            \node [style=OP] (26) at (8.75, -1) {};
+            \node [style=OP] (28) at (8.75, 2) {};
+            \node [style=VAR] (29) at (7.75, 1) {};
+            \node [style=VAR] (31) at (7.75, -2.25) {};
+            \node [style=STATIC] (32) at (8.75, 1) {};
+            \node [style=STATIC] (33) at (8.75, -2.25) {};
+            \node [style=none] (34) at (9.75, 2) {};
+            \node [style=none] (35) at (9.75, 1.5) {};
+            \node [style=none] (36) at (9.75, 0.25) {};
+            \node [style=none] (37) at (9.75, -0.25) {};
+            \node [style=none] (38) at (9.75, -0.75) {};
+            \node [style=none] (39) at (9.75, -1.25) {};
+            \node [style=none] (40) at (9.75, 2.5) {};
+        \end{pgfonlayer}
+        \begin{pgfonlayer}{edgelayer}
+            \draw [style=LINK] (0) to (1);
+            \draw [style=LINK] (1) to (2);
+            \draw [style=LINK] (2) to (3);
+            \draw [style=LINK] (2) to (4);
+            \draw [style=LINK] (3) to (15.center);
+            \draw [style=LINK] (4) to (5);
+            \draw [style=LINK] (5) to (7);
+            \draw [style=LINK] (5) to (6);
+            \draw [style=LINK] (6) to (8);
+            \draw [style=LINK] (7) to (9);
+            \draw [style=LINK] (9) to (14);
+            \draw [style=LINK] (9) to (11);
+            \draw [style=LINK] (8) to (13);
+            \draw [style=LINK] (8) to (10);
+            \draw [style=LINK] (8) to (12);
+            \draw [style=LINK] (12) to (16);
+            \draw [style=LINK] (13) to (18);
+            \draw [style=LINK] (11) to (19);
+            \draw [style=LINK] (16) to (28);
+            \draw [style=LINK] (10) to (29);
+            \draw [style=LINK] (29) to (32);
+            \draw [style=LINK] (18) to (25);
+            \draw [style=LINK] (14) to (31);
+            \draw [style=LINK] (31) to (33);
+            \draw [style=LINK] (33) to (24);
+            \draw [style=LINK] (19) to (26);
+            \draw [style=LINK] (32) to (23);
+            \draw [style=DASHED] (28) to (34.center);
+            \draw [style=DASHED] (28) to (35.center);
+            \draw [style=DASHED] (25) to (36.center);
+            \draw [style=DASHED] (25) to (37.center);
+            \draw [style=DASHED] (26) to (38.center);
+            \draw [style=DASHED] (26) to (39.center);
+            \draw [style=DASHED] (28) to (40.center);
+        \end{pgfonlayer}
+    \end{tikzpicture}
+    \caption{
+        Exemplary variable backtracking graph.\\
+        \textbf{bb}: BasicBlock; \textbf{v}: Variable; \textbf{x}: StaticMapper;
+    }\label{backtracking_graph}
+\end{figure}
 
 \subsection{Call and return optimization}
 \subsection{Jump table detection}

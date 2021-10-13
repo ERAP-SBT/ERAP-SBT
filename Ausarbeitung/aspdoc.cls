@@ -28,12 +28,15 @@
 \RequirePackage{float}
 \RequirePackage{microtype}
 \RequirePackage{tikz}
+\RequirePackage{tikzit}
 \RequirePackage{tabularx}
 \RequirePackage{hyperref}
 \RequirePackage{xstring}
+\RequirePackage{caption}
 \RequirePackage[headsepline,footsepline,plainfootsepline,markcase=upper]{scrlayer-scrpage}
 
 \usetikzlibrary{shapes,positioning}
+\input{tikz_src/graph.tikzstyles}
 
 \SetupKeyvalOptions{
   family=aspdoc,
