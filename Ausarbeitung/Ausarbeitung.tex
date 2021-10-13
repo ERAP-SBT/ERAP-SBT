@@ -617,6 +617,44 @@ from the stack frame and either calls a helper routine or directly jumps to the 
 
 % TODO: example
 \subsection{Register allocation}
+To achieve good performance and code density though we need to employ a more sophisticated approach to generating assembly from the IR.
+To do so we group together blocks which closely represent functions of the original binary and compile them together, allocate register and stack slots
+for variables and pass them between the blocks. As such we keep often used vars in registers and prevent spilling of variables to statics at the end of each basic block.
+The achieve this we first mark all blocks which are targets of call-cfops, then iterate all basic blocks, check if they are either the target of a call-cfop or have no known predecessors
+and start the register allocation for the group of this block.
+This will then compile the starting block while allocating registers and stack slots for the variables, evaluate the cfops and check whether the target of a cfop is part of the current group 
+(which in essence just means that it is not a call-target) and if so create an input mapping for the target which specify where each input variable is located or, when the block has already been compiled,
+emit a sequence of instructions which move the variables to the position at which the target block expects them.
+After this the handling of the current block is finished and if any of the targets of the block's cfops are part of the current group they are recursively compiled as well.
+
+\par
+
+The process of generating instructions for the basic block itself are also relatively simple. First, a rough (because cfops might need reshuffling, see later) estimate of the time-of-uses of each variable is created, 
+after which each operation in the basic block is then iterated, the inputs for it are loaded into registers if they are located in a static or on the stack frame and a destination register is chosen.
+Here, if possible a seperate destination register than the input registers is used if the inputs are still needed later. Otherwise one of the input registers is simply overwritten.
+When choosing a register to place a variable into, registers without a variable in them or registers with variables which aren't used anymore are preferred. If all registers contain variables which are still needed
+the variable which is the farthest away from being used again (so the time of next use is the greatest) is chosen to be evicted to the stack.
+A possible improvement here could be to create a preference for a register for each variable if it is needed at a fixed location (e.g. it is used as an input for an already compiled basic block) 
+and take it into account when choosing a register to place a variable into. Though because of time-constraints we didn't have time to implement this.
+
+\par
+
+After all blocks in a group are compiled and the final stack-frame size is known the control-flow operations for each block can be assembled.
+The difference to the naive generator is that the inputs for the next block might not be written to statics but instead need to be placed in certain register or stack slots
+while not overwriting values that are currently stored in them and might be needed later which is why the initial time-calculation might be wrong for these cases as it is hard to predict when such
+conflicts might occur. The current approach taken is to place the input into statics first, then the stack slots, then the registers while storing values which may be overwritten in temporary locations.
+Also, when generating the cfops and the target is a block not part of the current group the stack frame size for it might be different and a such it needs to be adjusted as well to prevent stack over- or underflows.
+
+
+% TODO: Example
+
+\subsubsection{Translation Blocks}
+One problem that is encountered when employing register allocation on groups of basic blocks is that the programm cannot simply jump to them using indirect jumps anymore because the basic block might expect variables to be in registers
+and not in statics and the stack frame, which is set up at the first block of a group, would be missing. To still make it possible for indirect jumps to jump to basic blocks which are register-allocated translation blocks need to be generated.
+These translation blocks will set up the stack frame and move the inputs for the basic block to the registers or stack slots at which it expects them before jumping to them.
+A problem with these blocks is that they need to be generated for a lot of basic blocks and take up a lot of space in the finished binary (sometimes even more than 30\% of the .text section) while also being rarely used 
+since most indirect jumps will end up at function starts which we recognize with relatively good accuracy and blocks after a function call which will be returned to.
+So by only generating translation blocks for targets of function returns the binary size can be drastically reduced while also having a negliable impact on performance.
 \subsection{Merging operations}
 \subsection{Interpreter}\label{interpreter}
 \subsection{Helper library}\label{helper}
