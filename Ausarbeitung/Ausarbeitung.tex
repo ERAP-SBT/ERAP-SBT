@@ -38,34 +38,39 @@ In order to execute machine code, you need a processor which runs this machine c
 many different processor families and instruction set architectures (ISA) for which programs are
 developed. If you want to run a program which is written for an ISA where you don't have access to a
 system running this ISA, e.g. RISC-V. Then you can translate it and execute it on another system,
-e.g.\ x86\_64. There are two main approaches for binary translation: 
+e.g.\ x86\_64. There are three main approaches:
 
 \par
 
-Firstly, you can use dynamic binary translation (DBT) which means to translate short instruction 
-sequences during program execution and execute them. When discovering a jump or another control 
-flow operation, the address is evaluated and the translation continues at this address. But as 
-you do the translation at runtime, this slows down the execution. 
+Firstly you can use an emulator which ``[\ldots] interprets program instructions at
+runtime.''\cite{binary_translation} The development is quite easy, but it is a rather slow method.
 
 \par
 
-Secondly, you can translate the full binary to an ISA which the target system is able to execute.
-That way you can separate translation and execution, which means you only have to translate the 
-binary once for running it as often you need. This increases execution speed. This approach 
-is called static binary translation (SBT).
+Secondly, you can use dynamic binary translation (DBT) which works like an emulator but uses caching
+to store already translated instruction sequences for future use. This increases the execution speed
+compared to an emulator because often used instructions don't need to be translated
+twice.\cite{binary_translation}
 
-\par 
+\par
 
-The difference between SBT and DBT is comparable to the difference between compiled and interpreted
-programs. But whilst compilers and interpreters are working on high level programming languages,
-e.g. C, C++ or Python, SBT and DBT are used to translate machine language files.
+And thirdly, you can translate the full binary to an ISA which the target system is able to execute.
+That way you can separate translation and execution, which means you only have to translate the
+binary once for running it as often you need. This increases execution speed. This approach is
+called static binary translation (SBT).\cite{binary_translation}
 
-\par 
+\par
+
+%The difference between SBT and DBT is comparable to the difference between compiled and interpreted
+%programs. But whilst compilers and interpreters are working on high level programming languages,
+%e.g. C, C++ or Python, SBT and DBT are used to translate machine language files.
+
+\par
 
 Our task is to
 develop a static binary translator which translates RISC-V binaries to x86\_64 machine code. This
 field of binary translation is a rather academic issue because currently, the x86\_64 is still a
-more widely used ISA than RISC-V. This means most programs are already available for the x86\_64
+more widely used ISA than RISC-V.\cite{riscv_rises} This means most programs are already available for the x86\_64
 processor architecture.
 
 \section{Background}
@@ -85,7 +90,7 @@ limited amount of instructions and instruction formats.\cite{RISCvCISC}
 
 Currently there are standard extensions for multiplication and division (M), for atomic instructions (A),
 for floating point arithmetic (F,D,Q), for compressed instructions to reduce the code size (C) and
-for control and status registers (Ziscr). More standard extensions are planned.
+for control and status registers (Ziscr). More standard extensions are planned.\cite{rvspec}
 
 \subsection{Differences between RISC-V and x86\_64}
 In contrast to RISC-V, the x86\_64 ISA describes a CISC, a \emph{Complex Instruction Set Computer}.
@@ -97,19 +102,18 @@ cycles.\cite{RISCvCISC}
 \par
 
 The x86\_64 ISA defines instructions which access memory and perform arithmetic or logical
-operations at the same time. This is not possible with the load/store RISC-V architecture. To still
-provide flexible instructions, RISC-V uses a three operand form, meaning that most instructions have
-one output and two input registers. On x86\_64 the first source operand specifies the output
-register.
+operations at the same time. This is not possible with the load/store RISC-V architecture. Because
+of their variable instruction lengths, x86\_64 instructions can contain immediate values which are
+up to 64-bit wide.\cite[Vol.~2B~p.~4-35]{intel2017man} RISC-V base instructions are currently always
+32-bit wide (16-bit for compressed instructions)\cite[p.~8]{rvspec} which makes loading big
+immediates difficult. These are either combined by two or more separate immediate loading operations
+or loaded relative to the current instruction pointer.\cite[p.~19]{rvspec} The latter is also often
+used for performing jumps.\cite [p.~20]{rvspec}
 
 \par
 
-Because of their variable instruction lengths, x86\_64 instructions can contain immediate
-values which are up to 64-bit wide.\cite[Vol.~2B~p.~4-35]{intel2017man} RISC-V base instructions are
-currently always 32-bit wide (16-bit for compressed instructions)\cite[p.~8]{rvspec} which makes
-loading big immediates difficult. These are either combined by two or more separate immediate
-loading operations or loaded relative to the current instruction pointer.\cite[p.~19]{rvspec} The
-latter is also often used for performing jumps.\cite [p.~20]{rvspec}
+For the translation this differences are necessary knowledge to be able to generate efficient and optimized code.
+For example some instructions need to be assembled or can be merged to a single instruction in x86\_64.
 
 \subsection{Inspiration}
 
@@ -121,11 +125,11 @@ latter is also often used for performing jumps.\cite [p.~20]{rvspec}
 \subsection{General method}
 \subsection{Floating point support}
 \subsection{Backtracking}
-Although indirekt jump addresses can be evaluated at runtime, we can only jump to the beginning of
-detected basic blocks. This is because we can optimize \nameref{dead_code_elimination} and fold 
+Although indirect jump addresses can be evaluated at runtime, we can only jump to the beginning of
+detected basic blocks. This is because we can optimize \nameref{dead_code_elimination} and fold
 instructions \nameref{constant_folding} inside basic blocks without altering the control flow or
 logic of the program. Having a completely runnable program thus means detecting every basic block
-with their corresponding entrypoints. Although determining all possible indirekt jump targets
+with their corresponding entrypoints. Although determining all possible indirect jump targets
 statically is not possible or not feasible (e.g.\ jump targets could be influenced by user input),
 backtracking register contents during lifting gives us a good approximation of the target set.
 
