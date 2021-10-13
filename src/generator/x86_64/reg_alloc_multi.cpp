@@ -1919,7 +1919,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
 
             print_asm("add rsp, %zu\n", max_stack_frame_size);
             // prevent overflow
-            print_asm("cmp rsp, offset stack_space + 524288\n"); // max depth ~65k
+            print_asm("cmp rsp, [max_ret_stack_ptr]\n"); // max depth ~65k
             print_asm("cmovb rsp, [init_ret_stack_ptr]\n");
 
             if (info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
@@ -1974,7 +1974,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
             print_asm("add rsp, %zu\n", max_stack_frame_size);
 
             // prevent overflow
-            print_asm("cmp rsp, offset stack_space + 524288\n"); // max depth ~65k
+            print_asm("cmp rsp, [max_ret_stack_ptr]\n"); // max depth ~65k
             print_asm("cmovb rsp, [init_ret_stack_ptr]\n");
 
             if (info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
