@@ -633,7 +633,10 @@ the standard error output and exits the program with a non-zero exit code.
 
 \par 
 
-For mapping the RISC-V indirect jump target addresses to translated basic blocks, we implemented two
+Mapping the RISC-V indirect jump target addresses to translated basic blocks requires a dictionary.
+The implementation has to have exceptionally fast access times as we need to access entries with
+every indirect jump. It also has to be able to identify invalid keys, to escalate a panic if the
+jump target address is not a valid basic block start address. Therefore, we implemented two
 different methods:
 
 \begin{itemize}
@@ -661,7 +664,7 @@ the \texttt{.ro\_data} section, together with the hash table.
 
 For the hash function generation, we didn't use truly random hash functions. The authors of the ``Hash,
 displace, and compress'' perfect hashing method suggest using a ``heuristic hash
-function''\cite[CHD], on of Bob Jenkins' first published hash functions.\cite{jenkins_hash_1} For
+function''\cite{CHD}, on of Bob Jenkins' first published hash functions.\cite{jenkins_hash_1} For
 our implementation, we use one of his latest hash functions which is supposed to be faster than his
 first proposals.\cite{jenkins_hash_2} Because we are only interested in hashing 64-bit addresses, we
 don't need most of his hash function which generates hashes for byte arrays of variable sizes. 
@@ -669,11 +672,28 @@ don't need most of his hash function which generates hashes for byte arrays of v
 \par
 
 The hashing algorithm is used in the generator for building the hash table and finding the required
-hash functions. It is also implemented in the \nameref{helper} for providing hashes for runtime
-addresses. This helps reduce the required storage space to the hash table size (which is the amount
-of basic blocks divided by the load factor) and the hash function indices table size (which is the
-hash table size divided by the amount of buckets).
+hash functions. It is also implemented in the \nameref{helper} for providing hashes for addresses
+which are only available during runtime. 
+
+\par 
+
+With the generated hash table and hash functions, every key is assigned an index in the hash table,
+no matter if it is a valid key which was used to build the hash table or not. That's why we store
+both the key and the value, which is the target basic block label in this case, in the hash table.
+For key validation, we first load the key from the calculated index and compare it to the input key.
+If they don't match, we know that no basic block exists for the supplied RISC-V address. Otherwise,
+we load the value from the table which is placed just 64-bits after the key.
+
+\par
+
+The hashing helps reduce the required storage space to the hash table size and the hash function
+indices table size. The storage size optimizations mean however that
+every access takes, although it's complexity is still constant, the additional time of calculating
+the hash table index.
+
 \end{itemize}
+
+% TODO: provide examples for assembly size reduction
 
 \section{Floating point handling \& problems}
 
