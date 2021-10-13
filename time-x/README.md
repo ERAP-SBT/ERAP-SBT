@@ -145,6 +145,14 @@ The tests don't work, because perlbench is missing the clone syscall.
 runcpu --iterations=2 --size=refspeed --noreportable --config ria-jit --action=run intspeed
 ```
 
+### SBT
+
+`no_trans_bbs` makes things incredibly slow.
+
+```bash
+runcpu --ignore_errors --iterations=2 --size=refspeed --noreportable --ignore_errors --config sbt-optimize-all-notransbbs --action=run intspeed
+```
+
 ## Results
 
 The `results` directory contains the results for all benchmarks referenced in the Ausarbeitung.
