@@ -440,7 +440,7 @@ an approximation of the target set.
 To statically determine indirect jump target addresses, we need to evaluate possible contents of
 the jump's input register operand. Each variable stores its origin, being either the result of an
 operation, an immediate value or from a static. This enables us to backtrack the value of
-any variable in the call tree until we reached a variable which ca not be backtracked or until we evaluated
+any variable in the origin- or dependency tree until we reached a variable which can not be backtracked or until we evaluated
 all possible values.
 
 \par
@@ -453,8 +453,7 @@ influence the jump target, growing with the amount of predecessors and operation
 
 \par
 
-Figure~\ref{backtracking_graph} shows an example for such a call tree. The basic block \texttt{bb24} ends
-with an indirect jump, jumping to the address stored in \texttt{v37}. \texttt{ADD} and \texttt{SHL} are operations.
+Figure~\ref{backtracking_graph} shows an example for such a dependency tree.
 
 \begin{figure}
     \centering
@@ -534,8 +533,9 @@ with an indirect jump, jumping to the address stored in \texttt{v37}. \texttt{AD
         \end{pgfonlayer}
     \end{tikzpicture}
     \caption{
-        Exemplary variable backtracking graph.\\
-        \textbf{bb}: BasicBlock; \textbf{v}: Variable; \textbf{x}: StaticMapper;
+        Schematic dependency graph of an indirect jump target address variable (\textbf{v37}). The basic block \textbf{bb24} ends
+with an indirect jump, jumping to the address stored in \texttt{v37}. \texttt{ADD} and \texttt{SHL}
+are operations, names starting with \textbf{x} are names of static mappers.\\
     }\label{backtracking_graph}
 \end{figure}
 
