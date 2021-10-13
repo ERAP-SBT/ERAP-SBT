@@ -125,8 +125,8 @@ amount of instructions and instruction formats.~\cite{RISCvCISC}
 
 Currently, there are standard extensions for multiplication and division (M), for atomic
 instructions (A), for floating point arithmetic (F,D), for compressed instructions to reduce the
-code size (C) and for control and status registers (Ziscr). They are called together with RV64 Base
-ISA \texttt{rv64imacfd} or short \texttt{rv64g}. More standard extensions are planned.~\cite{rvspec}
+code size (C) and for control and status registers (Ziscr). Together with the RV64 Base
+ISA, they are called \texttt{rv64imacfd} or short \texttt{rv64g}. More standard extensions are planned.~\cite{rvspec}
 
 \par
 
@@ -409,12 +409,13 @@ the IR to replicate the original program's behavior.
             [...]
         loop:
 0xb0:       addi a0, a0, -1
-0xb4:       beq a0, zero, loop
+0xb4:       bne a0, zero, loop
         continuation:
 0xa8:       sll a1, a1, a2
             [...]
     \end{lstlisting}
-    \caption{RISC-V assembly sequence used as example for the lifter. }
+    \caption{RISC-V assembly sequence used as example for the lifter. Decrements a0 by one in a loop until it is zero,
+             then shifts a1 by the amount stored in a2.}
     \label{fig:lifting_example_riscv}
 \end{figure}
 
