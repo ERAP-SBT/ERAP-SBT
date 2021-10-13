@@ -778,7 +778,6 @@ void Generator::compile_vars(const BasicBlock *block) {
                 fprintf(out_fd, "mov%s %s, xmm0\n", (var->type == Type::i32 ? "d" : "q"), rax_from_type(var->type));
             }*/
 
-
             if (is_float(op->in_vars[0]->type)) {
                 if (is_float(var->type)) {
                     // do nothing

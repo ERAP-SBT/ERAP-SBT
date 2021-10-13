@@ -444,7 +444,6 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         break;
     case FRV_FSQRTD:
         lift_float_sqrt(bb, instr, mapping, ip, Type::f64);
-        lift_jump_interpreter(bb, instr, mapping, ip);
         break;
     case FRV_FSGNJD:
     case FRV_FSGNJND:
@@ -455,11 +454,6 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         lift_jump_interpreter(bb, instr, mapping, ip);
 #endif
         break;
-#if 0
-    default:
-        lift_jump_interpreter(bb, instr, mapping, ip);
-        break;
-#else
     case FRV_FMIND:
         lift_float_two_operands(bb, instr, mapping, ip, Instruction::min, Type::f64);
         break;
@@ -515,7 +509,6 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         DEBUG_LOG(str.str());
 
         // TODO: add unreachable instruction
-#endif
     }
 }
 
