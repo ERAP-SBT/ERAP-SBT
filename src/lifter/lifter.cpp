@@ -277,6 +277,13 @@ void Lifter::postprocess(Program *prog) {
             }
 
             if (cf_op.type == CFCInstruction::ijump || cf_op.type == CFCInstruction::icall) {
+                const auto &jump_addrs = cf_op.type == CFCInstruction::ijump ? std::get<CfOp::IJumpInfo>(cf_op.info).jmp_addrs : std::get<CfOp::ICallInfo>(cf_op.info).jmp_addrs;
+                for (auto addr : jump_addrs) {
+                    auto *bb = get_bb(addr);
+                    if (bb) {
+                        bb->gen_info.needs_trans_bb = true;
+                    }
+                }
                 unprocessed_ijumps.emplace_back(&cf_op);
                 continue;
             }

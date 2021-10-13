@@ -34,6 +34,7 @@ bool Lifter::is_jump_table_jump(const BasicBlock *bb, CfOp &cf_op, const RV64Ins
     if (check_op->type == Instruction::sign_extend) {
         loaded_addr_var = check_op->in_vars[0].get();
     }
+
     if (!std::holds_alternative<std::unique_ptr<Operation>>(loaded_addr_var->info)) {
         return false;
     }
@@ -56,33 +57,86 @@ bool Lifter::is_jump_table_jump(const BasicBlock *bb, CfOp &cf_op, const RV64Ins
         return false;
     }
 
-    // one of these two is the jump table start address, which was loaded using a lui + addi
-    std::deque<SSAVar *> unprocessed;
-    unprocessed.emplace_back(jt_addr_op->in_vars[0]);
-    unprocessed.emplace_back(jt_addr_op->in_vars[1]);
-    uint64_t jt_start_addr = 0;
-    uint64_t jt_end_addr = 0;
-
-    while (!unprocessed.empty()) {
-        SSAVar *next = unprocessed.front();
-        unprocessed.pop_front();
-
-        if (next && std::holds_alternative<std::unique_ptr<Operation>>(next->info)) {
-            auto &op = std::get<std::unique_ptr<Operation>>(next->info);
-
-            // find the addi instruction with the corresponding lui for jump table address loading
-            if (op->type == Instruction::add && std::holds_alternative<SSAVar::ImmInfo>(op->in_vars[1]->info) && std::holds_alternative<SSAVar::ImmInfo>(op->in_vars[0]->info)) {
-                auto addi_imm = std::get<SSAVar::ImmInfo>(op->in_vars[1]->info).val & 0xfff;
-                auto lui_imm = std::get<SSAVar::ImmInfo>(op->in_vars[0]->info).val & 0xfffff000;
-                jt_start_addr = addi_imm | lui_imm;
+    // now we have the following sequence
+    // lui xr, 0
+    // an optional addi load_addr_var, xr, imm
+    // but they might be in a different bb so trace upwards
+    const auto trace_up = [this](SSAVar *loaded_addr_var, const BasicBlock *cur_bb) {
+        int64_t disp = 0;
+        uint64_t jt_start_addr = 0;
+        size_t count = 0;
+        while (true) {
+            if (count++ >= 15) {
                 break;
             }
-
-            for (auto &pair : op->in_vars) {
-                unprocessed.emplace_back(pair.get());
+            if (loaded_addr_var->is_operation()) {
+                const auto &op = loaded_addr_var->get_operation();
+                if (op.type != Instruction::add) {
+                    break;
+                }
+                if (!op.in_vars[1]->is_immediate() || op.in_vars[1]->get_immediate().binary_relative) {
+                    break;
+                }
+                disp += op.in_vars[1]->get_immediate().val;
+                loaded_addr_var = op.in_vars[0].get();
+                continue;
             }
+            if (loaded_addr_var->is_immediate()) {
+                const auto &imm = loaded_addr_var->get_immediate();
+                if (imm.binary_relative) {
+                    break;
+                }
+                jt_start_addr = imm.val + disp;
+                break;
+            }
+            if (!loaded_addr_var->is_static()) {
+                break;
+            }
+            size_t input_idx = 0;
+            for (; input_idx < cur_bb->inputs.size(); ++input_idx) {
+                if (cur_bb->inputs[input_idx] == loaded_addr_var) {
+                    break;
+                }
+            }
+            BasicBlock *selected_pred = get_bb(cur_bb->virt_start_addr - 4);
+            if (!selected_pred) {
+                break;
+            }
+            auto cfop_found = false;
+            for (auto &cf_op : selected_pred->control_flow_ops) {
+                if (std::get<CfOp::LifterInfo>(cf_op.lifter_info).jump_addr != cur_bb->virt_start_addr) {
+                    continue;
+                }
+                const std::vector<RefPtr<SSAVar>> *target_inputs = nullptr;
+                switch (cf_op.type) {
+                case CFCInstruction::jump:
+                    target_inputs = &std::get<CfOp::JumpInfo>(cf_op.info).target_inputs;
+                    break;
+                case CFCInstruction::cjump:
+                    target_inputs = &std::get<CfOp::CJumpInfo>(cf_op.info).target_inputs;
+                default:
+                    break;
+                }
+                if (target_inputs) {
+                    if (target_inputs->size() > input_idx) {
+                        cfop_found = true;
+                        loaded_addr_var = (*target_inputs)[input_idx];
+                        break;
+                    }
+                }
+            }
+            if (!cfop_found) {
+                break;
+            }
+            cur_bb = selected_pred;
         }
+        return jt_start_addr;
+    };
+    uint64_t jt_start_addr = trace_up(jt_addr_op->in_vars[1].get(), bb);
+    if (!jt_start_addr) {
+        jt_start_addr = trace_up(jt_addr_op->in_vars[0].get(), bb);
     }
+    uint64_t jt_end_addr = 0;
 
     // no matching jump table start address loading found
     if (jt_start_addr == 0) {
@@ -121,14 +175,19 @@ bool Lifter::is_jump_table_jump(const BasicBlock *bb, CfOp &cf_op, const RV64Ins
     };
 
     auto &jmp_addrs = cf_op.type == CFCInstruction::ijump ? std::get<CfOp::IJumpInfo>(cf_op.info).jmp_addrs : std::get<CfOp::ICallInfo>(cf_op.info).jmp_addrs;
-    for (size_t i = addr_start_idx;; i += addr_step) {
+    for (size_t i = addr_start_idx; i < prog->addrs.size(); i += addr_step) {
         if (jt_end_addr != 0 && prog->addrs[i] >= jt_end_addr) {
+            break;
+        }
+        if (prog->addrs[i] - jt_start_addr > 4 * 4096) {
             break;
         }
         uint64_t value_at_addr = next_addr(i);
         if (value_at_addr >= ir->virt_bb_start_addr && value_at_addr <= ir->virt_bb_end_addr) {
             needs_bb_start[(value_at_addr - ir->virt_bb_start_addr) / 2] = true;
-            jmp_addrs.emplace_back(value_at_addr);
+            if (std::find(jmp_addrs.begin(), jmp_addrs.end(), value_at_addr) == jmp_addrs.end()) {
+                jmp_addrs.emplace_back(value_at_addr);
+            }
         } else if (jt_end_addr == 0) {
             break;
         }

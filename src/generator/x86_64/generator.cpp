@@ -383,7 +383,7 @@ void Generator::compile_call(const BasicBlock *block, const CfOp &op, const size
     compile_cf_args(block, op, stack_size);
 
     // prevent overflow
-    fprintf(out_fd, "cmp rsp, stack_space + 524288\n"); // max depth ~65k
+    fprintf(out_fd, "cmp rsp, offset stack_space + 524288\n"); // max depth ~65k
     fprintf(out_fd, "cmovb rsp, [init_ret_stack_ptr]\n");
 
     // return address
@@ -439,6 +439,11 @@ void Generator::compile_icall(const BasicBlock *block, const CfOp &op, const siz
     fprintf(out_fd, "add rsp, %zu\n", stack_size + 8);
 
     fprintf(out_fd, "mov rbx, rax\n");
+
+    // prevent overflow
+    fprintf(out_fd, "cmp rsp, offset stack_space + 524288\n"); // max depth ~65k
+    fprintf(out_fd, "cmovb rsp, [init_ret_stack_ptr]\n");
+
     if (icall_info.continuation_block->virt_start_addr <= 0x7FFFFFFF) {
         fprintf(out_fd, "push %lu\n", icall_info.continuation_block->virt_start_addr);
     } else {
