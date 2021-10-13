@@ -227,8 +227,6 @@ program.
 The lifter creates the IR based on the RISC-V binary. This process is called lifting because the
 machine code is lifted up to a more abstract representation at a higher level, the IR.
 
-\par
-
 \subsubsection{Program decoding}
 
 The ELF-file loader parses instructions from the \emph{SHT\_PROGBITS}-type sections of the binary
@@ -253,25 +251,39 @@ use executable sections for storing instructions.
 \subsubsection{IR generation}
 
 After loading the data form the binary, the lifter runs sequentially through the discovered
-instructions which are disassembled using frvdec.\cite{frvdec} The result of this disassembly is a
-more generic and easier processable form, e.g. direct access to the input and output registers and
-immediate values. For each of the instructions a sequence of variables and operations is added to
-the IR. This sequence depicts the functionality of the instruction.
+instructions which are decoded using frvdec.\cite{frvdec} The resulting instructions are c-structs,
+filled with the parsed content of the binary instruction code. This is a
+more generic and easier processable form with direct access to involved register numbers and
+immediate values. For each of the instructions, a variable amount of variables and operations is added to
+the IR to replicate the origin program's behavior.
 % TODO: Add example for lifting an instruction here
 
 \par
 
-As explained in the IR chapter (\ref{IR}) our IR is subdivided into basic blocks which depicts
-consecutive instructions without any control flow change. When a control flow changing instruction
-is discovered, it is added to the current basic block as well as the variables needed for this
-instruction, e.g. calculating the jump address. If the jump address can be inferred from the
-instruction, in particular considering \emph{jal} and branch instructions where the jump address is
-the sum of the address of the instruction and an offset, this address is used to define the start of
-a new basic block. In the case that the instruction at the jump address isn't processed yet, the
-lifter remembers that at this address a basic block must start. But in the other case, it needs to
-be checked whether at this address a basic block already starts and otherwise the block containing
-the jump address must be split up at the jump address. This is required because it is only possible
-to jump to the start of an basic block.
+As explained in the IR chapter (\ref{IR}), our IR is subdivided into basic blocks which contain
+consecutive instructions without a change in control flow. As soon as a control flow changing instruction
+is discovered, is is added to a special list of CfOps and the basic block is finished. 
+If the jump address can be inferred from the
+instruction using \nameref{backtracking} or it is directly encoded, like in branch instructions, 
+this address is used to register the start of
+a new basic block. 
+
+\par 
+
+If the lifter didn't already parse the instructions at the registered virtual target
+address\footnote{This is the case for forward jumps.}, the
+lifter remembers that at this address a basic block must start. 
+
+Otherwise, if the lifter already parsed the instructions and didn't start a new basic block at the
+jump target address, the block containing the jump address must be split up at the jump address.
+This is required because it is only possible to jump to the start of a basic block.
+
+\par
+
+When lifting instructions, the lifter stores their original virtual address. This is used for
+splitting basic blocks. All instructions with an original address lower than the split address are
+sorted into the first block, all others into the second. Both blocks are connected using a
+direct jump. 
 
 \par
 
@@ -286,7 +298,8 @@ handled by the helper library (\ref{helper}) by interpreting the RISC-V instruct
 \par
 
 While lifting the instructions a register file, called \emph{mapping}, keeps track of the variables
-which represents the content of the registers. This is required to determine the inputs of the
+which represents the content of all integer and floating point registers. This is required to
+determine the inputs of the
 operations based on the input registers of the instructions. For example, when lifting an RISC-V
 instruction which has the registers \emph{x13} and \emph{x14} as inputs, the input variables are
 taken from the mapping at the corresponding indices.
@@ -301,15 +314,18 @@ register.\cite{rvspec}
 
 \subsubsection{Postprocessing}
 
-After all instructions are processed, the jump targets of the basic blocks which jump to a later
-created basic block needs to be assigned. Also the predecessor and successor lists of the involved
-basic blocks are fixed.
+After all available instructions have been lifted, a post processing step is required to connect
+the basic blocks with each other. Because we lift the file by reading the instructions
+consecutively, a basic block doesn't know its successors during lifting. Vice versa, a new basic
+block doesn't know its full list of predecessors during lifting.
+During post processing, we iterate over all basic blocks, assign them their jump target basic
+blocks and adjust their predecessor and successor lists.
 
 \par
 
-The last step in lifting is to add a basis block which setups the RISC-V stack and then jumps to the
-basic block which starts at the entry address. This address is stored in the program header
-\emph{e\_entry} and specifies where the execution of the binary starts.\cite{man_elf}
+The last step in lifting is to add an entry basis block which sets the RISC-V stack up and jumps to the
+basic block at the ELF-file's entry address. This virtual address is stored in the ELF program header
+\emph{e\_entry} and specifies where the execution of the binary starts.\cite[p.~5]{elf_spec}
 
 
 \subsection{Floating point support}
