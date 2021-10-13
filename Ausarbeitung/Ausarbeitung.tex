@@ -694,13 +694,17 @@ however means that we need to store additional information in our output assembl
 lifted instructions section of the original binary. This could be part of the problem of the
 assembler AS requiring a lot of memory for assembling the output assembly.
 
-\item To reduce this overhead, we implemented a method for creating a nearly perfect hash table with a
+\item To reduce this size overhead, we implemented a method for creating a nearly perfect hash table with a
 process called ``Hash, displace, and compress''\cite{CHD}. The process consist of a two-stage hash
 function which first sorts the items into buckets and later generates a hash function for each
 bucket. The hashed values are stored in one common hash table. The calculation starts with a load
-factor of 0.95, which is lowered incrementally by 10\% if no valid hash function could be found.
-We also use an average bucket size of 3 elements which was identified as a good bucket size in the
-referenced paper. The bucket-level hash functions only need a 16-bit index to be reconstructed and can
+factor ($\alpha$) of 100\% and a bucket size of 19 elements ($\lambda$) per bucket in average. These values are lowered
+incrementally by 10\% and 2 elements respectively if no valid hash function could be found for the
+existing constraints.
+While a lower average bucket size decreases the translation time (because hash functions have fewer
+collision constraints), a higher average bucket size decreases the translated binary's size (because
+every bucket needs to store its own hash function).
+The bucket-level hash functions only need a 16-bit index to be reconstructed and can
 thus
 be stored memory efficiently. These bucket hash function indices are stored in a separate table in
 the \texttt{.ro\_data} section, together with the hash table.
