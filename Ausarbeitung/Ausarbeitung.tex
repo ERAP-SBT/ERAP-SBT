@@ -71,7 +71,7 @@ called static binary translation (SBT).\cite{binary_translation}
 
 Our task is to
 develop a static binary translator which translates RISC-V binaries to x86\_64 machine code. This
-field of binary translation is a rather academic issue because currently, the x86\_64 is still a
+field of binary translation is a rather academic issue because currently, x86\_64 is still a
 more widely used ISA than RISC-V.\cite{riscv_rises} This means most programs are already available for the x86\_64
 processor architecture.
 
@@ -131,11 +131,10 @@ source or target. But this isn't the focus of this project.
 \par
 
 The lifter reads the instructions from the binary file using frvdec\cite{frvdec} to disassemble the
-RISC-V binary and creates operations and variables in the intermediate representation (IR). This is
-a data structure we defined for the usage in this project. It contains the logic of the input binary
-in a form we can optimize. This optimizations are performed by optimizer and are used to reduce the
-execution time of the output binary. This binary is created by the generator translating the IR
-variables and operations to x86\_64 assembly. To produce an executable binary we use the GNU
+RISC-V binary into basic blocks and creates operations and variables in the intermediate representation (IR).
+It contains the logic of the input binary in an architecture-neutral form which generic optimization passes can
+be applied on to reduce the number of operations to be performed so that the generator can more easily create native instructions from it.
+The translated binary is created by the generator compiling the IR variables and operations to x86\_64 assembly. To produce an executable binary we use the GNU
 assembler (GAS)\cite{gnu_binutils} and link our helper library to it using the GNU linker
 (LD)\cite{gnu_binutils}. For further explanation see the following chapters. Figure
 \ref{program_overview} depicts the main structure as a scheme.
@@ -167,17 +166,19 @@ translating the file in order to print meaningful debug messages.
 Although indirect jump addresses can be evaluated at runtime, we can only jump to the beginning of
 detected basic blocks. This is the case, because we can optimize (\ref{dead_code_elimination}) and fold
 instructions (\ref{constant_folding}) inside basic blocks without altering the control flow or
-logic of the program. Having a completely runnable program thus means detecting every basic block
-with their corresponding entrypoints (including their exit points). Although determining all possible
-indirect jump targets statically is not possible or not feasible (e.g.\ jump targets could be
-influenced by user input), backtracking register contents during lifting can provide us with
+logic of the program and as such there might often not be a one-to-one correspondence of RISC-V to x86\_64-Instructions.
+Having a completely runnable program thus means detecting every basic block
+with their corresponding entrypoints (including their exit points). Although determining all possible 
+indirect jump targets statically is not possible (e.g. virtual function calls)
+% or not feasible (e.g. jump targets could be influenced by user input)
+, backtracking register contents during lifting can provide us with 
 an approximation of the target set.
 
 \par
 
 To statically determine indirect jump target addresses, we need to evaluate possible contents of
 the jump's input register operand. Each variable stores its origin, being either the result of an
-operation, an immediate value or bound to a static mapper. This enables us to backtrack the value of
+operation, an immediate value or from a static. This enables us to backtrack the value of
 any variable in the call tree until we reached a variable which can't be backtracked or until we evaluated
 all possible values.
 
@@ -277,9 +278,10 @@ with an indirect jump, jumping to the address stored in \emph{v37}. \emph{ADD} a
     }\label{backtracking_graph}
 \end{figure}
 
+% TODO: divide this into two parts, one lifter one generator? since there are two distinct parts to it
 \subsection{Call and return optimization}
-The RISC-V architecture doesn't include special operations for handling subroutines. A x86\_64
-\emph{call} is modelled as a jump which places the address of the next instruction into a \emph{link-}register
+The RISC-V architecture doesn't include special operations for handling subroutines. A function call 
+is assembled as a jump which places the address of the next instruction into a \emph{link-}register
 \emph{x1} or \emph{x5} (for the standard calling convention).\cite[p.~20]{rvspec} Returning from a
 subroutine is done by jumping to the address which is contained in either of those registers. This
 behavior is further optimized with the compressed instructions \emph{C.JAL} and
@@ -288,7 +290,7 @@ to the link register \emph{x1}.[p.~105]\cite{rvspec}
 
 \par
 
-Subroutine calls which jump to the address of a register are so called \emph{icalls}. They act
+Subroutine calls which jump to an address in a register are so called \emph{icalls}. They act
 similar to indirect jumps and are backtracked in the same way. However, target detection success for indirect calls
 doesn't affect stack alignment. Even if we can't determine an indirect call target, we still perform
 an x86\_64 \emph{call} which pushes the instruction pointer onto the stack and jumps to the address
@@ -305,9 +307,32 @@ block's entrypoint with the procedure described in the section\ \ref{backtrackin
 \clearpage
 
 \section{Generator}
-\subsection{Interpreter}
+The generator has two jobs. % TODO: jobs isnt the right word...
+Firstly, it needs to assemble all basic blocks which means assembling all variables with their associated operations,
+preparing the inputs for the next basic block and creating the control flow operations.
+Secondly, it needs to provide for a runtime environment, namely the original binary in its memory-layouted
+form, a stack for the translated binary to use as the x86\_64-Stack is reserved for the generator, a resolver for ijumps
+along with an interpreter which acts as a fallback if an indirect jump to an address at which no basic block starts is encountered
+and architecture-specific functions like a routine to create an initial stack for the translated binary as well as a routine to translate syscalls.
+Most of these are bundled into a static library that is linked to the generated assembly called the Helper-Library.
 \subsection{Naive implementation}
+For assembly generation, the generator operates in two distinct modes which we refer to as the "naive" implementation and register allocation.
+\par
+The naive implementation is meant to serve as a simple codegen which is necessary to ease debugging and to better evaluate gains from
+optimizations in the IR as it very closely recreates the IR operations.
+
+\par
+
+It generates assembly for each basic block independently.
+For each one it creates a stack frame which holds space for every variable in the basic block, iterates all operations and
+retrieves its sources - either from a static or from the stack frame -, applies the operation and then saves the results in the stack frame again.
+At the end of a block it iterates all control flow operations, evaluates its condition if necessary, writes out the inputs for the next basic block
+from the stack frame and either calls a helper routine or directly jumps to the next block.
+
+% TODO: example
 \subsection{Register allocation}
+\subsection{Merging operations}
+\subsection{Interpreter}
 \subsection{Helper library}\label{helper}
 
 \section{Performance}
