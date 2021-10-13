@@ -621,28 +621,27 @@ from the stack frame and either calls a helper routine or directly jumps to the 
 \subsection{Interpreter}\label{interpreter}
 \subsection{Helper library}\label{helper}
 
-\section{Floating point handling}
+\section{Floating point handling \& problems}
 
-% Bullet points:
-% - more registers -> extra statics, extra mapping space
-% - can be deactivated with flag
-% - accuracy:
-%   - known problem when dealing with different fp implementations
-%   - RISC-V rounding only respected when fp -> integer conversion
-% - usage of f32 and f64 IR types and specific fp operations (e.g. fma)
-% - no support for exception and according flags in fcsr
+\subsection{Lifting and generating}
 
+% TODO: Move footnote content into normal text?
+To support the \texttt{F} and \texttt{D}
+\footnote{The Q standard extension isn't supported due to simplicity and lack of usage.}
+standard extensions, the mapping as well as the amount of statics have to be extended to include the
+floating point registers and the floating point control and status register (fcsr). To lift the
+RISC-V floating point, some operations are reused, e.g. \emph{add}, \emph{sub}, and some floating
+point specific are defined, e.g. \emph{fmul}, \emph{fsqrt}. The floating point variables have the
+types \emph{f32} and \emph{f64} which represents single and double precision numbers, respectively.
 
-% generator stuff
-%   - problems with optimizations: e.g. usage of fma3, different results as with mul + add
-%   - bitwise implementation too slow (e.g. qemu)
+\par
 
-To support the \texttt{F} and \texttt{D} standard extensions, the mapping as well as the amount of
-statics has to be extended to include the floating point registers and the floating point control
-and status register (fcsr). To lift the RISC-V floating point, some operations are reused, e.g.
-\emph{add}, \emph{sub}, and some floating point specific are used, e.g. \emph{fmul}, \emph{fsqrt}.
-The variables have the types \emph{f32} and \emph{f64} which represents single and double precision
-numbers.
+The \nameref{generator} uses the x86\_64 floating point instructions provided by the
+\texttt{Streaming SIMD Extensions 2} (SSE2) which operates on the \texttt{xmm} registers. So SSE2 is
+a requirement when translating programs using floating point arithmetics, but this isn't a problem
+as SSE2 was released in 2000 and therefore almost all currently used x86\_64-based CPUs have
+implemented it. But the usage of other x86\_64 extensions like SSE3, SSE4 and \texttt{Fused Multiply
+    Add 3} (FMA3) have to be allowed using the optimize command line flag.
 
 \par
 
@@ -660,42 +659,89 @@ stored.
 
 \par
 
+\subsection{Rounding \& accuracy problems}
+
 A known problem when dealing with different floating point implementations is that especially
-rounding effects will lead to slightly different results. As we want to use the x86\_64 floating
-point instructions to provide an acceptable performance, some compromises have to be made.
+rounding effects will lead to slightly different results. As we want to use the SSE2 floating point
+instructions to provide an acceptable performance, some compromises have to be made.
 
 \par
 
 Firstly, for each RISC-V floating point instruction a rounding mode can be specified which is used
 if the number cannot be expressed in the given number format. But as x86\_64 doesn't support such a
-feature, it is quite hard to implement this in a fast way, because the result is already rounded and
-therefore it isn't possible to round the result of each operation afterwards. And also this would be the
-opposite of fast.
+feature, it is quite hard to implement this in a fast way, because the results are already rounded
+and therefore it isn't possible to round the result of each operation afterwards. And also this
+would be the opposite of fast.
 
 \par
 
 Also a bitwise correct implementation as provided by the dynamic translator \texttt{QEMU-user} is
-challenging to implement and pretty slow. So, we decided to ignore the rounding mode at lifting any
-instruction except conversions from floating points to integers. This is as it makes a great
-difference when rounding to integers. For example, the difference when rounding \emph{25.5} towards
-positive infinity or towards negative infinity, resulting in 26 respectively 25.
+challenging to implement and pretty slow. So, we decided to ignore the rounding mode at lifting
+every instruction except conversions from floating points to integers. We made this exception as it
+makes a great difference when rounding to integers. For example, the difference rounding \emph{25.5}
+towards positive infinity or towards negative infinity, resulting in \emph{26} respectively
+\emph{25}, makes a huge difference.
 
 \par
 
-There are two ways of implementing this rounding. The first one is to use the ``roundss''
+There are two ways of implementing this specific rounding. The first one is to use the ``roundss''
 instruction (respectively ``roundsd'' for double precision) and the according rounding mode as
-input. But these two instructions are part of SSE4.1 which isn't part of any today used CPU.\cite{intel2017man}
-Therefore the usage of SSE4.1 instructions can be enabled using the optimize command line flag.
+immediate input. But these instructions are part of SSE4 which isn't implemented in every today used
+x86\_64-based CPU.~\cite{intel2017man} Therefore this way is only used if SSE4 is allowed.
 
 \par
 
-The second way that is used if SSE4.1 isn't available is to change the rounding mode in the
-\emph{MXCSR} register. The x86\_64 convert instructions then round accordingly. But the disadvantage
-of this method is that the only way to access the MXCSR register is using ``STMXCSR'' and ``LDMXCSR''
-instructions which only operates on memory operands and therefore is slower.\cite{itnel2017man}
+The alternative way is to change the rounding mode in the \emph{MXCSR} register. The x86\_64 convert
+instructions then round accordingly. But the disadvantage of this method is that the only way to
+access the MXCSR register is using ``STMXCSR'' and ``LDMXCSR'' instructions which only operates on
+memory operands and therefore is slower as the first method.~\cite{intel2017man}
 
 \par
 
+To depict these rounding differences we use a simple mandelbrot set
+visualizer~\cite{mandelbrot_program}. The results provided in a textual form are transformed into a
+picture coloring the mandelbrot set in a light grey, differences between the implementations with
+yellow and the remainder in a dark grey. figure~\ref{fig:mandelbrot_diff_native_x86} shows that even
+two native compiled versions produce different results. The translator also has these accuracy
+problems in a similar dimension, depicted by figure~\ref{fig:mandelbrot_diff_translator}.
+
+\par
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/x86_diff.png}
+    \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
+        comparing native x86\_64 to RISC-V.}
+    \label{fig:mandelbrot_diff_native_x86}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/translated_diff.png}
+    \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
+        comparing the translator to RISC-V.}
+    \label{fig:mandelbrot_diff_translator}
+\end{figure}
+
+\par
+
+A second problem can be observed when activating the usage of FMA3 and therefore allows the
+translation of RISC-V fused multiply add instruction to x86\_64 equivalents rather than using
+separate multiplication and addition respectively subtraction instructions. This again has an impact
+on the accuracy, because the intermediate result isn't rounded~\cite{intel2017man}. But as shown by
+figure~\ref{fig:mandelbrot_diff_fma3} this causes the result to be equal to the RISC-V result.
+
+\par
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/fma_diff.png}
+    \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
+        comparing the translator with all optimizations (especially FMA3) to RISC-V.}
+    \label{fig:mandelbrot_diff_fma3}
+\end{figure}
+
+\par
 
 \section{Performance}
 \subsection{Our solution}
@@ -705,6 +751,8 @@ instructions which only operates on memory operands and therefore is slower.\cit
 \subsection{Native x86\_64}
 
 \section{Summary}
+
+\clearpage
 
 % TODO: Fuegen Sie Ihre Quellen der Datei Ausarbeitung.bib hinzu Referenzieren Sie diese dann mit
 % \cite{}. Beispiel: CR2 ist ein Register der x86-Architektur~\cite{intel2017man}.
