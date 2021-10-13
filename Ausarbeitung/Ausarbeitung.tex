@@ -1250,70 +1250,8 @@ compared their strengths and weaknesses:
           The hashing helps reduce the required storage space to the hash table size and the hash function
           indices table size. (Figure~\ref{hashing_figure}) The storage size optimizations mean however that
           every access takes, although its complexity is still constant, the additional time of calculating
-          the hash table index. This is effect can be observed in Figure
-          % TODO: Fix this reference!!!
-          %~\ref{time_x}.
+          the hash table index.
 \end{enumerate}
-
-\begin{figure}
-    \begin{centering}
-        \begin{tikzpicture}
-            \begin{axis}[
-                    width=0.9\textwidth,
-                    height=0.5\textwidth,
-                    tick align=inside,
-                    unbounded coords=jump,
-                    xmin=0,
-                    xmax=110,
-                    ymin=-1,
-                    ymax=22,
-                    point meta min=90,
-                    point meta max=108,
-                    colorbar horizontal,
-                    colorbar style={
-                            xlabel={Assembly file size in $\frac{1}{100}\cdot \textit{Binary size without hashing}$},
-                        },
-                    colormap={reverse viridis}{
-                            indices of colormap={\pgfplotscolormaplastindexof{viridis},...,0 of viridis}
-                        },
-                    xlabel={Load factor in percent},
-                    ylabel={Average bucket size in $\frac{1}{\text{Bucket}}$},
-                ]
-                \addplot[
-                    mark=square*,
-                    only marks,
-                    scatter,
-                    scatter src=explicit,
-                    mark size=3,
-                ]
-                table[meta=z] from {./tikz_src/hashing_assembly_size.txt};
-            \end{axis}
-        \end{tikzpicture}
-        \caption{Effects of average bucket size and hash table load factor on final assembly file size.}\label{hashing_figure}
-    \end{centering}
-\end{figure}
-
-In Figure~\ref{hashing_figure} we show the effects of the two major parameters for the used hashing
-algorithm. Missing data points mean that the hash function algorithm was not able to find all valid
-bucket-level hash functions within the 16-bit per-bucket storage limit. The load factor is the fraction (in percent) of the
-final hash table which is filled with
-hashed entries. The average bucket size is used to calculate the number of buckets and therefore
-directly effects the number of bucket-level hash functions required.
-
-\par
-
-The test was conducted on the translated binary of a simple zip program. Sources are located in the
-\texttt{tests} project folder. The test was only performed once because the hashing algorithm and
-the translator itself are both strictly deterministic.
-
-\par
-
-The analysis shows that
-the amount of storage required for bucket-level hash functions does not have a noticeable impact on
-the final assembly size. It also shows that finding all valid bucket-level hash functions is more
-likely with a lower average number of elements per bucket. This leads to the conclusion that using
-smaller buckets sizes can improve bucket-level hash function generation times while not noticeably
-increasing the output assembly size.
 
 \subsection{Interpreter}\label{interpreter}
 
@@ -1626,7 +1564,67 @@ the xz benchmark did not complete successfully.
 
 \subsection{Effectivness of different Optimizations}
 
-\subsection{Hashtable}
+\subsection{Basic Block Start Address Hashing}
+
+\begin{figure}
+    \begin{centering}
+        \begin{tikzpicture}
+            \begin{axis}[
+                    width=0.9\textwidth,
+                    height=0.5\textwidth,
+                    tick align=inside,
+                    unbounded coords=jump,
+                    xmin=0,
+                    xmax=110,
+                    ymin=-1,
+                    ymax=22,
+                    point meta min=90,
+                    point meta max=108,
+                    colorbar horizontal,
+                    colorbar style={
+                            xlabel={Assembly file size in $\frac{1}{100}\cdot \textit{Binary size without hashing}$},
+                        },
+                    colormap={reverse viridis}{
+                            indices of colormap={\pgfplotscolormaplastindexof{viridis},...,0 of viridis}
+                        },
+                    xlabel={Load factor in percent},
+                    ylabel={Average bucket size in $\frac{1}{\text{Bucket}}$},
+                ]
+                \addplot[
+                    mark=square*,
+                    only marks,
+                    scatter,
+                    scatter src=explicit,
+                    mark size=3,
+                ]
+                table[meta=z] from {./tikz_src/hashing_assembly_size.txt};
+            \end{axis}
+        \end{tikzpicture}
+        \caption{Effects of average bucket size and hash table load factor on final assembly file size.}\label{hashing_figure}
+    \end{centering}
+\end{figure}
+
+In Figure~\ref{hashing_figure} we show the effects of the two major parameters for the used hashing
+algorithm. Missing data points mean that the hash function algorithm was not able to find all valid
+bucket-level hash functions within the 16-bit per-bucket storage limit. The load factor is the fraction (in percent) of the
+final hash table which is filled with
+hashed entries. The average bucket size is used to calculate the number of buckets and therefore
+directly effects the number of bucket-level hash functions required.
+
+\par
+
+The test was conducted on the translated binary of a simple zip program. Sources are located in the
+\texttt{tests} project folder. The test was only performed once because the hashing algorithm and
+the translator itself are both strictly deterministic.
+
+\par
+
+The analysis shows that
+the amount of storage required for bucket-level hash functions does not have a noticeable impact on
+the final assembly size. It also shows that finding all valid bucket-level hash functions is more
+likely with a lower average number of elements per bucket. This leads to the conclusion that using
+smaller buckets sizes can improve bucket-level hash function generation times while not noticeably
+increasing the output assembly size.
 
 \subsection{Performance of Translation Blocks}
 
