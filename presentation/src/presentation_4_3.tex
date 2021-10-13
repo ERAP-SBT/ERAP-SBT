@@ -270,17 +270,15 @@ block b1(/* inputs */) <= [/* predecessors */] {
     \frametitle{Lifter}{ELF Binärdatei laden und Instruktionsbytes decodieren}
     \begin{enumerate}
         \setlength\itemsep{0.6em}
-              \note[item]{ELF Prüfung: Prüfbits, System-V ABI, 64-Bit, Little Endian, RISC-V Machine}
         \item ELF File prüfen.
-              \note[item]{Symbole weren bei gestrippten ELF-Binaries nicht eingelesen}
         \item Program Header, Sections und Symbole auslesen.
-              \note[item]{32-Byte bzw. 16-Byte Compressed mit frvdec decodieren}
               \vspace{0.5em}
               \begin{enumerate}
                   \setlength\itemsep{0.6em}
-                  \item Instruktionen aus \texttt{PROGBITS} Sektionen die \textit{ausführbar} sind \\
-                        $\rightarrow$ mit \textbf{frvdec} decodieren.
-                  \item Daten aus \textit{lesbaren} Sektionen die \textbf{nicht} \textit{ausführbar} sind
+                  \item Instruktionen aus \textit{ausführbaren} Sektionen mit \textbf{frvdec} decodieren.
+                  \item Falls keine Sektionen verfügbar ist, werden Program Header verwendet
+                  \item Daten aus \textit{lesbaren} Sektionen die \textbf{nicht} \textit{ausführbar} sind werden
+                        byteweise als reine Daten geladen.
               \end{enumerate}
     \end{enumerate}
 \end{frame}
@@ -291,10 +289,11 @@ block b1(/* inputs */) <= [/* predecessors */] {
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{frame}
-    \frametitle{Lifter}{RISC-V Instruktionen sequentiell in IR Code umwandeln}\\
+    \frametitle{Lifter}{RISC-V Instruktionen sequentiell in IR Code umwandeln}
+    \\\vspace{0.5em}
     Wiederhole solange ungeliftete Instruktionen existieren:
     \begin{enumerate}
-        \setlength{\itemsep}{1em}
+        \setlength{\itemsep}{0.8em}
         \item Starte neuen Basic Block bei der nächsten, ungelifteten Instruktion
         \item geladene Instruktionen in IR parsen
         \item Wiederhole solange bis:
@@ -317,11 +316,71 @@ block b1(/* inputs */) <= [/* predecessors */] {
     \frametitle{Lifter Splitting}{Aufteilen eines Basic Blocks}
     \begin{itemize}
         \setlength{\itemsep}{1em}
-        \item Situation: Sprung \textbf{in} einen Basic Block
+        \item Situation: Sprung \textbf{in} einen bereits eingelesenen Basic Block
         \item Aufteilung an Sprungadresse in zwei Basic Blöcke
         \item Verbindung mit einem direkten Sprung
         \item Komplexe Operation, da alle Referenzen auf den geteilten Block betrachtet werden müssen
     \end{itemize}
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Call / Return %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+    \frametitle{Lifter Subroutinen Erkennung}{Erkennung der Assembler Pseudoinstruktionen \texttt{call} und \texttt{ret}.}
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item RISC-V Subroutinen Aufrufe funktionieren anders als bei x86\_64
+        \item Standard Calling Convention definiert \texttt{x1} und \texttt{x5} als \textit{Linkregister}
+        \item \texttt{JAL} := \textit{Jump and Link}
+        \item \texttt{JAL (x1 | x5), ..., ...} $\equiv$ \texttt{call}
+        \item \texttt{JALR x0, x1, 0} $\equiv$ \texttt{ret}
+        \item Laufzeitüberprüfung der Rücksprungziele durch Returnadressen-Stack
+    \end{itemize}
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Jump table detection %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}[fragile]
+    \frametitle{Lifter Sprungtabellenerkennung}{Switch-Case Kontrollstrukturen werden in Sprungtabellen umgewandelt.}\vspace{1em}
+    \begin{columns}[c]
+        \column{0.35 \textwidth}
+        \begin{lstlisting}[language=c, escapechar=!]
+switch(instr.mnem) {
+    case 0:
+        fun0();
+        break;
+    case !\colorbox{yellow}{1}!:
+        fun3();
+        break;
+    default:
+        fun4();
+        break;
+}
+        \end{lstlisting}
+        \column{0.1 \textwidth}
+        \begin{tikzpicture}[scale=0.72]
+            \TikZArrowX{TUMOrange}{0}{0}{3}{1}
+        \end{tikzpicture}
+        \column{0.4 \textwidth}
+        \begin{lstlisting}[language=rv64, escapechar=!]
+/* [...] */
+    !\colorbox{yellow}{bgtu}! a4, !\colorbox{yellow}{1}!, .L4
+    slli a4, a5, 2
+    lui a5, !\colorbox{yellow}{\%hi(.L1)}!
+    addi a5, a5, !\colorbox{yellow}{\%lo(.L1)}!
+    add a5, a4, a5
+    !\colorbox{yellow}{lw}! a5, 0(a5)
+    jr a5
+/* [...] */
+.L1:
+    .word .L2
+    .word .L3
+        \end{lstlisting}
+    \end{columns}
 \end{frame}
 \clearpage
 
@@ -410,23 +469,6 @@ block b1(/* inputs */) <= [/* predecessors */] {
             \end{pgfonlayer}
         \end{tikzpicture}
     \end{figure}
-\end{frame}
-\clearpage
-
-%%%%%%%%%%%%%%%%%%%%%%
-%% Lifter Call / Return %%
-%%%%%%%%%%%%%%%%%%%%%%
-\begin{frame}
-    \frametitle{Lifter Subroutinen}{Erkennung der Assembler Pseudoinstruktionen \texttt{call} und \texttt{ret}.}
-    \begin{itemize}
-        \setlength{\itemsep}{1em}
-        \item RISC-V Subroutinen Aufrufe funktionieren anders als bei x86\_64
-        \item Standard Calling Convention definiert \texttt{x1} und \texttt{x5} als \textit{Linkregister}
-        \item \texttt{JAL} := \textit{Jump and Link}
-        \item \texttt{JAL (x1 | x5), ..., ...} $\equiv$ \texttt{call}
-        \item \texttt{JALR x0, x1, 0} $\equiv$ \texttt{ret}
-        \item Laufzeitüberprüfung der Rücksprungziele durch Returnadressen-Stack 
-    \end{itemize}
 \end{frame}
 \clearpage
 
