@@ -278,6 +278,9 @@ system calls. Subroutine calls which are defined by many ISAs are only jump inst
 additional memory accessing operations. The control flow changing operations act as connectors
 between basic blocks. Figure~\ref{figure:cfops} shows a list of all defined control flow changing operations.
 
+Each basic block also keeps track of its predecessors and successors. Predecessors are the basic blocks which jump to
+the current basic block, and successors are the basic blocks that are jumped to by the current basic block.
+
 \begin{figure}
     \begin{center}
         \def\arraystretch{1.5}
