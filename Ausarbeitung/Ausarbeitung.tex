@@ -76,14 +76,14 @@ x86\_64 binary translation in the near future. Even though x86\_64 is still a mo
 than RISC-V, a lot of companies invest in a shift towards the RISC-V ISA. This revolution makes ISA
 incompatibilities a future problem we want to solve today.~\cite{riscv_rises} Another important use
 case for the SBT is translating binaries where the source code was lost. Programs without source
-code can not be compiled for another target ISA, but they can be translated using the SBT.
+code can not be compiled for another target ISA, but they can be translated using SBT.
 
 \par
 
 Therefore we developed a static binary translator from RISC-V to x86\_64 which uses an intermediate
 representation (IR). The instruction decoding and code generation are separated by using as the IR
 as a abstract data structure. Our aim is to be faster than the popular dynamic binary translator
-QEMU therefore we created some optimizations performed on the IR.
+QEMU.
 
 \par
 
@@ -185,10 +185,10 @@ typing, single static assignment (SSA) variables and machine-instruction-like op
 
 \section{Approach}\label{sec:approach}
 
-We divided the translation process in three main parts: instruction lifting, optimization, and code
+We divided the translation process into three main parts: instruction lifting, optimization, and code
 generation. We made this division to structure the translator and to simplify the implementation of
-optimizations. This also saves the opportunity to later support other ISAs as source or target ISAs
-because only some of the distinct parts need to be extended or replaced.
+optimizations. This allows to support other ISAs as source or target ISAs in the future
+because only some of the components need to be extended or replaced.
 
 \par
 
@@ -706,12 +706,8 @@ to the link register \texttt{x1}.\cite{rvspec}
 
 \par
 
-Subroutine calls which jump to an address in a register are so called \emph{icalls}. They act
-similar to indirect jumps and are backtracked in the same way. However, target detection success for indirect calls
-does not affect stack alignment. Even if we ca not determine an indirect call target, we still perform
-an x86\_64 \texttt{call} which pushes the instruction pointer onto the stack and jumps to the address
-in the supplied register. This works as long as we were able to identify the jump address as a basic
-block's entry point with the procedure described in the section\ \ref{backtracking}.
+Subroutine calls which jump to a dynamic address are so called \emph{icalls}. They act
+similar to indirect jumps and are backtracked in the same way.
 
 \section{Optimizations}\label{sec:optimizations}
 
