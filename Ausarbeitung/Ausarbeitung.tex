@@ -39,7 +39,7 @@
 In order to execute machine code, you need a processor which runs this machine code. But there are
 many different processor families and instruction set architectures (ISA) for which programs are
 developed. If you want to run a program which is written for an ISA where you don't have access to a
-system running this ISA, e.g. RISC-V. Then you can translate it and execute it on another system,
+system running this ISA, e.g. RISC-V, then you can translate it and execute it on another system,
 e.g.\ x86\_64. There are three main approaches:
 
 \par
@@ -58,8 +58,8 @@ twice.\cite{binary_translation}
 
 And thirdly, you can translate the full binary to an ISA which the target system is able to execute.
 That way you can separate translation and execution, which means you only have to translate the
-binary once for running it as often you need. This increases execution speed. This approach is
-called static binary translation (SBT).\cite{binary_translation}
+binary once for running it as often you need. This increases execution speed compared to DBT. This
+approach is called static binary translation (SBT).\cite{binary_translation}
 
 \par
 
@@ -69,30 +69,30 @@ called static binary translation (SBT).\cite{binary_translation}
 
 \par
 
-Our task is to
-develop a static binary translator which translates RISC-V binaries to x86\_64 machine code. This
-field of binary translation is a rather academic issue because currently, x86\_64 is still a
-more widely used ISA than RISC-V.\cite{riscv_rises} This means most programs are already available for the x86\_64
-processor architecture.
+Our task is to develop a static binary translator which translates RISC-V binaries to x86\_64
+machine code. This field of binary translation is a rather academic issue because currently, x86\_64
+is still a more widely used ISA than RISC-V.\cite{riscv_rises} This means most programs are already
+available for the x86\_64 processor architecture and therefore there is a small set of set of
+programs which need to be translated.
 
 \section{Background}
 \subsection{Short overview of RISC-V}
 
 According to the RISC-V specification~\cite{rvspec}, RISC-V is an open and freely accessible ISA
 which consists of ``[\ldots] a small base integer ISA [\ldots]'' and ``[\ldots] optional standard
-extensions to support general purpose software development''\cite[p.~1]{rvspec}. There is also
-the option to implement custom extensions. It is available in
-``[b]oth 32-bit and 64-bit address space variants for applications, operating system kernels, and
-hardware implementations.''\cite[p.~1]{rvspec} As the name suggests, the RISC-V ISA describes a
-\emph{Reduced Instruction Set Computer}. This kind of microprocessor is characterized by a larger
-number of registers, its load/store architecture, fixed-length instruction words and a generally
-limited amount of instructions and instruction formats.\cite{RISCvCISC}
+extensions to support general purpose software development''\cite[p.~1]{rvspec}. There is also the
+option to implement custom extensions. It is available in ``[b]oth 32-bit and 64-bit address space
+variants for applications, operating system kernels, and hardware
+implementations.''\cite[p.~1]{rvspec} As the name suggests, the RISC-V ISA describes a \emph{Reduced
+    Instruction Set Computer}. This kind of microprocessor is characterized by a larger number of
+registers, its load/store architecture, fixed-length instruction words and a generally limited
+amount of instructions and instruction formats.\cite{RISCvCISC}
 
 \par
 
-Currently there are standard extensions for multiplication and division (M), for atomic instructions (A),
-for floating point arithmetic (F,D,Q), for compressed instructions to reduce the code size (C) and
-for control and status registers (Ziscr). More standard extensions are planned.\cite{rvspec}
+Currently there are standard extensions for multiplication and division (M), for atomic instructions
+(A), for floating point arithmetic (F,D,Q), for compressed instructions to reduce the code size (C)
+and for control and status registers (Ziscr). More standard extensions are planned.\cite{rvspec}
 
 \subsection{Differences between RISC-V and x86\_64}
 In contrast to RISC-V, the x86\_64 ISA describes a CISC, a \emph{Complex Instruction Set Computer}.
@@ -114,8 +114,9 @@ used for performing jumps.\cite [p.~20]{rvspec}
 
 \par
 
-For the translation this differences are necessary knowledge to be able to generate efficient and optimized code.
-For example some instructions need to be assembled or can be merged to a single instruction in x86\_64.
+For the translation this differences are necessary knowledge to be able to generate efficient and
+optimized code. For example some instructions need to be assembled or can be merged to a single
+instruction in x86\_64.
 
 \subsection{Inspiration}
 
@@ -131,15 +132,19 @@ source or target. But this isn't the focus of this project.
 \par
 
 The lifter reads the instructions from the binary file and decodes the opcodes using
-frvdec\cite{frvdec}. The resulting instructions are used to disassemble the
-RISC-V binary into basic blocks, operations and variables in the intermediate representation (IR).
-It contains the logic of the input binary in an architecture-neutral form which generic optimization passes can
-be applied on. They reduce the number of operations required without altering the program's behavior.
-The generator compiles the IR program to x86\_64 assembly. To assemble an executable binary we use the GNU
-assembler (AS)\cite{gnu_binutils}. We link our helper library with it using the GNU linker
-(LD)\cite{gnu_binutils}. For further explanation, please refer to the following chapters. 
-Figure\ref{program_overview} 
-depicts a schematic of the basic translator structure.
+frvdec\cite{frvdec}. The resulting instructions are used to disassemble the RISC-V binary into basic
+blocks, operations and variables in the intermediate representation (IR). It contains the logic of
+the input binary in an architecture-neutral form which generic optimization passes can be applied
+on. They reduce the number of operations required without altering the program's behavior. The
+generator compiles the IR program to x86\_64 assembly. To assemble an executable binary we use the
+GNU assembler (AS)\cite{gnu_binutils}. We link our helper library with it using the GNU linker
+(LD)\cite{gnu_binutils}. For further explanation, please refer to the following chapters.
+
+\par
+
+Figure \ref{program_overview} depicts a schematic of the basic translator structure. It shows the
+operating parts of the translator and the used and created data objects, represented the arrows and
+squares respectively.
 
 \begin{figure}
     \centering
@@ -152,16 +157,72 @@ depicts a schematic of the basic translator structure.
 
 \par
 
-Our implementation only supports 64-bit RISC-V ELF\footnote{Executable and Linking Format} binaries which are statically linked and in little endian
-format. Another requirement is that the binary conforms to the System V ABI\footnote{Application
-Binary Interface}. This defines, inter alia, the system call IDs and the calling convention.
-These prerequisites are checked, using the metadata contained in the ELF-file, before
-translating the file in order to print meaningful debug messages.
+Our implementation only supports 64-bit RISC-V ELF\footnote{Executable and Linking Format} binaries
+which are statically linked and in little endian format. Another requirement is that the binary
+conforms to the System V ABI\footnote{Application Binary Interface}. This defines, inter alia, the
+system call IDs and the calling convention. These prerequisites are checked, using the metadata
+contained in the ELF-file, before translating the file in order to print meaningful debug messages
+and to stop the translation.
 
 \section{Intermediate representation}
 
 \section{Lifter}
 \subsection{General method}
+
+% Bullet Points:
+% - naming: lifter -> elevator: lift to higher code level
+% - runs sequentially through the text section
+% - storing variables assigned to registers in so called mapping (+ memory token)
+% - for each instruction an instruction sequence in the ir is created
+% - when discovering a cfop:
+%   - finish basic block (adding cfop)
+%   - address known:
+%       - already scanned address: split basic block or set jump target
+%       - not scanned: set as start of a basic block
+%   - if unknown:
+%       - use backtracking to find possible addresses (controllable through flag)
+%       - else target = dummy, let runtime handle
+% - last parts of lifting:
+%   - add entry block with setup stack
+%   - fixup jump targets / predecessors / successors / binary relative immediates
+
+% executeable sections müssen nicht nur instruktionen enthalten, auch daten möglich, von Neumann Daten & Instruktionen selber Speicher
+
+The lifter creates the IR based on the RISC-V binary. This process is called lifting because the
+machine code is lifted up to a more abstract representation at a higher level, the IR.
+
+\par
+
+The lifter runs sequentially through all sections of the binary which are marked with the flags
+\emph{alloc}, \emph{exec} and \emph{progbits}. This means that they are loaded at runtime into
+memory, executable and initialized at load. If there are no sections in the ELF file, the parsed
+instructions are gained from the \emph{LOAD} program header which is marked as \emph{read-only} and
+\emph{executable} (R+E). This sections respectively program header is loaded because there are
+usually the instruction stored.
+
+\par
+
+But due to the von Neumann memory model which specifies that instructions and data
+are stored in the same memory, it isn't possible to distinguish instructions and data. For example,
+if some constants are defined in the \emph{.text} section which can be interpreted as valid
+instructions, they are lifted as instructions. This is also known to be a hard problem in
+binary translation.
+
+\par
+
+While lifting the instructions, the so called \emph{mapping} keeps track of the variables which
+represents the content of the registers. This is necessary to know to which variables are the inputs
+of a newly created operation in the IR. At the start of a basic block the mapping is initialized
+with variables from static except from the index zero because this represents the hard wired zero in
+RISC-V. Therefore each read from the mapping at index zero is handled by adding an immediate
+variable with value zero. Each write doesn't affect the mapping as specified for the \emph{x0}
+register.\cite{rvspec}
+
+\par
+
+For each discovered instruction a sequence of variables connected through operations is added to the
+IR. These variables represents the functionality of the instruction as defined by the RISC-V manual.
+
 \subsection{Floating point support}
 \subsection{Backtracking}\label{backtracking}
 Although indirect jump addresses can be evaluated at runtime, we can only jump to the beginning of
@@ -169,10 +230,10 @@ detected basic blocks. This is the case, because we can optimize (\ref{dead_code
 instructions (\ref{constant_folding}) inside basic blocks without altering the control flow or
 logic of the program and as such there might often not be a one-to-one correspondence of RISC-V to x86\_64-Instructions.
 Having a completely runnable program thus means detecting every basic block
-with their corresponding entry points (including their exit points). Although determining all possible 
+with their corresponding entry points (including their exit points). Although determining all possible
 indirect jump targets statically is not possible (e.g. virtual function calls)
 % or not feasible (e.g. jump targets could be influenced by user input)
-, backtracking register contents during lifting can provide us with 
+, backtracking register contents during lifting can provide us with
 an approximation of the target set.
 
 \par
@@ -281,7 +342,7 @@ with an indirect jump, jumping to the address stored in \emph{v37}. \emph{ADD} a
 
 % TODO: divide this into two parts, one lifter one generator? since there are two distinct parts to it
 \subsection{Call and return optimization}
-The RISC-V architecture doesn't include special operations for handling subroutines. A function call 
+The RISC-V architecture doesn't include special operations for handling subroutines. A function call
 is assembled as a jump which places the address of the next instruction into a \emph{link-}register
 \emph{x1} or \emph{x5} (for the standard calling convention).\cite[p.~20]{rvspec} Returning from a
 subroutine is done by jumping to the address which is contained in either of those registers. This
@@ -303,29 +364,29 @@ block's entry point with the procedure described in the section\ \ref{backtracki
 As described in\ \cite{jump_table_paper}, n-conditional case statements, like the C programming
 language's switch-case statement, are often implemented by compilers using jump
 tables. A jump table is a pattern which enables efficient\footnote{Because the integer condition is
-used as the jump address selector, this is only efficient for switch-statements with small entry
-ranges (e.g.\ enum switching).} branching based
+    used as the jump address selector, this is only efficient for switch-statements with small entry
+    ranges (e.g.\ enum switching).} branching based
 on a stored set of addresses which are possible jump targets. This means we need to detect jump tables to find
-all possible basic block entry points. 
+all possible basic block entry points.
 
 \par
 
 The jump table pattern always involves consists of a particular set of RISC-V instructions.
 At the beginning, a bounds check is executed. A branching instruction is used to either jump to the
 default branch or the code after the switch if the switch condition (an integer) is above the
-highest case value. 
+highest case value.
 
-\par 
+\par
 
-If this is not the case, the switch condition is multiplied by a factor of 4. 
+If this is not the case, the switch condition is multiplied by a factor of 4.
 Using a combination of a \emph{lui} and an \emph{addi} instruction, it is possible to load a full
 32-bit constant\ \cite[p.~19]{rvspec} representing the start address of the jump table.
 This address is added to the integer condition. The resulting value is the memory address
 at which the desired jump address is stored. A 32-bit load is executed to load the value into a
 register. An indirect jump to this register's content is the final instruction, executing the case
-label jump. 
+label jump.
 
-\par 
+\par
 
 For the jump table detection, we just backtrack the previously described pattern for every
 encountered indirect jump. If the jump turns out to be part of a jump table configuration, we can
