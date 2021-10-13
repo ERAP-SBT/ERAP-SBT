@@ -601,7 +601,7 @@ the Constant folding pass. Since input binaries are often already optimized, dup
 
 
 \section{Generator}\label{generator}
-The generator has two jobs. % TODO: jobs isn't the right word...
+The generator has two tasks.
 Firstly, it needs to assemble all basic blocks which means assembling all variables with their associated operations,
 preparing the inputs for the next basic block and creating the control flow operations.
 Secondly, it needs to provide for a runtime environment. Namely the original binary in its memory-layouted
@@ -671,6 +671,7 @@ These translation blocks will set up the stack frame and move the inputs for the
 A problem with these blocks is that they need to be generated for a lot of basic blocks and take up a lot of space in the finished binary (sometimes even more than 30\% of the .text section) while also being rarely used
 since most indirect jumps will end up at function starts which we recognize with relatively good accuracy and blocks after a function call which will be returned to.
 So by only generating translation blocks for targets of function returns the binary size can be drastically reduced while also having a negliable impact on performance.
+
 \subsubsection{Merging operations}
 As x86 is a CISC-Architecture it offers a lot more sophisticated instructions than RISC-V or our IR. As such multiple operations in the IR can be merged into a single x86-Instruction under two conditions:
 The sequence of operations must be mergeable and the intermediate results of these operations are not needed later.
@@ -681,10 +682,46 @@ Mergeable sequences include:
     \item and with 0x1f/0x3f,(cast),shr/shl/sar: Can be merged into a single shift instructions since they mask the count operand by themselves
 \end{itemize}
 Merging these operations not only reduces the binary size since fewer instructions need to be encoded but also increase performance significantly.
-\subsection{Interpreter}\label{interpreter}
+
 \subsection{Helper library}\label{helper}
 
+Between RISC-V and x86\_64 there are also differences in the ABI exposed by linux at runtime.
+The System V ABI defines the startup and system call convention to follow on each platform, and Linux defines the ABI of the system calls. % TODO: cite system v ?
+
+\par
+
+The calling convention for system calls is different between the ABIs, so at runtime every RISC-V system call is directed to a wrapper function in the Helper Library.
+In most cases the only difference is the ID used to perform the system call, but in some cases arguments need to be modified before the system call can be performed.
+We implemented all system calls required by the benchmarks.
+However all system calls related to signals where stubbed to just return an error code, implementing would require more invasive system call rewriting and signal support was not necessary for running the benchmarks.
+
+\par
+
+% TODO: cite something that shows that system calls are slow anyway. => slow helper library doesn't matter very much
+At startup linux also puts information on the x86\_64 stack, for example the program arguments and auxiliary vectors. % TODO: define what auxiliary vectors are and why it matters ?
+Before executing the translated code these values need to be copied to the emulated Stack, and in some cases transformed.
+The auxiliary vectors contain information on where to locate the Linux VDSO\cite{man_vdso}.
+it is an ELF binary automatically linked by Linux that provides wrappers for some very common system calls to make them faster.
+The application uses the auxiliary vectors to locate this ELF and dynamically links to the functions provided.
+Because the ABI is very different we opted to remove the auxiliary vectors that allow the application to use the VDSO.
+In the future a VDSO wrapper could be implemented to provide the same speed benefits.
+% TODO: cite why the linux vdso can be used to speed up certain system calls
+
+% bullet points:
+% * why necessary (requirements): not everything can be translated ahead of time, sort of done
+% * system v abi at startup
+%   * ignoring the linux vdso
+%   * translate arguments / environment to risc-v stack
+% * translate syscalls at startup
+%   * often pass through
+%   * id mismatch
+%   * argument layout mismatch
+% * helper functions for ijump hash table lookup -> reference to other chapter
+% * contains the interpreter
+% * evaluate how well the requirements where reached, what is missing, problems encountered.
+
 \subsection{Indirect jump resolution}
+
 When encountering an indirect jump, the jump's input variable contains the jump target address in the
 original RISC-V binary address space. We try to statically identify most of the indirect jump target
 addresses during lifting and are thus able to start new basic blocks at such addresses.
@@ -826,6 +863,8 @@ the final assembly size. It also shows that finding all valid bucket-level hash 
 likely with a lower average number of elements per bucket. This leads to the conclusion that using
 smaller buckets sizes can improve bucket-level hash function generation times while not noticeably
 increasing the output assembly size.
+
+\subsection{Interpreter}\label{interpreter}
 
 \section{Floating point handling \& problems}
 
