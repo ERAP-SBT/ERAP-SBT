@@ -1445,16 +1445,22 @@ to manipulate the sign bit and to check in which category\footnote{For example, 
                 \addplot[fill=green]  table[x=benchmark, y expr=\thisrow{native} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 \addplot[fill=orange] table[x=benchmark, y expr=\thisrow{qemu}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 \addplot[fill=yellow] table[x=benchmark, y expr=\thisrow{ria}    /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                \addplot[fill=red]    table[x=benchmark, y expr=\thisrow{master} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                \addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{test3}  /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                % \addplot[fill=red]    table[x=benchmark, y expr=\thisrow{master} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{sbt1}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                %\addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{test3}  /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 %                \addplot table[x=benchmark, y expr=\thisrow{test2} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 %                \addplot table[x=benchmark, y expr=\thisrow{ria}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
 
                 %                \legend{native, qemu, test1, test2, ria}
-                \legend{native,qemu,ria,master, test3}
+                \legend{
+                    native,
+                    qemu,
+                    ria,
+                    % master,
+                    sbt1}
             \end{axis}
         \end{tikzpicture}
-        \caption{Benchmark Results}\label{benchmark_results1}
+        \caption{SPEC CPU 2017 Results Compared}\label{benchmark_results1}
     \end{centering}
 \end{figure}
 
