@@ -711,9 +711,9 @@ trees.
 
 \section{Optimizations}\label{sec:optimizations}
 
-The IR produced by the lifter is not always optimal. For example, at the time of lifting, the lifter is not able to know
-whether a variable will be used elsewhere, or whether some operation can be directly calculated or combined with another
-operation that follows later. For these purposes, separate optimization passes are performed once the full IR is
+The IR produced by the lifter is not always optimal. For example, at the time of lifting, the lifter is not always able
+to know whether a variable will be used elsewhere, or whether some operation can be directly calculated or combined with
+another operation that follows later. For these purposes, separate optimization passes are performed once the full IR is
 available.
 
 \subsection{Dead Code Elimination}\label{dead_code_elimination}
@@ -852,14 +852,14 @@ zero and thus an identity operation, it is removed, and references to it are rep
 
 \subsection{Common Subexpression Elimination}
 
-This optimization is sometimes also referred to as \textit{Value numbering}~\cite{ssa_proposal}: Each variable is
-given a symbolic value depending on its inputs and operation, and variables with the same value are redundant. These
-redundant variables can thus be all replaced by the first occurrence. In our implementation, a hash set is employed
-(similar to how this optimization is described in the SSA proposal), where only relevant properties, i.e. operation
-type, input variables, rounding mode, or in the case of immediate variables the value itself are considered and
-compared.
+Common Subexpression Elimination, or more specifically, \textit{(Local) Value
+numbering}~\cite{ssa_proposal}, is an optimization that removes redundant code. In principle, each variable is given a
+symbolic value depending on its inputs and operation, and variables with the same value are redundant. These redundant
+variables can thus be all replaced by the first occurrence. In our implementation, a hash set is employed (similar to
+how this optimization is described in the SSA proposal), where relevant properties, i.e. operation type, input
+variables, rounding mode, or in the case of immediate variables the value itself, are considered and compared.
 
-Common subexpression elimination is mostly useful for eliminating duplicate immediates, which are often produced by
+Common subexpression elimination is mostly useful for eliminating duplicate immediates, which can also be produced by
 the Constant folding pass. Since input binaries are often already optimized, duplicate operations are rather uncommon.
 
 \begin{figure}[H]
