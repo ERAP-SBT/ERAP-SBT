@@ -84,10 +84,10 @@ improbable that we will see a need for RISC-V to x86\_64 binary translation in t
 
 According to the RISC-V specification~\cite{rvspec}, RISC-V is an open and freely accessible ISA
 which consists of ``[\ldots] a small base integer ISA [\ldots]'' and ``[\ldots] optional standard
-extensions to support general purpose software development''~\cite[p.~1]{rvspec}. There is also the
+extensions to support general purpose software development''~\cite{rvspec}. There is also the
 option to implement custom extensions. It is available in ``[b]oth 32-bit and 64-bit address space
 variants for applications, operating system kernels, and hardware
-implementations.''~\cite[p.~1]{rvspec} As the name suggests, the RISC-V ISA describes a \emph{Reduced
+implementations.''~\cite{rvspec} As the name suggests, the RISC-V ISA describes a \emph{Reduced
     Instruction Set Computer}. This kind of microprocessor is characterized by a larger number of
 registers, its load/store architecture, fixed-length instruction words and a generally limited
 amount of instructions and instruction formats.\cite{RISCvCISC}
@@ -110,11 +110,11 @@ cycles.~\cite{RISCvCISC}
 The x86\_64 ISA defines instructions which access memory and perform arithmetic or logical
 operations at the same time. This is not possible with the load/store RISC-V architecture. Because
 of their variable instruction lengths, x86\_64 instructions can contain immediate values which are
-up to 64-bit wide.~\cite[Vol.~2B~p.~4-35]{intel2017man} RISC-V base instructions are currently always
-32-bit wide (16-bit for compressed instructions)~\cite[p.~8]{rvspec} which makes loading big
+up to 64-bit wide.~\cite{intel2017man} RISC-V base instructions are currently always
+32-bit wide (16-bit for compressed instructions)~\cite{rvspec} which makes loading big
 immediates difficult. These are either combined by two or more separate immediate loading operations
-or loaded relative to the current instruction pointer.~\cite[p.~19]{rvspec} The latter is also often
-used for performing jumps.\cite [p.~20]{rvspec}
+or loaded relative to the current instruction pointer.~\cite{rvspec} The latter is also often
+used for performing jumps.\cite{rvspec}
 
 \par
 
@@ -193,7 +193,7 @@ only being assigned to once.
 First described in 1988 for optimizing an intermediate program representation\cite{ssa_proposal},
 the \emph{single static assignment form} (SSA) is used for creating and optimizing explicit control
 flow graphs. It follows one basic rule: ``[E]ach variable is
-assigned to exactly once in the program text.''~\cite[p.~18]{ssa_proposal} In our IR, each variable
+assigned to exactly once in the program text.''~\cite{ssa_proposal} In our IR, each variable
 stores its source operation (if it is the result of an operation). This enables us to efficiently
 backtrace variable origins and e.g.\ replace variables which can be evaluated statically with constant
 immediates (Section~\ref{constant_folding}) or eliminate any unused variables (Section~\ref{dead_code_elimination}).
@@ -273,9 +273,9 @@ machine code is lifted up to a more abstract representation at a higher level, t
 The ELF-file loader parses instructions from the \texttt{SHT\_PROGBITS}-type sections of the binary
 which are marked with the flags
 \texttt{SHF\_ALLOC} and \texttt{SHF\_EXECINSTR}. The flags mark that the section ``occupies memory during
-process execution''\cite[p.~14]{elf_spec} and ``contains executable machine
-instructions''\cite[p.~14]{elf_spec}. According to the ELF-file specification, only ``files used
-during linking''\cite[p.~2]{elf_spec} must have a \emph{section header table} which holds section
+process execution''\cite{elf_spec} and ``contains executable machine
+instructions''\cite{elf_spec}. According to the ELF-file specification, only ``files used
+during linking''\cite{elf_spec} must have a \emph{section header table} which holds section
 information. In case there are no sections in the ELF file\footnote{e.g.\ memory dumps.} we use the
 program loader information, stored in the \emph{program header table}. The program headers
 specify parts of the underlying binary which are actually loaded to the final program.\footnote{Program header type \texttt{PT\_LOAD}.}
@@ -420,7 +420,7 @@ blocks and adjust their predecessor and successor lists.
 
 The last step in lifting is to add an entry basic block that sets the RISC-V stack up and jumps to the
 basic block at the ELF-file's entry address. This virtual address is stored in the ELF program header
-\texttt{e\_entry} and specifies where the execution of the binary starts.\cite[p.~5]{elf_spec}
+\texttt{e\_entry} and specifies where the execution of the binary starts.\cite{elf_spec}
 
 
 \subsection{Backtracking}\label{backtracking}
@@ -543,11 +543,11 @@ are operations, names starting with \textbf{x} are names of static mappers.\\
 \subsection{Call and Return Optimization}
 The RISC-V architecture does not include special operations for handling subroutines. A function call
 is assembled as a jump which places the address of the next instruction into a \emph{link-}register
-\texttt{x1} or \texttt{x5} (for the standard calling convention).\cite[p.~20]{rvspec} Returning from a
+\texttt{x1} or \texttt{x5} (for the standard calling convention).\cite{rvspec} Returning from a
 subroutine is done by jumping to the address which is contained in either of those registers. This
 behavior is further optimized with the compressed instructions \texttt{C.JAL} and
 \texttt{C.JALR}. These operations implicitly store the address of the next instruction
-to the link register \texttt{x1}.[p.~105]\cite{rvspec}
+to the link register \texttt{x1}.\cite{rvspec}
 
 \par
 
@@ -579,7 +579,7 @@ highest case value.
 
 If this is not the case, the switch condition is multiplied by a factor of 4.
 Using a combination of a \texttt{LUI} and an \texttt{ADDI} instruction, it is possible to load a full
-32-bit constant\ \cite[p.~19]{rvspec} representing the start address of the jump table.
+32-bit constant\cite{rvspec} representing the start address of the jump table.
 This address is added to the integer condition. The resulting value is the memory address
 at which the desired jump address is stored. A 32-bit load is executed to load the value into a
 register. An indirect jump to this register's content is the final instruction, executing the case
@@ -632,7 +632,7 @@ immediate operand itself, the two immediates can be evaluated under the rules of
 (Exceptions for binary-relative immediates still apply).
 
 %A simple example for the simplification is the \texttt{NOP}-pseudoinstruction in RISC-V, which is usually encoded as
-%\texttt{ADDI x0, x0, 0}.\cite[p.~20]{rvspec} The addition with zero does not change the value, and all occurrences of
+%\texttt{ADDI x0, x0, 0}.\cite{rvspec} The addition with zero does not change the value, and all occurrences of
 %the result variable can be replaced with the input variable (In practice, this simple case can already be detected in
 %the lifting stage).
 
@@ -645,7 +645,7 @@ reassigned. This means that the value of a variable is known just by looking at 
 
 \subsection{Common Subexpression Elimination}
 
-This optimization is sometimes also referred to as \textit{Value numbering}~\cite[p.~24]{ssa_proposal}: Each variable is
+This optimization is sometimes also referred to as \textit{Value numbering}~\cite{ssa_proposal}: Each variable is
 given a symbolic value depending on its inputs and operation, and variables with the same value are redundant. These
 redundant variables can thus be all replaced by the first occurrence. In our implementation, a hash set is employed
 (similar to how this optimization is described in the SSA proposal), where only relevant properties like the operation
