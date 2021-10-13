@@ -153,7 +153,7 @@ GNU assembler (AS)~\cite{gnu_binutils}. We link our helper library with it using
 
 \par
 
-Figure \ref{program_overview} depicts a schematic of the basic translator structure. It shows the
+Figure~\ref{program_overview} depicts a schematic of the basic translator structure. It shows the
 operating parts of the translator and the used and created data objects, represented by arrows and
 squares respectively.
 
@@ -162,8 +162,7 @@ squares respectively.
     \ProgramSchemeVersionOne{0.43}{13}
     \caption{
         A schematic representation of the translator's internal structure.
-    }
-    \label{program_overview}
+    }\label{program_overview}
 \end{figure}
 
 \par
@@ -377,7 +376,7 @@ instructions (\ref{constant_folding}) inside basic blocks without altering the c
 logic of the program. That's why there might often not be a one-to-one correspondence of RISC-V to x86\_64-Instructions.
 Having a completely runnable program thus means detecting every basic block
 with their corresponding entry points (including their exit points). Although determining all possible
-indirect jump targets statically is not possible (e.g. virtual function calls),
+indirect jump targets statically is not possible (e.g.\ virtual function calls),
 % or not feasible (e.g. jump targets could be influenced by user input)
 backtracking register contents during lifting can provide us with
 an approximation of the target set.
@@ -551,7 +550,7 @@ operation is deleted.
 
 Another purpose of the Dead Code Elimination pass is to remove unused inputs from BasicBlocks. For this, the
 reference-count does not suffice, since there might be circular control flow (like in loops). Instead, the Dead Code
-Elimination pass marks each variable associated with side effects, i.e. variables used in \texttt{store}s,
+Elimination pass marks each variable associated with side effects, i.e.\ variables used in \texttt{store}s,
 \texttt{syscall}s and jumps to unknown targets like \texttt{ijump}s. This marking is then propagated through the IR,
 until no more variables are reachable. Then, all unmarked variables and inputs can be deleted. This
 technique can be compared to a graph search algorithm, which detects connected components containing an operation with
@@ -560,7 +559,7 @@ side effects.
 \subsection{Constant Folding and Constant Propagation}\label{constant_folding}
 
 Constant Folding and Constant Propagation are closely related optimizations, where operations with known input values
-(i.e. immediate values) are computed, and immediate variables are propagated throughout BasicBlocks.
+(i.e.\ immediate values) are computed, and immediate variables are propagated throughout BasicBlocks.
 In our implementation, Constant Folding, Constant Propagation and operation simplifications are grouped into the same
 pass.  As such, we'll further refer to these collectively as Constant Folding.
 
@@ -592,7 +591,7 @@ reassigned. This means that the value of a variable is known just by looking at 
 
 \subsection{Common subexpression elimination}
 
-This optimization is sometimes also referred to as ``Value numbering'' \cite[p.~24]{ssa_proposal}: Each variable is
+This optimization is sometimes also referred to as ``Value numbering''~\cite[p.~24]{ssa_proposal}: Each variable is
 given a symbolic value depending on its inputs and operation, and variables with the same value are redundant. These
 redundant variables can thus be all replaced by the first occurrence. In our implementation, a hash set is employed
 (similar to how this optimization is described in the SSA proposal), where only relevant properties like the operation
@@ -629,7 +628,7 @@ optimizations in the IR as it very closely recreates the IR operations.
 
 It generates assembly for each basic block independently.
 For each one it creates a stack frame which holds space for every variable in the basic block, iterates all operations and
-retrieves its sources - either from a static or from the stack frame -, applies the operation and then saves the results in the stack frame again.
+retrieves its sources \- either from a static or from the stack frame -, applies the operation and then saves the results in the stack frame again.
 At the end of a block it iterates all control flow operations, evaluates their condition if necessary, writes out the inputs for the next basic block
 from the stack frame and either calls a helper routine or directly jumps to the next block.
 
@@ -648,8 +647,7 @@ block b1(i64 v0) <= [/* predecessors */] {
     imm v3 <- immediate 0
 } => [(cjump, [b2, v2], eq, v2, v3), (jump, [b1, v2])]
 \end{lstlisting}
-    \caption{Example-IR}
-    \label{fig:example_ir}
+    \caption{Example-IR}\label{fig:example_ir}
 \end{figure}
 
 \begin{figure}[h]
@@ -679,8 +677,7 @@ b1_cf_1:
     add rsp, 32
     jmp b1
 \end{lstlisting}
-    \caption{Assembly produced by naive generator}
-    \label{fig:naive_gen_asm}
+    \caption{Assembly produced by naive generator}\label{fig:naive_gen_asm}
 \end{figure}
 
 \subsection{Register allocation}\label{reg_alloc}
@@ -701,7 +698,7 @@ after which each operation in the basic block is then iterated, the inputs for i
 Here, if possible a seperate destination register than the input registers is used if the inputs are still needed later. Otherwise one of the input registers is simply overwritten.
 When choosing a register to place a variable into, registers without a variable in them or registers with variables which aren't used anymore are preferred. If all registers contain variables which are still needed
 the variable which is the farthest away from being used again (so the time of next use is the greatest) is chosen to be evicted to the stack.
-A possible improvement here could be to create a preference for a register for each variable if it is needed at a fixed location (e.g. it is used as an input for an already compiled basic block)
+A possible improvement here could be to create a preference for a register for each variable if it is needed at a fixed location (e.g.\ it is used as an input for an already compiled basic block)
 and take it into account when choosing a register to place a variable into. Though because of time-constraints we didn't have time to implement this.
 
 \par
@@ -731,15 +728,14 @@ b1_cf_1:
     mov [s0], rax
     jmp b2
 \end{lstlisting}
-    \caption{Assembly produced by register allocation}
-    \label{fig:reg_gen_asm}
+    \caption{Assembly produced by register allocation}\label{fig:reg_gen_asm}
 \end{figure}
 
-\subsubsection{Translation Blocks}\label{translation_blocks}
+\subsubsection{Translation blocks}\label{translation_blocks}
 One problem that is encountered when employing register allocation on groups of basic blocks is that the programm cannot simply jump to them using indirect jumps anymore because the basic block might expect variables to be in registers
 and not in statics and the stack frame, which is set up at the first block of a group, would be missing. To still make it possible for indirect jumps to jump to basic blocks which are register-allocated translation blocks need to be generated.
 These translation blocks will set up the stack frame and move the inputs for the basic block to the registers or stack slots at which it expects them before jumping to them.
-A problem with these blocks is that they need to be generated for a lot of basic blocks and take up a lot of space in the finished binary (sometimes even more than 30\% of the .text section) while also being rarely used
+A problem with these blocks is that they need to be generated for a lot of basic blocks and take up a lot of space in the finished binary (sometimes even more than 30\% of the \.text section) while also being rarely used
 since most indirect jumps will end up at function starts which we recognize with relatively good accuracy and blocks after a function call which will be returned to.
 So by only generating translation blocks for targets of function returns the binary size can be drastically reduced while also having a negliable impact on performance.
 
@@ -748,8 +744,8 @@ As x86 is a CISC-Architecture it offers a lot more sophisticated instructions th
 The sequence of operations must be mergeable and the intermediate results of these operations are not needed later.
 Mergeable sequences include:
 \begin{itemize}
-    \item add,(cast),store: Can be merged to a single store with the add embedded in the memory operand and the cast expressed as the store width
-    \item add,load,sign-/zero-extend: Can be merged into a single movsx/movzx with the add embedded in the memory operand
+    \item add, (cast), store: Can be merged to a single store with the add embedded in the memory operand and the cast expressed as the store width
+    \item add, load, sign-/zero-extend: Can be merged into a single movsx/movzx with the add embedded in the memory operand
     \item and with 0x1f/0x3f,(cast),shr/shl/sar: Can be merged into a single shift instructions since they mask the count operand by themselves
 \end{itemize}
 Merging these operations not only reduces the binary size since fewer instructions need to be encoded but also increase performance significantly.
@@ -801,7 +797,7 @@ addresses in the translated binary, at runtime. We also need a way to identify
 indirect jump target addresses which aren't the start address of any lifted basic block.
 
 We can only jump to the start of a (translation) basic block, because this is the only reference point where the
-emulated riscv64 registers (statics) are stored at a known location.
+emulated RISC-V registers are stored at a known location (in the form of statics).
 
 In case we encounter such an unknown jump target address, we switch to the \nameref{interpreter} to
 interpret the original RISC-V code just-in-time until the next start of a basic block is reached.
@@ -811,10 +807,10 @@ interpret the original RISC-V code just-in-time until the next start of a basic 
 Mapping the RISC-V indirect jump target addresses to translated basic blocks requires a
 dictionary-like data structure.
 The implementation has to have fast access times as we need to access entries with
-every indirect jump and every interpreted instruction in the interpreter. It also has to be able
+every indirect jump and every interpreted CfOp instruction in the interpreter. It also has to be able
 to identify invalid keys, to switch to the interpreter if the
-jump target address is not a valid basic block start address. We developed the data structure in two
-iterations:
+jump target address is not a valid basic block start address. We developed two data structure and
+compared their strengths and weaknesses:
 
 \begin{enumerate}
     \item For the naive implementation, we store a specific 64-bit wide number for each lifted RISC-V address
@@ -833,11 +829,11 @@ iterations:
           process called ``Hash, displace, and compress''\cite{CHD}. The process consist of a two-stage hash
           function which first sorts the items into buckets and later generates a hash function for each
           bucket. The hashed values are stored in one common hash table. The calculation starts with a load
-          factor ($\alpha$) of 100\% and a bucket size of 19 elements ($\lambda$) per bucket in average. These values are lowered
-          incrementally by 10\% and 2 elements respectively if no valid bucket-level hash function could be found for the
-          existing constraints.
-          While a lower average bucket size decreases the translation time (because hash functions have fewer
-          collision constraints), a higher average bucket size decreases the translated binary's size (because
+          factor ($\alpha$) of 100\% and a bucket size of 10 elements ($\lambda$) per bucket in average. These values are lowered
+          incrementally by 10\% and 1 element respectively if no valid bucket-level hash function could be found for the
+          set constraints.
+          While a lower average bucket size decreases the translation time (because hash functions hash
+          fewer items which generally results in fewer collisions), a higher average bucket size decreases the translated binary's size (because
           every bucket needs to store its own hash function).
           The bucket-level hash functions only need a 16-bit index to be reconstructed and can
           thus
@@ -871,10 +867,9 @@ iterations:
           \par
 
           The hashing helps reduce the required storage space to the hash table size and the hash function
-          indices table size. The storage size optimizations mean however that
+          indices table size.\ref{hashing_figure} The storage size optimizations mean however that
           every access takes, although it's complexity is still constant, the additional time of calculating
-          the hash table index.
-
+          the hash table index. This is effect can be observed in Figure~\ref{time_x}.
 \end{enumerate}
 
 \begin{figure}
@@ -915,9 +910,9 @@ iterations:
     \end{centering}
 \end{figure}
 
-In figure \ref{hashing_figure} we show the effects of the two major parameters for the used hashing
+In figure~\ref{hashing_figure} we show the effects of the two major parameters for the used hashing
 algorithm. Missing data points mean that the hash function algorithm was not able to find all valid
-bucket-level hash functions within the 16-bit per-bucket storage limit.  The load factor is the fraction (in percent) of the
+bucket-level hash functions within the 16-bit per-bucket storage limit. The load factor is the fraction (in percent) of the
 final hash table which is filled with
 hashed entries. The average bucket size is used to calculate the number of buckets and therefore
 directly effects the number of bucket-level hash functions required.
@@ -1092,16 +1087,14 @@ problems in a similar dimension, depicted by figure~\ref{fig:mandelbrot_diff_tra
     \centering
     \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/x86_diff.png}
     \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
-        comparing native x86\_64 to RISC-V.}
-    \label{fig:mandelbrot_diff_native_x86}
+        comparing native x86\_64 to RISC-V.}\label{fig:mandelbrot_diff_native_x86}
 \end{figure}
 
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/translated_diff.png}
     \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
-        comparing the translator to RISC-V.}
-    \label{fig:mandelbrot_diff_translator}
+        comparing the translator to RISC-V.}\label{fig:mandelbrot_diff_translator}
 \end{figure}
 
 \par
@@ -1118,8 +1111,7 @@ figure~\ref{fig:mandelbrot_diff_fma3} this causes the result to be equal to the 
     \centering
     \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/fma_diff.png}
     \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
-        comparing the translator with all optimizations (especially FMA3) to RISC-V.}
-    \label{fig:mandelbrot_diff_fma3}
+        comparing the translator with all optimizations (especially FMA3) to RISC-V.}\label{fig:mandelbrot_diff_fma3}
 \end{figure}
 
 \subsection{Implementation problems \& solutions}
