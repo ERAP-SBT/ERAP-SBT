@@ -425,7 +425,7 @@ the IR to replicate the original program's behavior.
 0xa8:       sll a1, a1, a2
             [...]
     \end{lstlisting}
-    \caption{RISC-V assembly sequence used in example for the lifter. }
+    \caption{RISC-V assembly sequence used as example for the lifter. }
     \label{fig:lifting_example_riscv}
 \end{figure}
 
@@ -500,7 +500,7 @@ adjusted.
 
 If the jump address cannot be extracted from the instruction, the backtracking (section~\ref{backtracking})
 is used to infer possible addresses which are processed with the same procedure as described before.
-Using the command line flag \texttt{--full-backtracking} the user can control whether all possible
+Using a command line flag the user can control whether all possible
 addresses should be found or the first one is used. If no jump address can be inferred, a dummy
 basic block which indicates an unresolved jump target, is set as the target block. The jump address then
 needs to be evaluated at runtime and jumps to an address where no basic block begins need to be
@@ -1327,7 +1327,7 @@ return targets.
 \par
 
 The interpreter fully emulates \texttt{rv64imacfd} and therefore supports the same standard
-extensions as the translator. If the \texttt{--interpreter-only} flag is supplied to the translator no
+extensions as the translator. If a command flag is supplied to the translator no
 basic blocks will be translated and all code will be interpreted. This was used to verify the
 correctness of the interpreter using the benchmark tests. But as explained this method is rather
 slow and therefore is not desirable to use as translate binaries.
@@ -1372,7 +1372,7 @@ very few programs depends on floating point exceptions.
 
 \par
 
-The floating point support can be deactivated using the \texttt{--disable-fp} command line flag in order
+The floating point support can be deactivated using a command line flag in order
 to prevent the lifter from adding the additional statics and to lift RISC-V floating point
 instructions. The advantage is a decrease in used memory because less static variables have to be
 stored.
