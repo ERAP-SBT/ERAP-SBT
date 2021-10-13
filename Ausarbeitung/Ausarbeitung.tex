@@ -660,41 +660,48 @@ So by only generating translation blocks for targets of function returns the bin
 \subsection{Helper library}\label{helper}
 
 \subsection{Indirect jump resolution}
-When encountering an indirect jump, the input variable contains the jump target address in the
-original RISC-V binary, at runtime. We try to statically identify most of the indirect jump target
+When encountering an indirect jump, the jump's input variable contains the jump target address in the
+original RISC-V binary address space. We try to statically identify most of the indirect jump target
 addresses during lifting and are thus able to start new basic blocks at such addresses. 
-This means we need a helper function which translates RISC-V
-addresses into basic block addresses in the generated assembly. We also need a way to identify
-target addresses which aren't the start address of any existing basic block. This situation is
-handled by a panic function, defined in the \nameref{helper}. It prints a supplied panic string to
-the standard error output and exits the program with a non-zero exit code. 
+This however means we need to translate the original binary's addresses to basic block start
+addresses in the translated binary, at runtime. We also need a way to identify
+indirect jump target addresses which aren't the start address of any lifted basic block. We can only
+jump to the start of a basic block, because this is the only reference point (in the basic block) where the translated
+binary and the original binary overlap at known addresses. In case we encounter such an unknown jump
+target address, we switch to the \nameref{interpreter} to interpret the original RISC-V code
+just-in-time until the next start of a basic block is reached.
 
 \par 
 
-Mapping the RISC-V indirect jump target addresses to translated basic blocks requires a dictionary.
-The implementation has to have exceptionally fast access times as we need to access entries with
-every indirect jump. It also has to be able to identify invalid keys, to escalate a panic if the
-jump target address is not a valid basic block start address. Therefore, we implemented two
-different methods:
+Mapping the RISC-V indirect jump target addresses to translated basic blocks requires a
+dictionary-like data structure.
+The implementation has to have fast access times as we need to access entries with
+every indirect jump and every interpreted instruction in the interpreter. It also has to be able
+to identify invalid keys, to switch to the interpreter if the
+jump target address is not a valid basic block start address. We developed the data structure in two
+iterations:
 
-\begin{itemize}
-\item For the naive implementation, we store a 64-bit wide number for each RISC-V address, after
-some label in the \texttt{.ro\_data} section. This recreates part of the original binary's address
+\begin{enumerate}
+\item For the naive implementation, we store a specific 64-bit wide number for each lifted RISC-V address
+in the \texttt{.ro\_data} section. This recreates part of the original binary's address
 space with a known offset. The numbers are either 0 if no basic block with the given start address
 exists or the address of the basic block which starts with instructions from this RISC-V address.
 The latter is done by using the basic block labels, with the assembler calculating the actual
-numbers.
+address numbers.
 \par
-This method has the advantage of having a constant access time with no calculation overhead. It
+This method has the advantage of having a constant access time with barely no calculation overhead. It
 however means that we need to store additional information in our output assembly file in the size of the
 lifted instructions section of the original binary. This could be part of the problem of the
 assembler AS requiring a lot of memory for assembling the output assembly.
 
-\item To reduce this overhead, we implemented a method for creating a perfect hash table with a
+\item To reduce this overhead, we implemented a method for creating a nearly perfect hash table with a
 process called ``Hash, displace, and compress''\cite{CHD}. The process consist of a two-stage hash
 function which first sorts the items into buckets and later generates a hash function for each
-bucket. The hashed values are stored in one hash table with a load factor of 0.95 and an average bucket size
-of 3 elements. The bucket-level hash functions only need a 16-bit index to be reconstructed and can thus
+bucket. The hashed values are stored in one common hash table. The calculation starts with a load
+factor of 0.95, which is lowered incrementally by 10\% if no valid hash function could be found.
+We also use an average bucket size of 3 elements which was identified as a good bucket size in the
+referenced paper. The bucket-level hash functions only need a 16-bit index to be reconstructed and can
+thus
 be stored memory efficiently. These bucket hash function indices are stored in a separate table in
 the \texttt{.ro\_data} section, together with the hash table.
 
@@ -702,10 +709,10 @@ the \texttt{.ro\_data} section, together with the hash table.
 
 For the hash function generation, we didn't use truly random hash functions. The authors of the ``Hash,
 displace, and compress'' perfect hashing method suggest using a ``heuristic hash
-function''\cite{CHD}, on of Bob Jenkins' first published hash functions.\cite{jenkins_hash_1} For
+function''\cite{CHD}, one of Bob Jenkins' first published hash functions.\cite{jenkins_hash_1} For
 our implementation, we use one of his latest hash functions which is supposed to be faster than his
 first proposals.\cite{jenkins_hash_2} Because we are only interested in hashing 64-bit addresses, we
-don't need most of his hash function which generates hashes for byte arrays of variable sizes. 
+only need part of his hash function which generates hashes for byte arrays of variable sizes. 
 
 \par
 
@@ -729,7 +736,7 @@ indices table size. The storage size optimizations mean however that
 every access takes, although it's complexity is still constant, the additional time of calculating
 the hash table index.
 
-\end{itemize}
+\end{enumerate}
 
 % TODO: provide examples for assembly size reduction
 
