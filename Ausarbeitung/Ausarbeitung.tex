@@ -662,28 +662,84 @@ for switch-statements which are compiled into a combination of jump tables and b
 trees.
 
 \section{Optimizations}\label{sec:optimizations}
+
+The IR produced by the lifter is not always optimal. For example, at the time of lifting, the lifter is not able to know
+whether a variable will be used elsewhere, or whether some operation can be directly calculated or combined with another
+operation that follows later. For these purposes, separate optimization passes are performed once the full IR is
+available.
+
 \subsection{Dead Code Elimination}\label{dead_code_elimination}
 
 There are cases in compiled programs, where a value is written to a register, but never read from again.
-When lifted, these register writes are found in the IR as unused variables, which can be removed.
-This is accomplished by visiting the variables in reverse order, and dropping them when their reference-count is zero.
-This also takes care of \textit{cascading} deletes, as the reference-count for inputs of an operation is decreased once the
-operation is deleted.
+When lifted, these register writes are found in the IR as unused variables, which can be removed through \emph{Dead Code
+Elimination} (DCE). For this purpose, each variable has a reference count assigned to it. This is a number, which is
+increased each time the variable is referenced in another operation or control flow operation. If the reference count of
+a variable is zero, it is not used anywhere and can be removed.
+
+By visiting the variables in reverse order, \textit{cascading} deletes are taken care of, as the reference count for
+inputs of an operation is decreased once the operation is deleted.
 
 Another purpose of the Dead Code Elimination pass is to remove unused inputs from BasicBlocks. For this, the
-reference-count does not suffice, since there might be circular control flow (like in loops). Instead, the Dead Code
-Elimination pass marks each variable associated with side effects, i.e.\ variables used in \texttt{store}s,
-\texttt{syscall}s and jumps to unknown targets like \texttt{ijump}s. This marking is then propagated through the IR,
-until no more variables are reachable. Then, all unmarked variables and inputs can be deleted. This
+reference-count does not suffice, since there might be circular control flow (like in loops). Instead, DCE marks each
+variable associated with side effects, i.e.\ variables used in \texttt{store}s, \texttt{syscall}s and jumps to unknown
+targets like \texttt{ijump}s. This marking is then propagated through the IR by visiting operation inputs and
+predecessors, until no more variables are reachable. Then, all unmarked variables and inputs can be deleted. This
 technique can be compared to a graph search algorithm, which detects connected components containing an operation with
 side effects.
+
+\begin{figure}[H]
+\centering
+\begin{lstlisting}[]
+block b1(i64 v0, i64 v1) <= [/* predecessors */] {
+    i64 v0 <- @0 (1)
+    i64 v1 <- @1 (3)
+    imm v2 <- immediate -1 (3)
+    i64 v3 <- add i64 v0, imm v2 (1)
+    imm v4 <- immediate 0 (2)
+    i64 v5 <- add i64 v1, imm v4 (0)
+} => [(cjump, [b2, v2, v1], eq, v3, v4), (jump, [b1, v2, v1])]
+block b2(i64 v0, i64 v1) <= [b1] {
+    /* content omitted for simplicity */
+    i64 v0 <- @0 (1)
+    i64 v1 <- @1 (0)
+} => [/* control flow operations */];
+\end{lstlisting}
+\caption{Example IR: The value in parenthesis after each variable is its reference count}\label{fig:dce_example_before}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{lstlisting}[]
+block b1(i64 v0) <= [/* predecessors */] {
+    i64 v0 <- @0 (1)
+    imm v1 <- immediate -1 (1)
+    i64 v2 <- add i64 v0, imm v1 (3)
+    imm v3 <- immediate 0 (1)
+} => [(cjump, [b2, v2], eq, v2, v3), (jump, [b1, v2])]
+block b2(i64 v0) <= [b1] {
+    /* content omitted for simplicity */
+    i64 v0 <- @0 (1)
+} => [/* control flow operations */];
+\end{lstlisting}
+\caption{Example IR after Dead Code Elimination}\label{fig:dce_example_after}
+\end{figure}
+
+Figure~\ref{fig:dce_example_before} shows an example IR which has not been optimized. Figure~\ref{fig:dce_example_after}
+shows a potential result of performing DCE on this example. To better visualize the operation of DCE, the variables
+have been annotated with their corresponding reference count.
+
+The simplest change is variable \texttt{v5}, which is not referenced in any other variable or control flow operation,
+and can be eliminated. One can also see that \texttt{v1} is not used, but since it is still passed as target input to
+other basic blocks, its reference count is not zero. In this case, the marking process finds that \texttt{v1} is not
+involved in any side effect, and consequently removes it. Since it is also a static, the corresponding input is removed
+from the basic block.
 
 \subsection{Constant Folding and Constant Propagation}\label{constant_folding}
 
 Constant Folding and Constant Propagation are closely related optimizations, where operations with known input values
 (i.e.\ immediate values) are computed, and immediate variables are propagated throughout BasicBlocks.
 In our implementation, Constant Folding, Constant Propagation, and operation simplifications are grouped into the same
-pass.  As such, they are refer to collectively as Constant Folding.
+pass.  As such, they are further referred to collectively as Constant Folding.
 
 This optimization pass is done by visiting each operation in a BasicBlock in order, making the pass run in linear time.
 Depending on the inputs of an operation, one of several actions can be performed.
@@ -704,12 +760,55 @@ immediate operand itself, the two immediates can be evaluated under the rules of
 %the result variable can be replaced with the input variable (In practice, this simple case can already be detected in
 %the lifting stage).
 
-As an example, take two consecutive variables, one being \texttt{add v0, 73} and the other \texttt{add v1, 64} (where v0
-is some input and v1 is the first variable). The Constant folding pass replaces the second variable with \texttt{add v1,
-    137}, and consequently might render the first variable unused.
+%As an example, take two consecutive variables, one being \texttt{add v0, 73} and the other \texttt{add v1, 64} (where v0
+%is some input and v1 is the first variable). The Constant folding pass replaces the second variable with \texttt{add v1,
+%    137}, and consequently might render the first variable unused.
 
-This optimization is greatly simplified by the use of the SSA form in the IR, since variables ca not be
+This optimization is greatly simplified by the use of the SSA form in the IR, since variables can not be
 reassigned. This means that the value of a variable is known just by looking at the declaration of the variable.
+
+\begin{figure}[H]
+\centering
+\begin{lstlisting}[]
+block b1(i64 v0) <= [/* predecessors */] {
+    i64 v0 <- @0
+
+    imm v1 <- immediate 73
+    i64 v2 <- add i64 v0, imm v1
+    imm v3 <- immediate 64
+    i64 v4 <- add i64 v2, imm v3
+
+    imm v5 <- immediate 95
+    imm v6 <- immediate 31
+    i64 v7 <- sub imm v5, imm v6
+
+    imm v8 <- immediate 0
+    i64 v9 <- add i64 v7, imm v8
+} => [/* control flow operations */]
+\end{lstlisting}
+\caption{Example IR}\label{fig:const_folding_example_before}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{lstlisting}[]
+block b1(i64 v0) <= [/* predecessors */] {
+    i64 v0 <- @0
+
+    imm v3 <- immediate 137
+    i64 v4 <- add i64 v0, imm v3
+
+    i64 v7 <- immediate 64
+} => [/* control flow operations */]
+\end{lstlisting}
+\caption{Example IR after Constant Folding}\label{fig:const_folding_example_after}
+\end{figure}
+
+Figures~\ref{fig:const_folding_example_before} and \ref{fig:const_folding_example_after} show an example IR before and
+after applying Constant Folding. First, variables \texttt{v2} and \texttt{v4} are collapsed into one variable by
+evaluating the add with immediates (since addition is associative), making \texttt{v1} and \texttt{v2} dead
+code. Next, \texttt{v7} is directly evaluated, since both inputs are immediates. Last, since \texttt{v9} is an add with
+zero and thus an identity operation, it is removed, and references to it are replaced with \texttt{v7}.
 
 \subsection{Common Subexpression Elimination}
 
@@ -722,6 +821,46 @@ type, IDs of inputs variables, or in the case of immediate variables the value i
 Common subexpression elimination is mostly useful for eliminating duplicate immediates, which are often produced by
 the Constant folding pass. Since input binaries are often already optimized, duplicate operations are rather uncommon.
 
+\begin{figure}[H]
+\centering
+\begin{lstlisting}[]
+block b1(i64 v0, i64 v1) <= [/* predecessors */] {
+    i64 v0 <- @0
+    i64 v1 <- @1
+
+    imm v2 <- immediate 64
+    i64 v3 <- add i64 v0, imm v2
+    imm v4 <- immediate 64
+    i64 v5 <- add i64 v0, imm v4
+
+    i64 v6 <- add i64 v1, i64 v5
+} => [/* control flow operations */]
+\end{lstlisting}
+\caption{Example IR}\label{fig:cse_example_before}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{lstlisting}[]
+block b1(i64 v0, i64 v1) <= [/* predecessors */] {
+    i64 v0 <- @0
+    i64 v1 <- @1
+
+    imm v2 <- immediate 64
+    i64 v3 <- add i64 v0, imm v2
+
+    i64 v6 <- add i64 v1, i64 v3
+} => [/* control flow operations */]
+\end{lstlisting}
+\caption{Example IR after Common Subexpression Elimination}\label{fig:cse_example_after}
+\end{figure}
+
+Figures~\ref{fig:cse_example_before} and \ref{fig:cse_example_after} show an example IR before and after applying Common
+Subexpression Elimination. The first four variables visited (\texttt{v0}, \texttt{v1}, \texttt{v2}, and \texttt{v3})
+are stored in the hash set, since there are no previous identical variables. The next variable, \texttt{v4}, is
+the same as \texttt{v2}, so it is removed and replaced with \texttt{v2}. Then, after applying this replacement to
+\texttt{v5}, it is identical to \texttt{v3}, so it is also removed. Finally, the second parameter of \texttt{v6} is
+changed from \texttt{v5} to \texttt{v3}.
 
 \section{Generator}\label{sec:generator}
 The generator has two tasks.
