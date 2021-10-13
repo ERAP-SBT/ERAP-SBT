@@ -79,8 +79,8 @@ This project aims to describe the development of a static binary translator whic
 machine code. The current rise of RISC-V processors makes it probable that we will see a need for 
 RISC-V to x86\_64 binary translation in the near future. Even though x86\_64
 is still a more widely used ISA than RISC-V, a lot of companies invest in a shift towards the
-RISC-V ISA.~\cite{riscv_rises} This revolution makes ISA incompatibilities a future problem for which
-we are able to present a solution today. 
+RISC-V ISA. This revolution makes ISA incompatibilities a future problem for which
+we are able to present a solution today.~\cite{riscv_rises}
 
 \section{Background}
 \subsection{Short Overview of RISC-V}
@@ -116,14 +116,23 @@ cycles.~\cite{RISCvCISC}
 
 \par
 
-The x86\_64 ISA defines instructions which access memory and perform arithmetic or logical
-operations at the same time. This is not possible with the load/store RISC-V architecture. Because
-of their variable instruction lengths, x86\_64 instructions can contain immediate values which are
-up to 64-bit wide.~\cite{intel2017man} RISC-V base instructions are currently always
-32-bit wide (16-bit for compressed instructions)~\cite{rvspec} which makes loading big
+The RISC-V ISA defines a load/store architecture, meaning that a single instruction can either
+manipulate the memory or perform an operation that does not access the memory. The x86\_64 ISA
+does not have this restriction and defines arithmetic and logical instructions which operate
+directly on memory. Also, RISC-V base instructions are currently always
+32-bit wide (16-bit for compressed instructions) which makes loading big
 immediates difficult. These are either combined by two or more separate immediate loading operations
-or loaded relative to the current instruction pointer.~\cite{rvspec} The latter is also often
-used for performing jumps.\cite{rvspec}
+or loaded relative to the current instruction pointer.~\cite{rvspec} In comparison, x86\_64 instructions 
+can contain immediate values which are up to 64-bit wide, because
+of their variable instruction lengths~\cite{intel2017man}.
+
+\par
+
+Assemblers make this difference less complicated for developers by introducing so called
+\textit{pseudoinstructions}. These are instructions which perform simple tasks like loading an
+immediate, jumping to an address, or calling a subroutine. Most of them can't be directly expressed
+as a single RISC-V instruction and is thus replaced with a common pattern. This gives a translator
+the power to detect these patterns and efficiently convert them to a more compact, x86\_64 representation.
 
 \par
 
