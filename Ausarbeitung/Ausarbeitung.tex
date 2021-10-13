@@ -36,6 +36,8 @@
 % - our problem: SBT from RISC-V to x86-64
 % - more academic problem, because most programs are available on x86-64
 
+% TODO: Ahead Of Time
+
 In order to natively execute machine code, you need a processor which runs this machine code. But there are
 many different processor families with different instruction set architectures (ISA) for which programs are
 developed. If you want to run a program which is written for an ISA where you don't have access to a
@@ -727,11 +729,13 @@ original RISC-V binary address space. We try to statically identify most of the 
 addresses during lifting and are thus able to start new basic blocks at such addresses.
 This however means we need to translate the original binary's addresses to basic block start
 addresses in the translated binary, at runtime. We also need a way to identify
-indirect jump target addresses which aren't the start address of any lifted basic block. We can only
-jump to the start of a basic block, because this is the only reference point (in the basic block) where the translated
-binary and the original binary overlap at known addresses. In case we encounter such an unknown jump
-target address, we switch to the \nameref{interpreter} to interpret the original RISC-V code
-just-in-time until the next start of a basic block is reached.
+indirect jump target addresses which aren't the start address of any lifted basic block.
+
+We can only jump to the start of a (translation) basic block, because this is the only reference point where the
+emulated riscv64 registers (statics) are stored at a known location.
+
+In case we encounter such an unknown jump target address, we switch to the \nameref{interpreter} to
+interpret the original RISC-V code just-in-time until the next start of a basic block is reached.
 
 \par
 
@@ -865,6 +869,55 @@ smaller buckets sizes can improve bucket-level hash function generation times wh
 increasing the output assembly size.
 
 \subsection{Interpreter}\label{interpreter}
+
+To enter the interperter all statics (RV64 registers) must be at a known location.
+The same is true for exiting the interperter.
+
+% reference motivation -> emulator is slowest method
+  % -> original binary in memory => decode instructions from address
+% why necessary ? most ijumps can be resolved, but some can't be
+% -> paper over gaps
+
+It is implemented in C++ and uses frvdec~\cite{frvdec} for decoding instructions.
+Every instruction reads registers:wq
+
+
+loop over instructions until a point is found where it can return to an already translated binary block
+% - statics at known location (requirement for entry and exit)
+%   -> BB for exit has requirement
+%   -> can't jump into middle of basicblock
+
+Usually a translated BasicBlock will be found after few instructions, resulting in almost negliable slow down from entering the interperter.
+However in some extreme cases where no return BasicBlock is found, pratically the entire program is emulated resulting in extreme slow downs.
+This can be observed if no translation blocks are build, % TODO: ref chapter
+resulting in less possible return targets.
+
+% - in the best case the interpreter only runs for very few instructions, if at all, before a return to a translated basicblock is possible
+%   - unoptimized -> slow, but ok as only fall back system
+% - until it can jump back to the translated instructions (uses the ijump look up table), so the interperter is only
+%   used if absolutely necessary and doesn't need to be very fast
+
+% Explain why interpreter is necessary
+% Trade-off: speed vs. simple implementation => JIT riscv64 code or self modifying code supported but not necessarily
+%            very fast.
+% however in pratice the interpreter is never run or only for a few instructions
+
+% Bullet points:
+% - emulate operations on register file (<-> statics)
+%   => at entry all registers (statics) are at a known location
+% - emulates instructions
+%   => after every instruction the new register values are written back to this location
+%   => at exit ....
+
+% - can be used to translate/emulate a whole binary (-> '--interpreter-only') <- Complete emulation of rv64imacfd
+The interperter fully emulates rv64imacfd, and therefor supports the same instructions as the translator.
+If the ``--interpreter-only'' flag is supplied to the translator no BasicBlocks will be translated and all code will be interpreted.
+This was used to verify the correctness of the interperter using the benchmark tests. % TODO: move to performance section ?
+
+At runtime the CPUID~\cite{intel2017man} % TODO: cite ?
+is checked for support of the FMA3 CPU extension.
+If it is present the interpreter uses it for faster
+floating point enulation, otherwise the fused multiply add instructions are assembled using separate multiplication and addition respectively subtraction instructions.
 
 \section{Floating point handling \& problems}
 
