@@ -1506,6 +1506,13 @@ to manipulate the sign bit and to check in which category\footnote{For example, 
 
 \section{Evaluation}\label{sec:evaluation}
 
+In this chapter we asses if we reached our goals.
+To measure the performance we use the SPECspeed\textregistered 2017 Integer~\cite{spec_cpu_2017} benchmark.
+We compare the results to QEMU, a popular dynamic binary translator supporting many different Architectures.
+And also to RIA-JIT~\cite{ria_hit_repo}, another dynamic binary translator that only supports RISC-V to x86\_64 translation, but claims to be faster than QEMU in their paper~\cite{ria_jit_paper}.
+
+The effectiveness and drawbacks of the implemented optimizations are also shown.
+
 \subsection{SPEC CPU 2017}
 
 \subsection{Setup}
