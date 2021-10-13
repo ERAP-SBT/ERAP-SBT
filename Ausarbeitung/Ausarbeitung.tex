@@ -634,7 +634,7 @@ At the end of a block it iterates all control flow operations, evaluates their c
 from the stack frame and either calls a helper routine or directly jumps to the next block.
 
 % TODO: example
-\subsection{Register allocation}
+\subsection{Register allocation}\label{reg_alloc}
 To achieve good performance and code density though we need to employ a more sophisticated approach to generating assembly from the IR.
 To do so we group together blocks which closely represent functions of the original binary and compile them together, allocate register and stack slots
 for variables and pass them between the blocks. As such we keep often used vars in registers and prevent spilling of variables to statics at the end of each basic block.
@@ -870,8 +870,20 @@ increasing the output assembly size.
 
 \subsection{Interpreter}\label{interpreter}
 
-To enter the interperter all statics (RV64 registers) must be at a known location.
-The same is true for exiting the interperter.
+If the interpreter is entered, the riscv64 regsiter values (represented by the static values) need
+to be in the statics. The same also has to be done when exiting the interpreter. This is especially
+important, when using the \nameref{reg_alloc} because the variable values are moved from the
+registers in the statics and so the interpreter knowns where to take the values from.
+
+\par
+
+An emulator is the slowest method of translating a binary. Our interpreter is an emulator, but is
+called interpreter. So the interpreter is pretty slow as it decodes the instructions at runtime
+using frvdec~\cite{frvdec}. In order to be able to decode the instructions at runtime, the original
+binary has to be stored as data in the result binary.
+
+\par
+
 
 % reference motivation -> emulator is slowest method
   % -> original binary in memory => decode instructions from address
