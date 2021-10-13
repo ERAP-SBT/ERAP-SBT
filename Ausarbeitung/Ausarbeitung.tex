@@ -1276,7 +1276,7 @@ is reached.
 
 \par
 
-When the interpreter is entered and left, the riscv64 register values (represented by the static
+When the interpreter is entered and left, the RISC-V register values (represented by the static
 values) need to be in the statics. This is important as the generator stores the variable values in
 registers or in the stack frame, but the interpreter works on the statics. This needs to be done as
 the interpreter needs to know an location where the variables values are stored. So the values are
@@ -1498,7 +1498,7 @@ The translator also passes all tests when compiled without floating point suppor
 However with floating point support additional optimizations~\footnote{\texttt{fma3} and \texttt{sse4} need to be enabled.} need to be enabled to achieve correct floating point results.
 % TODO: either say they need fixing or that this is due to wrong rounding (backref to floating chapter)
 
-\subsection{Comparision to QEMU and RIA-JIT}
+\subsection{Comparison to QEMU and RIA-JIT}
 
 \begin{figure}
     \begin{centering}
@@ -1562,7 +1562,7 @@ However with floating point support additional optimizations~\footnote{\texttt{f
 Due to bugs in the ria-jit rv64fd implementation, namely the lack of dynamic rounding support % TODO: verify
 the xz benchmark did not complete successfully.
 
-\subsection{Effectivness of different Optimizations}
+\subsection{Effectiveness of different Optimizations}
 
 \subsection{Basic Block Start Address Hashing}
 
