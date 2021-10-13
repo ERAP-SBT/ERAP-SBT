@@ -1511,8 +1511,9 @@ to manipulate the sign bit and to check in which category\footnote{For example, 
 \subsection{Setup}
 
 All benchmarks where performaned on the \texttt{time-x} server provided by the Chair of Computer Architecture and Parallel Systems.~\footnote{\url{https://www.in.tum.de/caps/hw/caps-cloud/}} % FIXME: better citation
-The Server has a \texttt{AMD Ryzen Threadripper PRO 3955WX 16-Cores} CPU and \texttt{32GB} memory. % TODO: mention vulnerability mitigations ?
+The Server has a \texttt{AMD Ryzen Threadripper PRO 3955WX 16-Cores} CPU and \texttt{32GB} memory.
 It is running \texttt{Ubuntu 20.04.2 LTS} with kernel release \texttt{5.10.0-1044-oem} and version \texttt{\#46-Ubuntu SMP Wed Aug 11 09:50:57 UTC 2021}.
+% TODO: mention vulnerability mitigations ? (lscpu)
 The benchmarks where executed on a \texttt{nfs} filesystem.
 
 For native benchmarks the GNU Compiler provided by the operating system was used,
@@ -1534,6 +1535,8 @@ Due to lack of development tools, the toolchain, ria and sbt where compiled in a
 
 % TODO: ria-jit version (commit hash + changes to original paper, cite paper and reason we choose to compare against it, maybe "because it is faster than qemu" ?)
 % TODO: describe changes to the benchmark configuration for compiler compatibility, see `diff config/Example... config/ourconfig.cfg` in time-x for details, ignore the __HASH__ things
+% TODO: version of SPEC CPU 2017 used: SPEC CPU(R)2017 v1.1.0
+% TODO: note that for our translator only the execution time of the resulting binary was measured, not of the translation step
 
 \subsection{Correctness}
 
@@ -1559,7 +1562,6 @@ However with floating point support additional optimizations~\footnote{\texttt{f
                     width=0.9\textwidth,
                     height=0.5\textwidth,
                     ybar,
-                    % bar width = 5pt,
                     bar width = 4pt,
                     ylabel={Execution time normalised to native (less is better)},
                     symbolic x coords = {
@@ -1603,7 +1605,10 @@ However with floating point support additional optimizations~\footnote{\texttt{f
                     sbt1}
             \end{axis}
         \end{tikzpicture}
-        \caption{SPEC CPU 2017 Results Compared}\label{benchmark_results1}
+        \caption{
+            SPEC CPU 2017 Results Compared to SBT executed with all optimizations except \texttt{no\_trans\_bbs} enabled.
+            RIA-JIT encountered a floating point error in the benchmark 625.x264, so this single benchmark was repeated with a toolchain using \texttt{--with-arch=rv64iamc --with-abi=lp64}.
+        }\label{benchmark_results1}
     \end{centering}
 \end{figure}
 
