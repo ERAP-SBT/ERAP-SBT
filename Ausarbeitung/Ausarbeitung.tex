@@ -1,6 +1,8 @@
 % Diese Zeile bitte -nicht- aendern.
 \documentclass[course=eragp]{aspdoc}
 
+\input{commands.tex}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% TODO: Ersetzen Sie in den folgenden Zeilen die entsprechenden -Texte- % mit den richtigen Werten.
 \newcommand{\theGroup}{IhreGruppennummer} % Beispiel: 42
@@ -145,6 +147,15 @@ Binary Interface (ABI) because this defines the system call ids and the calling 
 Obviously the ELF file also has to be a RISC-V binary. This prerequisites are checked before
 translating the file in order to print meaningful debug messages.
 
+\begin{figure}
+    \centering
+    \ProgramSchemeVersionOne{0.43}{13}
+    \caption{
+        A schematic representation of the translator's internal structure.
+    }
+    \label{program_overview}
+\end{figure}
+
 \section{Intermediate representation}
 
 \section{Lifter}
@@ -155,9 +166,9 @@ Although indirect jump addresses can be evaluated at runtime, we can only jump t
 detected basic blocks. This is the case, because we can optimize (\ref{dead_code_elimination}) and fold
 instructions (\ref{constant_folding}) inside basic blocks without altering the control flow or
 logic of the program. Having a completely runnable program thus means detecting every basic block
-with their corresponding entrypoints (including their exit points). Although determining all possible 
-indirect jump targets statically is not possible or not feasible (e.g.\ jump targets could be 
-influenced by user input), backtracking register contents during lifting can provide us with 
+with their corresponding entrypoints (including their exit points). Although determining all possible
+indirect jump targets statically is not possible or not feasible (e.g.\ jump targets could be
+influenced by user input), backtracking register contents during lifting can provide us with
 an approximation of the target set.
 
 \par
@@ -166,12 +177,12 @@ To statically determine indirect jump target addresses, we need to evaluate poss
 the jump's input register operand. Each variable stores its origin, being either the result of an
 operation, an immediate value or bound to a static mapper. This enables us to backtrack the value of
 any variable in the call tree until we reached a variable which can't be backtracked or until we evaluated
-all possible values. 
+all possible values.
 
 \par
 
 Registers keep their values between jumps and calls. We model this behavior using static mappers
-which bind variables to their registers in between basic blocks. For backtracking, this means a 
+which bind variables to their registers in between basic blocks. For backtracking, this means a
 variable which is bound to a static mapper can have any value that the variable mapped to the same
 static mapper in its basic block's predecessors has. This opens up a room of variables which
 influence the jump target, growing with the amount of predecessors and operation inputs.
@@ -179,7 +190,7 @@ influence the jump target, growing with the amount of predecessors and operation
 \par
 
 Figure~\ref{backtracking_graph} shows an example for such a call tree. The basic block \emph{bb24} ends
-with an indirect jump, jumping to the address stored in \emph{v37}. \emph{ADD} and \emph{SHL} are operations. 
+with an indirect jump, jumping to the address stored in \emph{v37}. \emph{ADD} and \emph{SHL} are operations.
 
 \begin{figure}
     \centering
@@ -271,7 +282,7 @@ The RISC-V architecture doesn't include special operations for handling subrouti
 subroutine is done by jumping to the address which is contained in either of those registers. This
 behavior is further optimized with the compressed instructions \emph{C.JAL} and
 \emph{C.JALR}. These operations implicitly store the address of the next instruction
-to the link register \emph{x1}.[p.~105]\cite{rvspec} 
+to the link register \emph{x1}.[p.~105]\cite{rvspec}
 
 \par
 
