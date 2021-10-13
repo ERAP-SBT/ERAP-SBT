@@ -182,36 +182,48 @@ typing, single static assignment (SSA) variables and machine-instruction-like op
 
 \section{Approach}\label{sec:approach}
 
-We divided the translation process in three main parts: lifting, optimization, and generation. We
-made this division to structure the program and to simplify the implementation of optimizations.
-%% --- im not 100% sure that this is right, please change it if its wrong --- %%
-The parts are independent to at least theoretically save the opportunity to support another ISA as
-source or target. But this is not the focus of this project.
-%% -------------------------------------- END ------------------------------- %%
+We divided the translation process in three main parts: instruction lifting, optimization, and code
+generation. We made this division to structure the translator and to simplify the implementation of
+optimizations. This also saves the opportunity to later support other ISAs as source or target ISAs
+because only some of the distinct parts need to be extended or replaced.
+
+\par
+
+The IR is tailored to the use case of translating RISC-V to x86\_64. It is the data structure which
+contains the logic of the input binary in an architecture-neutral form which generic optimization
+passes can be applied on. They reduce the number of operations required without altering the
+program's behavior.
 
 \par
 
 The lifter reads the instructions from the binary file and decodes the opcodes using
-\texttt{frvdec}~\cite{frvdec}. The resulting instructions are used to disassemble the RISC-V binary into basic
-blocks, operations, and variables in the IR. It contains the logic of
-the input binary in an architecture-neutral form which generic optimization passes can be applied
-on. They reduce the number of operations required without altering the program's behavior. The
-generator compiles the IR program to x86\_64 assembly. To assemble an executable binary we use the
-GNU assembler (AS)~\cite{gnu_binutils}. We link our helper library with it using the GNU linker
-(LD)~\cite{gnu_binutils}.
+\texttt{frvdec}~\cite{frvdec}. The resulting instructions are used to disassemble the RISC-V binary
+into basic blocks, operations, and variables in the IR. The code generator creates x86\_64
+assembly IR program based on the optimized IR.
 
 \par
 
-Figure~\ref{program_overview} depicts a schematic of the basic translator structure. It shows the
+We also provide a helper library, which implements some platform specific or runtime based
+functionality which is used by the translated binary. For example, it includes an interpreter which
+can be used to translate some instructions during runtime.The helper library is specific for both
+source and target ISAs as system calls or the interpreter depend on the architecture.
+
+\par
+
+To assemble the executable binary we use the GNU assembler (AS)~\cite{gnu_binutils} and the GNU
+linker (LD)~\cite{gnu_binutils} to link our helper library with it.
+
+\par
+
+Figure~\ref{fig:program_overview} depicts a schematic of the basic translator structure. It shows the
 operating parts of the translator and the used and created data objects, represented by arrows and
 squares respectively.
 
-\begin{figure}
+\begin{figure}[H]
     \centering
-    \ProgramSchemeVersionOne{0.43}{13}
-    \caption{
-        A schematic representation of the translator's internal structure.
-    }\label{program_overview}
+    \ProgramScheme{0.43}{13}
+    \caption{A schematic representation of the translator's internal structure as well as in- and
+        output binaries.}\label{fig:program_overview}
 \end{figure}
 
 \par
@@ -268,20 +280,20 @@ between basic blocks. Figure~\ref{figure:cfops} shows a list of all defined cont
         \def\arraystretch{1.5}
         \begin{tabular}{r | p{0.8\linewidth}}
             \hline
-            IR Operation & Description \\ [0.5ex]
+            IR Operation & Description                                                                   \\ [0.5ex]
             \hline
-            jump & Direct jump to a known target address.\\
-            ijump      & Indirect jump to a possibly unknown target address.        \\
-            cjump      &    Conditional jump to a known target address.    \\
-call       &    Subroutine call. Also encodes a continuation address to which the subroutine
-is expected to return to.\\
-icall       &    Same behavior as a normal \textit{call}, but with unknown subroutine target
-address.     \\
-return       &  Exit subroutine execution and continue at the continuation address of the
-\textit{call} instruction which lead to the subroutine execution.\\
-unreachable       & This operation should never be reached. On reach, it terminates the program's
-execution.  \\
-            syscall       &  A syscall in respect to the System V ABI.        \\
+            jump         & Direct jump to a known target address.                                        \\
+            ijump        & Indirect jump to a possibly unknown target address.                           \\
+            cjump        & Conditional jump to a known target address.                                   \\
+            call         & Subroutine call. Also encodes a continuation address to which the subroutine
+            is expected to return to.                                                                    \\
+            icall        & Same behavior as a normal \textit{call}, but with unknown subroutine target
+            address.                                                                                     \\
+            return       & Exit subroutine execution and continue at the continuation address of the
+            \textit{call} instruction which lead to the subroutine execution.                            \\
+            unreachable  & This operation should never be reached. On reach, it terminates the program's
+            execution.                                                                                   \\
+            syscall      & A syscall in respect to the System V ABI.                                     \\
             \hline
         \end{tabular}
         \caption{Control flow changing operations defined by the IR.}\label{figure:cfops}
@@ -322,7 +334,7 @@ assigned to a static mapper.
 \par
 
 Each basic block ends with control flow changing operation(s) which redirect the control flow to
-other basic blocks. Every such operation 
+other basic blocks. Every such operation
 stores its target block(s) together with a mapping which combines variables from their source basic
 block with corresponding static mappers. This tells the code generator (section~\ref{sec:generator}) which SSA variables
 should be transferred between basic blocks.
@@ -708,7 +720,7 @@ available.
 
 There are cases in compiled programs, where a value is written to a register, but never read from again.
 When lifted, these register writes are found in the IR as unused variables, which can be removed through \emph{Dead Code
-Elimination} (DCE). For this purpose, each variable has a reference count assigned to it. This is a number, which is
+    Elimination} (DCE). For this purpose, each variable has a reference count assigned to it. This is a number, which is
 increased each time the variable is referenced in another operation or control flow operation. If the reference count of
 a variable is zero, it is not used anywhere and can be removed.
 
@@ -724,8 +736,8 @@ technique can be compared to a graph search algorithm, which detects connected c
 side effects.
 
 \begin{figure}[H]
-\centering
-\begin{lstlisting}[]
+    \centering
+    \begin{lstlisting}[]
 block b1(i64 v0, i64 v1) <= [/* predecessors */] {
     i64 v0 <- @0 (1)
     i64 v1 <- @1 (3)
@@ -740,12 +752,12 @@ block b2(i64 v0, i64 v1) <= [b1] {
     i64 v1 <- @1 (0)
 } => [/* control flow operations */];
 \end{lstlisting}
-\caption{Example IR: The value in parenthesis after each variable is its reference count}\label{fig:dce_example_before}
+    \caption{Example IR: The value in parenthesis after each variable is its reference count}\label{fig:dce_example_before}
 \end{figure}
 
 \begin{figure}[H]
-\centering
-\begin{lstlisting}[]
+    \centering
+    \begin{lstlisting}[]
 block b1(i64 v0) <= [/* predecessors */] {
     i64 v0 <- @0 (1)
     imm v1 <- immediate -1 (1)
@@ -757,7 +769,7 @@ block b2(i64 v0) <= [b1] {
     i64 v0 <- @0 (1)
 } => [/* control flow operations */];
 \end{lstlisting}
-\caption{Example IR after Dead Code Elimination}\label{fig:dce_example_after}
+    \caption{Example IR after Dead Code Elimination}\label{fig:dce_example_after}
 \end{figure}
 
 Figure~\ref{fig:dce_example_before} shows an example IR which has not been optimized. Figure~\ref{fig:dce_example_after}
@@ -796,8 +808,8 @@ This optimization is greatly simplified by the use of the SSA form in the IR, si
 reassigned. This means that the value of a variable is known just by looking at the declaration of the variable.
 
 \begin{figure}[H]
-\centering
-\begin{lstlisting}[]
+    \centering
+    \begin{lstlisting}[]
 block b1(i64 v0) <= [/* predecessors */] {
     i64 v0 <- @0
 
@@ -814,12 +826,12 @@ block b1(i64 v0) <= [/* predecessors */] {
     i64 v9 <- add i64 v7, imm v8
 } => [/* control flow operations */]
 \end{lstlisting}
-\caption{Example IR}\label{fig:const_folding_example_before}
+    \caption{Example IR}\label{fig:const_folding_example_before}
 \end{figure}
 
 \begin{figure}[H]
-\centering
-\begin{lstlisting}[]
+    \centering
+    \begin{lstlisting}[]
 block b1(i64 v0) <= [/* predecessors */] {
     i64 v0 <- @0
 
@@ -829,7 +841,7 @@ block b1(i64 v0) <= [/* predecessors */] {
     i64 v7 <- immediate 64
 } => [/* control flow operations */]
 \end{lstlisting}
-\caption{Example IR after Constant Folding}\label{fig:const_folding_example_after}
+    \caption{Example IR after Constant Folding}\label{fig:const_folding_example_after}
 \end{figure}
 
 Figures~\ref{fig:const_folding_example_before} and \ref{fig:const_folding_example_after} show an example IR before and
@@ -851,8 +863,8 @@ Common subexpression elimination is mostly useful for eliminating duplicate imme
 the Constant folding pass. Since input binaries are often already optimized, duplicate operations are rather uncommon.
 
 \begin{figure}[H]
-\centering
-\begin{lstlisting}[]
+    \centering
+    \begin{lstlisting}[]
 block b1(i64 v0, i64 v1) <= [/* predecessors */] {
     i64 v0 <- @0
     i64 v1 <- @1
@@ -865,12 +877,12 @@ block b1(i64 v0, i64 v1) <= [/* predecessors */] {
     i64 v6 <- add i64 v1, i64 v5
 } => [/* control flow operations */]
 \end{lstlisting}
-\caption{Example IR}\label{fig:cse_example_before}
+    \caption{Example IR}\label{fig:cse_example_before}
 \end{figure}
 
 \begin{figure}[H]
-\centering
-\begin{lstlisting}[]
+    \centering
+    \begin{lstlisting}[]
 block b1(i64 v0, i64 v1) <= [/* predecessors */] {
     i64 v0 <- @0
     i64 v1 <- @1
@@ -881,13 +893,13 @@ block b1(i64 v0, i64 v1) <= [/* predecessors */] {
     i64 v6 <- add i64 v1, i64 v3
 } => [/* control flow operations */]
 \end{lstlisting}
-\caption{Example IR after Common Subexpression Elimination}\label{fig:cse_example_after}
+    \caption{Example IR after Common Subexpression Elimination}\label{fig:cse_example_after}
 \end{figure}
 
 \section{Code Generator}\label{sec:generator}
 The code generator is used to assemble all basic blocks which means assembling all variables with their associated operations,
 preparing the inputs for the next basic block and creating the control flow operations for each block.
-Additionally, it needs to provide for a runtime environment. 
+Additionally, it needs to provide for a runtime environment.
 This runtime environment consists of the original binary so that relevant data for execution (e.g. the .data section) is still accessible
 as well as a stack which is used as a replacement for the original stack.
 This is required because the x86\_64-Stack is reserved for storing temporary variables when assembling a basic block and return addresses for the Call-Return-Optimization.
@@ -925,7 +937,7 @@ block b1(i64 v0) <= [/* predecessors */] {
     imm v1 <- immediate -1
     i64 v2 <- add i64 v0, imm v1
     imm v3 <- immediate 0
-} => [(cjump, [b2, v2], eq, v2, v3), (jump, [b1, v2])]
+} => [(cjump, [b2, v2], v2, v3, eq), (jump, [b1, v2])]
 \end{lstlisting}
     \caption{Example-IR used to show the difference between the simple code generator and register allocation.}\label{fig:example_ir}
 \end{figure}
@@ -1558,96 +1570,96 @@ the xz benchmark did not complete successfully.
 \begin{center}
     \begin{longtable}{p{0.35\linewidth} | p{0.6\linewidth}}
         \hline
-        Instruction  & Description                                                                                                       \\ [0.5ex]
+        Instruction  & Description                                                                                                                \\ [0.5ex]
         \hline
-        store        & Store value at supplied address. Consumes memory token and generates a new one.                                   \\
+        store        & Store value at supplied address. Consumes memory token and generates a new one.                                            \\
         \hline
         load         & Loads value at supplied address and returns it. Reads as many bits from memory as the output
-        variable is wide.                                                                                                                \\
+        variable is wide.                                                                                                                         \\
         \hline
-        add          & Addition.                                                                                                         \\
+        add          & Addition.                                                                                                                  \\
         \hline
-        sub          & Subtraction.                                                                                                      \\
+        sub          & Subtraction.                                                                                                               \\
         \hline
-        mul\_l       & Multiplication. Returns the lower half of the result.                                                             \\
+        mul\_l       & Multiplication. Returns the lower half of the result.                                                                      \\
         \hline
-        ssmul\_h     & \textbf{Signed} multiplication. Returns upper half of the result.                                                 \\
+        ssmul\_h     & \textbf{Signed} multiplication. Returns upper half of the result.                                                          \\
         \hline
-        uumul\_h     & \textbf{Unsigned} multiplication. Returns upper half of the result.                                               \\
+        uumul\_h     & \textbf{Unsigned} multiplication. Returns upper half of the result.                                                        \\
         \hline
-        sumul\_h     & Multiplication of one \textbf{signed} and one \textbf{unsigned} value. Returns upper half of the result.          \\
+        sumul\_h     & Multiplication of one \textbf{signed} and one \textbf{unsigned} value. Returns upper half of the result.                   \\
         \hline
-        div          & \textbf{Signed} division. Returns both the result and the remainder.                                              \\
+        div          & \textbf{Signed} division. Returns both the result and the remainder.                                                       \\
         \hline
-        udiv         & \textbf{Unsigned} division. Returns both the result and the remainder.                                            \\
+        udiv         & \textbf{Unsigned} division. Returns both the result and the remainder.                                                     \\
         \hline
-        shl          & Logical shift left.                                                                                               \\
+        shl          & Logical shift left.                                                                                                        \\
         \hline
-        shr          & Logical shift right.                                                                                              \\
+        shr          & Logical shift right.                                                                                                       \\
         \hline
-        sar          & Arithmetic shift right.                                                                                           \\
+        sar          & Arithmetic shift right.                                                                                                    \\
         \hline
-        or           & Logical \textit{or}.                                                                                              \\
+        or           & Logical \textit{or}.                                                                                                       \\
         \hline
-        and          & Logical \textit{and}.                                                                                             \\
+        and          & Logical \textit{and}.                                                                                                      \\
         \hline
-        not          & Logical \textit{not}.                                                                                             \\
+        not          & Logical \textit{not}.                                                                                                      \\
         \hline
-        xor          & Logical \textit{xor}.                                                                                             \\
+        xor          & Logical \textit{xor}.                                                                                                      \\
         \hline
         cast         & C-style typecast. Defined for shrinking variables and for bit-wise cast from integer to
-        floating point numbers.                                                                                                          \\
+        floating point numbers.                                                                                                                   \\
         \hline
         slt          & Ternary operator, set if less than:\newline IR: \texttt{dst $\leftarrow$ slt v1, v2, v3, v4} \newline
-        Pseudocode: \texttt{dst = (v1 < v2) ? v3 : v4}                                                                                   \\
+        Pseudocode: \texttt{dst = (v1 < v2) ? v3 : v4}                                                                                            \\
         \hline
         sltu         & Ternary operator, set if less than:\newline IR: \texttt{dst $\leftarrow$ sltu v1, v2, v3, v4} \newline
-        Pseudocode: \texttt{dst = (v1 <\textbf{u} v2) ? v3 : v4}                                                                         \\
+        Pseudocode: \texttt{dst = (v1 <\textbf{u} v2) ? v3 : v4}                                                                                  \\
         \hline
         sle          & Ternary operator, set if less or equal:\newline IR: \texttt{dst $\leftarrow$ sle v1, v2, v3, v4} \newline
-        Pseudocode: \texttt{dst = (v1 <= v2) ? v3 : v4}                                                                                  \\
+        Pseudocode: \texttt{dst = (v1 <= v2) ? v3 : v4}                                                                                           \\
         \hline
         seq          & Ternary operator, set if equal:\newline IR: \texttt{dst $\leftarrow$ seq v1, v2, v3, v4} \newline
-        Pseudocode: \texttt{dst = (v1 == v2) ? v3 : v4}                                                                                  \\
+        Pseudocode: \texttt{dst = (v1 == v2) ? v3 : v4}                                                                                           \\
         \hline
-        sign\_extend & Enlarge value to bigger type using sign extension.                                                                \\
+        sign\_extend & Enlarge value to bigger type using sign extension.                                                                         \\
         \hline
-        zero\_extend & Enlarge value to bigger type using zero extension.                                                                \\
+        zero\_extend & Enlarge value to bigger type using zero extension.                                                                         \\
         \hline
-        setup\_stack & Meta instruction used for stack setup at program start.                                                           \\
+        setup\_stack & Meta instruction used for stack setup at program start.                                                                    \\
         \hline
-        umax         & Returns larger one of two values, \textbf{unsigned} comparison.                                                   \\
+        umax         & Returns larger one of two values, \textbf{unsigned} comparison.                                                            \\
         \hline
-        umin         & Returns smaller one of two values, \textbf{unsigned} comparison.                                                  \\
+        umin         & Returns smaller one of two values, \textbf{unsigned} comparison.                                                           \\
         \hline
-        max          & Returns larger one of two values, \textbf{signed} comparison.                                                     \\
+        max          & Returns larger one of two values, \textbf{signed} comparison.                                                              \\
         \hline
-        min          & Returns smaller one of two values, \textbf{signed} comparison.                                                    \\
+        min          & Returns smaller one of two values, \textbf{signed} comparison.                                                             \\
         \hline
-        fmul         & \textbf{Signed} floating pointer number multiplication.                                                           \\
+        fmul         & \textbf{Signed} floating pointer number multiplication.                                                                    \\
         \hline
-        fdiv         & \textbf{Signed} floating pointer number division, only returns the result.                                        \\
+        fdiv         & \textbf{Signed} floating pointer number division, only returns the result.                                                 \\
         \hline
-        fsqrt        & Takes the square root of two floating point values.                                                               \\
+        fsqrt        & Takes the square root of two floating point values.                                                                        \\
         \hline
         fmadd        & Fused multiply add of three floating point values:\newline IR: \texttt{dst $\leftarrow$ fmadd v1, v2, v3} \newline
-        Pseudocode: \texttt{dst = v1 * v2 + v3}                                                                                  \\
+        Pseudocode: \texttt{dst = v1 * v2 + v3}                                                                                                   \\
         \hline
         fmsub        & Fused multiply sub of three floating point values:\newline IR: \texttt{dst $\leftarrow$ fmsub v1, v2, v3} \newline
-        Pseudocode: \texttt{dst = v1 * v2 - v3}                                                                                  \\
+        Pseudocode: \texttt{dst = v1 * v2 - v3}                                                                                                   \\
         \hline
         fnmadd       & Fused negate multiply add of three floating point values:\newline IR: \texttt{dst $\leftarrow$ fnmadd v1, v2, v3} \newline
-        Pseudocode: \texttt{dst = -(v1 * v2) + v3}                                                                                  \\
+        Pseudocode: \texttt{dst = -(v1 * v2) + v3}                                                                                                \\
         \hline
         fnmsub       & Fused negate multiply sub of three floating point values:\newline IR: \texttt{dst $\leftarrow$ fnmsub v1, v2, v3} \newline
-        Pseudocode: \texttt{dst = -(v1 * v2) - v3}                                                                                  \\
+        Pseudocode: \texttt{dst = -(v1 * v2) - v3}                                                                                                \\
         \hline
         convert      & Conversion between integer and floating point numbers or between single and double
         precision floating point numbers.
         \\
         \hline
         uconvert     & Unsigned conversion between integer and floating point numbers or between single and double
-        precision floating point numbers.                                                                                                \\
+        precision floating point numbers.                                                                                                         \\
         \hline
     \end{longtable}
     \captionof{figure}{Defined IR instructions.}\label{figure:ir_instructions}

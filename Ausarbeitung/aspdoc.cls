@@ -38,7 +38,7 @@
 \RequirePackage{longtable}
 \RequirePackage[headsepline,footsepline,plainfootsepline,markcase=upper]{scrlayer-scrpage}
 
-\usetikzlibrary{shapes,positioning}
+\usetikzlibrary{shapes,positioning,arrows.meta}
 \input{tikz_src/graph.tikzstyles}
 \usepgfplotslibrary{colormaps}
 
