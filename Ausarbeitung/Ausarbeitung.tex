@@ -150,7 +150,7 @@ translating the file in order to print meaningful debug messages.
 \section{Lifter}
 \subsection{General method}
 \subsection{Floating point support}
-\subsection{Backtracking}
+\subsection{Backtracking}\label{backtracking}
 Although indirect jump addresses can be evaluated at runtime, we can only jump to the beginning of
 detected basic blocks. This is the case, because we can optimize (\ref{dead_code_elimination}) and fold
 instructions (\ref{constant_folding}) inside basic blocks without altering the control flow or
@@ -265,6 +265,23 @@ with an indirect jump, jumping to the address stored in \emph{v37}. \emph{ADD} a
 \end{figure}
 
 \subsection{Call and return optimization}
+The RISC-V architecture doesn't include special operations for handling subroutines. A x86\_64
+\emph{call} is modelled as a jump which places the address of the next instruction into a \emph{link-}register
+\emph{x1} or \emph{x5} (for the standard calling convention).\cite[p.~20]{rvspec} Returning from a
+subroutine is done by jumping to the address which is contained in either of those registers. This
+behavior is further optimized with the compressed instructions \emph{C.JAL} and
+\emph{C.JALR}. These operations implicitly store the address of the next instruction
+to the link register \emph{x1}.[p.~105]\cite{rvspec} 
+
+\par
+
+Subroutine calls which jump to the address of a register are so called \emph{icalls}. They act
+similar to indirect jumps and are backtracked in the same way. However, target detection success for indirect calls
+doesn't affect stack alignment. Even if we can't determine an indirect call target, we still perform
+an x86\_64 \emph{call} which pushes the instruction pointer onto the stack and jumps to the address
+in the supplied register. This works as long as we were able to identify the jump address as a basic
+block's entrypoint with the procedure described in the section\ \ref{backtracking}.
+
 \subsection{Jump table detection}
 
 \section{Optimizations}
