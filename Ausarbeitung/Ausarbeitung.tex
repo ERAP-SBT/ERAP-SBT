@@ -47,20 +47,23 @@ e.g.\ x86\_64. There are three main approaches:
 
 \par
 
-The first option for executing programs written for a different ISA is to use an emulator which ``[\ldots] interprets program instructions at
-runtime.''~\cite{binary_translation} The development is simple (Section~\ref{interpreter}), but it is a rather slow method.
+The first option for executing programs written for a different ISA is to use an emulator. It
+emulates a different execution environment by interpreting the program's instructions
+just-in-time~\cite{binary_translation}.
+The development is simple, but it is a rather slow method.
 
 \par
 
 The second option is to use dynamic binary translation (DBT). It works like an emulator but uses caching
 to store already translated instruction sequences for future use. This increases the execution speed
 compared to an emulator because often used instructions do not need to be translated
-twice.~\cite{binary_translation}
+multiple times.~\cite{binary_translation}
 
 \par
 
-As the third option, one can translate the full binary to an ISA which the target system is able to execute.
-Translation and execution are separated, which means the binary only has to be translated once for
+As the third option, one can statically translate the full binary. The program is rewritten for the
+target system's ISA.
+Translation and execution are separated phases, which means the binary only has to be translated once for
 running it multiple times. This increases execution speed compared to DBT. This
 approach is called static binary translation (SBT).~\cite{binary_translation}
 
@@ -72,35 +75,41 @@ approach is called static binary translation (SBT).~\cite{binary_translation}
 
 \par
 
-Our task is to develop a static binary translator which translates RISC-V binaries to x86\_64
-machine code. This field of binary translation is a rather academic issue because currently, x86\_64
-is still a more widely used ISA than RISC-V.~\cite{riscv_rises} This means most programs are already
-available for the x86\_64 processor architecture and therefore there is a small set of
-programs which need to be translated. With the current rise of RISC-V processors however, it is not
-improbable that we will see a need for RISC-V to x86\_64 binary translation in the near future.
+This project aims to describe the development of a static binary translator which translates RISC-V binaries to x86\_64
+machine code. The current rise of RISC-V processors makes it probable that we will see a need for 
+RISC-V to x86\_64 binary translation in the near future. Even though x86\_64
+is still a more widely used ISA than RISC-V, a lot of companies invest in a shift towards the
+RISC-V ISA.~\cite{riscv_rises} This revolution makes ISA incompatibilities a future problem for which
+we are able to present a solution today. 
 
 \section{Background}
 \subsection{Short Overview of RISC-V}
 
-According to the RISC-V specification~\cite{rvspec}, RISC-V is an open and freely accessible ISA
-which consists of ``[\ldots] a small base integer ISA [\ldots]'' and ``[\ldots] optional standard
-extensions to support general purpose software development''~\cite{rvspec}. There is also the
-option to implement custom extensions. It is available in ``[b]oth 32-bit and 64-bit address space
-variants for applications, operating system kernels, and hardware
-implementations.''~\cite{rvspec} As the name suggests, the RISC-V ISA describes a \emph{Reduced
-    Instruction Set Computer}. This kind of microprocessor is characterized by a larger number of
+According to the RISC-V specification, RISC-V is an open and freely accessible ISA
+which consists of a base ISA for integer computations and general purpose software development
+supporting extensions, which are optional. There is also the
+option to implement custom extensions. The RISC-V ISA is available for building 32-bit and 64-bit based
+applications and operating system kernels. Because of its minimalistic nature, is is well suited for
+custom hardware implementations.~\cite{rvspec}
+
+\par 
+
+As the name suggests, the
+RISC-V ISA describes a \emph{Reduced Instruction Set Computer}. This kind of microprocessor is 
+characterized by a larger number of
 registers, its load/store architecture, fixed-length instruction words and a generally limited
-amount of instructions and instruction formats.\cite{RISCvCISC}
+amount of instructions and instruction formats.~\cite{RISCvCISC}
 
 \par
 
-Currently there are standard extensions for multiplication and division (M), for atomic instructions
+Currently, there are standard extensions for multiplication and division (M), for atomic instructions
 (A), for floating point arithmetic (F,D,Q), for compressed instructions to reduce the code size (C)
 and for control and status registers (Ziscr). More standard extensions are planned.~\cite{rvspec}
 
 \subsection{Differences between RISC-V and x86\_64}
-In contrast to RISC-V, the x86\_64 ISA describes a CISC, a \emph{Complex Instruction Set Computer}.
-Its processors have a limited number of registers, richer instruction sets and variable length
+When comparing the RISC-V and the x86\_64 ISAs, most of the differences can be derived from their
+different design ideologies. The x86\_64 ISA is built to describe a CISC, a \emph{Complex Instruction Set Computer}.
+This decision results in processors that have a limited number of registers, richer instruction sets and variable length
 instructions. Because of the complex instruction functions and formats, logic is often implemented
 in a mix between microcode and hard coded logic, executing instructions over a number of CPU clock
 cycles.~\cite{RISCvCISC}
@@ -292,7 +301,7 @@ use executable sections for storing instructions.
 \subsubsection{IR Generation}
 
 After loading the data form the binary, the lifter runs sequentially through the discovered
-instructions which are decoded using \texttt{frvdec}.\cite{frvdec} The resulting instructions are objects,
+instructions which are decoded using \texttt{frvdec}\cite{frvdec}. The resulting instructions are objects,
 filled with the parsed content of the binary instruction code. This is a
 more generic and easier processable form with direct access to involved register numbers and
 immediate values. For each of the instructions, a variable amount of variables and operations is added to
