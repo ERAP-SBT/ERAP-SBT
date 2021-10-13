@@ -1306,7 +1306,12 @@ extensions as the translator. If a command flag is supplied to the translator no
 basic blocks will be translated and all code will be interpreted. This was used to verify the
 correctness of the interpreter using the benchmark tests. But as explained this method is rather
 slow and therefore is not desirable to use as translate binaries.
-% TODO: move to performance section ?
+
+\par
+
+The interpreter theoretically supports the execution of RISC-V JIT compilers. Using the interpreter
+alone, self-modifying code should also be able to be executed. But such programs were not tested and
+therefore this is only a theoretical feature.
 
 \par
 
