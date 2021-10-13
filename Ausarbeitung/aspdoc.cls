@@ -35,6 +35,7 @@
 \RequirePackage{xstring}
 \RequirePackage{caption}
 \RequirePackage{capt-of}
+\RequirePackage{subcaption}
 \RequirePackage{longtable}
 \RequirePackage[headsepline,footsepline,plainfootsepline,markcase=upper]{scrlayer-scrpage}
 

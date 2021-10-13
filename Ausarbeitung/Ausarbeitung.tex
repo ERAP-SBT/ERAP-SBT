@@ -278,8 +278,18 @@ system calls. Subroutine calls which are defined by many ISAs are only jump inst
 additional memory accessing operations. The control flow changing operations act as connectors
 between basic blocks. Figure~\ref{figure:cfops} shows a list of all defined control flow changing operations.
 
+\par
+
 Each basic block also keeps track of its predecessors and successors. Predecessors are the basic blocks which jump to
-the current basic block, and successors are the basic blocks that are jumped to by the current basic block.
+the current basic block, and successors are the basic blocks that are jumped to by the current basic
+block. This ``jump'' can be any control flow changing operations, including syscalls.
+
+\par
+
+A basic block also has a list of input parameters. These basic block parameters are used for
+transferring data between basic blocks. Every variable which is linked to a static mapper (\ref{statics}) is
+added to the basic block parameters. These have to be filled with the correct values with every jump to
+a the new basic block.
 
 \begin{figure}
     \begin{center}
@@ -411,26 +421,26 @@ more generic and easier processable form with direct access to involved register
 immediate values. For each of the instructions, a variable amount of variables and operations is added to
 the IR to replicate the original program's behavior.
 
-\begin{figure}[H]
-    \centering
-    \begin{lstlisting}[language={[RISC-V]Assembler}]
-        start:
-            [...]
-        loop:
-0xb0:       addi a0, a0, -1
-0xb4:       bne a0, zero, loop
-        continuation:
-0xa8:       sll a1, a1, a2
-            [...]
-    \end{lstlisting}
-    \caption{RISC-V assembly sequence used as example for the lifter. Decrements a0 by one in a loop until it is zero,
-        then shifts a1 by the amount stored in a2.}
-    \label{fig:lifting_example_riscv}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \begin{lstlisting}
+\begin{figure}
+    \begin{subfigure}{\textwidth}
+        \centering
+        \begin{lstlisting}[language={[RISC-V]Assembler}]
+            start:
+                [...]
+            loop:
+    0xb0:       addi a0, a0, -1
+    0xb4:       bne a0, zero, loop
+            continuation:
+    0xa8:       sll a1, a1, a2
+                [...]
+        \end{lstlisting}
+        \caption{RISC-V assembly sequence used as example for the lifter. Decrements a0 by one in a loop until it is zero,
+            then shifts a1 by the amount stored in a2.}\label{fig:lifting_example_riscv}
+            \vspace{1em}
+    \end{subfigure}
+    \begin{subfigure}{\textwidth}
+        \centering
+        \begin{lstlisting}
 [...]
 
 block b1(/*input list */) <= [/* predecessors */] { // loop
@@ -454,11 +464,11 @@ block b2(/* input list */) <= [b1, /* other predecessors */] { // continuation
 
 [...]
     \end{lstlisting}
-    \caption{The IR created by the lifter from the RISC-V assembly in Figure
-        ~\ref{fig:lifting_example_riscv}. \\
-        Some duplicated or unnecessary parts, e.g. predecessors list, variables from statics, target
-        inputs and control flow operations, are omitted.}
-    \label{fig:lifting_example_ir}
+        \caption{The IR created by the lifter from the RISC-V assembly in Figure~\ref{fig:lifting_example_riscv}. \\
+            Some duplicated or unnecessary parts, e.g. predecessors list, variables from statics, target
+            inputs and control flow operations, are omitted.}\label{fig:lifting_example_ir}
+    \end{subfigure}
+    \caption{Exemplary lifting of a RISC-V assembly program.}
 \end{figure}
 
 \par
@@ -489,7 +499,8 @@ This is required because it is only possible to jump to the start of a basic blo
 
 \par
 
-Splitting basic blocks on backwards jumps is required because of the lifting methodology. The lifter
+Splitting basic blocks on backwards jumps is required because of the way the lifter consumes the
+input binary. It
 runs over all instructions twice. Once for decoding them and a second time for lifting them into the
 IR. The second run includes detecting indirect jumps and parsing basic blocks at the same time. This
 causes every jump which would have changed the basic block parsing to be detected too late. It then has to
@@ -554,7 +565,7 @@ basic block at the ELF-file's entry address. This virtual address is stored in t
 To support programs using atomic instructions from the ``A'' standard extension, the lifter converts
 every atomic instruction into a set of non-atomic instructions which emulate the original
 instruction's behavior. This does not change the logic or validity of the program as long as the
-instructions are executed consecutively, without the need for atomic ressource access.  
+instructions are executed consecutively, without the need for atomic ressource access.
 
 
 \subsection{Backtracking}\label{backtracking}
@@ -1462,7 +1473,7 @@ example, the fused multiply add instructions can be translated using the x86\_64
 But as this extension isn't supported by every x86\_64 CPU, it needs to be allowed. The alternative
 way is to assemble the instruction using multiplication and addition respectively
 subtraction~\footnote{For some fused mutliply adds, negating a floating point value is also
-needed.}. This can result in a different result due to rouding errors.
+    needed.}. This can result in a different result due to rouding errors.
 
 
 \subsection{Implementation Problems and Solutions}
