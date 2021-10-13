@@ -34,6 +34,8 @@
 \RequirePackage{hyperref}
 \RequirePackage{xstring}
 \RequirePackage{caption}
+\RequirePackage{capt-of}
+\RequirePackage{longtable}
 \RequirePackage[headsepline,footsepline,plainfootsepline,markcase=upper]{scrlayer-scrpage}
 
 \usetikzlibrary{shapes,positioning}

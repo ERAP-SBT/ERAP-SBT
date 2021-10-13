@@ -86,13 +86,13 @@ QEMU therefore we created some optimizations performed on the IR.
 \par
 
 The following chapters will provide some background information for the RISC-V and the differences
-to x86\_64 relevant for the design of our translator (Section~\ref{sec:background}) and our general
-approach (Section~\ref{sec:approach}). After that the distinct parts of the translator, namely our
-intermediate representation (Section~\ref{sec:ir}), the RISC-V lifter
-(Section~\ref{sec:riscv_lifter}), the optimizer (Section~\ref{sec:optimizations}), and the x86\_64
-code generator (Section~\ref{sec:generator}), are further explained.
-Section~\ref{sec:floating_point} describes our approach and the occurring difficulties to support
-floating points RISC-V instructions. Finally, the last section (Section~\ref{sec:evaluation}) will
+to x86\_64 relevant for the design of our translator (section~\ref{sec:background}) and our general
+approach (section~\ref{sec:approach}). After that the distinct parts of the translator, namely our
+intermediate representation (section~\ref{sec:ir}), the RISC-V lifter
+(section~\ref{sec:riscv_lifter}), the optimizer (section~\ref{sec:optimizations}), and the x86\_64
+code generator (section~\ref{sec:generator}), are further explained.
+section~\ref{sec:floating_point} describes our approach and the occurring difficulties to support
+floating points RISC-V instructions. Finally, the last section (section~\ref{sec:evaluation}) will
 evaluate the quality and performance of our implementation using benchmarks tests for comparisons to
 different approaches.
 
@@ -176,7 +176,7 @@ defined language reference. These advantages however have a price. The LLVM asse
 complex IR with a lot of features which are not required for the purposes of this project. The used IR
 is inspired by the LLVM assembly language, tailored to serve the use case of lifting binaries. The
 parallels between our IR and the LLVM assembly language are the static
-typing, single static assignment (SSA) variables and machine-instruction-like operations.  
+typing, single static assignment (SSA) variables and machine-instruction-like operations.
 
 \section{Approach}\label{sec:approach}
 
@@ -222,39 +222,43 @@ contained in the ELF-file, before translating the file for debugging and asserti
 
 \section{Intermediate Representation}\label{sec:ir}
 
-As explained in Section~\ref{sec:approach}, we use an IR to create a platform-independent
+As explained in section~\ref{sec:approach}, we use an IR to create a platform-independent
 representation of the translated program's logic. This is not only useful to support different input
 and output languages in the future, but also to be able to optimize the more abstract representation.
 By parsing control flow and program structures we can run optimizations like
 \nameref{dead_code_elimination}, \nameref{constant_folding}.
 
-\begin{figure}
+\begin{figure}[H]
     \begin{center}
-        \begin{tabular}{||c | c | c||} 
+        \begin{tabular}{||c | c | c||}
             \hline
-            Integers & Floats & Special \\ [0.5ex] 
+            Integers & Floats & Special \\ [0.5ex]
             \hline\hline
-            i64 & f64 & mt\\ 
+            i64      & f64    & mt      \\
             \hline
-            i32 & f32 & \\
+            i32      & f32    &         \\
             \hline
-            i16 & & \\
+            i16      &        &         \\
             \hline
-            i8 & & \\
+            i8       &        &         \\
             \hline
         \end{tabular}
-        \caption{Types defined for the IR variables.}\label{ir:types:figure}
+        \caption{Types defined for the IR variables. The numbers describe the width of each type in bit. The
+            memory token (\textit{mt}) is a purely virtual type and thus doesn't have a specified width.}\label{ir:types:figure}
     \end{center}
 \end{figure}
+
 
 The IR consists of variables which are statically typed. The types are shown in
 Figure~\ref{ir:types:figure}. The variables follow a single static assignment form, which makes them
 immutable after they are initialized. Operations take variables as inputs and assign values to
-new output variables. Every operation performs one of the available instructions. These are abstract
-instructions defining arithmetic, logical and other operations which are normally executed using a
-CPU. Variables and their operations are grouped into basic blocks. These are blocks of code
+new output variables. Every operation performs one of the available instructions. These are abstract,
+assembly-like instructions defining mostly arithmetic and logical operations. A full list of all the
+supported instructions can be found in the appendix section~\ref{figure:ir_instructions}.
+Variables and their operations are grouped into basic blocks. These are blocks of code
 which do not contain a control flow changing operation. These special operations are jumps and
-system calls. The control flow changing operations act as connectors between basic blocks.
+system calls. Subroutine calls which are defined by many ISAs are only jump instructions with
+additional memory accessing operations. The control flow changing operations act as connectors between basic blocks.
 
 \subsection{Single Static Assignment Form}\label{ssa}
 
@@ -264,7 +268,7 @@ flow graphs. It follows one basic rule: ``[E]ach variable is
 assigned to exactly once in the program text.''~\cite{ssa_proposal} In our IR, each variable
 stores its source operation (if it is the result of an operation). This enables us to efficiently
 backtrace variable origins and e.g.\ replace variables which can be evaluated statically with constant
-immediates (Section~\ref{constant_folding}) or eliminate any unused variables (Section~\ref{dead_code_elimination}).
+immediates (section~\ref{constant_folding}) or eliminate any unused variables (section~\ref{dead_code_elimination}).
 
 We introduce a \emph{memory token}, a required input for operations which read from memory and the
 result of operations which write to memory. It creates a dependency between operations that store
@@ -291,7 +295,7 @@ assigned to a static mapper.
 
 Each basic block ends with CfOps which redirect the control flow to other basic blocks. Every CfOp
 stores its target block(s) together with a mapping which combines variables from their source basic
-block with corresponding static mappers. This tells the code generator (Section~\ref{sec:generator}) which SSA variables
+block with corresponding static mappers. This tells the code generator (section~\ref{sec:generator}) which SSA variables
 should be transferred between basic blocks.
 
 \par
@@ -424,13 +428,13 @@ Figure \ref{fig:lifting_example_riscv} shows an example RISC-V assembly sequence
 
 \par
 
-As explained in the IR chapter (Section~\ref{sec:ir}), our IR is subdivided into basic blocks which contain
+As explained in the IR chapter (section~\ref{sec:ir}), our IR is subdivided into basic blocks which contain
 consecutive instructions without a change in control flow. As soon as a control flow changing
 instruction is discovered, it is lifted and set as the basic block's CfOp. A control flow changing
 instruction can be assembled of more CfOps, e.g. RISC-V branches which consist of a conditional
 jump and a jump to the next block if the branch is not taken. The current basic block is finished and
 a new one is created. If the jump address can be inferred from the instruction using
-Backtracking (Section~\ref{backtracking}) or if it is directly encoded, like in branch instructions, this address is used
+Backtracking (section~\ref{backtracking}) or if it is directly encoded, like in branch instructions, this address is used
 to register the start of a new basic block.
 
 \par
@@ -452,13 +456,13 @@ adjusted.
 
 \par
 
-If the jump address cannot be extracted from the instruction, the backtracking (Section~\ref{backtracking})
+If the jump address cannot be extracted from the instruction, the backtracking (section~\ref{backtracking})
 is used to infer possible addresses which are processed with the same procedure as described before.
 Using the command line flag \texttt{--full-backtracking} the user can control whether all possible
 addresses should be found or the first one is used. If no jump address can be inferred, a dummy
 basic block which indicates an unresolved jump target, is set as the target block. The jump address then
 needs to be evaluated at runtime and jumps to an address where no basic block begins need to be
-handled by the helper library (Section~\ref{helper}) by interpreting the RISC-V instructions.
+handled by the helper library (section~\ref{helper}) by interpreting the RISC-V instructions.
 
 \par
 
@@ -472,7 +476,7 @@ indices.
 \par
 
 At the start of a basic block the mapping is initialized
-with variables from statics (Section~\ref{statics}). The register with the index zero is a hard wired zero in
+with variables from statics (section~\ref{statics}). The register with the index zero is a hard wired zero in
 RISC-V and therefore not initialized. Furthermore, each read from the mapping at index zero is handled by adding an immediate
 variable with value zero. Each write to the zero register is ignored, as it is specified for the \texttt{x0}
 register.\cite{rvspec}
@@ -495,8 +499,8 @@ basic block at the ELF-file's entry address. This virtual address is stored in t
 
 \subsection{Backtracking}\label{backtracking}
 Although indirect jump addresses can be evaluated at runtime, we can only jump to the beginning of
-detected basic blocks. This is the case, because we can optimize (Section~\ref{dead_code_elimination}) and fold
-instructions (Section~\ref{constant_folding}) inside basic blocks without altering the control flow or
+detected basic blocks. This is the case, because we can optimize (section~\ref{dead_code_elimination}) and fold
+instructions (section~\ref{constant_folding}) inside basic blocks without altering the control flow or
 logic of the program. That is why there might often not be a one-to-one correspondence of RISC-V to x86\_64-Instructions.
 Having a completely runnable program thus means detecting every basic block
 with their corresponding entry points (including their exit points). Although determining all possible
@@ -1092,7 +1096,7 @@ indirect jump target addresses which are not the start address of any lifted bas
 We can only jump to the start of a (translation) basic block, because this is the only reference point where the
 emulated RISC-V registers are stored at a known location (in the form of statics).
 
-In case we encounter such an unknown jump target address, we switch to the interpreter (Section~\ref{interpreter}) to
+In case we encounter such an unknown jump target address, we switch to the interpreter (section~\ref{interpreter}) to
 interpret the original RISC-V code just-in-time until the next start of a basic block is reached.
 
 \par
@@ -1145,7 +1149,7 @@ compared their strengths and weaknesses:
           \par
 
           The hashing algorithm is used in the generator for building the hash table and finding the required
-          hash functions. It is also implemented in the helper library (Section~\ref{helper}) for providing hashes for addresses
+          hash functions. It is also implemented in the helper library (section~\ref{helper}) for providing hashes for addresses
           which are only available during runtime.
 
           \par
@@ -1259,11 +1263,11 @@ transferred to the statics before calling the interpreter.
 \par
 
 This also an reason why we only leave the interpreter at the begin of an basic block because there
-the naive generator (Section~\ref{naive_generator}) takes the basic blocks inputs there from the statics.
-When using the register allocator (Section~\ref{reg_alloc}) the translation blocks
-(Section~\ref{translation_blocks}) move the values to the correct registers and stack slots and are
+the naive generator (section~\ref{naive_generator}) takes the basic blocks inputs there from the statics.
+When using the register allocator (section~\ref{reg_alloc}) the translation blocks
+(section~\ref{translation_blocks}) move the values to the correct registers and stack slots and are
 therefore --- as well as the top level basic blocks --- the addresses where we can leave the
-interpreter. These addresses are stored in the ijump lookup table (Section~\ref{ijump_resolution}).
+interpreter. These addresses are stored in the ijump lookup table (section~\ref{ijump_resolution}).
 
 \par
 
@@ -1305,7 +1309,7 @@ types \emph{f32} and \emph{f64} which represents single and double precision num
 
 \par
 
-The code generator (Section~\ref{sec:generator}) uses the x86\_64 floating point instructions provided by the
+The code generator (section~\ref{sec:generator}) uses the x86\_64 floating point instructions provided by the
 \texttt{Streaming SIMD Extensions 2} (SSE2) which operates on the \texttt{xmm} registers. So SSE2 is
 a requirement when translating programs using floating point arithmetics, but this is not a problem
 as SSE2 was released in 2000 and therefore almost all currently used x86\_64-based CPUs have
@@ -1348,7 +1352,7 @@ every instruction except conversions between integers and floating points as wel
 and double precision floating points. We made this exception as it makes a great difference when
 rounding to integers. For example, the difference rounding \emph{25,5} towards positive infinity or
 towards negative infinity, resulting in \emph{26} respectively \emph{25}, makes a huge difference.
-Also the the later on used benchmarks (Section~\ref{sec:evaluation}) require to respect the rounding mode of
+Also the the later on used benchmarks (section~\ref{sec:evaluation}) require to respect the rounding mode of
 conversion instructions.
 
 \par
@@ -1508,9 +1512,109 @@ the xz benchmark did not complete successfully.
 
 \clearpage
 
-% TODO: Fuegen Sie Ihre Quellen der Datei Ausarbeitung.bib hinzu Referenzieren Sie diese dann mit
-% \cite{}. Beispiel: CR2 ist ein Register der x86-Architektur~\cite{intel2017man}.
 \bibliographystyle{plain}
 \bibliography{Ausarbeitung}{}
 
+\appendix
+\section{Appendix}
+
+\subsection{IR Instructions}
+
+\begin{center}
+    \begin{longtable}{||p{0.35\linewidth} | p{0.6\linewidth}||}
+        \hline
+        Instruction  & Description                                                                                                       \\ [0.5ex]
+        \hline\hline
+        store        & Store value at supplied address. Consumes memory token and generates a new one.                                   \\
+        \hline
+        load         & Loads value at supplied address and returns it. Reads as many bits from memory as the output
+        variable is wide.                                                                                                                \\
+        \hline
+        add          & Addition.                                                                                                         \\
+        \hline
+        sub          & Subtraction.                                                                                                      \\
+        \hline
+        mul\_l       & Multiplication. Returns the lower half of the result.                                                             \\
+        \hline
+        ssmul\_h     & \textbf{Signed} multiplication. Returns upper half of the result.                                                 \\
+        \hline
+        uumul\_h     & \textbf{Unsigned} multiplication. Returns upper half of the result.                                               \\
+        \hline
+        sumul\_h     & Multiplication of one \textbf{signed} and one \textbf{unsigned} value. Returns upper half of the result.          \\
+        \hline
+        div          & \textbf{Signed} division. Returns both the result and the remainder.                                              \\
+        \hline
+        udiv         & \textbf{Unsigned} division. Returns both the result and the remainder.                                            \\
+        \hline
+        shl          & Logical shift left.                                                                                               \\
+        \hline
+        shr          & Logical shift right.                                                                                              \\
+        \hline
+        sar          & Arithmetic shift right.                                                                                           \\
+        \hline
+        or           & Logical \textit{or}.                                                                                              \\
+        \hline
+        and          & Logical \textit{and}.                                                                                             \\
+        \hline
+        not          & Logical \textit{not}.                                                                                             \\
+        \hline
+        xor          & Logical \textit{xor}.                                                                                             \\
+        \hline
+        cast         & C-style typecast. Defined for shrinking variables and for bit-wise cast from integer to
+        floating point numbers.                                                                                                          \\
+        \hline
+        slt          & Ternary operator, set if less than:\newline IR: \texttt{dst $\leftarrow$ slt v1, v2, v3, v4} \newline
+        Pseudocode: \texttt{dst = (v1 < v2) ? v3 : v4}                                                                                   \\
+        \hline
+        sltu         & Ternary operator, set if less than:\newline IR: \texttt{dst $\leftarrow$ sltu v1, v2, v3, v4} \newline
+        Pseudocode: \texttt{dst = (v1 <\textbf{u} v2) ? v3 : v4}                                                                         \\
+        \hline
+        sle          & Ternary operator, set if less or equal:\newline IR: \texttt{dst $\leftarrow$ sle v1, v2, v3, v4} \newline
+        Pseudocode: \texttt{dst = (v1 <= v2) ? v3 : v4}                                                                                  \\
+        \hline
+        seq          & Ternary operator, set if equal:\newline IR: \texttt{dst $\leftarrow$ seq v1, v2, v3, v4} \newline
+        Pseudocode: \texttt{dst = (v1 == v2) ? v3 : v4}                                                                                  \\
+        \hline
+        sign\_extend & Enlarge value to bigger type using sign extension.                                                                \\
+        \hline
+        zero\_extend & Enlarge value to bigger type using zero extension.                                                                \\
+        \hline
+        setup\_stack & Meta instruction used for stack setup at program start.                                                           \\
+        \hline
+        umax         & Returns larger one of two values, \textbf{unsigned} comparison.                                                   \\
+        \hline
+        umin         & Returns smaller one of two values, \textbf{unsigned} comparison.                                                  \\
+        \hline
+        max          & Returns larger one of two values, \textbf{signed} comparison.                                                     \\
+        \hline
+        min          & Returns smaller one of two values, \textbf{signed} comparison.                                                    \\
+        \hline
+        fmul         & \textbf{Signed} floating pointer number multiplication.                                                           \\
+        \hline
+        fdiv         & \textbf{Signed} floating pointer number division, only returns the result.                                        \\
+        \hline
+        fsqrt        & Takes the square root of two floating point values.                                                               \\
+        \hline
+        fmadd        & Fused multiply add of three floating point values:\newline IR: \texttt{dst $\leftarrow$ fmadd v1, v2, v3} \newline
+        Pseudocode: \texttt{dst = v1 * v2 + v3}                                                                                  \\
+        \hline
+        fmsub        & Fused multiply sub of three floating point values:\newline IR: \texttt{dst $\leftarrow$ fmsub v1, v2, v3} \newline
+        Pseudocode: \texttt{dst = v1 * v2 - v3}                                                                                  \\
+        \hline
+        fnmadd       & Fused negate multiply add of three floating point values:\newline IR: \texttt{dst $\leftarrow$ fnmadd v1, v2, v3} \newline
+        Pseudocode: \texttt{dst = -(v1 * v2) + v3}                                                                                  \\
+        \hline
+        fnmsub       & Fused negate multiply sub of three floating point values:\newline IR: \texttt{dst $\leftarrow$ fnmsub v1, v2, v3} \newline
+        Pseudocode: \texttt{dst = -(v1 * v2) - v3}                                                                                  \\
+        \hline
+        convert      & Conversion between integer and floating point numbers or between single and double
+        precision floating point numbers.
+        \\
+        \hline
+        uconvert     & Unsigned conversion between integer and floating point numbers or between single and double
+        precision floating point numbers.                                                                                                \\
+        \hline
+    \end{longtable}
+    \captionof{figure}{Defined IR instructions.}\label{figure:ir_instructions}
+\end{center}
 \end{document}
