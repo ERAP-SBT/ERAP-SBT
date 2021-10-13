@@ -1,7 +1,6 @@
 #pragma once
 
 #include "basic_block.h"
-#include "function.h"
 
 #include <cassert>
 #include <memory>
@@ -22,7 +21,6 @@ struct IR {
     uint64_t virt_bb_start_addr;
     uint64_t virt_bb_end_addr;
 
-    std::vector<std::unique_ptr<Function>> functions;
     std::vector<StaticMapper> statics;
 
     size_t cur_block_id = 0;
@@ -37,13 +35,6 @@ struct IR {
         if (virt_start_addr != 0 && virt_start_addr >= virt_bb_start_addr) {
             virt_bb_ptrs.at((virt_start_addr - virt_bb_start_addr) / 2) = ptr;
         }
-        return ptr;
-    }
-
-    Function *add_func() {
-        auto func = std::make_unique<Function>(cur_func_id++);
-        const auto ptr = func.get();
-        functions.push_back(std::move(func));
         return ptr;
     }
 

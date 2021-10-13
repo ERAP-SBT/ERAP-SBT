@@ -12,16 +12,17 @@
 struct BasicBlock;
 
 struct Operation {
+    struct LifterInfo {
+        Type in_op_size;
+    };
+
     Instruction type;
+    LifterInfo lifter_info;
     std::array<RefPtr<SSAVar>, 4> in_vars = {};
     std::array<SSAVar *, 3> out_vars = {};
     // nothing (not rounded), static rounding mode, dynamic rounding with this variable
     std::variant<std::monostate, RoundingMode, RefPtr<SSAVar>> rounding_info = {};
 
-    struct LifterInfo {
-        Type in_op_size;
-    };
-    LifterInfo lifter_info;
 
     explicit Operation(const Instruction type) : type(type) {}
 
