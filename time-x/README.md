@@ -63,9 +63,13 @@ The `config` directory contains a few configurations for running benchmarks:
 
 * `Example-gcc-linux-x86.cfg`: The Example provided by SPEC CPU 2017, the base for all other configurations
 * `native.cfg`: Derived from `Example-gcc-linux-x86.cfg`, with additional fixes for gcc compatibility provided by Alexi Engelke
+* `qemu-user.cfg`: Derived from `native.cfg`: cross compiles to rv64g and uses qemu-user to perform the benchmarks
 
 ```bash
 rsync -e 'ssh -J hettwer@login.caps.in.tum.de' -va "$PWD/config/" hettwer@time-x.caps.in.tum.de:/u/home/hettwer/cpu2017/config/
+
+# runcpu.cross is required for cross compiling benchmarks
+rsync -e 'ssh -J hettwer@login.caps.in.tum.de' -va "$PWD/runcpu.cross" hettwer@time-x.caps.in.tum.de:/u/home/hettwer/cpu2017/
 ```
 
 ## Running regression tests
