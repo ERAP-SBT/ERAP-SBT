@@ -383,19 +383,31 @@ machine code is lifted up to a more abstract representation at a higher level, t
 
 \subsubsection{Program Decoding}
 
-The ELF-file loader parses instructions from the \texttt{SHT\_PROGBITS}-type sections of the binary
-which are marked with the flags
-\texttt{SHF\_ALLOC} and \texttt{SHF\_EXECINSTR}. The flags mark that the section ``occupies memory during
-process execution''\cite{elf_spec} and ``contains executable machine
-instructions''\cite{elf_spec}. According to the ELF-file specification, only ``files used
-during linking''\cite{elf_spec} must have a \emph{section header table} which holds section
-information. In case there are no sections in the ELF file\footnote{e.g.\ memory dumps.} we use the
-program loader information, stored in the \emph{program header table}. The program headers
-specify parts of the underlying binary which are actually loaded to the final program.\footnote{Program header type \texttt{PT\_LOAD}.}
+The translator starts with the ELF input binary file which is supplied by the user. After checking the
+validity of the binary file and whether it is suited for being translated by the program, the
+RISC-V lifter decodes all instructions. 
+
+\par
+
+ELF binaries store information about what data is stored where in the binary using \textit{program
+headers} and \textit{section headers}. Both header types store information about the virtual address
+spaces, allocation details and access flags. However, \textit{section headers} hold finer and more detailed information
+about program sections than the \textit{program headers} and are therefore preferred. The ELF-file specification does not guarantee that every ELF
+binary defines \textit{sections}~\cite{elf_spec}. The lifter therefore supports instruction
+detection using either \textit{program headers} or \textit{section headers}. 
+
+\par
+
+The ELF-file loader parses instructions from the sections of the binary
+which are marked as executable. In case there are no sections in the ELF file\footnote{e.g.\ memory dumps.}, we use the
+program loader information, stored in the \emph{program headers}. They
+specify which bytes of the underlying binary are actually loaded to the final program.\footnote{Program header type \texttt{PT\_LOAD}.}
 We only parse instructions from the program headers which are marked as \emph{readable} and
 \emph{executable}.
 
-Due to the memory architecture of modern computers, instructions, and data are mostly stored in the same
+\par
+
+Due to the memory architecture of modern computers, instructions and data are mostly stored in the same
 memory. This concept, which was first introduced by John von Neumann in 1945\cite{vna}, makes it
 hard to statically distinguish between instructions and data. That is why we rely on the additional
 information stored in the section- and program headers which identifies certain parts of the binary
