@@ -443,18 +443,19 @@ void Lifter::parse_instruction(BasicBlock *bb, const RV64Inst &instr, reg_map &m
         lift_float_two_operands(bb, instr, mapping, ip, Instruction::fdiv, Type::f64);
         break;
     case FRV_FSQRTD:
-#if 1
         lift_float_sqrt(bb, instr, mapping, ip, Type::f64);
-#else
         lift_jump_interpreter(bb, instr, mapping, ip);
-#endif
         break;
     case FRV_FSGNJD:
     case FRV_FSGNJND:
     case FRV_FSGNJXD:
+#if 0
         lift_float_sign_injection(bb, instr, mapping, ip, Type::f64);
+#else
+        lift_jump_interpreter(bb, instr, mapping, ip);
+#endif
         break;
-#if 1
+#if 0
     default:
         lift_jump_interpreter(bb, instr, mapping, ip);
         break;
