@@ -153,7 +153,12 @@ runcpu --iterations=2 --size=refspeed --noreportable --config ria-jit-nofloats -
 
 ```bash
 runcpu --ignore_errors --iterations=2 --size=refspeed --noreportable --ignore_errors --config sbt-optimize-all-notransbbs --action=run intspeed
+
+# compare effectivness of optimizations
 runcpu --ignore_errors --iterations=2 --size=refspeed --noreportable --ignore_errors --config sbt-optimize-reg_alloc-no_hash_lookup --action=run intspeed
+runcpu --ignore_errors --iterations=2 --size=refspeed --noreportable --config sbt-optimize-reg_alloc-no_hash_lookup-plus-lifter --action=run intspeed
+runcpu --ignore_errors --iterations=2 --size=refspeed --noreportable --config sbt-optimize-reg_alloc-no_hash_lookup-plus-gen --action=run intspeed
+runcpu --ignore_errors --iterations=2 --size=refspeed --noreportable --config sbt-optimize-reg_alloc-no_hash_lookup-plus-ir --action=run intspeed
 ```
 
 ## Results
