@@ -1968,7 +1968,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
             write_static_mapping((info.targets.empty() ? nullptr : info.targets[0]), cur_time, info.mapping);
             // TODO: we get a problem if the dst is in a static that has already been written out (so overwritten)
             auto *dst = cf_op.in_vars[0].get();
-            const auto dst_reg = load_val_in_reg(cur_time + 1 + info.mapping.size(), dst, REG_B);
+            load_val_in_reg(cur_time + 1 + info.mapping.size(), dst, REG_B);
             assert(dst->type == Type::imm || dst->type == Type::i64);
 
             print_asm("add rsp, %zu\n", max_stack_frame_size);
