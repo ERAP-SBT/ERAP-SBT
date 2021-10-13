@@ -36,16 +36,16 @@
 % - our problem: SBT from RISC-V to x86-64
 % - more academic problem, because most programs are available on x86-64
 
-In order to execute machine code, you need a processor which runs this machine code. But there are
-many different processor families and instruction set architectures (ISA) for which programs are
+In order to natively execute machine code, you need a processor which runs this machine code. But there are
+many different processor families with different instruction set architectures (ISA) for which programs are
 developed. If you want to run a program which is written for an ISA where you don't have access to a
 system running this ISA, e.g. RISC-V, then you can translate it and execute it on another system,
 e.g.\ x86\_64. There are three main approaches:
 
 \par
 
-Firstly you can use an emulator which ``[\ldots] interprets program instructions at
-runtime.''\cite{binary_translation} The development is quite easy, but it is a rather slow method.
+Firstly, you could use an emulator which ``[\ldots] interprets program instructions at
+runtime.''\cite{binary_translation} The development is simple\ref{interpreter}, but it is a rather slow method.
 
 \par
 
@@ -72,8 +72,9 @@ approach is called static binary translation (SBT).\cite{binary_translation}
 Our task is to develop a static binary translator which translates RISC-V binaries to x86\_64
 machine code. This field of binary translation is a rather academic issue because currently, x86\_64
 is still a more widely used ISA than RISC-V.\cite{riscv_rises} This means most programs are already
-available for the x86\_64 processor architecture and therefore there is a small set of set of
-programs which need to be translated.
+available for the x86\_64 processor architecture and therefore there is a small set of
+programs which need to be translated. With the current rise of RISC-V processors however, it is not
+improbable that we will see a need for RISC-V to x86\_64 binary translation in the near future.
 
 \section{Background}
 \subsection{Short overview of RISC-V}
@@ -166,15 +167,11 @@ and to stop the translation.
 
 \section{Intermediate representation}\label{IR}
 
-\subsection{Static mappers}\label{statics}
-
-As explained in \nameref{approach_section}, we use an IR to create a platform-independent
+As explained in the \nameref{approach_section} section, we use an IR to create a platform-independent
 representation of the translated program's logic. This is not only useful to support different input
-and output languages in the future, but also to able to optimize the more abstract representation.
+and output languages in the future, but also to be able to optimize the more abstract representation.
 By parsing control flow and program structures like basic blocks, we can run optimizations like
 \nameref{dead_code_elimination}, \nameref{constant_folding}.
-
-\par
 
 The IR is structured into functions which contain basic blocks. Basic blocks are blocks of code
 which don't contain a control flow changing operation (CfOp). CfOps are jumps, subroutine calls,
@@ -192,15 +189,50 @@ stores its source operation (if it is the result of an operation). This enables 
 backtrace variable origins and e.g.\ replace variables which can be evaluated statically with constant
 immediates (\ref{constant_folding}) or eliminate any unused variables (\ref{dead_code_elimination}).
 
-% TODO: Moved from lifter general method chapter, needs to be integrated here 
 We introduce a \emph{memory token} which is a required input for operations which read from memory and the
 result of operations which write to memory. It creates a dependency between storing and loading
 operations. This should be used to keep the memory access operations
 in their correct order when reordering operations inside basic blocks and functions. A writing
-operations acts as a separator of reading operations, where reading operations can be swapped freely
-with each other. This insures a valid memory access ordering and therefore the correctness of the
+operation acts as a separator of reading operations. Because of the SSA variables used in the IR,
+correct memory access order is automatically achieved as long as no variable is referenced before
+its assignment. This insures a consistent memory access ordering and therefore the correctness of the
 program.
-% 
+
+\subsection{Static mappers}\label{statics}
+
+To keep track of register contents between basic blocks, we introduced a concept called a
+``Static Mapper'' or a ``static'' for short. When jumping between subroutines or labels in assembly,
+the registers hold their values and act like parameters and return values of functions. This means
+we have to keep track of input and output variables of basic blocks. To keep the IR platform
+independent, we define a variable amount of statics which represent the original ISA's registers and
+additional values which should be carried over between basic blocks.
+For RISC-V, these are 31 general purpose registers, one memory token, 32 floating point registers
+and one control and status flag register. The register \emph{x0} is always zero and thus not
+assigned to a static mapper.
+
+\par 
+
+Each basic block ends with cfOps which redirect the control flow to other basic blocks. Every cfOp
+stores its target block(s) together with a mapping which combines variables from their source basic 
+block with corresponding static mappers. This signals the \nameref{generator} which SSA variables
+should be transferred between basic blocks. 
+
+\par
+
+Variables can be the result of an operation, immediate values or bound to a static mapper. The
+latter tells the generator that the variable should contain the value which was last assigned to
+its bound static mapper. These kinds of variables are typically used to initialize the register file
+of new basic blocks with the register content of its predecessor. 
+
+\par
+
+Static mappers don't have a type, because they aren't variables themselves. They can't store values
+and can't be used inside basic blocks. A static is just a fixed annotation for SSA variables which
+makes transferring values between basic blocks easier. That's why variables assigned to static
+mappers usually have the standard size and type of the static's associated register, e.g. \emph{i64} for
+general purpose registers (statics 0 to 31) and \emph{f64} for floating point registers (statics 33
+to 65). The concrete implementation of statics is not defined by IR and can thus be freely
+decided by the generator. 
 
 \section{Lifter}
 \subsection{General method}
@@ -545,7 +577,7 @@ This optimization is greatly simplified by the use of Static Single Assignment f
 reassigned. This means that the value of a variable is known just by looking at the declaration of the variable.
 
 
-\section{Generator}
+\section{Generator}\label{generator}
 The generator has two jobs. % TODO: jobs isnt the right word...
 Firstly, it needs to assemble all basic blocks which means assembling all variables with their associated operations,
 preparing the inputs for the next basic block and creating the control flow operations.
@@ -571,7 +603,7 @@ from the stack frame and either calls a helper routine or directly jumps to the 
 % TODO: example
 \subsection{Register allocation}
 \subsection{Merging operations}
-\subsection{Interpreter}
+\subsection{Interpreter}\label{interpreter}
 \subsection{Helper library}\label{helper}
 
 \section{Performance}
