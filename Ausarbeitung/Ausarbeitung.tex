@@ -614,7 +614,7 @@ and architecture-specific functions like a routine to create an initial stack fo
 Most of these are bundled into a static library that is linked to the generated assembly called the
 Helper-Library.
 
-\subsection{Naive implementation}
+\subsection{Naive implementation}\label{naive_generator}
 
 For assembly generation, the generator operates in two distinct modes which we refer to as the
 ``naive'' implementation and register allocation.
@@ -633,7 +633,56 @@ retrieves its sources - either from a static or from the stack frame -, applies 
 At the end of a block it iterates all control flow operations, evaluates their condition if necessary, writes out the inputs for the next basic block
 from the stack frame and either calls a helper routine or directly jumps to the next block.
 
-% TODO: example
+\par
+
+To show an example of the code the naive generator produces the IR shown in \ref{fig:example_ir} is used.
+This simple IR which decrements a counter until it's 0 produces the assembly shown in \ref{fig:naive_gen_asm}.
+This is very obviously quite inefficient and slow so a better algorithm for generation is needed which leads to the Register-Allocator.
+\begin{figure}
+\centering
+\begin{lstlisting}[]
+block b1(i64 v0) <= [/* predecessors */] {
+    i64 v0 <- @0
+    imm v1 <- immediate -1
+    i64 v2 <- add i64 v0, imm v1
+    imm v3 <- immediate 0
+} => [(cjump, [b2, v2], eq, v2, v3), (jump, [b1, v2])]
+\end{lstlisting}
+\caption{Example-IR}
+\label{fig:example_ir}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\begin{lstlisting}[language={[x86masm]Assembler}]
+b1:
+    sub rsp, 32
+    mov rax, [s0]      ; calculate the val of v0
+    mov [rsp], rax     ; mov v0 to the stack frame
+    mov [rsp + 8], -1  ; immediates are loaded directly into the stack frame
+    mov rax, [rsp]     ; operands are loaded from the stack again
+    mov rbx, [rsp + 8]
+    add rax, rbx       ; v2
+    mov [rsp + 16], rax
+    mov [rsp + 24], 0  ; v3
+    mov rax, [rsp + 16]
+    mov rbx, [rsp + 24]
+    cmp rax, rbx       ; test cjump condition
+    jne b1_cf_1        ; jump to next cfop if not fulfilled
+    mov rax, [rsp + 16]
+    mov [s0], rax      ; Store input for the next basic block
+    add rsp, 32        ; Destroy stack frame
+    jmp b2
+b1_cf_1:
+    mov rax, [rsp + 16]
+    mov [s0], rax
+    add rsp, 32
+    jmp b1
+\end{lstlisting}
+\caption{Assembly produced by naive generator}
+\label{fig:naive_gen_asm}
+\end{figure}
+
 \subsection{Register allocation}\label{reg_alloc}
 To achieve good performance and code density though we need to employ a more sophisticated approach to generating assembly from the IR.
 To do so we group together blocks which closely represent functions of the original binary and compile them together, allocate register and stack slots
@@ -663,8 +712,28 @@ while not overwriting values that are currently stored in them and might be need
 conflicts might occur. The current approach taken is to place the input into statics first, then the stack slots, then the registers while storing values which may be overwritten in temporary locations.
 Also, when generating the cfops and the target is a block not part of the current group the stack frame size for it might be different and a such it needs to be adjusted as well to prevent stack over- or underflows.
 
+\par
 
-% TODO: Example
+To show an example of the generated assembly the same IR as in \ref{fig:example_ir} is used.
+The produced assembly will look like in \ref{fig:reg_gen_asm}.
+This is a lot more efficient than the naive generator and leads to vastly increased performance as well as smaller binaries.
+\begin{figure}[h]
+\centering
+\begin{lstlisting}[language={[x86masm]Assembler}]
+b1:
+    mov rax, [s0]
+    add rax, -1
+    cmp rax, 0
+    jne b1_cf_1
+    mov [s0], rax
+    jmp b1
+b1_cf_1:
+    mov [s0], rax
+    jmp b2
+\end{lstlisting}
+\caption{Assembly produced by register allocation}
+\label{fig:reg_gen_asm}
+\end{figure}
 
 \subsubsection{Translation Blocks}
 One problem that is encountered when employing register allocation on groups of basic blocks is that the programm cannot simply jump to them using indirect jumps anymore because the basic block might expect variables to be in registers
