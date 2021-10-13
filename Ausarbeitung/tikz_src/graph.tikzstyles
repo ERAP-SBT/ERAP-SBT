@@ -11,5 +11,5 @@
 \tikzstyle{VALUE}=[fill=white, draw=black, shape=circle, dashed]
 
 % Edge styles
-\tikzstyle{LINK}=[-]
-\tikzstyle{DASHED}=[dashed]
+\tikzstyle{LINK}=[<-]
+\tikzstyle{DASHED}=[<-, dashed]
