@@ -137,15 +137,8 @@ in a form we can optimize. This optimizations are performed by optimizer and are
 execution time of the output binary. This binary is created by the generator translating the IR
 variables and operations to x86\_64 assembly. To produce an executable binary we use the GNU
 assembler (GAS)\cite{gnu_binutils} and link our helper library to it using the GNU linker
-(LD)\cite{gnu_binutils}. For further explanation see the following chapters.
-
-\par
-
-Our implementation only accepts 64bit ELF binaries which are statically linked and in little endian
-format. Another requirement is that the binary is created for unix or uses the System V Application
-Binary Interface (ABI) because this defines the system call ids and the calling convention.
-Obviously the ELF file also has to be a RISC-V binary. This prerequisites are checked before
-translating the file in order to print meaningful debug messages.
+(LD)\cite{gnu_binutils}. For further explanation see the following chapters. Figure
+\ref{program_overview} depicts the main structure as a scheme.
 
 \begin{figure}
     \centering
@@ -155,6 +148,15 @@ translating the file in order to print meaningful debug messages.
     }
     \label{program_overview}
 \end{figure}
+
+\par
+
+Our implementation only accepts 64bit ELF binaries which are statically linked and in little endian
+format. Another requirement is that the binary is created for unix or uses the System V Application
+Binary Interface (ABI) because this defines the system call ids and the calling convention.
+Obviously the ELF file also has to be a RISC-V binary. This prerequisites are checked before
+translating the file in order to print meaningful debug messages.
+
 
 \section{Intermediate representation}
 
