@@ -489,21 +489,42 @@ extern "C" Hashes spookey_hash(uint64_t key) {
     return {h0, h1, h2};
 }
 
+extern "C" bool ijump_use_hash_table;
+
+extern "C" uint64_t ijump_lookup_table_base;
+
+extern "C" uint64_t ijump_lookup_table[];
+extern "C" uint64_t ijump_lookup_table_end;
+
 // returns the target basic block start address for valid input risc-v addresses and return 0x0 otherwise.
 size_t calc_target(uint64_t addr) {
-    // required, because we otherwise divide by zero for calculating hashes (happens in interpreter-only runs)
-    if (ijump_hash_table_size == 0) {
+    if (ijump_use_hash_table) {
+        // required, because we otherwise divide by zero for calculating hashes (happens in interpreter-only runs)
+        if (ijump_hash_table_size <= 1) {
+            return 0x0;
+        }
+
+        const Hashes hashes = spookey_hash(addr);
+        const size_t idx = ijump_hash_function_idxs[hashes.h0];
+        const size_t hash_table_idx = ((hashes.h1 + ((idx / ijump_hash_table_size) * hashes.h2) + (idx % ijump_hash_table_size)) % ijump_hash_table_size);
+        const struct HashTableTuple result_tuple = ijump_hash_table[hash_table_idx];
+
+        if (result_tuple.addr == addr) {
+            return result_tuple.target;
+        }
         return 0x0;
-    }
+    } else {
+        if (addr < ijump_lookup_table_base) {
+            return 0x0;
+        }
 
-    const Hashes hashes = spookey_hash(addr);
-    const size_t idx = ijump_hash_function_idxs[hashes.h0];
-    const size_t hash_table_idx = ((hashes.h1 + ((idx / ijump_hash_table_size) * hashes.h2) + (idx % ijump_hash_table_size)) % ijump_hash_table_size);
-    const struct HashTableTuple result_tuple = ijump_hash_table[hash_table_idx];
+        uint64_t index = (addr - ijump_lookup_table_base) / 2;
 
-    if (result_tuple.addr == addr) {
-        return result_tuple.target;
+        if (index >= static_cast<uint64_t>(&ijump_lookup_table_end - ijump_lookup_table) / sizeof(uint64_t)) {
+            return 0x0;
+        }
+
+        return ijump_lookup_table[index];
     }
-    return 0x0;
 }
 } // namespace helper
