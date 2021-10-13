@@ -167,10 +167,29 @@ and to stop the translation.
 \section{Intermediate representation}
 
 As explained in \nameref{approach_section}, we use an IR to create a platform-independent
-representation of the translated program's logic. 
+representation of the translated program's logic. This is not only useful to support different input
+and output languages in the future, but also to able to optimize the more abstract representation.
+By parsing control flow and program structures like basic blocks, we can run optimizations like
+\nameref{dead_code_elimination}, \nameref{constant_folding}.
 
+\par
 
-\subsection{Single Static Assignment}
+The IR is structured into functions which contain basic blocks. Basic blocks are blocks of code
+which don't contain a control flow changing operation (CfOp). CfOps are jumps, subroutine calls,
+return statements and system calls. They are used to connect basic blocks with each other. Each
+basic block consists of a vector of variables. Each variable is an SSA (\ref{ssa}) variable which is
+only assigned a value once by an operation.
+
+\subsection{Single static assignment form}\label{ssa}
+
+First described in 1988 for optimizing an intermediate program representation\cite{ssa_proposal},
+the \emph{single static assignment form} (SSA) is used for creating and optimizing explicit control
+flow graphs. It follows one basic rule: ``[E]ach variable is 
+assigned to exactly once in the program text.''\cite[p.~18]{ssa_proposal} In our IR, each variable
+stores its source operation (if it is the result of an operation). This enables us to efficiently
+backtrace variable origins and e.g.\ replace variables which can be evaluated statically with constant
+immediates (\ref{constant_folding}) or eliminate any unused variables (\ref{dead_code_elimination}).
+
 
 \section{Lifter}
 \subsection{General method}
