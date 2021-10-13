@@ -120,7 +120,7 @@ instruction in x86\_64.
 
 \subsection{Inspiration}
 
-\section{Approach}
+\section{Approach}\label{approach_section}
 
 We divided the translation process in three main parts: lifting, optimization and generation. We
 made this division to structure the program and to simplify the implementation of optimizations.
@@ -165,6 +165,12 @@ contained in the ELF-file, before translating the file in order to print meaning
 and to stop the translation.
 
 \section{Intermediate representation}
+
+As explained in \nameref{approach_section}, we use an IR to create a platform-independent
+representation of the translated program's logic. 
+
+
+\subsection{Single Static Assignment}
 
 \section{Lifter}
 \subsection{General method}
