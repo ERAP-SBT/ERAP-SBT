@@ -126,7 +126,7 @@ intermediate representation (IR) instead of developing our own. The existing lan
 being integrated into the LLVM ecosystem with existing compiler backends and a well defined language reference. In
 the end, we decided to build our own IR with less complicated features to only support our use case.
 Our IR's features are inspired by the LLVM assembly language with the parallels being the static
-typing, single static assignment (SSA) variables (\ref{ssa}) and machine-instruction-like operations. 
+typing, single static assignment (SSA) variables (\ref{ssa}) and machine-instruction-like operations.
 
 
 \section{Approach}\label{approach_section}
@@ -217,19 +217,19 @@ For RISC-V, these are 31 general purpose registers, one memory token, 32 floatin
 and one control and status flag register. The register \texttt{x0} is always zero and thus not
 assigned to a static mapper.
 
-\par 
+\par
 
 Each basic block ends with CfOps which redirect the control flow to other basic blocks. Every CfOp
-stores its target block(s) together with a mapping which combines variables from their source basic 
+stores its target block(s) together with a mapping which combines variables from their source basic
 block with corresponding static mappers. This tells the \nameref{generator} which SSA variables
-should be transferred between basic blocks. 
+should be transferred between basic blocks.
 
 \par
 
 Variables can be the result of an operation, immediate values or bound to a static mapper. The
 latter tells the generator that the variable should contain the value which was last assigned to
 its bound static mapper. These kinds of variables are typically used to initialize the register file
-of new basic blocks with the register content of its predecessor. 
+of new basic blocks with the register content of its predecessor.
 
 \par
 
@@ -239,7 +239,7 @@ makes transferring values between basic blocks easier. That's why variables assi
 mappers usually have the standard size and type of the static's associated register, e.g. \texttt{i64} for
 general purpose registers (statics 0 to 31) and \texttt{f64} for floating point registers (statics 33
 to 65). The concrete implementation of statics is not defined by IR and can thus be freely
-decided by the generator. 
+decided by the generator.
 
 \section{Lifter}
 \subsection{General method}
@@ -322,7 +322,8 @@ This is required because it is only possible to jump to the start of a basic blo
 When lifting instructions, the lifter stores their original virtual address. This is used for
 splitting basic blocks. All instructions with an original address lower than the split address are
 sorted into the first block, the other ones into the second. Both blocks are connected using a
-direct jump.
+direct jump. Also the predecessor and successor lists as well as some operation inputs need to be
+adjusted.
 
 \par
 
@@ -366,8 +367,6 @@ The last step in lifting is to add an entry basic block that sets the RISC-V sta
 basic block at the ELF-file's entry address. This virtual address is stored in the ELF program header
 \texttt{e\_entry} and specifies where the execution of the binary starts.\cite[p.~5]{elf_spec}
 
-
-\subsection{Floating point support}
 
 \subsection{Backtracking}\label{backtracking}
 Although indirect jump addresses can be evaluated at runtime, we can only jump to the beginning of
@@ -621,6 +620,82 @@ from the stack frame and either calls a helper routine or directly jumps to the 
 \subsection{Merging operations}
 \subsection{Interpreter}\label{interpreter}
 \subsection{Helper library}\label{helper}
+
+\section{Floating point handling}
+
+% Bullet points:
+% - more registers -> extra statics, extra mapping space
+% - can be deactivated with flag
+% - accuracy:
+%   - known problem when dealing with different fp implementations
+%   - RISC-V rounding only respected when fp -> integer conversion
+% - usage of f32 and f64 IR types and specific fp operations (e.g. fma)
+% - no support for exception and according flags in fcsr
+
+
+% generator stuff
+%   - problems with optimizations: e.g. usage of fma3, different results as with mul + add
+%   - bitwise implementation too slow (e.g. qemu)
+
+To support the \texttt{F} and \texttt{D} standard extensions, the mapping as well as the amount of
+statics has to be extended to include the floating point registers and the floating point control
+and status register (fcsr). To lift the RISC-V floating point, some operations are reused, e.g.
+\emph{add}, \emph{sub}, and some floating point specific are used, e.g. \emph{fmul}, \emph{fsqrt}.
+The variables have the types \emph{f32} and \emph{f64} which represents single and double precision
+numbers.
+
+\par
+
+The occurring floating point exceptions are not transferred to the variable representing the
+\emph{fcsr} due to performance reasons. It is too slow to check after each operation which
+exceptions were raised and then set the according flags. However it isn't a problem because only
+very few programs depends on floating point exceptions.
+
+\par
+
+The floating point support can be deactivated using the ``--disable-fp'' command line flag in order
+to prevent the lifter from adding the additional statics and to lift RISC-V floating point
+instructions. The advantage is a decrease in used memory because less static variables have to be
+stored.
+
+\par
+
+A known problem when dealing with different floating point implementations is that especially
+rounding effects will lead to slightly different results. As we want to use the x86\_64 floating
+point instructions to provide an acceptable performance, some compromises have to be made.
+
+\par
+
+Firstly, for each RISC-V floating point instruction a rounding mode can be specified which is used
+if the number cannot be expressed in the given number format. But as x86\_64 doesn't support such a
+feature, it is quite hard to implement this in a fast way, because the result is already rounded and
+therefore it isn't possible to round the result of each operation afterwards. And also this would be the
+opposite of fast.
+
+\par
+
+Also a bitwise correct implementation as provided by the dynamic translator \texttt{QEMU-user} is
+challenging to implement and pretty slow. So, we decided to ignore the rounding mode at lifting any
+instruction except conversions from floating points to integers. This is as it makes a great
+difference when rounding to integers. For example, the difference when rounding \emph{25.5} towards
+positive infinity or towards negative infinity, resulting in 26 respectively 25.
+
+\par
+
+There are two ways of implementing this rounding. The first one is to use the ``roundss''
+instruction (respectively ``roundsd'' for double precision) and the according rounding mode as
+input. But these two instructions are part of SSE4.1 which isn't part of any today used CPU.\cite{intel2017man}
+Therefore the usage of SSE4.1 instructions can be enabled using the optimize command line flag.
+
+\par
+
+The second way that is used if SSE4.1 isn't available is to change the rounding mode in the
+\emph{MXCSR} register. The x86\_64 convert instructions then round accordingly. But the disadvantage
+of this method is that the only way to access the MXCSR register is using ``STMXCSR'' and ``LDMXCSR''
+instructions which only operates on memory operands and therefore is slower.\cite{itnel2017man}
+
+\par
+
 
 \section{Performance}
 \subsection{Our solution}
