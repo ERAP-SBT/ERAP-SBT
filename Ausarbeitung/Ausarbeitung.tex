@@ -1096,6 +1096,15 @@ Mergeable sequences include:
 Merging these operations not only reduces the binary size since fewer instructions need to be encoded but also increase performance significantly.
 % TODO: test the performance diff for merging ops
 
+\subsection{Call and Return Optimization}
+To support calls and returns the x86\_64-Stack is used. When the code generator encounters a call it will first destroy the stack frame of the current basic block leaving only the return addresses on the stack,
+push the return address from the original binary and a call-Instruction to the target is emitted.
+A return is assembled to a compare of the actual return address computed and the previously pushed original return address
+along with a ret-Instruction that gets executed when the return addresses match.
+When they do not match, the stack pointer is resetted to the original stack pointer before execution of any basic block and the indirect jump handler is invoked.
+To prevent underflow 16 bytes of zeroes are pushed onto the stack before the first basic block is executed. This will cause the compare at a return with any address to fail and the ijump handler to be used instead.
+To prevent overflow the stack pointer is compared to a maximum allowed size when a call control flow operation is executed and the stack is resetted if it exceeds this.
+
 \subsection{Helper Library}\label{helper}
 
 Between RISC-V and x86\_64 there are also differences in the ABI exposed by linux at runtime.
