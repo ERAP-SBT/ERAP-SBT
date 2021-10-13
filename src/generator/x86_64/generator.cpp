@@ -767,7 +767,8 @@ void Generator::compile_vars(const BasicBlock *block) {
             break;
         case Instruction::cast:
             assert(arg_count == 1);
-            if (is_float(var->type)) {
+            assert(is_float(var->type) || is_float(op->in_vars[0]->type));
+            /*if (is_float(var->type)) {
                 if (op->in_vars[0]->type == Type::f64 && var->type == Type::f32) {
                     // nothing to be done
                 } else if (is_integer(op->in_vars[0]->type) || op->in_vars[0]->type == Type::imm) {
@@ -775,6 +776,17 @@ void Generator::compile_vars(const BasicBlock *block) {
                 }
             } else if (is_integer(var->type) && is_float(op->in_vars[0]->type)) {
                 fprintf(out_fd, "mov%s %s, xmm0\n", (var->type == Type::i32 ? "d" : "q"), rax_from_type(var->type));
+            }*/
+
+
+            if (is_float(op->in_vars[0]->type)) {
+                if (is_float(var->type)) {
+                    // do nothing
+                } else {
+                    fprintf(out_fd, "mov%s %s, xmm0\n", (op->in_vars[0]->type == Type::f32 ? "d" : "q"), rax_from_type(var->type));
+                }
+            } else {
+                fprintf(out_fd, "mov%s xmm0, %s\n", (var->type == Type::f32 ? "d" : "q"), rax_from_type(op->in_vars[0]->type));
             }
             break;
         case Instruction::setup_stack:
