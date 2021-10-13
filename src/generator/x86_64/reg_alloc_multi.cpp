@@ -1989,7 +1989,7 @@ void RegAlloc::compile_cf_ops(BasicBlock *bb, RegMap &reg_map, FPRegMap &fp_reg_
 
             if (bb->control_flow_ops.size() != 1 || info.continuation_block != next_bb || is_block_top_level(info.continuation_block)) {
                 if (is_block_top_level(info.continuation_block) || std::find(compiled_blocks.begin(), compiled_blocks.end(), info.continuation_block) == compiled_blocks.end()) {
-                    print_asm("add rsp, %zu\n", max_stack_frame_size + 8);
+                    print_asm("add rsp, 8\n");
                     print_asm("jmp b%zu\n", info.continuation_block->id);
                 } else {
                     print_asm("sub rsp, %zu\n", max_stack_frame_size - 8);
