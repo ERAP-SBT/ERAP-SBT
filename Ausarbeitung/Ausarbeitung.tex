@@ -4,6 +4,8 @@
 \input{commands.tex}
 \input{listing_styles/riscv_lstlisting_style.tex}
 
+\usepackage{placeins}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% TODO: Ersetzen Sie in den folgenden Zeilen die entsprechenden -Texte- % mit den richtigen Werten.
 \newcommand{\theGroup}{IhreGruppennummer} % Beispiel: 42
@@ -848,39 +850,30 @@ block b1(i64 v0, i64 v1) <= [/* predecessors */] {
 \caption{Example IR after Common Subexpression Elimination}\label{fig:cse_example_after}
 \end{figure}
 
-Figures~\ref{fig:cse_example_before} and \ref{fig:cse_example_after} show an example IR before and after applying Common
-Subexpression Elimination. The first four variables visited (\texttt{v0}, \texttt{v1}, \texttt{v2}, and \texttt{v3})
-are stored in the hash set, since there are no previous identical variables. The next variable, \texttt{v4}, is
-the same as \texttt{v2}, so it is removed and replaced with \texttt{v2}. Then, after applying this replacement to
-\texttt{v5}, it is identical to \texttt{v3}, so it is also removed. Finally, the second parameter of \texttt{v6} is
-changed from \texttt{v5} to \texttt{v3}.
-
-\section{Generator}\label{sec:generator}
-The generator has two tasks.
-Firstly, it needs to assemble all basic blocks which means assembling all variables with their associated operations,
-preparing the inputs for the next basic block and creating the control flow operations.
-Secondly, it needs to provide for a runtime environment. Namely the original binary in its memory-layouted
-form and a stack for the translated binary to use as the x86\_64-Stack is reserved for the
-generator. Furthermore, a resolver for ijumps
-along with an interpreter which acts as a fallback if an indirect jump to an address at which no basic block starts is encountered
-and architecture-specific functions like a routine to create an initial stack for the translated binary as well as a routine to translate syscalls.
-Most of these are bundled into a static library that is linked to the generated assembly called the
-Helper-Library.
-
-\subsection{Naive Implementation}\label{naive_generator}
-
-For assembly generation, the generator operates in two distinct modes which we refer to as the
-\textit{naive} implementation and register allocation.
+\section{Code Generator}\label{sec:generator}
+The code generator is used to assemble all basic blocks which means assembling all variables with their associated operations,
+preparing the inputs for the next basic block and creating the control flow operations for each block.
+Additionally, it needs to provide for a runtime environment. 
+This runtime environment consists of the original binary so that relevant data for execution (e.g. the .data section) is still accessible
+as well as a stack which is used as a replacement for the original stack.
+This is required because the x86\_64-Stack is reserved for storing temporary variables when assembling a basic block and return addresses for the Call-Return-Optimization.
+Furthermore, a resolver for ijumps along with an interpreter which acts as a fallback if an indirect jump to an address at which no basic block starts is encountered
+and architecture-specific functions like a routine to create an initial stack as required by the original binariy's system convention as well as a routine to translate syscalls.
+The architecture-independent parts are emitted by the generator in the assembly with the rest being part of the Helper Library which is linked against the generated assembly.
 
 \par
 
-The naive implementation is meant to serve as a simple codegen which is necessary to ease debugging
+When generating assembly for the basic blocks a user can choose between a simple approach that generates simpler less optimized assembly
+and a more sophisticated approach that generates better optimized assembly.
+\subsection{Simple Code Generation}\label{naive_generator}
+The simple implementation is meant to ease debugging
 and to better evaluate gains from
 optimizations in the IR as it very closely recreates the IR operations.
+As it generates unoptimized assembly it should not be used normally.
 
 \par
 
-It generates assembly for each basic block independently.
+The simple code generator creates assembly for each basic block independently.
 For each one it creates a stack frame which holds space for every variable in the basic block, iterates all operations and
 retrieves its sources  --- either from a static or from the stack frame  ---, applies the operation, and then saves the results in the stack frame again.
 At the end of a block it iterates all control flow operations, evaluates their condition if necessary, writes out the inputs for the next basic block
@@ -890,7 +883,6 @@ from the stack frame and either calls a helper routine or directly jumps to the 
 
 To show an example of the code the naive generator produces the IR shown in Figure~\ref{fig:example_ir} is used.
 This simple IR which decrements a counter until it is 0 produces the assembly shown in Figure~\ref{fig:naive_gen_asm}.
-This is very obviously quite inefficient and slow so a better algorithm for generation is needed which leads to the Register-Allocator.
 \begin{figure}
     \centering
     \begin{lstlisting}[]
@@ -901,14 +893,14 @@ block b1(i64 v0) <= [/* predecessors */] {
     imm v3 <- immediate 0
 } => [(cjump, [b2, v2], eq, v2, v3), (jump, [b1, v2])]
 \end{lstlisting}
-    \caption{Example-IR}\label{fig:example_ir}
+    \caption{Example-IR used to show the difference between the simple code generator and register allocation.}\label{fig:example_ir}
 \end{figure}
 
 \begin{figure}[h]
     \centering
     \begin{lstlisting}[language={[x86masm]Assembler}]
 b1:
-    sub rsp, 32
+    sub rsp, 32        ; create stack frame, 4 variables * 8 bytes for each
     mov rax, [s0]      ; calculate the val of v0
     mov [rsp], rax     ; mov v0 to the stack frame
     mov [rsp + 8], -1  ; immediates are loaded directly into the stack frame
@@ -916,7 +908,7 @@ b1:
     mov rbx, [rsp + 8]
     add rax, rbx       ; v2
     mov [rsp + 16], rax
-    mov [rsp + 24], 0  ; v3
+    mov [rsp + 24], 0  ; v3 is a 0 immediate
     mov rax, [rsp + 16]
     mov rbx, [rsp + 24]
     cmp rax, rbx       ; test cjump condition
@@ -931,13 +923,17 @@ b1_cf_1:
     add rsp, 32
     jmp b1
 \end{lstlisting}
-    \caption{Assembly produced by naive generator}\label{fig:naive_gen_asm}
+    \caption{Assembly produced by simple generator from Figure \ref{fig:example_ir}.}\label{fig:naive_gen_asm}
 \end{figure}
 
-\subsection{Register Allocation}\label{reg_alloc}
-To achieve good performance and code density though we need to employ a more sophisticated approach to generating assembly from the IR.
-To do so we group together blocks which closely represent functions of the original binary and compile them together, allocate register and stack slots
-for variables and pass them between the blocks. As such we keep often used vars in registers and prevent spilling of variables to statics at the end of each basic block.
+\subsection{Advanced Code Generation}
+To achieve good performance and code density though a more sophisticated approach to generating assembly from the IR needs to be employed.
+This is done by using register allocation to keep variables often used in registers and on the stack without spilling them into the statics when transferring control follow
+to the next basic block. Additionally we merge certain operation sequences in the IR into single x86\_64-Instructions to achieve better code density and performance.
+
+\subsubsection{Register Allocation}\label{reg_alloc}
+To do so blocks which closely represent functions of the original binary are grouped and compiled together the register and stack state (so the location of variables) is maintained between blocks.
+As such we keep often used vars in registers and prevent spilling of variables to statics at the end of each basic block.
 The achieve this we first mark all blocks which are targets of call-cfops, then iterate all basic blocks, check if they are either the target of a call-cfop or have no known predecessors
 and start the register allocation for the group of this block.
 This will then compile the starting block while allocating registers and stack slots for the variables, evaluate the cfops and check whether the target of a cfop is part of the current group
@@ -959,6 +955,29 @@ and take it into account when choosing a register to place a variable into. Thou
 time-constraints we did not have time to implement this.
 
 \par
+As an example of how this works we assume that only rax and rbx are available for allocation and that an add with the variable located in rax and 10 is compiled.
+It is also assumed that the variable in rax is needed later in the same block again.
+When rbx contains no variable that is needed anymore the following code is compiled:
+\begin{lstlisting}[language={[x86masm]Assembler},float=h]
+lea rbx, [rax + 10] ; rbx is chosen as the destination since it is empty
+\end{lstlisting}
+\FloatBarrier
+
+When rbx contains a variable and it is used in the operation following the add rax is chosen as the destination as it is used after rbx:
+\begin{lstlisting}[language={[x86masm]Assembler},float=h]
+mov [rsp], rax      ; rax is saved to the stack frame to be retrievable later on
+add rax, 10         ; then overwrite it
+\end{lstlisting}
+\FloatBarrier
+
+When rbx contains a variable but it is only used after the variable contained in rax it is instead chosen as the destination:
+\begin{lstlisting}[language={[x86masm]Assembler},float=h]
+mov [rsp], rbx      ; rbx is saved to the stack frame to be retrievable later on
+lea rbx, [rax + 10] ; then overwrite it
+\end{lstlisting}
+
+\FloatBarrier
+\par
 
 After all blocks in a group are compiled and the final stack-frame size is known the control-flow operations for each block can be assembled.
 The difference to the naive generator is that the inputs for the next block might not be written to statics but instead need to be placed in certain register or stack slots
@@ -968,6 +987,23 @@ Also, when generating the cfops and the target is a block not part of the curren
 
 \par
 
+As an example of the input relocating we again assume only rax and rbx to be available which both hold variables used as inputs for the next blocks.
+We assume to compile the control flow operations for a block which conditionally jumps to one block with the inputs needed in rbx and the second stack slot respectively.
+The other other block that is jumped to assumes the variables in rax and rbx.
+\begin{lstlisting}[language={[x86masm]Assembler},float=h]
+cmp rax, 0      ; evaluate cjump condition
+jne b1_cf_1
+; cf 0, adjust rax and rbx to rbx and the second stack slot
+mov [rsp + 8 * 2], rbx ; variables needed in the stack frame are written out first
+mov rbx, rax           ; now rbx is safe to be overwritten
+jmp b2
+b1_cf_1:
+; no need for adjustment as the locations for the input match
+jmp b3
+\end{lstlisting}
+
+\FloatBarrier
+
 To show an example of the generated assembly the same IR as in Figure~\ref{fig:example_ir} is used.
 The produced assembly will look like in Figure~\ref{fig:reg_gen_asm}.
 This is a lot more efficient than the naive generator and leads to vastly increased performance as well as smaller binaries.
@@ -975,17 +1011,17 @@ This is a lot more efficient than the naive generator and leads to vastly increa
     \centering
     \begin{lstlisting}[language={[x86masm]Assembler}]
 b1:
-    mov rax, [s0]
-    add rax, -1
-    cmp rax, 0
+    mov rax, [s0]   ; Input is in s0 so load it from there
+    add rax, -1     ; the immediate operand can be encoded directly into the instruction
+    cmp rax, 0      ; evaluate the eq-condition of the cjump control flow operation
     jne b1_cf_1
-    mov [s0], rax
+    mov [s0], rax   ; move the modified var to the location the block expects it at
     jmp b1
 b1_cf_1:
-    mov [s0], rax
+    ; b2 expects the input in rax so no need to move it
     jmp b2
 \end{lstlisting}
-    \caption{Assembly produced by register allocation.}\label{fig:reg_gen_asm}
+    \caption{Assembly produced by register allocation from Figure \ref{fig:example_ir}.}\label{fig:reg_gen_asm}
 \end{figure}
 
 \subsubsection{Translation Blocks}\label{translation_blocks}
