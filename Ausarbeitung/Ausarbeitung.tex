@@ -8,76 +8,54 @@
 \newcommand{\theNumber}{IhreProjektnummer} % Beispiel: A123
 % Authors, sorted by last name
 \author{Lukas Döllerer \and Jonathan Hettwer \and Johannes Maier \and Tobias Schwarz \and Felix Solcher}
-\date{Sommersemester 2021}
+\date{Summer semester 2021}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Diese Zeile bitte -nicht- aendern.
 % \title{Gruppe \theGroup{} -- Abgabe zu Aufgabe \theNumber}
-\title{Statische Binärübersetztung von RISC-V nach x86\_64}
+\title{Static binary translation from RISC-V to x86\_64}
 
 \begin{document}
 \maketitle
 
-% \section{Einleitung}
+\section{Motivation and problem statement}
 
+\section{Background}
+\subsection{Short overview of RISC-V}
+\subsection{Differences between RISC-V and x86\_64}
+\subsection{Inspiration}
 
-% \section{Lösungsansatz}
+\section{Approach}
 
-
-% TODO: Je nach Aufgabenstellung einen der Begriffe wählen
-% \section{Korrektheit/Genauigkeit}
-
-
-% \section{Performanzanalyse}
-
-
-% \section{Zusammenfassung und Ausblick}
-
-\section{Motivation / Problemstellung}
-\subsection{Unterschiede zwischen RISC-V und x86\_64}
-
-\section{Lösungsansatz}
-
-\section{Intermediate Representation}
-\subsection{Motivation für Aufbau}
-\subsection{Aufbau \& Struktur \& Inspiration}
-\subsection{Constant Folding}
-\subsection{Dead Code Elimination}
-\subsection{Weitere Optimierungen (falls implementiert)}
+\section{Intermediate representation}
 
 \section{Lifter}
-\subsection{Allgemeiner Vorgehensweise}
-\subsection{Backtracing}
-\subsection{Floating Point Unterstützung}
-\subsection{Jump Tables}
-\subsection{Call and return (falls fertig)}
+\subsection{General method}
+\subsection{Floating point support}
+\subsection{Backtracking}
+\subsection{Call and return optimization}
+\subsection{Jump table detection}
 
-
-\section{Generator}
-\subsection{Naiver Ansatz}
-\subsection{Helper-Library}
-\subsection{Register-Allocation}
-\subsection{Interpreter}
-\subsection{Signals (falls fertig)}
-\subsection{Atomics (falls fertig)}
+\section{Optimizations}
+\subsection{Constant Folding}
+\subsection{Dead Code Elimination}
 
 \clearpage
 
+\section{Generator}
+\subsection{Interpreter}
+\subsection{Naive implementation}
+\subsection{Register allocation}
+\subsection{Helper library}
+
 \section{Performance}
-\subsection{Translator}
+\subsection{Our solution}
 \subsection{Optimierungen (Analyse)}
 \subsection{QEMU}
-\subsection{Dynamic Translator letztes Jahr}
-\subsection{Native RISC-V}
+\subsection{Dynamic translator last year}
 \subsection{Native x86\_64}
 
-\section{Korrektheit?}
-\subsection{Optimisierungsfehler}
-\subsection{Floating Point Ungenauigkeit}
-
 \section{Fazit}
-
-\section{Glossar}
 
 % TODO: Fuegen Sie Ihre Quellen der Datei Ausarbeitung.bib hinzu
 % Referenzieren Sie diese dann mit \cite{}.
