@@ -47,21 +47,21 @@ e.g.\ x86\_64. There are three main approaches:
 \par
 
 Firstly, you could use an emulator which ``[\ldots] interprets program instructions at
-runtime.''\cite{binary_translation} The development is simple\ref{interpreter}, but it is a rather slow method.
+runtime.''~\cite{binary_translation} The development is simple\ref{interpreter}, but it is a rather slow method.
 
 \par
 
 Secondly, you can use dynamic binary translation (DBT) which works like an emulator but uses caching
 to store already translated instruction sequences for future use. This increases the execution speed
 compared to an emulator because often used instructions don't need to be translated
-twice.\cite{binary_translation}
+twice.~\cite{binary_translation}
 
 \par
 
 And thirdly, you can translate the full binary to an ISA which the target system is able to execute.
 That way you can separate translation and execution, which means you only have to translate the
 binary once for running it as often you need. This increases execution speed compared to DBT. This
-approach is called static binary translation (SBT).\cite{binary_translation}
+approach is called static binary translation (SBT).~\cite{binary_translation}
 
 \par
 
@@ -73,7 +73,7 @@ approach is called static binary translation (SBT).\cite{binary_translation}
 
 Our task is to develop a static binary translator which translates RISC-V binaries to x86\_64
 machine code. This field of binary translation is a rather academic issue because currently, x86\_64
-is still a more widely used ISA than RISC-V.\cite{riscv_rises} This means most programs are already
+is still a more widely used ISA than RISC-V.~\cite{riscv_rises} This means most programs are already
 available for the x86\_64 processor architecture and therefore there is a small set of
 programs which need to be translated. With the current rise of RISC-V processors however, it is not
 improbable that we will see a need for RISC-V to x86\_64 binary translation in the near future.
@@ -83,10 +83,10 @@ improbable that we will see a need for RISC-V to x86\_64 binary translation in t
 
 According to the RISC-V specification~\cite{rvspec}, RISC-V is an open and freely accessible ISA
 which consists of ``[\ldots] a small base integer ISA [\ldots]'' and ``[\ldots] optional standard
-extensions to support general purpose software development''\cite[p.~1]{rvspec}. There is also the
+extensions to support general purpose software development''~\cite[p.~1]{rvspec}. There is also the
 option to implement custom extensions. It is available in ``[b]oth 32-bit and 64-bit address space
 variants for applications, operating system kernels, and hardware
-implementations.''\cite[p.~1]{rvspec} As the name suggests, the RISC-V ISA describes a \emph{Reduced
+implementations.''~\cite[p.~1]{rvspec} As the name suggests, the RISC-V ISA describes a \emph{Reduced
     Instruction Set Computer}. This kind of microprocessor is characterized by a larger number of
 registers, its load/store architecture, fixed-length instruction words and a generally limited
 amount of instructions and instruction formats.\cite{RISCvCISC}
@@ -95,24 +95,24 @@ amount of instructions and instruction formats.\cite{RISCvCISC}
 
 Currently there are standard extensions for multiplication and division (M), for atomic instructions
 (A), for floating point arithmetic (F,D,Q), for compressed instructions to reduce the code size (C)
-and for control and status registers (Ziscr). More standard extensions are planned.\cite{rvspec}
+and for control and status registers (Ziscr). More standard extensions are planned.~\cite{rvspec}
 
 \subsection{Differences between RISC-V and x86\_64}
 In contrast to RISC-V, the x86\_64 ISA describes a CISC, a \emph{Complex Instruction Set Computer}.
 Its processors have a limited number of registers, richer instruction sets and variable length
 instructions. Because of the complex instruction functions and formats, logic is often implemented
 in a mix between microcode and hard coded logic, executing instructions over a number of CPU clock
-cycles.\cite{RISCvCISC}
+cycles.~\cite{RISCvCISC}
 
 \par
 
 The x86\_64 ISA defines instructions which access memory and perform arithmetic or logical
 operations at the same time. This is not possible with the load/store RISC-V architecture. Because
 of their variable instruction lengths, x86\_64 instructions can contain immediate values which are
-up to 64-bit wide.\cite[Vol.~2B~p.~4-35]{intel2017man} RISC-V base instructions are currently always
-32-bit wide (16-bit for compressed instructions)\cite[p.~8]{rvspec} which makes loading big
+up to 64-bit wide.~\cite[Vol.~2B~p.~4-35]{intel2017man} RISC-V base instructions are currently always
+32-bit wide (16-bit for compressed instructions)~\cite[p.~8]{rvspec} which makes loading big
 immediates difficult. These are either combined by two or more separate immediate loading operations
-or loaded relative to the current instruction pointer.\cite[p.~19]{rvspec} The latter is also often
+or loaded relative to the current instruction pointer.~\cite[p.~19]{rvspec} The latter is also often
 used for performing jumps.\cite [p.~20]{rvspec}
 
 \par
@@ -143,13 +143,13 @@ source or target. But this isn't the focus of this project.
 \par
 
 The lifter reads the instructions from the binary file and decodes the opcodes using
-\texttt{frvdec}\cite{frvdec}. The resulting instructions are used to disassemble the RISC-V binary into basic
+\texttt{frvdec}~\cite{frvdec}. The resulting instructions are used to disassemble the RISC-V binary into basic
 blocks, operations and variables in the IR. It contains the logic of
 the input binary in an architecture-neutral form which generic optimization passes can be applied
 on. They reduce the number of operations required without altering the program's behavior. The
 generator compiles the IR program to x86\_64 assembly. To assemble an executable binary we use the
-GNU assembler (AS)\cite{gnu_binutils}. We link our helper library with it using the GNU linker
-(LD)\cite{gnu_binutils}. For further explanation, please refer to the following chapters.
+GNU assembler (AS)~\cite{gnu_binutils}. We link our helper library with it using the GNU linker
+(LD)~\cite{gnu_binutils}. For further explanation, please refer to the following chapters.
 
 \par
 
@@ -193,7 +193,7 @@ only being assigned to once.
 First described in 1988 for optimizing an intermediate program representation\cite{ssa_proposal},
 the \emph{single static assignment form} (SSA) is used for creating and optimizing explicit control
 flow graphs. It follows one basic rule: ``[E]ach variable is
-assigned to exactly once in the program text.''\cite[p.~18]{ssa_proposal} In our IR, each variable
+assigned to exactly once in the program text.''~\cite[p.~18]{ssa_proposal} In our IR, each variable
 stores its source operation (if it is the result of an operation). This enables us to efficiently
 backtrace variable origins and e.g.\ replace variables which can be evaluated statically with constant
 immediates (\ref{constant_folding}) or eliminate any unused variables (\ref{dead_code_elimination}).
@@ -635,12 +635,12 @@ from the stack frame and either calls a helper routine or directly jumps to the 
 
 \par
 
-To show an example of the code the naive generator produces the IR shown in \ref{fig:example_ir} is used.
-This simple IR which decrements a counter until it's 0 produces the assembly shown in \ref{fig:naive_gen_asm}.
+To show an example of the code the naive generator produces the IR shown in figure~\ref{fig:example_ir} is used.
+This simple IR which decrements a counter until it's 0 produces the assembly shown in figure~\ref{fig:naive_gen_asm}.
 This is very obviously quite inefficient and slow so a better algorithm for generation is needed which leads to the Register-Allocator.
 \begin{figure}
-\centering
-\begin{lstlisting}[]
+    \centering
+    \begin{lstlisting}[]
 block b1(i64 v0) <= [/* predecessors */] {
     i64 v0 <- @0
     imm v1 <- immediate -1
@@ -648,13 +648,13 @@ block b1(i64 v0) <= [/* predecessors */] {
     imm v3 <- immediate 0
 } => [(cjump, [b2, v2], eq, v2, v3), (jump, [b1, v2])]
 \end{lstlisting}
-\caption{Example-IR}
-\label{fig:example_ir}
+    \caption{Example-IR}
+    \label{fig:example_ir}
 \end{figure}
 
 \begin{figure}[h]
-\centering
-\begin{lstlisting}[language={[x86masm]Assembler}]
+    \centering
+    \begin{lstlisting}[language={[x86masm]Assembler}]
 b1:
     sub rsp, 32
     mov rax, [s0]      ; calculate the val of v0
@@ -679,8 +679,8 @@ b1_cf_1:
     add rsp, 32
     jmp b1
 \end{lstlisting}
-\caption{Assembly produced by naive generator}
-\label{fig:naive_gen_asm}
+    \caption{Assembly produced by naive generator}
+    \label{fig:naive_gen_asm}
 \end{figure}
 
 \subsection{Register allocation}\label{reg_alloc}
@@ -714,12 +714,12 @@ Also, when generating the cfops and the target is a block not part of the curren
 
 \par
 
-To show an example of the generated assembly the same IR as in \ref{fig:example_ir} is used.
-The produced assembly will look like in \ref{fig:reg_gen_asm}.
+To show an example of the generated assembly the same IR as in figure~\ref{fig:example_ir} is used.
+The produced assembly will look like in figure~\ref{fig:reg_gen_asm}.
 This is a lot more efficient than the naive generator and leads to vastly increased performance as well as smaller binaries.
 \begin{figure}[h]
-\centering
-\begin{lstlisting}[language={[x86masm]Assembler}]
+    \centering
+    \begin{lstlisting}[language={[x86masm]Assembler}]
 b1:
     mov rax, [s0]
     add rax, -1
@@ -731,11 +731,11 @@ b1_cf_1:
     mov [s0], rax
     jmp b2
 \end{lstlisting}
-\caption{Assembly produced by register allocation}
-\label{fig:reg_gen_asm}
+    \caption{Assembly produced by register allocation}
+    \label{fig:reg_gen_asm}
 \end{figure}
 
-\subsubsection{Translation Blocks}
+\subsubsection{Translation Blocks}\label{translation_blocks}
 One problem that is encountered when employing register allocation on groups of basic blocks is that the programm cannot simply jump to them using indirect jumps anymore because the basic block might expect variables to be in registers
 and not in statics and the stack frame, which is set up at the first block of a group, would be missing. To still make it possible for indirect jumps to jump to basic blocks which are register-allocated translation blocks need to be generated.
 These translation blocks will set up the stack frame and move the inputs for the basic block to the registers or stack slots at which it expects them before jumping to them.
@@ -791,7 +791,7 @@ In the future a VDSO wrapper could be implemented to provide the same speed bene
 % * contains the interpreter
 % * evaluate how well the requirements where reached, what is missing, problems encountered.
 
-\subsection{Indirect jump resolution}
+\subsection{Indirect jump resolution}\label{ijump_resolution}
 
 When encountering an indirect jump, the jump's input variable contains the jump target address in the
 original RISC-V binary address space. We try to statically identify most of the indirect jump target
@@ -939,66 +939,67 @@ increasing the output assembly size.
 
 \subsection{Interpreter}\label{interpreter}
 
-If the interpreter is entered, the riscv64 regsiter values (represented by the static values) need
-to be in the statics. The same also has to be done when exiting the interpreter. This is especially
-important, when using the \nameref{reg_alloc} because the variable values are moved from the
-registers in the statics and so the interpreter knowns where to take the values from.
+An emulator is the slowest method of translating a binary~\cite{binary_translation}. Our interpreter
+is an non optimized emulator.\footnote{Our emulator is called ``interpreter'' in the implementation
+    and therefore we use this naming here also.} So the interpreter is pretty slow as it decodes the
+instructions at runtime using frvdec~\cite{frvdec}. In order to access the original RISC-V
+instructions at runtime, the original binary has to be stored as data in the result binary.
 
 \par
 
-An emulator is the slowest method of translating a binary. Our interpreter is an emulator, but is
-called interpreter. So the interpreter is pretty slow as it decodes the instructions at runtime
-using frvdec~\cite{frvdec}. In order to be able to decode the instructions at runtime, the original
-binary has to be stored as data in the result binary.
+We didn't optimized the interpreter much because it is only a fall back system for the translated
+binary and not the focus of this project. Additionally the simple implementation reduces the codes
+size of the interpreter and therefore the translated binary size.
 
 \par
 
+The interpreter is called if an indirect jump or indirect call target wasn't resolved and therefore
+the generator doesn't know where to jump. So the interpreter is used to fill this gap and to jump
+back to the translated instructions if possible. This can be done when the start of an basic block
+is reached.
 
-% reference motivation -> emulator is slowest method
-  % -> original binary in memory => decode instructions from address
-% why necessary ? most ijumps can be resolved, but some can't be
-% -> paper over gaps
+\par
 
-It is implemented in C++ and uses frvdec~\cite{frvdec} for decoding instructions.
-Every instruction reads registers:wq
+When the interpreter is entered and left, the riscv64 register values (represented by the static
+values) need to be in the statics. This is important as the generator stores the variable values in
+registers or in the stack frame, but the interpreter works on the statics. This needs to be done as
+the interpreter needs to know an location where the variables values are stored. So the values are
+transferred to the statics before calling the interpreter.
 
+\par
 
-loop over instructions until a point is found where it can return to an already translated binary block
-% - statics at known location (requirement for entry and exit)
-%   -> BB for exit has requirement
-%   -> can't jump into middle of basicblock
+This also an reason why we only leave the interpreter at the begin of an basic block because there
+the naive generator (\ref{naive_generator}) takes the basic blocks inputs there from the statics.
+When using the register allocator (\ref{reg_alloc}) the translation blocks
+(\ref{translation_blocks}) move the values to the correct registers and stack slots and are
+therefore - as well as the top level basic blocks - the addresses where we can leave the
+interpreter. These addresses are stored in the ijump lookup table (\ref{ijump_resolution}).
 
-Usually a translated BasicBlock will be found after few instructions, resulting in almost negliable slow down from entering the interperter.
-However in some extreme cases where no return BasicBlock is found, pratically the entire program is emulated resulting in extreme slow downs.
-This can be observed if no translation blocks are build, % TODO: ref chapter
-resulting in less possible return targets.
+\par
 
-% - in the best case the interpreter only runs for very few instructions, if at all, before a return to a translated basicblock is possible
-%   - unoptimized -> slow, but ok as only fall back system
-% - until it can jump back to the translated instructions (uses the ijump look up table), so the interperter is only
-%   used if absolutely necessary and doesn't need to be very fast
+Usually a translated basic block will be found after few instructions, resulting in almost
+negligible slow down from entering the interpreter. However in some extreme cases where no return
+BasicBlock is found, practically the entire program is emulated resulting in extreme slow downs.
+This can be observed in rare cases if no translation blocks are created resulting in less possible
+return targets.
 
-% Explain why interpreter is necessary
-% Trade-off: speed vs. simple implementation => JIT riscv64 code or self modifying code supported but not necessarily
-%            very fast.
-% however in pratice the interpreter is never run or only for a few instructions
+\par
 
-% Bullet points:
-% - emulate operations on register file (<-> statics)
-%   => at entry all registers (statics) are at a known location
-% - emulates instructions
-%   => after every instruction the new register values are written back to this location
-%   => at exit ....
+The interpreter fully emulates \texttt{rv64imacfd} and therefore supports the same standard
+extensions as the translator. If the ``--interpreter-only'' flag is supplied to the translator no
+basic blocks will be translated and all code will be interpreted. This was used to verify the
+correctness of the interpreter using the benchmark tests. But as explained this method is rather
+slow and therefore isn't desirable to use as translate binaries.
+% TODO: move to performance section ?
 
-% - can be used to translate/emulate a whole binary (-> '--interpreter-only') <- Complete emulation of rv64imacfd
-The interperter fully emulates rv64imacfd, and therefor supports the same instructions as the translator.
-If the ``--interpreter-only'' flag is supplied to the translator no BasicBlocks will be translated and all code will be interpreted.
-This was used to verify the correctness of the interperter using the benchmark tests. % TODO: move to performance section ?
+\par
 
-At runtime the CPUID~\cite{intel2017man} % TODO: cite ?
-is checked for support of the FMA3 CPU extension.
-If it is present the interpreter uses it for faster
-floating point enulation, otherwise the fused multiply add instructions are assembled using separate multiplication and addition respectively subtraction instructions.
+At runtime the CPUID~\cite{intel2017man} is checked for support of the FMA3 CPU extension. If it is
+present the interpreter uses it for faster floating point enulation, otherwise the fused multiply
+add instructions are assembled using separate multiplication and addition respectively subtraction
+instructions.
+
+\par
 
 \section{Floating point handling \& problems}
 
@@ -1140,7 +1141,7 @@ as also used by gcc.
 \par
 
 We considered using the x86\_64 unsigned conversion instructions provided by the \texttt{Advanced
-Vector Extensions 512} (AVX512), but as AVX512 is relatively new and implemented in only few CPUs we
+    Vector Extensions 512} (AVX512), but as AVX512 is relatively new and implemented in only few CPUs we
 decided to don't provide an optimization flag for using this instructions.
 
 \par
