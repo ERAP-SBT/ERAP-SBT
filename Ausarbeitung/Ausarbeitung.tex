@@ -101,8 +101,9 @@ different approaches.
 \section{Background}\label{sec:background}
 
 This chapter provides some background information needed to be able to understand the approach. This
-includes an overview over the RISC-V instructions, calling convention and registers as well as
-differences to the x86\_64 ISA to understand the difficulties occurring in translation.
+includes an overview over the RISC-V instructions, standard calling convention~\footnote{When
+    referring to the standard calling convention, the RVG calling convention is meant.} and registers
+as well as differences to the x86\_64 ISA to understand the difficulties occurring in translation.
 
 \subsection{Short Overview of RISC-V}
 
@@ -132,7 +133,9 @@ ISA, they are called \texttt{rv64imacfd} or short \texttt{rv64g}. More standard 
 
 RV64I provides 31 64bit wide integer registers (x1 - x31) and a hard wired zero (x0). The floating
 point extensions add 32 floating points registers (f0 - f31) and a floating point control and status
-registers (fcsr). The instruction length is fixed to 32bit, with the C extension to 16bit.
+registers (fcsr). The instruction length is fixed to 32bit, with the C extension to 16bit. The
+standard calling convention defines \texttt{x1} as link register and \texttt{x5} as alternative link
+register which holds the address when using subroutine call-like jumps.~\cite{rvspec}
 
 \subsection{Differences between RISC-V and x86\_64}
 
@@ -334,6 +337,10 @@ and one control and status flag register. The register \texttt{x0} is always zer
 assigned to a static mapper.
 
 \section{RISC-V Lifter}\label{sec:riscv_lifter}
+
+This chapter describes where the instructions parsed from, how the lifter works and which
+optimizations can be made. This includes an call-ret optimization, an
+
 \subsection{General Method}
 
 % Bullet Points:
@@ -399,8 +406,6 @@ filled with the parsed content of the binary instruction code. This is a
 more generic and easier processable form with direct access to involved register numbers and
 immediate values. For each of the instructions, a variable amount of variables and operations is added to
 the IR to replicate the original program's behavior.
-% TODO: Add example for lifting an instruction here
-
 
 \begin{figure}[H]
     \centering
@@ -495,6 +500,11 @@ addresses should be found or the first one is used. If no jump address can be in
 basic block which indicates an unresolved jump target, is set as the target block. The jump address then
 needs to be evaluated at runtime and jumps to an address where no basic block begins need to be
 handled by the helper library (section~\ref{helper}) by interpreting the RISC-V instructions.
+
+\par
+
+In the rare case that a jump address target is inside an instruction, the lifter breaks as no
+correct jump target can be found.
 
 \par
 
@@ -646,23 +656,6 @@ Figure~\ref{backtracking_graph} shows an example for such a dependency tree.
 \end{figure}
 
 % TODO: divide this into two parts, one lifter one generator? since there are two distinct parts to it
-\subsection{Call and Return Optimization}
-The RISC-V architecture does not include special operations for handling subroutines. A function call
-is assembled as a jump which places the address of the next instruction into a \emph{link-}register
-\texttt{x1} or \texttt{x5} (for the standard calling convention).\cite{rvspec} Returning from a
-subroutine is done by jumping to the address which is contained in either of those registers. This
-behavior is further optimized with the compressed instructions \texttt{C.JAL} and
-\texttt{C.JALR}. These operations implicitly store the address of the next instruction
-to the link register \texttt{x1}.\cite{rvspec}
-
-\par
-
-Subroutine calls which jump to an address in a register are so called \emph{icalls}. They act
-similar to indirect jumps and are backtracked in the same way. However, target detection success for indirect calls
-does not affect stack alignment. Even if we ca not determine an indirect call target, we still perform
-an x86\_64 \texttt{call} which pushes the instruction pointer onto the stack and jumps to the address
-in the supplied register. This works as long as we were able to identify the jump address as a basic
-block's entry point with the procedure described in the section\ \ref{backtracking}.
 
 \subsection{Jump Table Detection}
 
@@ -698,6 +691,24 @@ encountered indirect jump. If the jump turns out to be part of a jump table conf
 extract the jump target addresses and use them as entry points for new basic blocks. This also works
 for switch-statements which are compiled into a combination of jump tables and branch-based search
 trees.
+
+\subsection{Call and Return Optimization}
+The RISC-V architecture does not include special operations for handling subroutines. A function call
+is assembled as a jump which places the address of the next instruction into a \emph{link-}register
+\texttt{x1} or \texttt{x5} (for the standard calling convention).\cite{rvspec} Returning from a
+subroutine is done by jumping to the address which is contained in either of those registers. This
+behavior is further optimized with the compressed instructions \texttt{C.JAL} and
+\texttt{C.JALR}. These operations implicitly store the address of the next instruction
+to the link register \texttt{x1}.\cite{rvspec}
+
+\par
+
+Subroutine calls which jump to an address in a register are so called \emph{icalls}. They act
+similar to indirect jumps and are backtracked in the same way. However, target detection success for indirect calls
+does not affect stack alignment. Even if we ca not determine an indirect call target, we still perform
+an x86\_64 \texttt{call} which pushes the instruction pointer onto the stack and jumps to the address
+in the supplied register. This works as long as we were able to identify the jump address as a basic
+block's entry point with the procedure described in the section\ \ref{backtracking}.
 
 \section{Optimizations}\label{sec:optimizations}
 
@@ -843,7 +854,7 @@ zero and thus an identity operation, it is removed, and references to it are rep
 \subsection{Common Subexpression Elimination}
 
 Common Subexpression Elimination, or more specifically, \textit{(Local) Value
-numbering}~\cite{ssa_proposal}, is an optimization that removes redundant code. In principle, each variable is given a
+    numbering}~\cite{ssa_proposal}, is an optimization that removes redundant code. In principle, each variable is given a
 symbolic value depending on its inputs and operation, and variables with the same value are redundant. These redundant
 variables can thus be all replaced by the first occurrence. In our implementation, a hash set is employed (similar to
 how this optimization is described in the SSA proposal), where relevant properties, i.e. operation type, input
