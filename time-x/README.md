@@ -108,11 +108,8 @@ rsync -e 'ssh -J hettwer@login.caps.in.tum.de' -va "$PWD/runcpu.cross" "$PWD/run
 ## Running regression tests
 
 ```bash
-# Cleanup old left overs
-
-# Build benchmarks
-
 # Run benchmarks with size=test
+runcpu --copies=1 --iterations=1 --size=test --noreportable --ignore_errors --action=run --config=translator-test.cfg --action=run intspeed
 ```
 
 ## Running the benchmarks
@@ -130,6 +127,14 @@ The tests don't work well with `runcpu.cross`, so we can't use `--reportable`
 
 ```bash
 runcpu --iterations=2 --size=refspeed --noreportable --config qemu-user --action=run intspeed
+```
+
+### RIA-JIT
+
+The tests don't work, because perlbench is missing the clone syscall.
+
+```bash
+runcpu --iterations=2 --size=refspeed --noreportable --config ria-jit --action=run intspeed
 ```
 
 ## Results
