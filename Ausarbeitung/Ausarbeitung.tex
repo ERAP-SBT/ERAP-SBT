@@ -38,17 +38,31 @@ In order to execute machine code, you need a processor which runs this machine c
 many different processor families and instruction set architectures (ISA) for which programs are
 developed. If you want to run a program which is written for an ISA where you don't have access to a
 system running this ISA, e.g. RISC-V. Then you can translate it and execute it on another system,
-e.g. x86\_64. There are two main approaches for binary translation: \par Firstly, you can use
-dynamic binary translation (DBT) which means to translate short instruction sequences during program
-execution and execute them. When discovering a jump or another control flow operation, the address
-is evaluated and the translation continues at this address. But as you do the translation at
-runtime, this slows down the execution. \par Secondly, you can translate the full binary to an ISA
-which the target system is able to execute. That way you can separate translation and execution,
-which means you only have to translate the binary once for running it as often you need. This
-increases execution speed. This approach is called static binary translation (SBT).\par The
-difference between SBT and DBT is comparable to the difference between compiled and interpreted
+e.g.\ x86\_64. There are two main approaches for binary translation: 
+
+\par
+
+Firstly, you can use dynamic binary translation (DBT) which means to translate short instruction 
+sequences during program execution and execute them. When discovering a jump or another control 
+flow operation, the address is evaluated and the translation continues at this address. But as 
+you do the translation at runtime, this slows down the execution. 
+
+\par
+
+Secondly, you can translate the full binary to an ISA which the target system is able to execute.
+That way you can separate translation and execution, which means you only have to translate the 
+binary once for running it as often you need. This increases execution speed. This approach 
+is called static binary translation (SBT).
+
+\par 
+
+The difference between SBT and DBT is comparable to the difference between compiled and interpreted
 programs. But whilst compilers and interpreters are working on high level programming languages,
-e.g. C, C++ or Python, SBT and DBT are used to translate machine language files.\par Our task is to
+e.g. C, C++ or Python, SBT and DBT are used to translate machine language files.
+
+\par 
+
+Our task is to
 develop a static binary translator which translates RISC-V binaries to x86\_64 machine code. This
 field of binary translation is a rather academic issue because currently, the x86\_64 is still a
 more widely used ISA than RISC-V. This means most programs are already available for the x86\_64
@@ -66,7 +80,9 @@ hardware implementations.''\cite[p.~1]{rvspec} As the name suggests, the RISC-V 
 \emph{Reduced Instruction Set Computer}. This kind of microprocessor is characterized by a larger
 number of registers, its load/store architecture, fixed-length instruction words and a generally
 limited amount of instructions and instruction formats.\cite{RISCvCISC}
+
 \par
+
 Currently there are standard extensions for multiplication and division (M), for atomic instructions (A),
 for floating point arithmetic (F,D,Q), for compressed instructions to reduce the code size (C) and
 for control and status registers (Ziscr). More standard extensions are planned.
@@ -77,13 +93,17 @@ Its processors have a limited number of registers, richer instruction sets and v
 instructions. Because of the complex instruction functions and formats, logic is often implemented
 in mix between microcode and hard coded logic, executing instructions over a number of CPU clock
 cycles.\cite{RISCvCISC}
+
 \par
+
 The x86\_64 ISA defines instructions which access memory and perform arithmetic or logical
 operations at the same time. This is not possible with the load/store RISC-V architecture. To still
 provide flexible instructions, RISC-V uses a three operand form, meaning that most instructions have
 one output and two input registers. On x86\_64 the first source operand specifies the output
 register.
+
 \par
+
 Because of their variable instruction lengths, x86\_64 instructions can contain immediate
 values which are up to 64-bit wide.\cite[Vol.~2B~p.~4-35]{intel2017man} RISC-V base instructions are
 currently always 32-bit wide (16-bit for compressed instructions)\cite[p.~8]{rvspec} which makes
@@ -101,12 +121,21 @@ latter is also often used for performing jumps.\cite [p.~20]{rvspec}
 \subsection{General method}
 \subsection{Floating point support}
 \subsection{Backtracking}
+Although indirekt jump addresses can be evaluated at runtime, we can only jump to the beginning of
+detected basic blocks. This is because we can optimize \nameref{dead_code_elimination} and fold 
+instructions \nameref{constant_folding} inside basic blocks without altering the control flow or
+logic of the program. Having a completely runnable program thus means detecting every basic block
+with their corresponding entrypoints. Although determining all possible indirekt jump targets
+statically is not possible or not feasible (e.g.\ jump targets could be influenced by user input),
+backtracking register contents during lifting gives us a good approximation of the target set.
+
 \subsection{Call and return optimization}
 \subsection{Jump table detection}
 
 \section{Optimizations}
-\subsection{Constant Folding}
-\subsection{Dead Code Elimination}
+\subsection{Constant Folding}\label{constant_folding}
+
+\subsection{Dead Code Elimination}\label{dead_code_elimination}
 
 \clearpage
 
