@@ -184,7 +184,7 @@ only assigned a value once by an operation.
 
 First described in 1988 for optimizing an intermediate program representation\cite{ssa_proposal},
 the \emph{single static assignment form} (SSA) is used for creating and optimizing explicit control
-flow graphs. It follows one basic rule: ``[E]ach variable is 
+flow graphs. It follows one basic rule: ``[E]ach variable is
 assigned to exactly once in the program text.''\cite[p.~18]{ssa_proposal} In our IR, each variable
 stores its source operation (if it is the result of an operation). This enables us to efficiently
 backtrace variable origins and e.g.\ replace variables which can be evaluated statically with constant
@@ -245,8 +245,45 @@ register.\cite{rvspec}
 
 \par
 
+% TODO: is this paragraph part of IR or Lifter?
+We also introduced a \emph{memory token} which is always a input for \emph{load} operations and the
+result of \emph{store} operations. The main reason to use this extra variable is to keep track of
+memory operations because they need to be kept in order when performing operations. This means that
+\emph{load} operations can be mixed up as needed as long as no \emph{store} operation is in between.
+But \emph{store} operations cannot be swapped with other \emph{stores} or \emph{loads}. This insures
+that the correct values are read from and written to memory and therefore the correctness of the
+program. So the memory token creates dependencies between the memory operations. The second reason
+is that our IR assigns each operation to the variable which is the result of this operation, but a
+\emph{store} operation has no result except the change of the memory. The memory token is also
+stored in the mapping.
+
+\par
+
 For each discovered instruction a sequence of variables connected through operations is added to the
 IR. These variables represents the functionality of the instruction as defined by the RISC-V manual.
+% TODO: Add example for lifting an instruction here
+
+\par
+
+When a control flow changing instruction is discovered, it is added to the current basic block as
+well as the variables needed for this instruction, e.g. calculating the jump address. If the jump
+address can be inferred from the instruction, in particular considering \emph{jal} and branch
+instructions where the jump address is the sum of the address of the instruction and an offset, this
+address can be used to define the start of a new basic block. If the instruction at
+the jump address isn't processed yet, the lifter remembers that at this address is the start of a
+basic block. But in the other case, it needs to be checked whether at this address a basic block starts and
+otherwise this block must be split up at the jump address.
+
+\par
+
+If the jump address cannot be extracted from the instruction, the backtracking (\ref{backtracking})
+is used to infer possible addresses which are processed with the same procedure as described before.
+Using the command line flag ``--full-backtracking'' the user can control whether all possible
+address should be found or the first one found is used. If no jump address can be inferred, a dummy
+basic block which indicates an unresolved CfOp, is set as target block. The jump address then needs
+to be evaluated at runtime and jumps to an address at which no basic block begins needs to be
+handled by the helper library (\ref{helper}).
+
 
 \subsection{Floating point support}
 \subsection{Backtracking}\label{backtracking}
@@ -463,7 +500,6 @@ the lifting stage).
 This optimization is greatly simplified by the use of Static Single Assignment form in the IR, since variables can't be
 reassigned. This means that the value of a variable is known just by looking at the declaration of the variable.
 
-\clearpage
 
 \section{Generator}
 The generator has two jobs. % TODO: jobs isnt the right word...
