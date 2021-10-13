@@ -91,6 +91,14 @@ rsync -e 'ssh -J hettwer@login.caps.in.tum.de' -va "$PWD/runcpu.cross" hettwer@t
 runcpu --iterations=2 --size=refspeed --reportable --config native --action=run intspeed
 ```
 
+### QEMU-user
+
+The tests don't work well with `runcpu.cross`, so we can't use `--reportable`
+
+```bash
+runcpu --iterations=2 --size=refspeed --noreportable --config qemu-user --action=run intspeed
+```
+
 ## Results
 
 The `results` directory contains the results for all benchmarks referenced in the Ausarbeitung.
