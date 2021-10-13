@@ -2,8 +2,7 @@
 \documentclass[course=eragp]{aspdoc}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% TODO: Ersetzen Sie in den folgenden Zeilen die entsprechenden -Texte-
-%% mit den richtigen Werten.
+%% TODO: Ersetzen Sie in den folgenden Zeilen die entsprechenden -Texte- % mit den richtigen Werten.
 \newcommand{\theGroup}{IhreGruppennummer} % Beispiel: 42
 \newcommand{\theNumber}{IhreProjektnummer} % Beispiel: A123
 % Authors, sorted by last name
@@ -11,8 +10,7 @@
 \date{Summer semester 2021}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% Diese Zeile bitte -nicht- aendern.
-% \title{Gruppe \theGroup{} -- Abgabe zu Aufgabe \theNumber}
+% Diese Zeile bitte -nicht- aendern. \title{Gruppe \theGroup{} -- Abgabe zu Aufgabe \theNumber}
 \title{Static binary translation from RISC-V to x86\_64}
 
 \begin{document}
@@ -30,55 +28,68 @@
 %   - (academic purposes :-))
 % - How to translate binaries?
 %   - DBT (dynamic binary translation): translate sequence of instructions and execute them
-%   - SBT (static binary translation): translate binary to target ISA, then execute it (pro: higher execution time)
-% - comparable to diffrence between interpreted and compiled programs
+%   - SBT (static binary translation): translate binary to target ISA, then execute it (pro: higher
+%     execution time)
+% - comparable to difference between interpreted and compiled programs
 % - our problem: SBT from RISC-V to x86-64
 % - more academic problem, because most programs are available on x86-64 
 
-In order to execute machine code, you need a processor which runs this machine code.
-But there are many different processor families and instruction set architectures (ISA)
-for which programs are developed. If you want to run a program which is written for
-an ISA where you don't have access to a system running this ISA, e.g. RISC-V. Then you can
-translate it and execute it on another system, e.g. x86\_64. There are two main approaches
-for binary translation: \par
-Firstly, you can use dynamic binary translation (DBT) which means to translate short
-instruction sequences during program execution and execute them. When discovering a jump or another
-control flow operation, the address is evaluated and the translation continues at this
-address. But as you do the translation at runtime, this slows down the execution. \par
-Secondly, you can translate the full binary to an ISA which the target system is able to
-execute. That way you can separate translation and execution, which means you only have to translate
-the binary once for running it as often you need.
-This increases execution speed. This approach is called static binary translation (SBT).\par
-The difference between SBT and DBT is comparable to the difference between compiled
-and interpreted programs. But whilst compilers and interpreters are working on
-high level programming languages, e.g. C, C++ or Python, SBT and DBT are used to translate
-machine language files.\par
-Our task is to develop a static binary translator which translates RISC-V binaries to x86\_64 machine code. 
-This field of binary translation is a rather academic issue because currently, the x86\_64 is still a more
-widely used ISA than RISC-V. This means most programs are already available for the x86\_64 processor architecture.
+In order to execute machine code, you need a processor which runs this machine code. But there are
+many different processor families and instruction set architectures (ISA) for which programs are
+developed. If you want to run a program which is written for an ISA where you don't have access to a
+system running this ISA, e.g. RISC-V. Then you can translate it and execute it on another system,
+e.g. x86\_64. There are two main approaches for binary translation: \par Firstly, you can use
+dynamic binary translation (DBT) which means to translate short instruction sequences during program
+execution and execute them. When discovering a jump or another control flow operation, the address
+is evaluated and the translation continues at this address. But as you do the translation at
+runtime, this slows down the execution. \par Secondly, you can translate the full binary to an ISA
+which the target system is able to execute. That way you can separate translation and execution,
+which means you only have to translate the binary once for running it as often you need. This
+increases execution speed. This approach is called static binary translation (SBT).\par The
+difference between SBT and DBT is comparable to the difference between compiled and interpreted
+programs. But whilst compilers and interpreters are working on high level programming languages,
+e.g. C, C++ or Python, SBT and DBT are used to translate machine language files.\par Our task is to
+develop a static binary translator which translates RISC-V binaries to x86\_64 machine code. This
+field of binary translation is a rather academic issue because currently, the x86\_64 is still a
+more widely used ISA than RISC-V. This means most programs are already available for the x86\_64
+processor architecture.
 
 \section{Background}
 \subsection{Short overview of RISC-V}
-According to the RISC-V specification~\cite{rvspec}, RISC-V is an open and freely accessible ISA which 
-consists of ``[\ldots] a small base integer ISA [\ldots]'' and ``[\ldots] optional standard extensions to support 
-general purpose software development''\cite[p.~1]{rvspec}. It is available in ``[b]oth 32-bit and 64-bit address space variants for applications, operating system kernels, and
-hardware implementations.''\cite[p.~1]{rvspec} As the name suggests, the RISC-V ISA describes a \emph{Reduced Instruction Set Computer}. This kind of microprocessor is
-characterized by a larger number of registers, its load/store architecture, fixed-length instruction words and a generally limited amount of instructions and 
-instruction formats.\cite{RISCvCISC}
+
+According to the RISC-V specification~\cite{rvspec}, RISC-V is an open and freely accessible ISA
+which consists of ``[\ldots] a small base integer ISA [\ldots]'' and ``[\ldots] optional standard
+extensions to support general purpose software development''\cite[p.~1]{rvspec}. There is also
+the option to implement custom extensions. It is available in
+``[b]oth 32-bit and 64-bit address space variants for applications, operating system kernels, and
+hardware implementations.''\cite[p.~1]{rvspec} As the name suggests, the RISC-V ISA describes a
+\emph{Reduced Instruction Set Computer}. This kind of microprocessor is characterized by a larger
+number of registers, its load/store architecture, fixed-length instruction words and a generally
+limited amount of instructions and instruction formats.\cite{RISCvCISC}
 \par
-The RISC-V ISA is currently not ratified by the RISC-V Foundation. However, all ISA modules which were considered in this project are ``frozen'', 
-preventing further changes during the ratification.\cite[p.~iv]{rvspec} This means this project is based on the ISA version 20191213.
+Currently there are standard extensions for multiplication and division (M), for atomic instructions (A),
+for floating point arithmetic (F,D,Q), for compressed instructions to reduce the code size (C) and
+for control and status registers (Ziscr). More standard extensions are planned.
 
 \subsection{Differences between RISC-V and x86\_64}
-In contrast to RISC-V, the x86\_64 ISA describes a CISC, a \emph{Complex Instruction Set Computer}. Its processors have a limited number of registers, 
-richer instruction sets and variable length instructions. Because of the complex instruction functions and formats, 
-logic is often implemented in mix between microcode and hard coded logic, executing instructions over a number of CPU clock cycles.\cite{RISCvCISC}
+In contrast to RISC-V, the x86\_64 ISA describes a CISC, a \emph{Complex Instruction Set Computer}.
+Its processors have a limited number of registers, richer instruction sets and variable length
+instructions. Because of the complex instruction functions and formats, logic is often implemented
+in mix between microcode and hard coded logic, executing instructions over a number of CPU clock
+cycles.\cite{RISCvCISC}
 \par
-The x86\_64 ISA defines instructions which access memory and perform arithmetic or logical operations at the same time. This is not possible
-with the load/store RISC-V architecture. Because of their variable instruction lengths, x86\_64 instructions can contain immediate values which
-are up to 64-bit wide.\cite[Vol.~2B~p.~4-35]{intel2017man} RISC-V base instructions are currently always 32-bit wide 
-(16-bit for compressed instructions)\cite[p.~8]{rvspec} which makes loading big immediates difficult. These are either combined by two or more
-separate immediate loading operations or loaded relative to the current instruction pointer.\cite[p.~19]{rvspec} The latter is also often used for performing jumps.\cite[p.~20]{rvspec}
+The x86\_64 ISA defines instructions which access memory and perform arithmetic or logical
+operations at the same time. This is not possible with the load/store RISC-V architecture. To still
+provide flexible instructions, RISC-V uses a three operand form, meaning that most instructions have
+one output and two input registers. On x86\_64 the first source operand specifies the output
+register.
+\par
+Because of their variable instruction lengths, x86\_64 instructions can contain immediate
+values which are up to 64-bit wide.\cite[Vol.~2B~p.~4-35]{intel2017man} RISC-V base instructions are
+currently always 32-bit wide (16-bit for compressed instructions)\cite[p.~8]{rvspec} which makes
+loading big immediates difficult. These are either combined by two or more separate immediate
+loading operations or loaded relative to the current instruction pointer.\cite[p.~19]{rvspec} The
+latter is also often used for performing jumps.\cite [p.~20]{rvspec}
 
 \subsection{Inspiration}
 
@@ -114,9 +125,8 @@ separate immediate loading operations or loaded relative to the current instruct
 
 \section{Fazit}
 
-% TODO: Fuegen Sie Ihre Quellen der Datei Ausarbeitung.bib hinzu
-% Referenzieren Sie diese dann mit \cite{}.
-% Beispiel: CR2 ist ein Register der x86-Architektur~\cite{intel2017man}.
+% TODO: Fuegen Sie Ihre Quellen der Datei Ausarbeitung.bib hinzu Referenzieren Sie diese dann mit
+% \cite{}. Beispiel: CR2 ist ein Register der x86-Architektur~\cite{intel2017man}.
 \bibliographystyle{plain}
 \bibliography{Ausarbeitung}{}
 
