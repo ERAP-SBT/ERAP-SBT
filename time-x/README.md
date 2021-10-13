@@ -37,6 +37,38 @@ podman run --init --rm -it --network=host --userns=keep-id -v "$PWD:/u/home/hett
 rsync -e 'ssh -J hettwer@login.caps.in.tum.de' -va "$PWD/toolchains" hettwer@time-x.caps.in.tum.de:
 ```
 
+## Building eragp-sbt-2021
+
+```bash
+# Setup
+
+# Configure
+
+# Building
+
+# Uploading to time-x
+```
+
+## Building ria-jit
+
+```bash
+# Setup
+git clone --recurse-submodules https://github.com/aengelke/ria-jit.git
+git -C ria-jit switch cm2 --recurse-submodules
+rm -rf build-ria-jit && mkdir build-ria-jit
+
+# Configure
+podman run --init --rm -it --network=host --userns=keep-id -v "$PWD:/u/home/hettwer:rw" -w "/u/home/hettwer/" time-x-base \
+    cmake -S ria-jit -B build-ria-jit -DCMAKE_BUILD_TYPE=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=true
+
+# Building (use same options as ria-jit paper)
+podman run --init --rm -it --network=host --userns=keep-id -v "$PWD:/u/home/hettwer:rw" -w "/u/home/hettwer/build-ria-jit" time-x-base \
+    make --output-sync=target -j"$(nproc)"
+
+# Uploading to time-x
+rsync -e 'ssh -J hettwer@login.caps.in.tum.de' -va "$PWD/build-ria-jit/translator" hettwer@time-x.caps.in.tum.de:ria-jit/translator
+```
+
 ## Installing qemu-user (on time-x)
 
 ```bash
@@ -69,7 +101,8 @@ The `config` directory contains a few configurations for running benchmarks:
 rsync -e 'ssh -J hettwer@login.caps.in.tum.de' -va "$PWD/config/" hettwer@time-x.caps.in.tum.de:/u/home/hettwer/cpu2017/config/
 
 # runcpu.cross is required for cross compiling benchmarks
-rsync -e 'ssh -J hettwer@login.caps.in.tum.de' -va "$PWD/runcpu.cross" hettwer@time-x.caps.in.tum.de:/u/home/hettwer/cpu2017/
+# runcpu.cross-ria-jit is required for ria-jit benchmarks
+rsync -e 'ssh -J hettwer@login.caps.in.tum.de' -va "$PWD/runcpu.cross" "$PWD/runcpu.cross-ria-jit" hettwer@time-x.caps.in.tum.de:/u/home/hettwer/cpu2017/
 ```
 
 ## Running regression tests
