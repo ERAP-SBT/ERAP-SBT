@@ -130,14 +130,16 @@ source or target. But this isn't the focus of this project.
 
 \par
 
-The lifter reads the instructions from the binary file using frvdec\cite{frvdec} to disassemble the
-RISC-V binary into basic blocks and creates operations and variables in the intermediate representation (IR).
+The lifter reads the instructions from the binary file and decodes the opcodes using
+frvdec\cite{frvdec}. The resulting instructions are used to disassemble the
+RISC-V binary into basic blocks, operations and variables in the intermediate representation (IR).
 It contains the logic of the input binary in an architecture-neutral form which generic optimization passes can
-be applied on to reduce the number of operations to be performed so that the generator can more easily create native instructions from it.
-The translated binary is created by the generator compiling the IR variables and operations to x86\_64 assembly. To produce an executable binary we use the GNU
-assembler (GAS)\cite{gnu_binutils} and link our helper library to it using the GNU linker
-(LD)\cite{gnu_binutils}. For further explanation see the following chapters. Figure
-\ref{program_overview} depicts the main structure as a scheme.
+be applied on. They reduce the number of operations required without altering the program's behavior.
+The generator compiles the IR program to x86\_64 assembly. To assemble an executable binary we use the GNU
+assembler (AS)\cite{gnu_binutils}. We link our helper library with it using the GNU linker
+(LD)\cite{gnu_binutils}. For further explanation, please refer to the following chapters. 
+Figure\ref{program_overview} 
+depicts a schematic of the basic translator structure.
 
 \begin{figure}
     \centering
@@ -150,12 +152,11 @@ assembler (GAS)\cite{gnu_binutils} and link our helper library to it using the G
 
 \par
 
-Our implementation only accepts 64bit ELF binaries which are statically linked and in little endian
-format. Another requirement is that the binary is created for unix or uses the System V Application
-Binary Interface (ABI) because this defines the system call ids and the calling convention.
-Obviously the ELF file also has to be a RISC-V binary. This prerequisites are checked before
+Our implementation only supports 64-bit RISC-V ELF\footnote{Executable and Linking Format} binaries which are statically linked and in little endian
+format. Another requirement is that the binary conforms to the System V ABI\footnote{Application
+Binary Interface}. This defines, inter alia, the system call IDs and the calling convention.
+These prerequisites are checked, using the metadata contained in the ELF-file, before
 translating the file in order to print meaningful debug messages.
-
 
 \section{Intermediate representation}
 
