@@ -74,7 +74,9 @@ approach is called static binary translation (SBT).~\cite{binary_translation}
 The current rise of RISC-V processors makes it probable that we will see a need for RISC-V to
 x86\_64 binary translation in the near future. Even though x86\_64 is still a more widely used ISA
 than RISC-V, a lot of companies invest in a shift towards the RISC-V ISA. This revolution makes ISA
-incompatibilities a future problem we want to solve today.~\cite{riscv_rises}
+incompatibilities a future problem we want to solve today.~\cite{riscv_rises} Another important use
+case for the SBT is translating binaries where the source code was lost. Programs without source
+code can not be compiled for another target ISA, but they can be translated using the SBT.
 
 \par
 
@@ -230,7 +232,7 @@ By parsing control flow and program structures we can run optimizations like
 
 \begin{figure}[H]
     \begin{center}
-        \begin{tabular}{||c | c | c||}
+        \begin{tabular}{|c | c | c|}
             \hline
             Integers & Floats & Special \\ [0.5ex]
             \hline\hline
@@ -258,7 +260,33 @@ supported instructions can be found in the appendix section~\ref{figure:ir_instr
 Variables and their operations are grouped into basic blocks. These are blocks of code
 which do not contain a control flow changing operation. These special operations are jumps and
 system calls. Subroutine calls which are defined by many ISAs are only jump instructions with
-additional memory accessing operations. The control flow changing operations act as connectors between basic blocks.
+additional memory accessing operations. The control flow changing operations act as connectors
+between basic blocks. Figure~\ref{figure:cfops} shows a list of all defined control flow changing operations.
+
+\begin{figure}[H]
+    \begin{center}
+        \def\arraystretch{1.5}
+        \begin{tabular}{r | p{0.8\linewidth}}
+            \hline
+            IR Operation & Description \\ [0.5ex]
+            \hline
+            jump & Direct jump to a known target address.\\
+            ijump      & Indirect jump to a possibly unknown target address.        \\
+            cjump      &    Conditional jump to a known target address.    \\
+call       &    Subroutine call. Also encodes a continuation address to which the subroutine
+is expected to return to.\\
+icall       &    Same behavior as a normal \textit{call}, but with unknown subroutine target
+address.     \\
+return       &  Exit subroutine execution and continue at the continuation address of the
+\textit{call} instruction which lead to the subroutine execution.\\
+unreachable       & This operation should never be reached. On reach, it terminates the program's
+execution.  \\
+            syscall       &  A syscall in respect to the System V ABI.        \\
+            \hline
+        \end{tabular}
+        \caption{Control flow changing operations defined by the IR.}\label{figure:cfops}
+    \end{center}
+\end{figure}
 
 \subsection{Single Static Assignment Form}\label{ssa}
 
@@ -293,7 +321,8 @@ assigned to a static mapper.
 
 \par
 
-Each basic block ends with CfOps which redirect the control flow to other basic blocks. Every CfOp
+Each basic block ends with control flow changing operation(s) which redirect the control flow to
+other basic blocks. Every such operation 
 stores its target block(s) together with a mapping which combines variables from their source basic
 block with corresponding static mappers. This tells the code generator (section~\ref{sec:generator}) which SSA variables
 should be transferred between basic blocks.
@@ -430,9 +459,10 @@ Figure \ref{fig:lifting_example_riscv} shows an example RISC-V assembly sequence
 
 As explained in the IR chapter (section~\ref{sec:ir}), our IR is subdivided into basic blocks which contain
 consecutive instructions without a change in control flow. As soon as a control flow changing
-instruction is discovered, it is lifted and set as the basic block's CfOp. A control flow changing
-instruction can be assembled of more CfOps, e.g. RISC-V branches which consist of a conditional
-jump and a jump to the next block if the branch is not taken. The current basic block is finished and
+instruction is discovered, it is lifted associated with the basic block. A basic block can be
+associated to one or more closing control flow changing
+instructions, e.g. RISC-V branches which consist of a conditional
+jump and a direct jump to the next block if the branch is not taken. The current basic block is finished and
 a new one is created. If the jump address can be inferred from the instruction using
 Backtracking (section~\ref{backtracking}) or if it is directly encoded, like in branch instructions, this address is used
 to register the start of a new basic block.
@@ -938,16 +968,21 @@ to the next basic block. Additionally we merge certain operation sequences in th
 \subsubsection{Register Allocation}\label{reg_alloc}
 To do so blocks which closely represent functions of the original binary are grouped and compiled together the register and stack state (so the location of variables) is maintained between blocks.
 As such we keep often used vars in registers and prevent spilling of variables to statics at the end of each basic block.
-The achieve this we first mark all blocks which are targets of call-cfops, then iterate all basic blocks, check if they are either the target of a call-cfop or have no known predecessors
+The achieve this we first mark all blocks which are targets of call instructions, then iterate over
+all basic blocks, check if they are either the target of a call instruction or have no known predecessors
 and start the register allocation for the group of this block.
-This will then compile the starting block while allocating registers and stack slots for the variables, evaluate the cfops and check whether the target of a cfop is part of the current group
+This will then compile the starting block while allocating registers and stack slots for the
+variables, evaluate the control flow changing operations and check whether the target of such an instruction is part of the current group
 (which in essence just means that it is not a call-target) and if so create an input mapping for the target which specify where each input variable is located or, when the block has already been compiled,
 emit a sequence of instructions which move the variables to the position at which the target block expects them.
-After this the handling of the current block is finished and if any of the targets of the block's cfops are part of the current group they are recursively compiled as well.
+After this, the handling of the current block is finished and if any of the targets of the block's
+control flow changing operations are part of the current group they are recursively compiled as well.
 
 \par
 
-The process of generating instructions for the basic block itself are also relatively simple. First, a rough (because cfops might need reshuffling, see later) estimate of the time-of-uses of each variable is created,
+The process of generating instructions for the basic block itself are also relatively simple. First,
+a rough (because control flow changing operations might need reshuffling, see later) estimate of the time-of-uses of
+each variable is created,
 after which each operation in the basic block is then iterated, the inputs for it are loaded into registers if they are located in a static or on the stack frame and a destination register is chosen.
 Here, if possible a seperate destination register than the input registers is used if the inputs are still needed later. Otherwise one of the input registers is simply overwritten.
 When choosing a register to place a variable into, registers without a variable in them or registers
@@ -987,7 +1022,7 @@ After all blocks in a group are compiled and the final stack-frame size is known
 The difference to the naive generator is that the inputs for the next block might not be written to statics but instead need to be placed in certain register or stack slots
 while not overwriting values that are currently stored in them and might be needed later which is why the initial time-calculation might be wrong for these cases as it is hard to predict when such
 conflicts might occur. The current approach taken is to place the input into statics first, then the stack slots, then the registers while storing values which may be overwritten in temporary locations.
-Also, when generating the cfops and the target is a block not part of the current group the stack frame size for it might be different and a such it needs to be adjusted as well to prevent stack over- or underflows.
+Also, when generating the control flow changing operations and the target is a block not part of the current group the stack frame size for it might be different and a such it needs to be adjusted as well to prevent stack over- or underflows.
 
 \par
 
@@ -1104,7 +1139,7 @@ interpret the original RISC-V code just-in-time until the next start of a basic 
 Mapping the RISC-V indirect jump target addresses to translated basic blocks requires a
 dictionary-like data structure.
 The implementation has to have fast access times as we need to access entries with
-every indirect jump and every interpreted CfOp instruction in the interpreter. It also has to be able
+every indirect jump and every interpreted control flow changing operation in the interpreter. It also has to be able
 to identify invalid keys, to switch to the interpreter if the
 jump target address is not a valid basic block start address. We developed two data structure and
 compared their strengths and weaknesses:
