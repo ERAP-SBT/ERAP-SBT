@@ -2,6 +2,7 @@
 \documentclass[course=eragp]{aspdoc}
 
 \input{commands.tex}
+\input{listing_styles/riscv_lstlisting_style.tex}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% TODO: Ersetzen Sie in den folgenden Zeilen die entsprechenden -Texte- % mit den richtigen Werten.
@@ -291,12 +292,64 @@ use executable sections for storing instructions.
 \subsubsection{IR generation}
 
 After loading the data form the binary, the lifter runs sequentially through the discovered
-instructions which are decoded using \texttt{frvdec}.\cite{frvdec} The resulting instructions are C-structs,
+instructions which are decoded using \texttt{frvdec}.\cite{frvdec} The resulting instructions are objects,
 filled with the parsed content of the binary instruction code. This is a
 more generic and easier processable form with direct access to involved register numbers and
 immediate values. For each of the instructions, a variable amount of variables and operations is added to
 the IR to replicate the original program's behavior.
 % TODO: Add example for lifting an instruction here
+
+\par
+
+
+Figure \ref{fig:lifting_example_riscv} shows an example RISC-V program and figure
+\ref{fig:lifting_example_ir} shows the resulting IR parts. Some 
+
+\begin{figure}[ht]
+    \centering
+    \begin{lstlisting}[language={[RISC-V]Assembler}]
+        start:
+            [...]
+        loop:
+0xb0:       addi a0, a0, -1
+0xb4:       beq a0, zero, b1
+        continuation:
+0xa8:       sll a1, a1, a2
+            [...]
+    \end{lstlisting}
+    \caption{Example of lifting a short sequence of RISC-V instructions}
+    \label{fig:lifting_example_riscv}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \begin{lstlisting}
+[...]
+
+block b1(/*input list */) <= [/* predecessors */] { // loop
+    [...]
+    i64 v9 <- @10
+    [...]
+    imm v33 <- immediate -1
+    i64 v35 <- add i64 v9, imm v33
+    imm v36 <- immediate 0
+    imm v37 <- immediate 0xb0
+    imm v38 <- immediate 0xb8
+} => [(cjump, [b1, /* outputs */], v35, v36, v37), (jump, [b2, /* output */], v38)]
+
+block b2(/* input list */) <= [b1, /* other predecessors */] { // continuation
+    [...]
+    i64 v10 <- @11
+    i64 v11 <- @12
+    [...]
+    i64 v33 <- shl i64 v10, i64 v11
+} => [/* control flow op */]
+
+[...]
+    \end{lstlisting}
+    \caption{The lifted IR instructions}
+    \label{fig:lifting_example_ir}
+\end{figure}
 
 \par
 
@@ -869,7 +922,9 @@ compared their strengths and weaknesses:
           The hashing helps reduce the required storage space to the hash table size and the hash function
           indices table size.\ref{hashing_figure} The storage size optimizations mean however that
           every access takes, although it's complexity is still constant, the additional time of calculating
-          the hash table index. This is effect can be observed in Figure~\ref{time_x}.
+          the hash table index. This is effect can be observed in Figure 
+          % TODO: Fix this reference!!!
+          %~\ref{time_x}.
 \end{enumerate}
 
 \begin{figure}

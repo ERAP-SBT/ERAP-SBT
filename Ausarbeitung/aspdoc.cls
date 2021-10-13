@@ -39,7 +39,6 @@
 \usetikzlibrary{shapes,positioning}
 \input{tikz_src/graph.tikzstyles}
 \usepgfplotslibrary{colormaps}
-\pgfplotsset{compat=1.17}
 
 \SetupKeyvalOptions{
   family=aspdoc,
