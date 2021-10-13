@@ -64,7 +64,11 @@ bool Lifter::is_jump_table_jump(const BasicBlock *bb, CfOp &cf_op, const RV64Ins
     const auto trace_up = [this](SSAVar *loaded_addr_var, const BasicBlock *cur_bb) {
         int64_t disp = 0;
         uint64_t jt_start_addr = 0;
+        size_t count = 0;
         while (true) {
+            if (count++ >= 15) {
+                break;
+            }
             if (loaded_addr_var->is_operation()) {
                 const auto &op = loaded_addr_var->get_operation();
                 if (op.type != Instruction::add) {
@@ -173,6 +177,9 @@ bool Lifter::is_jump_table_jump(const BasicBlock *bb, CfOp &cf_op, const RV64Ins
     auto &jmp_addrs = cf_op.type == CFCInstruction::ijump ? std::get<CfOp::IJumpInfo>(cf_op.info).jmp_addrs : std::get<CfOp::ICallInfo>(cf_op.info).jmp_addrs;
     for (size_t i = addr_start_idx; i < prog->addrs.size(); i += addr_step) {
         if (jt_end_addr != 0 && prog->addrs[i] >= jt_end_addr) {
+            break;
+        }
+        if (prog->addrs[i] - jt_start_addr > 4 * 4096) {
             break;
         }
         uint64_t value_at_addr = next_addr(i);
