@@ -1487,7 +1487,15 @@ The sign injection and floating point classify instruction are implemented by us
 to manipulate the sign bit and to check in which category\footnote{For example, sNaN, qNaN, negative
     infinity, negative normal number, etc.} the floating point value fits, respectively.
 
-\section{Performance}\label{sec:evaluation}
+\section{Evaluation}\label{sec:evaluation}
+
+\subsection{SPEC CPU 2017}
+
+\subsection{Setup}
+
+\subsection{Correctness}
+
+\subsection{Comparision to QEMU and RIA}
 
 \begin{figure}
     \begin{centering}
@@ -1549,11 +1557,11 @@ to manipulate the sign bit and to check in which category\footnote{For example, 
 Due to bugs in the ria-jit rv64fd implementation, namely the lack of dynamic rounding support % TODO: verify
 the xz benchmark did not complete successfully.
 
-\subsection{Our Solution}
-\subsection{Optimizations (Analysis)}
-\subsection{QEMU}
-\subsection{Dynamic Translator (last year's project)}
-\subsection{Native x86\_64}
+\subsection{Effectivness of different Optimizations}
+
+\subsection{Hashtable}
+
+\subsection{Performance of Translation Blocks}
 
 \section{Summary}
 
