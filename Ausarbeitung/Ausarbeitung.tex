@@ -166,6 +166,8 @@ and to stop the translation.
 
 \section{Intermediate representation}
 
+\subsection{Static mappers}\label{statics}
+
 As explained in \nameref{approach_section}, we use an IR to create a platform-independent
 representation of the translated program's logic. This is not only useful to support different input
 and output languages in the future, but also to able to optimize the more abstract representation.
@@ -218,46 +220,51 @@ machine code is lifted up to a more abstract representation at a higher level, t
 
 \par
 
-The lifter runs sequentially through all sections of the binary which are marked with the flags
-\emph{alloc}, \emph{exec} and \emph{progbits}. This means that they are loaded at runtime into
-memory, executable and initialized at load. If there are no sections in the ELF file, the parsed
-instructions are gained from the \emph{LOAD} program header which is marked as \emph{read-only} and
-\emph{executable} (R+E). This sections respectively program header is loaded because there are
-usually the instruction stored.
+\subsection{Program Loading}
+
+The ELF-file loader parses instructions from the \emph{SHT\_PROGBITS}-type sections of the binary
+which are marked with the flags
+\emph{SHF\_ALLOC} and \emph{SHF\_EXECINSTR}. The flags mark that the section ``occupies memory during
+process execution''\cite[p.~14]{elf_spec} and ``contains executable machine
+instructions''\cite[p.~14]{elf_spec}. According to the ELF-file specification, only ``files used
+during linking''\cite[p.~2]{elf_spec} must have a \emph{section header table} which holds section
+information. In case there are no sections in the ELF file\footnote{e.g.\ memory dumps.} we use the
+program loader information, stored in the \emph{program header table}. The stored program headers
+specify parts of the underlying binary which are actually loaded to the final program.\footnote{Program header type ``PT\_LOAD''.} 
+We only parse instructions from the program headers which are marked as \emph{readable} and
+\emph{executable}.
 
 \par
 
-But due to the von Neumann memory model which specifies that instructions and data
-are stored in the same memory, it isn't possible to distinguish instructions and data. For example,
-if some constants are defined in the \emph{.text} section which can be interpreted as valid
-instructions, they are lifted as instructions. This is also known to be a hard problem in
-binary translation.
+Due the memory architecture of modern computers, instructions and data are mostly stored in the same
+memory. This concept, which was first introduced by John von Neumann in 1945\cite{vna}, makes it
+hard to statically distinguish between instructions and data. That is why we rely on the additional
+information stored in the section- and program headers which identifies certain parts of the binary
+as executable instructions. This however means we rely on the compiler and the programmer to only
+use executable sections for storing instructions.
 
-\par
+\subsection{Register file}
 
-While lifting the instructions, the so called \emph{mapping} keeps track of the variables which
-represents the content of the registers. This is necessary to know to which variables are the inputs
-of a newly created operation in the IR. At the start of a basic block the mapping is initialized
-with variables from static except from the index zero because this represents the hard wired zero in
-RISC-V. Therefore each read from the mapping at index zero is handled by adding an immediate
-variable with value zero. Each write doesn't affect the mapping as specified for the \emph{x0}
+While lifting the instructions a register file, called \emph{mapping}, emulates changes to RISC-V
+registers and stores their state. This is required for tracking register contents between
+instructions. At the start of a basic block the mapping is initialized
+with variables from \nameref{statics}. The register with the index zero is hard wired zero in
+RISC-V and therefore not initialized. Furthermore, each read from the mapping at index zero is handled by adding an immediate
+variable with value zero. Each write to the zero register as ignored, as it is specified for the \emph{x0}
 register.\cite{rvspec}
 
-\par
+\subsection{Memory tokens}
 
 % TODO: is this paragraph part of IR or Lifter?
-We also introduced a \emph{memory token} which is always a input for \emph{load} operations and the
-result of \emph{store} operations. The main reason to use this extra variable is to keep track of
-memory operations because they need to be kept in order when performing operations. This means that
-\emph{load} operations can be mixed up as needed as long as no \emph{store} operation is in between.
-But \emph{store} operations cannot be swapped with other \emph{stores} or \emph{loads}. This insures
-that the correct values are read from and written to memory and therefore the correctness of the
-program. So the memory token creates dependencies between the memory operations. The second reason
-is that our IR assigns each operation to the variable which is the result of this operation, but a
-\emph{store} operation has no result except the change of the memory. The memory token is also
-stored in the mapping.
+We introduce a \emph{memory token} which is a required input for operations which read from memory and the
+result of operations which write to memory. It creates a dependency between storing and loading
+operations. This should be used to keep the memory access operations
+in their correct order when reordering operations inside basic blocks and functions. A writing
+operations acts as a separator of reading operations, where reading operations can be swapped freely
+with each other. This insures a valid memory access ordering and therefore the correctness of the
+program. 
 
-\par
+\subsection{Generating the IR}
 
 For each discovered instruction a sequence of variables connected through operations is added to the
 IR. These variables represents the functionality of the instruction as defined by the RISC-V manual.
