@@ -20,7 +20,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Zur Wahl des Seitenverhältnisses bitte einen der beiden folgenden Befehle
 % auskommentieren und den ausführen lassen:
-\input{praeambel_4_3.tex} % Seitenverhältnis 16:9
+\input{praeambel_4_3.tex} % Seitenverhältnis 4:3
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
@@ -553,6 +553,69 @@ switch(instr.mnem) {
 \end{frame}
 \clearpage
 
+
+\begin{frame}
+    %\note[item]{Wird zur Auflösung von indirekten Sprüngen ohne erkanntem Sprungziel genutzt, v.a. nicht erkannte Jump Tables}
+    %\note[item]{Arbeitet wie ein Emulator, also dekodiert und führt die Instruktionen zur Laufzeit aus, an gegebener und folgenden Adressen}
+    %\note[item]{Von daher nötig, dass orginale Binary als Memory Image vorhanden}
+    %\note[item]{Springt zu übersetztem Basic Block zurück, falls in IJump Lookup Table an der aktuellen Adresse einer gefunden wird}
+    %\note[item]{Springt i.d.R. schnell zurück, v.a. ohne Translation Blocks auch häufiger \& länger nötig}
+    %\note[item]{Arbeitet auf den Statics, weil er wissen muss wo die Werte der ``Register'' liegen}
+    %\note[item]{Unterstützt soweit alle Standard Extensions wie der Lifter}
+    %\note[item]{Kann theoretisch mit JIT Compileren und Selbstmodifizierender Code umgehen, aber ungetestet}
+    %\note[item]{Kann auch alleine, d.h. ohne Lifting \& Code Generation ausgeführt werden}
+    \frametitle{Interpreter}
+    \vspace{1cm}
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item Dient zur Auflösung indirekter Sprünge ohne erkanntem Sprungziel
+        \item Interpreteriert die RISC-V Instruktionen an gegebener Addresse
+        \item Springt zurück zu übersetzem Basic Block, wenn möglich -> Ijump Lookup Table
+        \item Kann theoretisch mit JIT Compileren und Selbstmodifizierender Code umgehen
+    \end{itemize}
+\end{frame}
+\clearpage
+
+\begin{frame}
+    %\note[item]{Unterstützung für single und double precision Floating Points}
+    %\note[item]{Übersetzung zu SSE und SSE2 Instruktionen, falls vorhanden auch Nutzung von FMA3 und SSE4 -> müssen erlaubt werden}
+    %\note[item]{Bekanntes Problem: Unteschiede in der Implementierung führen zu leich unterschiedlichen Ergebnissen, v.a. bzgl. Rundung}
+    \frametitle{Gleitkommaarithmetik}
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item Unterstützung für F und D Standard Extensions
+        \item Übersetzung zu SSE und SSE2 Instruktionen
+        \item Ziel: Unterstützung der Gleitkommaarithmetik, aber nicht optimiert
+        \item Aber: Unterschiede in Architekturen führen zu leicht anderen Ergebnissen
+        \item Beachtung des Rundungsmodus bei jeder Instruktion: zu langsam -> nur bei Konvertierung:
+              \begin{itemize}
+                  \item Veränderung des \textbf{MXCSR} Registers, oder
+                  \item Nuzung von \textbf{roundss}/\textbf{rounsd}
+              \end{itemize}
+        \item Nutzung von FMA3 Instruktionen erhöht die Genauigkeit
+    \end{itemize}
+\end{frame}
+\clearpage
+
+\begin{frame}
+    \frametitle{Rundungsprobleme}
+    \centering
+    \includegraphics[width=0.75\textwidth]{img/translated_diff.png}
+\end{frame}
+
+\clearpage
+
+\begin{frame}
+    \frametitle{Übersetzungprobleme bei der Gleitkommaarithmetik}
+    \begin{itemize}
+        \item Einige Instruktionen können nicht direkt auf x86\_64 abgebildet werden
+        \item Vorzeichenlose Ganzzahlkonvertierung: nur von AVX512 nativ unterstützt
+        \item Für \textbf{Sign Injection} und \textbf{Classify} gibt es gar keine Äquivalente
+        \item Diese Instruktion müssen mittels Bitarithmetik berechnet werden
+    \end{itemize}
+\end{frame}
+
+\clearpage
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Technische Demonstration %%
