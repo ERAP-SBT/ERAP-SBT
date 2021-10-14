@@ -1681,12 +1681,12 @@ and \texttt{sse4} need to be enabled.} need to be enabled to achieve correct flo
 \end{figure}
 
 
-We used the SPECSpeed\textregistered2017 Integer benchmark suite to compare 
-the performance of our SBT, QEMU and RIA-JIT. Because the individual benchmarks 
-total execution time varies widely, all results are normalised to a native 
-benchmark. This clearly shows the overhead caused by the binary translation 
+We used the SPECSpeed\textregistered2017 Integer benchmark suite to compare
+the performance of our SBT, QEMU and RIA-JIT. Because the individual benchmarks
+total execution time varies widely, all results are normalised to a native
+benchmark. This clearly shows the overhead caused by the binary translation
 and can be used to compare SBT, QEMU and RIA-JIT.
-Our own translator (SBT) was run with all optimizations, except the removal of 
+Our own translator (SBT) was run with all optimizations, except the removal of
 \emph{Translation Blocks}, as it proofed to be highly detrimental for execution speed.
 This will be further discussed in Section~\ref{sec:translation_blocks}. % TODO: forward reference.
 QEMU and RIA-JIT where run without any additional configuration.
@@ -1700,9 +1700,13 @@ It can be seen that we consistently outperformed QEMU in every benchmark.
 On average SBT was 18\% faster than QEMU, in some cases, namely \emph{658.xz}, the difference was
 very small, but in others it was as much as XX\% when comparing the XX benchmark.
 
+\par
+
 % 2. compare to RIA-JIT
-% mixed results, sometimes faster, sometimes slower
-% => compare average
+SBT is on average faster than RIA-JIT, but when looking at individual benchmarks the results are mixed.
+In some benchmarks SBT is faster by a large margin, and in some other cases it performs similiarly, being slower in some cases.
+Because of a bug in the floating point operatins a toolchain without hard floating point support had to be used for the \emph{625.x264} benchmark for RIA-JIT,
+in pratice this could mean worse performance.
 
 \par
 
