@@ -504,62 +504,6 @@ add rax, 10
 \end{frame}
 \clearpage
 
-%%%%%%%%%%%%%%%%%%%
-%% IJump hashing %%
-%%%%%%%%%%%%%%%%%%%
-
-\begin{frame}
-    \frametitle{Basic Block Startadressen}{Datenstruktur für effizienten Zugriff auf Basic Block Startadressen}
-    \vspace{1cm}
-    \begin{columns}[t]
-        \column{0.55 \textwidth}
-        \textbf{Naive Implementierung}
-        \begin{itemize}
-            \vspace{1em}
-            \setlength{\itemsep}{1em}
-            \item Speichere für jede RISC-V Instruktion die korrespondierende Basic Block Startadresse
-            \item Wenn diese nicht existiert, füge stattdessen 0 ein
-            \item Liste dieser Wert baut Adressraum der originalen Binary nach
-        \end{itemize}
-        \column{0.45 \textwidth}
-        \textbf{Fast perfektes Hashing}
-        \begin{itemize}
-            \vspace{1em}
-            \setlength{\itemsep}{1em}
-            \item Ordne Startadressen in Hashtabelle ein
-            \item Zweistufiges hashing durch Einsortieren in Buckets
-            \item ``Hash, Displace, and Compress''-Verfahren gepaart mit der SpookyHash Funktion
-        \end{itemize}
-    \end{columns}
-\end{frame}
-\clearpage
-
-\begin{frame}
-    \frametitle{Basic Block Startadressen}{Vorteile und Nachteile}
-    \vspace{1cm}
-    \begin{columns}[t]
-        \column{0.55 \textwidth}
-        \textbf{Naive Implementierung}
-        \begin{itemize}
-            \vspace{1em}
-            \setlength{\itemsep}{1em}
-            \item Zugriffszeit in $O(1)$
-            \item Adresszugriff benötigt \textbf{eine} Ladeoperation
-            \item Benötigt genau so viel Speicher wie der geliftete Teil der originalen Binary
-        \end{itemize}
-        \column{0.45 \textwidth}
-        \textbf{Fast perfektes Hashing}
-        \begin{itemize}
-            \vspace{1em}
-            \setlength{\itemsep}{1em}
-            \item Zugriffszeit in $O(1)$
-            \item Runtime Overhead: Hashtabellenindex muss zur Laufzeit berechnet werden
-            \item Benötigter Speicherplatz in $O(n)$ mit $n = \text{Anzahl der Startadressen}$
-        \end{itemize}
-    \end{columns}
-\end{frame}
-\clearpage
-
 \begin{frame}
     %\note[item]{Unterstützung für single und double precision Floating Points}
     %\note[item]{Übersetzung zu SSE und SSE2 Instruktionen, falls vorhanden auch Nutzung von FMA3 und SSE4 -> müssen erlaubt werden}
@@ -703,6 +647,65 @@ ld \
     \frametitle{Noch Fragen?}{}
 \end{frame}
 
+\appendix
+
+%%%%%%%%%%%%%%%%%%%
+%% IJump hashing %%
+%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Basic Block Startadressen}{Datenstruktur für effizienten Zugriff auf Basic Block Startadressen}
+    \vspace{1cm}
+    \begin{columns}[t]
+        \column{0.55 \textwidth}
+        \textbf{Naive Implementierung}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Speichere für jede RISC-V Instruktion die korrespondierende Basic Block Startadresse
+            \item Wenn diese nicht existiert, füge stattdessen 0 ein
+            \item Liste dieser Wert baut Adressraum der originalen Binary nach
+        \end{itemize}
+        \column{0.45 \textwidth}
+        \textbf{Fast perfektes Hashing}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Ordne Startadressen in Hashtabelle ein
+            \item Zweistufiges hashing durch Einsortieren in Buckets
+            \item ``Hash, Displace, and Compress''-Verfahren gepaart mit der SpookyHash Funktion
+        \end{itemize}
+    \end{columns}
+\end{frame}
+\clearpage
+
+\begin{frame}
+    \frametitle{Basic Block Startadressen}{Vorteile und Nachteile}
+    \vspace{1cm}
+    \begin{columns}[t]
+        \column{0.55 \textwidth}
+        \textbf{Naive Implementierung}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Zugriffszeit in $O(1)$
+            \item Adresszugriff benötigt \textbf{eine} Ladeoperation
+            \item Benötigt genau so viel Speicher wie der geliftete Teil der originalen Binary
+        \end{itemize}
+        \column{0.45 \textwidth}
+        \textbf{Fast perfektes Hashing}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Zugriffszeit in $O(1)$
+            \item Runtime Overhead: Hashtabellenindex muss zur Laufzeit berechnet werden
+            \item Benötigter Speicherplatz in $O(n)$ mit $n = \text{Anzahl der Startadressen}$
+        \end{itemize}
+    \end{columns}
+\end{frame}
+\clearpage
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %% Generator-Translate %%
 %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -755,24 +758,21 @@ b1:
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{frame}[fragile]
-    \frametitle{Basic Block Splitting}{Beispiel}
-    ~\\
-    ~\\
-    ~\\
+    \frametitle{Basic Block Splitting}{}
     \begin{columns}[c]
-        \column{0.275 \textwidth}
+        \column{0.3 \textwidth}
         \begin{lstlisting}[language=rv64]
-        [...]
-        addi a1, x0, 100
-    loop:
-        addi a1, a1, -1
-        bne a1, x0, loop
-        [...]
+    [...]
+    addi a1, x0, 100
+loop:
+    addi a1, a1, -1
+    bne a1, x0, loop
+    [...]
         \end{lstlisting}
 
-        \column{0.125 \textwidth}
-        \begin{tikzpicture}[scale=0.72]
-            \TikZArrowX{TUMOrange}{0}{0}{4}{1}
+        \column{0.05 \textwidth}
+        \begin{tikzpicture}[scale=0.5]
+            \TikZArrowX{TUMOrange}{0}{0}{2}{1}
         \end{tikzpicture}
 
         \column{0.6 \textwidth}
