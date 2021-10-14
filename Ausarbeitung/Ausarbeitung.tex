@@ -1034,11 +1034,13 @@ As such, often used variables are kept in registers to prevent spilling of varia
 The achieve this, all blocks which are targets of a call control flow changing operation must first
 be marked. The register allocator then iterates over
 all basic blocks, checks if they are either the target of a call operation or have no known predecessors.
-It then starts allocating registers for the detected group of each basic block.
+It then starts allocating registers for the detected group of these basic blocks.
 \par
 
 The allocator compiles the starting block by allocating registers and stack slots for the
-variables. It evaluates the control flow changing operations and checks whether the target of such an operation is part of the current group.
+variables. Every basic block that sits at the beginning of a detected function is called a top-level
+block. The allocator evaluates the control flow changing operations and checks whether the target of such an operation
+is part of the current group.
 This basically means that it is not a target of a call operation. If the target is part of the
 current group, it creates an input mapping for the target which specifies where each input variable
 is located. However if the block has already been compiled,
@@ -1055,7 +1057,8 @@ reshuffling.
 Afterwards, each operation in the basic block is then iterated over and its inputs are loaded into
 registers if they are located in a static or on the stack frame. A destination register is
 chosen too.
-If possible, a destination register other than the input registers is used if the inputs are still required later. Otherwise, one of the input registers is overwritten.
+If possible, a destination register other than the input registers is used if the inputs
+are still required later. Otherwise, one of the input registers is overwritten.
 When choosing a register, empty or disused registers are preferred. In case all registers contain variables which
 are still needed,
 the variable which is the farthest away from being used again is chosen to be evicted to the stack.
@@ -1098,7 +1101,8 @@ lea rbx, [rax + 10] ; then overwrite it
 \par
 
 After all blocks in a group are compiled and the final stack-frame size is known the control-flow operations for each block can be assembled.
-The difference to the simple generator is that the inputs for the next block might not be written to statics but instead need to be placed in certain register or stack slots
+The difference to the simple generator is that the inputs for the next block might not 
+be written to statics but instead need to be placed in certain register or stack slots
 while not overwriting values that are currently stored in them and might be needed later.
 This is why the initial time-calculation might be wrong for these cases as it is hard to predict when such
 conflicts might occur. The current approach taken is to place the input into statics first, then the stack slots, then the registers while storing values which may be overwritten in temporary stack slots.
@@ -1146,7 +1150,7 @@ b1_cf_1:
 \subsubsection{Translation Blocks}\label{translation_blocks}
 One problem that is encountered when employing register allocation on groups of basic blocks 
 is that the programm cannot simply jump to them using indirect jumps anymore.
-The basic block might expect variables to be outside of statics and the stack frame, which is set
+If the basic block is not a top-level block, it might expect variables to be outside of statics and the stack frame, which is set
 up at the first block of a group. These would be missing if the basic block is reached via a jump. 
 
 \par
@@ -1184,13 +1188,28 @@ Mergeable sequences include:
 % TODO: test the performance diff for merging ops
 
 \subsection{Call and Return Optimization}
-To support calls and returns the x86\_64-Stack is used. When the code generator encounters a call it will first destroy the stack frame of the current basic block leaving only the return addresses on the stack,
-push the return address from the original binary and a call-Instruction to the target is emitted.
-A return is assembled to a compare of the actual return address computed and the previously pushed original return address
-along with a ret-Instruction that gets executed when the return addresses match.
-When they do not match, the stack pointer is resetted to the original stack pointer before execution of any basic block and the indirect jump handler is invoked.
-To prevent underflow 16 bytes of zeroes are pushed onto the stack before the first basic block is executed. This will cause the compare at a return with any address to fail and the ijump handler to be used instead.
-To prevent overflow the stack pointer is compared to a maximum allowed size when a call control flow operation is executed and the stack is resetted if it exceeds this.
+To support the IR's \texttt{call} and \texttt{return} instructions, the x86\_64-Stack is used. When
+the code generator encounters a \texttt{call}, it first destroys the stack frame of the current
+basic block, leaving only the return addresses on the stack. It then pushes the return address
+from the original binary, which is encoded in the IR-\texttt{call} as the continuation address. Afterwards,
+a x86\_64 \texttt{call} instruction to the target is emitted.
+
+\par
+
+A return is assembled to do a comparison of the actual return address computed and the previously
+pushed, expected return address. This expected return address is pushed by a previously executed
+\texttt{call} instruction, as explained in the paragraph above. If both return addresses match, an
+x86\_64 \texttt{ret} instruction is executed. 
+
+\par 
+
+If they do not match, the stack pointer is reset
+to the original stack pointer before execution of any basic block and the indirect jump handler is invoked.
+To prevent underflow, 16 bytes of zeroes are pushed onto the stack before the first basic block is
+executed. This will cause the compare at a \texttt{return} instruction without a previous
+\texttt{call} instruction to fail and the indirect jump handler to be used instead.
+To prevent overflow, the stack pointer is compared to a maximum allowed size every time a call 
+control flow operation is executed and the stack is reset if it exceeds this size.
 
 \subsection{Helper Library}\label{helper}
 
@@ -1233,17 +1252,18 @@ Additionally, the helper library houses more required components for execution, 
 \subsection{Indirect Jump Resolution}\label{ijump_resolution}
 
 When encountering an indirect jump, the jump's input variable contains the jump target address in the
-original RISC-V binary address space. We try to statically identify most of the indirect jump target
-addresses during lifting and are thus able to start new basic blocks at such addresses.
-This however means we need to translate the original binary's addresses to basic block start
-addresses in the translated binary, at runtime. We also need a way to identify
+original RISC-V binary address space. The lifter tries to statically identify most of the indirect jump target
+addresses during lifting and is thus able to start new basic blocks at such addresses.
+This however means that the translated binary needs a method to translate the original binary's addresses to basic block start
+addresses in the translated binary, at runtime. This is the case, because address calculations still
+refer to the original binary's addresses. This method also needs a way to identify
 indirect jump target addresses which are not the start address of any lifted basic block.
 
 We can only jump to the start of a (translation) basic block, because this is the only reference point where the
 emulated RISC-V registers are stored at a known location (in the form of statics).
 
 In case we encounter such an unknown jump target address, we switch to the interpreter (Section~\ref{interpreter}) to
-interpret the original RISC-V code just-in-time until the next start of a basic block is reached.
+interpret the original RISC-V code just-in-time until the next jump-able start of a basic block is reached.
 
 \par
 
@@ -1256,7 +1276,7 @@ jump target address is not a valid basic block start address. We developed two d
 compared their strengths and weaknesses:
 
 \begin{enumerate}
-    \item For the naive implementation, we store a specific 64-bit wide number for each lifted RISC-V address
+    \item For the simple implementation, we store a specific 64-bit wide number for each lifted RISC-V address
           in the \texttt{.ro\_data} section. This recreates part of the original binary's address
           space with a known offset. The numbers are either 0 if no basic block with the given start address
           exists or the address of the basic block which starts with instructions from this RISC-V address.
@@ -1319,44 +1339,46 @@ compared their strengths and weaknesses:
 
 An emulator is the slowest method of translating a binary~\cite{binary_translation}. Our interpreter
 is an non optimized emulator.\footnote{Our emulator is called \textit{interpreter} in the implementation
-    and therefore we use this naming here also.} So the interpreter is comparatively slow as it decodes the
+    and therefore we use this name here too.} This means that the interpreter is comparatively slow as it decodes the
 instructions at runtime using frvdec~\cite{frvdec}. In order to access the original RISC-V
 instructions at runtime, the original binary has to be stored as data in the result binary.
 
 \par
 
 We did not optimize the interpreter much because it is only a fall back system for the translated
-binary and not the focus of this project. Additionally the simple implementation reduces the codes
-size of the interpreter and therefore the translated binary size.
+binary and not the focus of this project. Additionally the simple implementation reduces the
+interpreter code's size and therefore the translated binary size.
 
 \par
 
 The interpreter is called if an indirect jump or indirect call target was not resolved and therefore
-the generator does not know where to jump. So the interpreter is used to fill this gap and to jump
-back to the translated instructions when possible. This can be done when the start of an basic block
-is reached.
+the generator does not know where to jump. The interpreter is used to fill this gap and to jump
+back to the translated instructions when possible. This can be done when the start of a top-level basic block
+or the address of a translation block is reached. If the assembly is generated using the simple code
+generator, every basic block can be considered to be a top-level basic block.
 
 \par
 
 When the interpreter is entered and left, the RISC-V register values (represented by the static
 values) need to be in the statics. This is important as the generator stores the variable values in
 registers or in the stack frame, but the interpreter works on the statics. This needs to be done as
-the interpreter needs to know an location where the variables values are stored. So the values are
+the interpreter needs to know a location where the variable values are stored. Therefore, the values are
 transferred to the statics before calling the interpreter.
 
 \par
 
-This also an reason why we only leave the interpreter at the begin of an basic block because there
-the naive generator (Section~\ref{naive_generator}) takes the basic blocks inputs there from the statics.
-When using the register allocator (Section~\ref{reg_alloc}) the translation blocks
+This is also a reason why we only leave the interpreter at the beginning of a new basic block. The
+naive generator (Section~\ref{naive_generator}) takes the basic blocks inputs from the statics at
+this point.
+When using the register allocator (Section~\ref{reg_alloc}), the translation blocks
 (Section~\ref{translation_blocks}) move the values to the correct registers and stack slots and are
 therefore --- as well as the top level basic blocks --- the addresses where we can leave the
-interpreter. These addresses are stored in the ijump lookup table (Section~\ref{ijump_resolution}).
+interpreter. These addresses are stored in the indirect jump lookup table (Section~\ref{ijump_resolution}).
 
 \par
 
-Usually a translated basic block will be found after few instructions, resulting in almost
-negligible slow down from entering the interpreter. However in some extreme cases where no return
+Usually, a translated basic block will be found after a few interpreted instructions, resulting in almost
+negligible slow down from entering the interpreter. However, in some extreme cases where no return
 basic block is found, practically the entire program is emulated resulting in extreme slow downs.
 This can be observed in rare cases if no translation blocks are created resulting in less possible
 return targets.
@@ -1364,7 +1386,7 @@ return targets.
 \par
 
 The interpreter fully emulates \texttt{rv64imacfd} and therefore supports the same standard
-extensions as the translator. If a command flag is supplied to the translator no
+extensions as the translator. If a command flag is supplied to the translator, no
 basic blocks will be translated and all code will be interpreted. This was used to verify the
 correctness of the interpreter using the benchmark tests. But as explained this method is rather
 slow and therefore is not desirable to use as translate binaries.
