@@ -387,22 +387,78 @@ switch(instr.mnem) {
 %%%%%%%%%%%%%%%%%%%%%
 
 \begin{frame}
-    \note[item]{Sehr einfache, aber korrekte Übersetztung}
-    \note[item]{Originales ELF-Programm als binäres Speicherbild an exakter Adresse eingebunden}
-    \note[item]{RISC-V System-V ABI (Startup, Syscall) zur Laufzeit emuliert}
-    \note[item]{Stack wird nur initialisiert, danach nicht mehr im Generator speziell behandelt}
-    \note[item]{Indirekte Sprünge werden per Lookup zur Laufzeit aufgelöst}
-    %    \note[item]{Erste Optimierung: Eliminierung von Redundanzen bei den Statics}
+    \frametitle{Code Generator}{Übersetzung der IR zu x86\_64}
 
-    \frametitle{Generator}{Übersetztung der IR zu x86\_64}
+    \note[item]{Fertige Binary enthält Assembly für Basic Blocks (Operations & CfOps), originale Binary, Helper Library}
+    \note[item]{Zwei Implementierungen: Simple und Advanced}
+    \note[item]{Simple Codegen optimiert wenig, dient Debugging/Development-Zwecken}
+    \note[item]{Advanced Codegen allocated Register für die Operationsergebnisse, optional Merging von Operationen}
+    \note[item]{Register Allocation versucht viel genutzte Werte in Registern zu halten und bei CfOps Werte in ihren momentanen Positionen zu halten}
+    %\note[item]{Originales ELF-Programm als binäres Speicherbild an exakter Adresse eingebunden}
+
     \begin{itemize}
         \setlength{\itemsep}{1em}
-        \item Sehr einfache, aber korrekte Übersetztung
-        \item Originales ELF-Programm als binäres Speicherbild an exakter Adresse eingebunden
+        \item Fertige Binary enthält Assembly für Basic Blocks, originale Binary, Stack und Runtime-Helper
+        \item Zwei Implementierungen: Simple und Advanced
               %        \item Stellt nur initialen Stack zur Verfügung % es wird nicht der x86-64 Stack verwendet
-        \item RISC-V System-V ABI (Startup, Syscall) zur Laufzeit emuliert
-        \item Indirekte Sprünge werden per Lookup zur Laufzeit aufgelöst
-        \item Erste Optimierung: Eliminierung von Redundanzen bei den Statics
+        \item Simple Codegen optimiert wenig, dient Debugging/Development-Zwecken
+        \item Advanced Codegen allocated Register für die Operationsergebnisse, optional Merging von Operationen
+    \end{itemize}
+\end{frame}
+\clearpage
+
+\begin{frame}[fragile]
+    \frametitle{Beispiel}
+
+    IR-Operation, für die Assembly generiert werden soll:
+    \begin{lstlisting}[language=SbtIr]
+i64 v6 <- add i64 v5, imm v1
+    \end{lstlisting}
+
+    Wenn rbx freies Register ist:
+    \begin{lstlisting}[language={[x86masm]Assembler}]
+lea rbx, [rax + 10]
+    \end{lstlisting}
+
+    Wenn rbx belegt und vor Variable in rax wieder benutzt:
+    \begin{lstlisting}[language={[x86masm]Assembler}]
+mov [rsp], rax
+add rax, 10
+    \end{lstlisting}
+\end{frame}
+\clearpage
+
+\begin{frame}
+    \frametitle{Helper-Library}
+
+    \begin{itemize}
+        \item Architektur-spezifische Funktionen, die für die übersetzte Binary erforderlich sind
+        \item Wird zusammen mit dem Assembly des Generators gelinked
+        \item Stack-Intialisierung
+        \item Syscall-Translation
+        \item Interpreter
+    \end{itemize}
+\end{frame}
+\clearpage
+
+\begin{frame}
+    %\note[item]{Wird zur Auflösung von indirekten Sprüngen ohne erkanntem Sprungziel genutzt, v.a. nicht erkannte Jump Tables}
+    %\note[item]{Arbeitet wie ein Emulator, also dekodiert und führt die Instruktionen zur Laufzeit aus, an gegebener und folgenden Adressen}
+    %\note[item]{Von daher nötig, dass orginale Binary als Memory Image vorhanden}
+    %\note[item]{Springt zu übersetztem Basic Block zurück, falls in IJump Lookup Table an der aktuellen Adresse einer gefunden wird}
+    %\note[item]{Springt i.d.R. schnell zurück, v.a. ohne Translation Blocks auch häufiger \& länger nötig}
+    %\note[item]{Arbeitet auf den Statics, weil er wissen muss wo die Werte der ``Register'' liegen}
+    %\note[item]{Unterstützt soweit alle Standard Extensions wie der Lifter}
+    %\note[item]{Kann theoretisch mit JIT Compileren und Selbstmodifizierender Code umgehen, aber ungetestet}
+    %\note[item]{Kann auch alleine, d.h. ohne Lifting \& Code Generation ausgeführt werden}
+    \frametitle{Interpreter}
+    \vspace{1cm}
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item Dient zur Auflösung indirekter Sprünge ohne erkanntem Sprungziel
+        \item Interpreteriert die RISC-V Instruktionen an gegebener Addresse
+        \item Springt zurück zu übersetzem Basic Block, wenn möglich -> Ijump Lookup Table
+        \item Kann theoretisch mit JIT Compileren und Selbstmodifizierender Code umgehen
     \end{itemize}
 \end{frame}
 \clearpage
@@ -460,29 +516,6 @@ switch(instr.mnem) {
             \item Benötigter Speicherplatz in $O(n)$ mit $n = \text{Anzahl der Startadressen}$
         \end{itemize}
     \end{columns}
-\end{frame}
-\clearpage
-
-
-\begin{frame}
-    %\note[item]{Wird zur Auflösung von indirekten Sprüngen ohne erkanntem Sprungziel genutzt, v.a. nicht erkannte Jump Tables}
-    %\note[item]{Arbeitet wie ein Emulator, also dekodiert und führt die Instruktionen zur Laufzeit aus, an gegebener und folgenden Adressen}
-    %\note[item]{Von daher nötig, dass orginale Binary als Memory Image vorhanden}
-    %\note[item]{Springt zu übersetztem Basic Block zurück, falls in IJump Lookup Table an der aktuellen Adresse einer gefunden wird}
-    %\note[item]{Springt i.d.R. schnell zurück, v.a. ohne Translation Blocks auch häufiger \& länger nötig}
-    %\note[item]{Arbeitet auf den Statics, weil er wissen muss wo die Werte der ``Register'' liegen}
-    %\note[item]{Unterstützt soweit alle Standard Extensions wie der Lifter}
-    %\note[item]{Kann theoretisch mit JIT Compileren und Selbstmodifizierender Code umgehen, aber ungetestet}
-    %\note[item]{Kann auch alleine, d.h. ohne Lifting \& Code Generation ausgeführt werden}
-    \frametitle{Interpreter}
-    \vspace{1cm}
-    \begin{itemize}
-        \setlength{\itemsep}{1em}
-        \item Dient zur Auflösung indirekter Sprünge ohne erkanntem Sprungziel
-        \item Interpreteriert die RISC-V Instruktionen an gegebener Addresse
-        \item Springt zurück zu übersetzem Basic Block, wenn möglich -> Ijump Lookup Table
-        \item Kann theoretisch mit JIT Compileren und Selbstmodifizierender Code umgehen
-    \end{itemize}
 \end{frame}
 \clearpage
 
