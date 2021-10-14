@@ -114,7 +114,7 @@
     ~\\
     ~\\
 
-    \begin{columns}[c]
+    \begin{columns}[t]
         \column{0.4\textwidth}
         Instruktionen:
         \begin{itemize}
@@ -147,10 +147,10 @@
     \begin{columns}[c]
         \column{0.275 \textwidth}
         \begin{lstlisting}[language=rv64]
-        [...]
-        addi a0, x0, 100
-        j somewhere_else
-        [...]
+[...]
+addi a0, x0, 100
+j somewhere_else
+[...]
         \end{lstlisting}
 
         \column{0.125 \textwidth}
@@ -194,6 +194,7 @@ block b1(/* inputs */) <= [/* predecessors */] {
 \end{frame}
 \clearpage
 
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Lifter General Folie %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -219,6 +220,63 @@ block b1(/* inputs */) <= [/* predecessors */] {
 \end{frame}
 \clearpage
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Call / Return %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+    \frametitle{Lifter Subroutinen Erkennung}{Erkennung der Assembler Pseudoinstruktionen \texttt{call} und \texttt{ret}.}
+    \begin{itemize}
+        \setlength{\itemsep}{0.8em}
+        \item RISC-V Subroutinen Aufrufe funktionieren anders als bei x86\_64
+        \item Standard Calling Convention definiert \texttt{x1} und \texttt{x5} als \textit{Linkregister}
+        \item \texttt{JAL} := \textit{Jump and Link}
+        \item \texttt{JALR} := \textit{Jump and Link Register}
+        \item \texttt{JAL (x1 | x5), ..., ...} $\equiv$ \texttt{call}
+        \item \texttt{JALR x0, x1, 0} $\equiv$ \texttt{ret}
+        \item Laufzeitüberprüfung der Rücksprungziele durch Returnadressen-Stack
+    \end{itemize}
+\end{frame}
+\clearpage
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%
+%% Basic Block Folie %%
+%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}[fragile]
+    \frametitle{Lifter Basic Blöcke}{}
+    \begin{columns}[c]
+        \column{0.35 \textwidth}
+        \begin{lstlisting}[language=c, escapechar=!]
+/* [...] */
+0x6: add a5, a5, a4
+0x8: !\colorbox{yellow}{bltu}! a5, a4, 10
+0xc: lw a5, 0(a4)
+0xe: sll a4, a5, a4
+/* [...] */
+        \end{lstlisting}
+        \column{0.1 \textwidth}
+        \begin{tikzpicture}[scale=0.5]
+            \TikZArrowX{TUMOrange}{0}{0}{3}{1}
+        \end{tikzpicture}
+        \column{0.50 \textwidth}
+        \begin{lstlisting}[language=SbtIr, escapechar=!]
+/* [...] */
+i64 v33 <- add v13, v14
+imm v34 <- immediate 0x10
+imm v35 <- immediate 0xc
+} => !\colorbox{yellow}{[/* cjump */]}!
+
+!\colorbox{yellow}{block b2(/**/)}! <= [/**/] {
+imm v33 <- immediate 0
+i32 v34 <- load v13, v33
+i64 v35 <- sll v13, v14
+/* [...] */
+        \end{lstlisting}
+    \end{columns}
+\end{frame}
+\clearpage
+
 %%%%%%%%%%%%%%%%%%%%%%
 %% Lifter Splitting %%
 %%%%%%%%%%%%%%%%%%%%%%
@@ -230,23 +288,6 @@ block b1(/* inputs */) <= [/* predecessors */] {
         \item Aufteilung an Sprungadresse in zwei Basic Blöcke
         \item Verbindung mit einem direkten Sprung
         \item Komplexe Operation, da alle Referenzen auf den geteilten Block betrachtet werden müssen
-    \end{itemize}
-\end{frame}
-\clearpage
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Lifter Call / Return %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{frame}
-    \frametitle{Lifter Subroutinen Erkennung}{Erkennung der Assembler Pseudoinstruktionen \texttt{call} und \texttt{ret}.}
-    \begin{itemize}
-        \setlength{\itemsep}{1em}
-        \item RISC-V Subroutinen Aufrufe funktionieren anders als bei x86\_64
-        \item Standard Calling Convention definiert \texttt{x1} und \texttt{x5} als \textit{Linkregister}
-        \item \texttt{JAL} := \textit{Jump and Link}
-        \item \texttt{JAL (x1 | x5), ..., ...} $\equiv$ \texttt{call}
-        \item \texttt{JALR x0, x1, 0} $\equiv$ \texttt{ret}
-        \item Laufzeitüberprüfung der Rücksprungziele durch Returnadressen-Stack
     \end{itemize}
 \end{frame}
 \clearpage
