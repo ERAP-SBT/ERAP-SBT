@@ -1611,19 +1611,13 @@ However with floating point support additional optimizations~\footnote{\texttt{f
                 \addplot[fill=green]  table[x=benchmark, y expr=\thisrow{native} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 \addplot[fill=orange] table[x=benchmark, y expr=\thisrow{qemu}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 \addplot[fill=yellow] table[x=benchmark, y expr=\thisrow{ria}    /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                % \addplot[fill=red]    table[x=benchmark, y expr=\thisrow{master} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 \addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{sbt1}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                %\addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{test3}  /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                %                \addplot table[x=benchmark, y expr=\thisrow{test2} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                %                \addplot table[x=benchmark, y expr=\thisrow{ria}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
 
-                %                \legend{native, qemu, test1, test2, ria}
                 \legend{
                     native,
                     qemu,
                     ria,
-                    % master,
-                    sbt1}
+                    sbt}
             \end{axis}
         \end{tikzpicture}
         \caption{
@@ -1633,12 +1627,65 @@ However with floating point support additional optimizations~\footnote{\texttt{f
     \end{centering}
 \end{figure}
 
-\ref{benchmark_results1}
+We compared the benchmark results of native execution, QEMU, RIA-JIT and our translator with the SPECspeed 2017 Integer benchmark, the results are shown in Figure \ref{benchmark_results1}.
 
 Due to bugs in the ria-jit rv64fd implementation, namely the lack of dynamic rounding support % TODO: verify
 the xz benchmark did not complete successfully.
 
 \subsection{Effectiveness of different Optimizations}
+
+\begin{figure}
+    \begin{centering}
+        \begin{tikzpicture}
+            \begin{axis}[
+                    width=0.9\textwidth,
+                    height=0.5\textwidth,
+                    ybar,
+                    bar width = 4pt,
+                    ylabel={Execution time normalised to native (less is better)},
+                    symbolic x coords = {
+                            600.perlbench,
+                            602.gcc,
+                            605.mcf,
+                            620.omnetpp,
+                            623.xalancbmk,
+                            625.x264,
+                            631.deepsjeng,
+                            641.leela,
+                            648.exchange2,
+                            657.xz,
+                            average % TODO: find a way to automatically compute this row
+                        },
+                    xticklabel style = {
+                            anchor = east,
+                            rotate = 45 + 15
+                        },
+                    xtick = data, % make a tick at every symbolic x coordinate
+                    ytick distance = 1, % make a tick every 1
+                    ymajorgrids = true, % display horizontal guide lines
+                    legend style = { at={(0.95, 0.95)}, anchor=north east}, % place the graph legend at the top-right
+                ]
+
+                \addplot[fill=red] table[x=benchmark, y expr=\thisrow{sbt1}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=orange] table[x=benchmark, y expr=\thisrow{reg_alloc}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                %\addplot[fill=yellow] table[x=benchmark, y expr=\thisrow{reg_alloc_plus_ir}    /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                %\addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{reg_alloc_plus_gen}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{reg_alloc_plus_lifter}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+
+                \legend{
+                    sbt,
+                    base,
+                    %base + ir,
+                    %base + gen,
+                    base + lifter}
+            \end{axis}
+        \end{tikzpicture}
+        \caption{
+            SPEC CPU 2017 Results Compared to SBT executed with all optimizations except \texttt{no\_trans\_bbs} enabled.
+            RIA-JIT encountered a floating point error in the benchmark 625.x264, so this single benchmark was repeated with a toolchain using \texttt{--with-arch=rv64iamc --with-abi=lp64}.
+        }\label{benchmark_results1}
+    \end{centering}
+\end{figure}
 
 \subsection{Basic Block Start Address Hashing}
 
