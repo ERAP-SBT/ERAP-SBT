@@ -1919,17 +1919,15 @@ binary result. It is an optimization which the user can manually enable using a 
     \centering
     \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/translated_diff.png}
     \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
-        comparing the translator to RISC-V emulated by QEMU. light grey = mandelbrot set, red =
-        differences, dark grey = remainder}\label{fig:mandelbrot_diff_translator}
+        comparing the translator to QEMU. light grey = mandelbrot set, dark grey = remainder, red =
+        differences}\label{fig:mandelbrot_diff_translator}
 \end{figure}
 
 To depict the occuring rounding differences, a simple mandelbrot set
-visualizer~\cite{mandelbrot_program} is used. The results provided in a textual form are transformed
-into a picture. The mandelbrot set is colored in a light grey, the differences between the
-implementations in red and the remainder in a dark grey. Figure~\ref{fig:mandelbrot_diff_translator}
-shows that the translator without any optimizations produces different results than the RISC-V
-binary emulated with QEMU. The comparison of the emulated RISC-V program result and the picture
-calculated by the program nativley compiled on x86\_64 shows the same differences.
+visualizer~\cite{mandelbrot_program} was used. Figure~\ref{fig:mandelbrot_diff_translator} shows
+that the translator without any optimizations produces different results than the RISC-V binary
+emulated with QEMU. The comparison of the emulated RISC-V program result and the picture calculated
+by the program nativley compiled on x86\_64 shows the same differences.
 
 \par
 
