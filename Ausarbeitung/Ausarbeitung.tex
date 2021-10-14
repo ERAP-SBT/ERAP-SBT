@@ -87,40 +87,32 @@ QEMU.
 
 \par
 
-The following chapters will provide some background information for the RISC-V and the differences
-to x86\_64 relevant for the design of our translator (section~\ref{sec:background}) and our general
-approach (section~\ref{sec:approach}). After that the distinct parts of the translator, namely our
+The following chapters will provide some background information for the RISC-V architecture, the
+relevant differences
+to the x86\_64 architecture (section~\ref{sec:background}) and our general
+approach to static binary translation (section~\ref{sec:approach}). Afterwards, the distinct parts of the translator, namely our
 intermediate representation (section~\ref{sec:ir}), the RISC-V lifter
 (section~\ref{sec:riscv_lifter}), the optimizer (section~\ref{sec:optimizations}), and the x86\_64
-code generator (section~\ref{sec:generator}), are further explained.
-section~\ref{sec:floating_point} describes our approach and the occurring difficulties to support
-floating points RISC-V instructions. Finally, the last section (section~\ref{sec:evaluation}) will
-evaluate the quality and performance of our implementation using benchmarks tests for comparisons to
-different approaches.
+code generator (section~\ref{sec:generator}) are further explained.
+Section~\ref{sec:floating_point} describes our approach to support floating point RISC-V
+instructions and the present difficulties. The last section (section~\ref{sec:evaluation})
+evaluates the quality and performance of our implementation using benchmarks tests.
 
 \section{Background}\label{sec:background}
 
-This chapter provides some background information needed to be able to understand the approach. This
+This chapter provides important background information, which is required for our approach. This
 includes an overview over the RISC-V instructions, standard calling convention~\footnote{When
-    referring to the standard calling convention, the RVG calling convention is meant.} and registers
-as well as differences to the x86\_64 ISA to understand the difficulties occurring in translation.
+    referring to the \textit{standard calling convention}, the RVG calling convention is meant.} and registers,
+as well as relevant differences between the RISC-V and the x86\_64 architecture.
 
 \subsection{Short Overview of RISC-V}
 
-According to the RISC-V specification, RISC-V is an open and freely accessible ISA
-which consists of a base ISA for integer computations and general purpose software development
+According to the RISC-V specification, RISC-V is an open and freely accessible ISA,
+which consists of a base ISA for integer computations. It also offers general purpose software development
 supporting extensions, which are optional. There is also the
 option to implement custom extensions. The RISC-V ISA is available for building 32-bit and 64-bit based
-applications and operating system kernels. Because of its minimalistic nature, is is well suited for
+applications and operating system kernels. Because of its minimalistic nature, it is well suited for
 custom hardware implementations.~\cite{rvspec}
-
-\par
-
-As the name suggests, the
-RISC-V ISA describes a \emph{Reduced Instruction Set Computer}. This kind of microprocessor is
-characterized by a larger number of
-registers, its load/store architecture, fixed-length instruction words and a generally limited
-amount of instructions and instruction formats.~\cite{RISCvCISC}
 
 \par
 
@@ -131,11 +123,13 @@ ISA, they are called \texttt{rv64imacfd} or short \texttt{rv64g}. More standard 
 
 \par
 
-RV64I provides 31 64bit wide integer registers (x1 - x31) and a hard wired zero (x0). The floating
-point extensions add 32 floating points registers (f0 - f31) and a floating point control and status
-registers (fcsr). The instruction length is fixed to 32bit, with the C extension to 16bit. The
-standard calling convention defines \texttt{x1} as link register and \texttt{x5} as alternative link
-register which holds the address when using subroutine call-like jumps.~\cite{rvspec}
+RV64I provides 31 64-bit wide integer registers (\texttt{x1} $-$ \texttt{x31}) and a hard wired zero register (\texttt{x0}). The floating
+point extensions add 32 floating points registers (\texttt{f0} $-$ \texttt{f31}) and a floating point control and status
+register (\texttt{fcsr}). The instruction words have a fixed width of 32-bit, with the C extension
+introducing instructions with 16-bit wide instruction words. The
+standard calling convention defines \texttt{x1} as the link register and \texttt{x5} as the alternative link
+register. Link registers store the return address of jumps which target a subroutine and intend to
+return the parent routine.~\cite{rvspec}
 
 \subsection{Differences between RISC-V and x86\_64}
 
@@ -148,11 +142,24 @@ cycles.~\cite{RISCvCISC}
 
 \par
 
+As the name suggests, the
+RISC-V ISA describes a \emph{Reduced Instruction Set Computer}. This kind of microprocessor is
+characterized by a larger number of
+registers, its load/store architecture, fixed-length instruction words and a generally limited
+amount of instructions and instruction formats.~\cite{RISCvCISC} 
+
+\par
+
+These major design differences play an important role during the binary translation. The following
+paragraph describes two relevant differences in greater detail.
+
+\par 
+
 The RISC-V ISA defines a load/store architecture, meaning that a single instruction can either
 manipulate the memory or perform an operation that does not access the memory. The x86\_64 ISA
 does not have this restriction and defines arithmetic and logical instructions which operate
 directly on memory. Also, RISC-V base instructions are currently always
-32-bit wide (16-bit for compressed instructions) which makes loading big
+32-bit wide (16-bit for compressed instructions) which makes loading wide
 immediates difficult. These are either combined by two or more separate immediate loading operations
 or loaded relative to the current instruction pointer.~\cite{rvspec} In comparison, x86\_64 instructions
 can contain immediate values which are up to 64-bit wide, because
@@ -163,14 +170,14 @@ of their variable instruction lengths~\cite{intel2017man}.
 Assemblers make this difference less complicated for developers by introducing so called
 \textit{pseudoinstructions}. These are instructions which perform simple tasks like loading an
 immediate, jumping to an address, or calling a subroutine. Most of them can't be directly expressed
-as a single RISC-V instruction and is thus replaced with a common pattern. This gives a translator
+as a single RISC-V instruction and are thus replaced with a common pattern. This gives a translator
 the power to detect these patterns and efficiently convert them to a more compact, x86\_64 representation.
 
 \par
 
-For the translation these differences are necessary knowledge to be able to generate efficient and
-optimized code. For example some instructions need to be assembled or can be merged to a single
-instruction in x86\_64.
+These differences are necessary knowledge for the translation. They give the opportunity to generate efficient and
+optimized code. For example, some RISC-V instruction sequences can be merged to a single x86\_64
+instruction.
 
 \subsection{Inspiration for the Intermediate Representation}
 
@@ -436,7 +443,7 @@ the IR to replicate the original program's behavior.
         \end{lstlisting}
         \caption{RISC-V assembly sequence used as example for the lifter. Decrements a0 by one in a loop until it is zero,
             then shifts a1 by the amount stored in a2.}\label{fig:lifting_example_riscv}
-            \vspace{1em}
+        \vspace{1em}
     \end{subfigure}
     \begin{subfigure}{\textwidth}
         \centering
