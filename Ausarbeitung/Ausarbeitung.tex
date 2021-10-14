@@ -146,14 +146,14 @@ As the name suggests, the
 RISC-V ISA describes a \emph{Reduced Instruction Set Computer}. This kind of microprocessor is
 characterized by a larger number of
 registers, its load/store architecture, fixed-length instruction words and a generally limited
-amount of instructions and instruction formats.~\cite{RISCvCISC} 
+amount of instructions and instruction formats.~\cite{RISCvCISC}
 
 \par
 
 These major design differences play an important role during the binary translation. The following
 paragraph describes two relevant differences in greater detail.
 
-\par 
+\par
 
 The RISC-V ISA defines a load/store architecture, meaning that a single instruction can either
 manipulate the memory or perform an operation that does not access the memory. The x86\_64 ISA
@@ -348,14 +348,14 @@ program.
 To keep track of register contents between basic blocks, we introduced a concept called a
 \textit{static mapper} or a \textit{static} for short.
 Variables which link to them can be used as inputs in basic blocks, They act as a signal to code
-generators that, if the control flow is transferred to the basic block from an unknown predecessor, 
+generators that, if the control flow is transferred to the basic block from an unknown predecessor,
 the variable can be expected in this static.
-For control flow operations with an unknown target, a mapping from the output of the basic 
+For control flow operations with an unknown target, a mapping from the output of the basic
 block to the static at which they should be stored is then created.
 
 \par
 
-The IR itself does not enforce a fixed set of statics but instead leaves it to the lifter to 
+The IR itself does not enforce a fixed set of statics but instead leaves it to the lifter to
 create as many statics as it needs to lift the source ISA.
 For RISC-V, these are 31 general purpose registers, one memory token, 32 floating point registers
 and one control and status flag register. The register \texttt{x0} is always zero and thus not
@@ -406,7 +406,7 @@ binary defines \textit{sections}~\cite{elf_spec}. The lifter therefore supports 
 detection using either \textit{program headers} or \textit{section headers}. However,
 \textit{section headers} hold finer and more detailed information
 about program sections than the \textit{program headers} and are therefore preferred for instruction
-decoding. 
+decoding.
 
 \par
 
@@ -972,7 +972,7 @@ basic block operations and
 retrieves its sources, either from a static or from the stack frame. The generator applies the
 operation and saves the results back in the stack frame.
 At the end of a block, it iterates over all control flow operations and evaluates their condition if
-necessary. It then writes out the inputs for the next basic block 
+necessary. It then writes out the inputs for the next basic block
 from the stack frame and either calls a helper routine or directly jumps to the next block.
 
 \par
@@ -1101,7 +1101,7 @@ lea rbx, [rax + 10] ; then overwrite it
 \par
 
 After all blocks in a group are compiled and the final stack-frame size is known the control-flow operations for each block can be assembled.
-The difference to the simple generator is that the inputs for the next block might not 
+The difference to the simple generator is that the inputs for the next block might not
 be written to statics but instead need to be placed in certain register or stack slots
 while not overwriting values that are currently stored in them and might be needed later.
 This is why the initial time-calculation might be wrong for these cases as it is hard to predict when such
@@ -1148,10 +1148,10 @@ b1_cf_1:
 \end{figure}
 
 \subsubsection{Translation Blocks}\label{translation_blocks}
-One problem that is encountered when employing register allocation on groups of basic blocks 
+One problem that is encountered when employing register allocation on groups of basic blocks
 is that the programm cannot simply jump to them using indirect jumps anymore.
 If the basic block is not a top-level block, it might expect variables to be outside of statics and the stack frame, which is set
-up at the first block of a group. These would be missing if the basic block is reached via a jump. 
+up at the first block of a group. These would be missing if the basic block is reached via a jump.
 
 \par
 
@@ -1179,9 +1179,9 @@ Mergeable sequences include:
 \begin{itemize}
 \item \texttt{add}, (\texttt{cast}), \texttt{store}: Can be merged to a single store instruction with the
 \texttt{add} embedded in the memory operand and the \texttt{cast} expressed as the store width.
-    \item \texttt{add}, \texttt{load}, \texttt{sign-} / \texttt{zero-extend}: Can be merged into a 
+    \item \texttt{add}, \texttt{load}, \texttt{sign-} / \texttt{zero-extend}: Can be merged into a
     single \texttt{movsx} / \texttt{movzx} instruction with the \texttt{add} embedded in the memory operand
-\item \texttt{and} with 0x1f / 0x3f, (\texttt{cast}), \texttt{shr} / \texttt{shl} / \texttt{sar}: 
+\item \texttt{and} with 0x1f / 0x3f, (\texttt{cast}), \texttt{shr} / \texttt{shl} / \texttt{sar}:
     Can be merged into a single shift instruction since they mask the count operand themselves
 \end{itemize}
 % Merging these operations not only reduces the binary size, since fewer instructions need to be encoded, but also increases performance significantly.
@@ -1199,16 +1199,16 @@ a x86\_64 \texttt{call} instruction to the target is emitted.
 A return is assembled to do a comparison of the actual return address computed and the previously
 pushed, expected return address. This expected return address is pushed by a previously executed
 \texttt{call} instruction, as explained in the paragraph above. If both return addresses match, an
-x86\_64 \texttt{ret} instruction is executed. 
+x86\_64 \texttt{ret} instruction is executed.
 
-\par 
+\par
 
 If they do not match, the stack pointer is reset
 to the original stack pointer before execution of any basic block and the indirect jump handler is invoked.
 To prevent underflow, 16 bytes of zeroes are pushed onto the stack before the first basic block is
 executed. This will cause the compare at a \texttt{return} instruction without a previous
 \texttt{call} instruction to fail and the indirect jump handler to be used instead.
-To prevent overflow, the stack pointer is compared to a maximum allowed size every time a call 
+To prevent overflow, the stack pointer is compared to a maximum allowed size every time a call
 control flow operation is executed and the stack is reset if it exceeds this size.
 
 \subsection{Helper Library}\label{helper}
@@ -1549,8 +1549,7 @@ And also to RIA-JIT~\cite{ria_jit_repo}, another dynamic binary translator that 
 
 \par
 
-The effectiveness and drawbacks of the implemented optimizations were also measured.
-% TODO: add thingy about fp accuracy, if we move more things here we need to rewrite this.
+The effectiveness and drawbacks of the implemented optimizations were also measured, with special attention ot the effects on floating point operation accuracy.
 
 \subsection{Benchmark Setup}
 
