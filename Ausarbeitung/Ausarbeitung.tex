@@ -1133,27 +1133,28 @@ To prevent overflow the stack pointer is compared to a maximum allowed size when
 
 \subsection{Helper Library}\label{helper}
 
-Between RISC-V and x86\_64 there are also differences in the ABI exposed by linux at runtime.
-The System V ABI defines the startup and system call convention to follow on each platform, and Linux defines the ABI of the system calls. % TODO: cite system v ?
+The ABI that is exposed by Linux at runtime is different on x86\_64 compared to RISC-V. Some aspects are specified by
+the System V ABI, like the ELF file format and x86\_64 calling convention, but the system call ABI used by Linux differs
+from platform to platform, mostly due to backwards compatibility or architectural differences~\cite{man_syscalls}.
 
-\par
-
-The calling convention for system calls is different between the ABIs, so at runtime every RISC-V system call is directed to a wrapper function in the Helper Library.
-In most cases the only difference is the ID used to perform the system call, but in some cases arguments need to be modified before the system call can be performed.
-We implemented all system calls required by the benchmarks.
-However all system calls related to signals where stubbed to just return an error code, implementing would require more invasive system call rewriting and signal support was not necessary for running the benchmarks.
-
-\par
+Because of these incompatibilities, some system calls need a thin wrapper, which is defined in the Helper Library. In
+most cases, the only difference is the ID used to perform the system call, but in some cases, arguments need to be
+modified before the system call can be performed.
+However, system calls related to signals were stubbed to do nothing, since signal support was not necessary for running
+the benchmarks and implementing these requires invasive changes.
 
 % TODO: cite something that shows that system calls are slow anyway. => slow helper library does not matter very much
-At startup linux also puts information on the x86\_64 stack, for example the program arguments and auxiliary vectors. % TODO: define what auxiliary vectors are and why it matters ?
-Before executing the translated code these values need to be copied to the emulated Stack, and in some cases transformed.
-The auxiliary vectors contain information on where to locate the Linux VDSO\cite{man_vdso}.
-it is an ELF binary automatically linked by Linux that provides wrappers for some very common system calls to make them faster.
-The application uses the auxiliary vectors to locate this ELF and dynamically links to the functions provided.
-Because the ABI is very different we opted to remove the auxiliary vectors that allow the application to use the VDSO.
-In the future a VDSO wrapper could be implemented to provide the same speed benefits.
-% TODO: cite why the linux vdso can be used to speed up certain system calls
+At startup, Linux puts information on the x86\_64 stack, for example the program arguments and auxiliary vectors. % TODO: define what auxiliary vectors are and why it matters ?
+Before executing the translated code, these values need to be copied to the emulated Stack, and in some cases transformed.
+For example, the auxiliary vectors contain information on where to locate the Linux vDSO~\cite{man_vdso}.
+This is an optional ELF object that provides user-space wrappers for some system calls to make them faster (e.g. by not
+invoking the rather expensive kernel system call procedure), and is automatically linked by Linux (if present).
+The application can use the auxiliary vectors to locate this object and call the provided functions; however,
+the ABI is very different, we opted to remove any reference to the vDSO from the auxiliary vectors.
+In the future, a vDSO wrapper could be implemented to provide the same speed benefits.
+
+Additionally, the helper library houses more required components for execution, like helpers for indirect jump lookup
+(\ref{ijump_resolution}) and the interpreter (\ref{interpreter}).
 
 % bullet points:
 % * why necessary (requirements): not everything can be translated ahead of time, sort of done
