@@ -1403,7 +1403,7 @@ therefore this is only a theoretical feature.
 
 \par
 
-At runtime, the CPUID~\cite{intel2017man} is checked for support of the \textit{FMA3} CPU extension.
+At runtime, the CPUID~\cite{intel2017man} is checked for support of the \textit{FMA3} extension.
 The interpreter uses it, if it is
 present, for faster floating point enulation. Otherwise, the fused multiply
 add instructions are assembled using separate multiplication and addition or subtraction
@@ -1436,7 +1436,7 @@ The code generator (Section~\ref{sec:generator}) uses the x86\_64 floating point
 provided by the \textit{Streaming SIMD Extensions} (SSE) and \textit{Streaming SIMD Extensions 2}
 (SSE2) which operate on the \texttt{xmm} registers. As SSE2 is part of x86\_64, it can be assumed
 that SSE2 instructions are usable. However, the usage of other x86\_64 extensions like SSE4 or
-\texttt{Fused Multiply Add 3} (FMA3) in the translated binary has to be enabled using a command line
+\textit{Fused Multiply Add 3} (FMA3) in the translated binary has to be enabled using a command line
 flag for the translator.
 
 \par
@@ -1478,7 +1478,7 @@ Furthermore, a bitwise correct implementation, as provided by the dynamic transl
 challenging to implement and comparatively slow. We decided to ignore the rounding mode during lifting
 instructions. This does not apply to conversions between integers and floating point numbers as well as between single
 and double precision floating point numbers. We made this exception because it makes a great difference when
-rounding to full integer numbers. For example, the difference in rounding \emph{25,5} towards positive infinity or
+rounding to full integer numbers. For example, the difference in rounding \emph{25.5} towards positive infinity or
 towards negative infinity, resulting in \emph{26} respectively \emph{25}, makes a noticeable difference.
 Furthermore, the used benchmarks (Section~\ref{sec:evaluation}) require the translator to respect the rounding mode of
 conversion instructions.
@@ -1532,12 +1532,16 @@ instructions.
 The RISC-V unsigned conversion instruction's behavior is emulated using a combination of the
 signed x86\_64 conversion instructions and logical operations for correcting the results.
 
-For unsigned integer to floating point number conversion, the corrections are applied based
-on the signed representation of the unsigned integers. 32-bit wide integer values can always be zero
+\par
+
+For unsigned integer to floating point number conversion, the corrections are applied based on the
+signed representation of the unsigned integers. 32-bit wide integer values can always be zero
 extended to 64-bits, which leads to their signed representation to be non-negative. If the signed
-representation is greater than, or equal, to zero, the signed conversion can be applied directly.
-Otherwise, the input and output values of the signed conversion
-instruction need to be adjusted. This is done using bit arithmetic, which is also used by \textit{gcc}.
+representation is greater than, or equal, to zero, the 64-bit signed conversion can be applied
+directly. Otherwise, the input and output values of the signed conversion instruction need to be
+adjusted. This is done using bit arithmetic, which is also used by \textit{gcc}. The RiSC-V
+conversion to unsigned integers is emulated by converting to a signed integer. If the input floating
+point value is negative, the result is set to zero as specified by the RISC-V manual~\cite{rvspec}.
 
 \par
 The sign injection instruction is emulated by arithmetically manipulating the sign bit of the
