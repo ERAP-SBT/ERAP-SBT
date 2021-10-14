@@ -1,17 +1,21 @@
-benchmark         native   qemu    ria    master      test1    test2   test3   sbt1
+benchmark         native   qemu    ria    master      test1    test2   test3   sbt1     reg_alloc  reg_alloc_plus_ir    reg_alloc_plus_gen    reg_alloc_plus_lifter
 # native: final results
 # qemu: final results
 # master: mix of various benchmarks
 # test1: mix of various benchmarks
 # test2: mix of various benchmarks
 # test3: mix of various benchmarks (probably very close to final benchmarks)
-600.perlbench     283      1233    1455   1800        1076     1030    961      955
-602.gcc           383      1324    844    2052        980      0       991      933
-605.mcf           535      1113    1509   0           1118     1215    0        979
-620.omnetpp       434      940     1014   0           860      839     0        717
-623.xalancbmk     220      615     616    0           463      516     0        460
-625.x264          183      1066    0      0           1157     916     0        876
-631.deepsjeng     375      1001    645    0           848      770     0        776
-641.leela         383      1087    828    0           983      929     0        827
-648.exchange2     220      710     473    0           658      489     0        528
-657.xz            2158     3644    3685   0           3805     3345    0        3463
+# reg_alloc: reg_alloc only (with fma3, sse4, no_hash_lookup to use as base for compare)
+# reg_alloc_plus_ir
+# reg_alloc_plus_gen
+# reg_alloc_plus_lifter
+600.perlbench     283      1233    1455   1800        1076     1030    961      955      0          0                   0                      0
+602.gcc           383      1324    844    2052        980      0       991      933      0          0                   0                      0
+605.mcf           535      1113    1509   0           1118     1215    0        979      0          0                   0                      0
+620.omnetpp       434      940     1014   0           860      839     0        717      0          0                   0                      0
+623.xalancbmk     220      615     616    0           463      516     0        460      0          0                   0                      0
+625.x264          183      1066    0      0           1157     916     0        876      0          0                   0                      0
+631.deepsjeng     375      1001    645    0           848      770     0        776      0          0                   0                      0
+641.leela         383      1087    828    0           983      929     0        827      0          0                   0                      0
+648.exchange2     220      710     473    0           658      489     0        528      0          0                   0                      0
+657.xz            2158     3644    3685   0           3805     3345    0        3463     0          0                   0                      0

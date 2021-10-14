@@ -1612,19 +1612,13 @@ However with floating point support additional optimizations~\footnote{\texttt{f
                 \addplot[fill=green]  table[x=benchmark, y expr=\thisrow{native} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 \addplot[fill=orange] table[x=benchmark, y expr=\thisrow{qemu}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 \addplot[fill=yellow] table[x=benchmark, y expr=\thisrow{ria}    /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                % \addplot[fill=red]    table[x=benchmark, y expr=\thisrow{master} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 \addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{sbt1}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                %\addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{test3}  /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                %                \addplot table[x=benchmark, y expr=\thisrow{test2} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                %                \addplot table[x=benchmark, y expr=\thisrow{ria}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
 
-                %                \legend{native, qemu, test1, test2, ria}
                 \legend{
                     native,
                     qemu,
                     ria,
-                    % master,
-                    sbt1}
+                    sbt}
             \end{axis}
         \end{tikzpicture}
         \caption{
@@ -1634,14 +1628,84 @@ However with floating point support additional optimizations~\footnote{\texttt{f
     \end{centering}
 \end{figure}
 
-\ref{benchmark_results1}
+We compared the benchmark results of native execution, QEMU, RIA-JIT and our translator with the SPECspeed 2017 Integer benchmark, the results are shown in Figure \ref{benchmark_results1}.
 
-Due to bugs in the ria-jit rv64fd implementation, namely the lack of dynamic rounding support % TODO: verify
-the xz benchmark did not complete successfully.
+Our translator was run with all optimizations except the dropping of translation blocks~\footnote{The command line used was \texttt{--optimize=reg\_alloc,!no\_trans\_bbs}}, resulting in the best
+execution speed achievable.
+QEMU and RIA-JIT were run without any special handling.
+Due to a bug in the RIA-JIT floating point implementation, most likely the lack of dynamic rounding support % TODO: verify
+the \texttt{625.x264} benchmark failed and was run seperately using a toolchain without rv64df support.
+
+% In all cases SBT manages to outperform QEMU, while the improvement in \texttt{657.xz} is minimal, the
+
+% 4-5 paragraphs
+% - Explain what targets where choosen (and why)
+% - Show results
+% - Mention that the (TODO: perform benchmark) 625.x264 benchmark was done with softfp due to bugs in ria-jit
+% - Talk about problems with the benchmarks of ria-jit (missing system call, bugs in x264)
+% we might need a clear break here
+% - Compare results to the results of the ria-jit paper => QEMU appears to be faster (relatively speaking)
+% - Success, we beat QEMU consistently, in some cases by a decent amount
+
+% In all cases is the translator faster than QEMU
 
 \subsection{Effectiveness of different Optimizations}
 
+\begin{figure}
+    \begin{centering}
+        \begin{tikzpicture}
+            \begin{axis}[
+                    width=0.9\textwidth,
+                    height=0.5\textwidth,
+                    ybar,
+                    bar width = 4pt,
+                    ylabel={Execution time normalised to native (less is better)},
+                    symbolic x coords = {
+                            600.perlbench,
+                            602.gcc,
+                            605.mcf,
+                            620.omnetpp,
+                            623.xalancbmk,
+                            625.x264,
+                            631.deepsjeng,
+                            641.leela,
+                            648.exchange2,
+                            657.xz,
+                            average % TODO: find a way to automatically compute this row
+                        },
+                    xticklabel style = {
+                            anchor = east,
+                            rotate = 45 + 15
+                        },
+                    xtick = data, % make a tick at every symbolic x coordinate
+                    ytick distance = 1, % make a tick every 1
+                    ymajorgrids = true, % display horizontal guide lines
+                    legend style = { at={(0.95, 0.95)}, anchor=north east}, % place the graph legend at the top-right
+                ]
+
+                \addplot[fill=orange] table[x=benchmark, y expr=\thisrow{reg_alloc}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=yellow] table[x=benchmark, y expr=\thisrow{reg_alloc_plus_ir}    /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{reg_alloc_plus_gen}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{reg_alloc_plus_lifter}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+
+                \legend{
+                    base,
+                    base + ir,
+                    base + gen,
+                    base + lifter}
+            \end{axis}
+        \end{tikzpicture}
+        \caption{
+            SPEC CPU 2017 Results Compared to SBT executed with all optimizations except \texttt{no\_trans\_bbs} enabled.
+            RIA-JIT encountered a floating point error in the benchmark 625.x264, so this single benchmark was repeated with a toolchain using \texttt{--with-arch=rv64iamc --with-abi=lp64}.
+        }\label{benchmark_results1}
+    \end{centering}
+\end{figure}
+
 \subsection{Basic Block Start Address Hashing}
+
+% TODO: Here we can compare the results of refspeed --optimize=reg_alloc,no_hash_lookup,fma3,sse4
+%       => const folding, dce, call_ret, dedup, unused_statics, merge_ops all together have a decent effect
 
 \begin{figure}
     \begin{centering}
@@ -1703,7 +1767,33 @@ likely with a lower average number of elements per bucket. This leads to the con
 smaller buckets sizes can improve bucket-level hash function generation times while not noticeably
 increasing the output assembly size.
 
+% TODO: compare a single benchmark
+
 \subsection{Performance of Translation Blocks}
+
+% 1. Goal was to optimize runtime performance of the translated binary
+% 2. Hypothesis: AOT translation able to beat JIT translation, due to less runtime overhead and more time to spend on optimization
+% 3. but resource requirements of the actual translation can't be ignored completely, as the translator needs to be pratical
+%   -> naiver generator not useful in pratice as it generates a lot of unnecessary assembly, causing as to exceed the available memory on time-x in some benchmarks
+% 4. size of the compiled binary also needs to be reasonable
+% 5. CPU SPEC 2017 benchmarks used
+% 6. benchmark contain a testsuite (talk a bit about what they exercise) => verify that implementation is correct, tests syscall emulation layer, test interpreter for correctness
+%
+% 7. talk about exact setup used (time-x, toolchains used, problems encountered, iterations=2 selected worst time out of 2)
+
+% We want at least 2 graphs:
+% * comparing of native, qemu-user, ria-jit, translator (interpreter), translator (with all optimiations)
+% * comparing of native, interpreter, translator (simple), translator (reg_alloc), translator (all)
+
+% TODO: gnuplot of final results (native, qemu-user, ria-jit, translator (optmize=all, optimize=none))
+%       and explain what these targets are, why they where choosen and what the results mean
+
+% Talk about results, compare native vs. register allocation
+% Talk about what optimizations we build and how much they speed up the benchmarks
+% Maybe talk about the trade-off build time vs. size vs. run time speed
+% benchmarks also used to verify correctness of implementation
+
+% TODO: maybe use performance counters of interpreter to show that we find pretty much every basicblock
 
 \subsection{Floatingpoint accuracy}
 
