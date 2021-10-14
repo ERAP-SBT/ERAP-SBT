@@ -1,4 +1,4 @@
-presentation_filename=./src/presentation_16_9
+presentation_filename=./src/presentation_4_3
 source_dir=./src/
 
 all: pdf

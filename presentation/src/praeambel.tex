@@ -31,9 +31,12 @@
 
 \usepackage{multicol} % mehrspaltiger Text
 
+\usepackage{tikzit}
 \usepackage{tikz}
-\usetikzlibrary{arrows, shapes, shapes.multipart, trees, positioning,
+\usetikzlibrary{arrows, arrows.meta, shapes, shapes.multipart, trees, positioning,
     backgrounds, fit, matrix, external, overlay-beamer-styles}
+\input{tikz_src/graph.tikzstyles}
+
 
 % Diagramme:
 \usepackage{pgfplots}
@@ -58,7 +61,7 @@
 
 \lstdefinelanguage{rv64}{
     morekeywords={
-        addi, bne, j,
+        addi, bne, j, slli, bgtu, lui, add, lw, jr,
         a0, a1, x0
     },
     sensitive=false

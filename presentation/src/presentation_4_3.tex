@@ -20,7 +20,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Zur Wahl des Seitenverhältnisses bitte einen der beiden folgenden Befehle
 % auskommentieren und den ausführen lassen:
-\input{praeambel_16_9.tex} % Seitenverhältnis 16:9
+\input{praeambel_4_3.tex} % Seitenverhältnis 4:3
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
@@ -50,97 +50,18 @@
 
 \PraesentationTitelseite % Fügt die Startseite ein
 
+\input{commands.tex}
 
-% draws an arrow from (#2,#3) to (#2+#4,#3) with height of #5 (arrow in x direction)
-% color (and other arguments, like visible on), startX, startY, length (X dir), height (Y dir)
-\newcommand{\TikZArrowX}[5]{
-    \filldraw[#1] (#2,#3) -- (#2,#3+#5*2/3) -- (#2+#4/2,#3+#5*2/3) -- (#2+#4/2,#3+#5) -- (#2+#4,#3) -- (#2+#4/2,#3-#5) -- (#2+#4/2,#3-#5*2/3) -- (#2,#3-#5*2/3) -- (#2,#3);
-    \draw[#1, black] (#2,#3) -- (#2,#3+#5*2/3) -- (#2+#4/2,#3+#5*2/3) -- (#2+#4/2,#3+#5) -- (#2+#4,#3) -- (#2+#4/2,#3-#5) -- (#2+#4/2,#3-#5*2/3) -- (#2,#3-#5*2/3) -- (#2,#3);
-}
+%%%%%%%%%%%%
+%% Inhalt %%
+%%%%%%%%%%%%
 
-% draws an arrow from #2,#3) to (#2,#3+#5) with height of #4 (arrow in y direction)
-% color (and other arguments, like visible on), startX, startY, length (X dir), height (Y dir), color
-\newcommand{\TikZArrowY}[5]{
-    \filldraw[#1] (#2,#3) -- (#2+#4*2/3,#3) -- (#2+#4*2/3,#3+#5/2) -- (#2+#4,#3+#5/2) -- (#2,#3+#5) -- (#2-#4,#3+#5/2) -- (#2-#4*2/3,#3+#5/2) -- (#2-#4*2/3,#3) -- (#2,#3);
-    \draw[#1, black] (#2,#3) -- (#2+#4*2/3,#3) -- (#2+#4*2/3,#3+#5/2) -- (#2+#4,#3+#5/2) -- (#2,#3+#5) -- (#2-#4,#3+#5/2) -- (#2-#4*2/3,#3+#5/2) -- (#2-#4*2/3,#3) -- (#2,#3);
-}
-
-% draws one entry of the color legend for the program scheme
-% color, text, posX, posY (left, top coordinate)
-\newcommand{\colorLegendEntry}[4]{
-    \filldraw[#1] (#3,#4) rectangle (#3+1,#4+1);
-    \draw[black] (#3,#4) rectangle (#3+1,#4+1);
-    \node at (#3+0.5,#4+0.4) (color_legend_entry_point) {};
-    \node[right=2mm of color_legend_entry_point] (color_legend_entry_text) {#2};
-}
-
-% draws a color legend for the program scheme
-% posX, posY (left, top coordinate)
-\newcommand{\colorLegend}[2] {
-    \colorLegendEntry{TUMOrange}{Static Translator Parts}{#1}{#2}
-    \colorLegendEntry{TUMBlauDunkel}{Intermediate Representation (IR)}{#1}{#2-1.5}
-    \colorLegendEntry{purple}{Maschine Code / ELF File}{#1}{#2-3}
-}
-
-% draws the schematic presentation of the program
-% scale, fontSize
-\newcommand{\ProgramSchemeVersionOne}[2]{
-    \begin{center}
-        \begin{tikzpicture}[very thick, scale=#1]
-            % draw color legend
-            \colorLegend{-2}{-6}
-
-            % riscv elf file rectangle
-            % background
-            \filldraw[purple] (-2,-2) rectangle (2,2);
-            % black border
-            \draw[black] (-2,-2) rectangle (2,2);
-            % label
-            \node[align=center, color=white] at (0,0) (riscv_text) {\fontsize{#2}{#2} \selectfont RISC-V};
-
-            % lifter arrow
-            \TikZArrowX{TUMOrange}{2}{0}{6}{1.5}
-            % arrow label
-            \node[align=center, color=white] at (4.5,0) (lifter_text) {\fontsize{#2}{#2} \selectfont Lifter};
-
-            % ir (unoptimized) rectangle
-            % background
-            \filldraw[TUMBlauDunkel] (8,-2) rectangle (12,2);
-            % black border
-            \draw[black] (8,-2) rectangle (12,2);
-            % label
-            \node[align=center, color=white] at (10,0) (ir_text_1) {\fontsize{#2}{#2} \selectfont IR};
-
-            % optimizer arrow
-            \TikZArrowX{TUMOrange}{12}{0}{6}{1.5}
-            % arrow label
-            \node[align=center, color=white] at (14.5,0) (optimizer_text) {\fontsize{#2}{#2} \selectfont Optimizer};
-
-            % ir (optimized) rectangle
-            % background
-            \filldraw[TUMBlauDunkel] (18,-2) rectangle (22,2);
-            % black border
-            \draw[black] (18,-2) rectangle (22, 2);
-            % label
-            \node[align=center, color=white] at (20,0) (ir_text_2) {\fontsize{#2}{#2} \selectfont IR};
-
-            % compiler arrow
-            \TikZArrowX{TUMOrange}{22}{0}{6}{1.5}
-            % arrow label
-            \node[align=center, color=white] at (24.5,0) (generator_text) {\fontsize{#2}{#2} \selectfont Generator};
-
-            % x86_64 rectangle
-            %background
-            \filldraw[purple] (28,-2) rectangle (32,2);
-            % black border
-            \draw[black] (28,-2) rectangle (32,2);
-            % label
-            \node[align=center, color=white] at (30,0) (x86_64_text) {\fontsize{#2}{#2} \selectfont x86\_64};
-        \end{tikzpicture}
-    \end{center}
-}
-
-
+\begin{frame}
+    \frametitle{Inhalt}
+    \begin{itemize}
+        \item
+    \end{itemize}
+\end{frame}
 
 %%%%%%%%%%%%%%%%%%%%%%%
 %% Programmübersicht %%
@@ -159,10 +80,8 @@
     \note[item]{Optimierung auf der IR: aktuell noch Identitätsbbildung}
     \note[item]{Compiler compiliert zu Assemlby Code und dieser wird zu einer ausführbaren Datei assembliert}
 
-    %alignment to have some space between headline an the schematic
-    ~\\
-    ~\\
-    \ProgramSchemeVersionOne{0.6}{18}
+    \centering
+    \ProgramScheme{0.55}{12}
 \end{frame}
 
 %%%%%%%%%%%%%%%%%%%%%
@@ -182,13 +101,10 @@
     \note[item]{SSA bedeutet: Variablen frei verschiebbar, deshalb Memory Tokens für Einhaltung der Reihenfolge}
     \pause{}
     \begin{itemize}
-        \item Die IR besteht aus mehreren "`\textbf{Basic Blocks}"'
-        \item Basic Block: Eine Folge von sequentiellen Instruktionen, beendet durch eine Kontrollflussoperation
-        \item Ein Basic Block enthält Variablen in SSA-Form und dazugehörige Operationen
-        \item \textbf{Static single assignment (SSA):} Jeder Variable wird genau einmal ein Wert zugewiesen
-        \item Ein Basic Block erhält Eingaben in Form von Statics
-        \item Die Basic Blocks sind durch die Kontrollflussoperationen miteinander verbunden
-        \item Zur Nachvervolgung von Lese- und Schreiboperationen gibt es Memory Tokens $\rightarrow$ Optimierungen
+        \item Programm aus \textbf{Basic Blocks}
+        \item \textbf{Static Single Assignment (SSA)}
+        \item Eingaben in Form von Statics
+        \item Verbindung durch Kontrollflussoperationen
     \end{itemize}
 \end{frame}
 
@@ -262,40 +178,19 @@ block b1(/* inputs */) <= [/* predecessors */] {
 
 \begin{frame}[fragile]
     \frametitle{Lifter}{ELF Binärdatei laden und Instruktionsbytes decodieren}
-    \begin{columns}[c]
-        \column{0.5 \textwidth}
-        \begin{enumerate}
-            \note[item]{ELF Prüfung: Prüfbits, System-V ABI, 64-Bit, Little Endian, RISC-V Machine}
-            \item ELF File prüfen.
-                  \note[item]{Symbole weren bei gestrippten ELF-Binaries nicht eingelesen}
-            \item Program Header, Sections und Symbole auslesen.
-                  \note[item]{32-Byte bzw. 16-Byte Compressed mit frvdec decodieren}
-            \item Section Bytes $\rightarrow$ Instruktionen durch \textbf{frvdec} decodieren.
-        \end{enumerate}
-        \column{0.50 \textwidth}
-        \begin{lstlisting}[basicstyle=\footnotesize, breaklines=true, escapeinside={@@}]
-ELF Header:
-    Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00
-    Class:                             @\textcolor{TUMBlauDunkel}{ELF64}@
-    Data:                              @\textcolor{TUMBlauDunkel}{2's complement, little endian}@
-    Version:                           1 (current)
-    OS/ABI:                            UNIX - @\textcolor{TUMBlauDunkel}{System V}@
-    ABI Version:                       0
-    Type:                              @\textcolor{TUMBlauDunkel}{EXEC}@ (Executable file)
-    Machine:                           @\textcolor{TUMBlauDunkel}{RISC-V}@
-    Version:                           0x1
-    Entry point address:               @\textcolor{TUMBlauDunkel}{0x100b0}@
-    Start of program headers:          64 (bytes into file)
-    Start of section headers:          688 (bytes into file)
-    Flags:                             0x5, RVC, double-float ABI
-    Size of this header:               64 (bytes)
-    Size of program headers:           56 (bytes)
-    Number of program headers:         2
-    Size of section headers:           64 (bytes)
-    Number of section headers:         6
-    Section header string table index: 5
-        \end{lstlisting}
-    \end{columns}
+    \begin{enumerate}
+        \setlength\itemsep{0.6em}
+        \item ELF File prüfen.
+        \item Program Header, Sections und Symbole auslesen.
+              \vspace{0.5em}
+              \begin{enumerate}
+                  \setlength\itemsep{0.6em}
+                  \item Instruktionen aus \textit{ausführbaren} Sektionen mit \textbf{frvdec} decodieren.
+                  \item Falls keine Sektionen verfügbar ist, werden Program Header verwendet
+                  \item Daten aus \textit{lesbaren} Sektionen die \textbf{nicht} \textit{ausführbar} sind werden
+                        byteweise als reine Daten geladen.
+              \end{enumerate}
+    \end{enumerate}
 \end{frame}
 \clearpage
 
@@ -304,63 +199,188 @@ ELF Header:
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{frame}
-    \frametitle{Lifter}{RISC-V Instruktionen in IR Code umwandeln}
+    \frametitle{Lifter}{RISC-V Instruktionen sequentiell in IR Code umwandeln}
+    \\\vspace{0.5em}
+    Wiederhole solange ungeliftete Instruktionen existieren:
     \begin{enumerate}
-        \setlength\itemsep{0.6em}
-        \item Instruktionen sequenziell lesen:
-              \vspace{0.5em}
+        \setlength{\itemsep}{0.8em}
+        \item Starte neuen Basic Block bei der nächsten, ungelifteten Instruktion
+        \item geladene Instruktionen in IR parsen
+        \item Wiederhole solange bis:
               \begin{enumerate}
-                  \setlength\itemsep{0.6em}
-                  \item Instruktionen in IR parsen
-                  \item Wiederhole bis eine \textbf{Kontrollfluss ändernde Instruktion} auftritt
-                  \item Beende Basic Block $\rightarrow$ starte neuen Basic Blöck für jede Kontrollflussänderung
-                  \item Starte für jeden \textbf{neuen} Basic Block wieder bei 1
+                  \vspace{1em}
+                  \setlength{\itemsep}{1em}
+                  \item eine \textbf{Kontrollfluss ändernde Instruktion} auftritt
+                  \item der Start eines
+                        neues Basic Blocks an der nächsten Instruktion registriert ist
               \end{enumerate}
-        \item Sollte Schritt 1 nicht alle vorhandenen Instruktionen in Basic Blöcke gepackt haben:\\ Beginne ab erster \textbf{unbetrachteter} Adresse / Instruktion erneut mit Schritt 1
+        \item Beende Basic Block $\rightarrow$ markiere Start neuer Basic Blöcke an evtl. Sprungzielen
     \end{enumerate}
 \end{frame}
 \clearpage
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Lifter Backtracking und Splitting %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Splitting %%
+%%%%%%%%%%%%%%%%%%%%%%
 \begin{frame}
-    \frametitle{Lifter}{Lifter Splitting und Backtracking}
-    \vspace{2em}
+    \frametitle{Lifter Splitting}{Aufteilen eines Basic Blocks}
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item Situation: Sprung \textbf{in} einen bereits eingelesenen Basic Block
+        \item Aufteilung an Sprungadresse in zwei Basic Blöcke
+        \item Verbindung mit einem direkten Sprung
+        \item Komplexe Operation, da alle Referenzen auf den geteilten Block betrachtet werden müssen
+    \end{itemize}
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Call / Return %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+    \frametitle{Lifter Subroutinen Erkennung}{Erkennung der Assembler Pseudoinstruktionen \texttt{call} und \texttt{ret}.}
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item RISC-V Subroutinen Aufrufe funktionieren anders als bei x86\_64
+        \item Standard Calling Convention definiert \texttt{x1} und \texttt{x5} als \textit{Linkregister}
+        \item \texttt{JAL} := \textit{Jump and Link}
+        \item \texttt{JAL (x1 | x5), ..., ...} $\equiv$ \texttt{call}
+        \item \texttt{JALR x0, x1, 0} $\equiv$ \texttt{ret}
+        \item Laufzeitüberprüfung der Rücksprungziele durch Returnadressen-Stack
+    \end{itemize}
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Jump table detection %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}[fragile]
+    \frametitle{Lifter Sprungtabellenerkennung}{Switch-Case Kontrollstrukturen werden in Sprungtabellen umgewandelt.}\vspace{1em}
     \begin{columns}[c]
+        \column{0.35 \textwidth}
+        \begin{lstlisting}[language=c, escapechar=!]
+switch(instr.mnem) {
+    case 0:
+        fun0();
+        break;
+    case !\colorbox{yellow}{1}!:
+        fun3();
+        break;
+    default:
+        fun4();
+        break;
+}
+        \end{lstlisting}
+        \column{0.1 \textwidth}
+        \begin{tikzpicture}[scale=0.72]
+            \TikZArrowX{TUMOrange}{0}{0}{3}{1}
+        \end{tikzpicture}
         \column{0.4 \textwidth}
-        \textbf{Aufteilen eines Basic Blocks}
-        \note[item]{Sprung zurück in bereits geparsten Codebereich}
-        \note[item]{Split an Einsprungaddresse und Verbindung mit direktem Sprung}
-        \begin{itemize}
-            \item Situation: Sprung \textbf{in} einen Basic Block
-            \item Aufteilung an Sprungadresse in zwei Basic Blöcke
-            \item Verbindung mit einem direkten Sprung
-        \end{itemize}
-        \column{0.4 \textwidth}
-        \textbf{Backtracking einer indirekten Sprungadresse}
-        \note[item]{Indirekte Sprünge, also Sprünge mit Register als Eingabeparameter}
-        \note[item]{Rekursives Backtracking um Wert des Registers zu ermitteln}
-        \note[item]{Mehrere Werte möglich -> im Moment wird erster gewählt (mögliche Fehlerquelle)}
-        \begin{itemize}
-            \item rekursive Rückverfolgung aller Argumente
-            \item für "`statics"' werden alle möglichen Vorgänger betrachtet
-            \item Aussortierung von Vorgängern
-        \end{itemize}
+        \begin{lstlisting}[language=rv64, escapechar=!]
+/* [...] */
+    !\colorbox{yellow}{bgtu}! a4, !\colorbox{yellow}{1}!, .L4
+    slli a4, a5, 2
+    lui a5, !\colorbox{yellow}{\%hi(.L1)}!
+    addi a5, a5, !\colorbox{yellow}{\%lo(.L1)}!
+    add a5, a4, a5
+    !\colorbox{yellow}{lw}! a5, 0(a5)
+    jr a5
+/* [...] */
+.L1:
+    .word .L2
+    .word .L3
+        \end{lstlisting}
     \end{columns}
 \end{frame}
 \clearpage
 
-\note[itemize]{
-    \item {Ein Basic Block muss aufgeteilt werden, wenn eine Kontrollflussoperation an eine Adresse springt, welche bereits geliftet ist und sich in diesem Basic Block befindet}
-    \item {Warum muss ein Basic Block geteilt werden? -> damit nach Definition der IR immer an den Beginn eines Basic Blocks gesprungen werden kann}
-    \item {bei Schleifen nötig -> siehe IR Beispiel vorher}
-    \item {Unbedingter Sprung als Verbindung (nach )}
-    \item {Variablen anhand Zuweisungsadresse (Adresse der Instruktion, welche sie erzeugt hat) auf die beiden Basic Blöcke aufgeteilt}
-    \item {Sorgt für Probleme, weil Datenstruktur verändert wird, v.a. richtige Aufteilen der Variablen, korrekter Sprung, korrekter Transfer der Cfops}
-    \item {Die Kontrollflussoperationen werden in den zweiten Basic Block (mit der höheren Adresse) geschoben, weil diese das Ende des Basic Blocks sind und sich damit garantiert im zweiten Befinden}
-}
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Backtracking %%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Lifter Backtracking}{Rücklverfolgung einer indirekten Sprungadresse}\\
+    = rekursive Rückverfolgung der absoluten Werte aller Operationsparameter
+    \begin{figure}
+        \centering
+        \begin{tikzpicture}[scale=1.5]
+            \begin{pgfonlayer}{nodelayer}
+                \node [style=BB] (0) at (-3.75, 0) {bb24};
+                \node [style=VAR] (1) at (-2.25, 0) {v37};
+                \node [style=OP] (2) at (-0.75, 0) {ADD};
+                \node [style=VAR] (3) at (0.5, 1.5) {v36};
+                \node [style=VAR] (4) at (0.5, -1.5) {v34};
+                \node [style=OP] (5) at (2, -1.5) {SHL};
+                \node [style=VAR] (6) at (3.5, 0.25) {v15};
+                \node [style=VAR] (7) at (3.5, -1.5) {v22};
+                \node [style=STATIC] (8) at (5, 0.25) {x14};
+                \node [style=STATIC] (9) at (5, -1.5) {x21};
+                \node [style=BB] (10) at (6.5, 1) {bb42};
+                \node [style=BB] (11) at (6.5, -1) {bb23};
+                \node [style=BB] (12) at (6.5, 2) {bb8};
+                \node [style=BB] (13) at (6.5, 0) {bb17};
+                \node [style=BB] (14) at (6.5, -2.25) {bb127};
+                \node [style=VALUE] (15) at (2, 1.5) {-2};
+                \node [style=VAR] (16) at (7.75, 2) {};
+                \node [style=VAR] (18) at (7.75, 0) {};
+                \node [style=VAR] (19) at (7.75, -1) {};
+                \node [style=BB] (23) at (9.75, 1) {};
+                \node [style=BB] (24) at (9.75, -2.25) {};
+                \node [style=OP] (25) at (8.75, 0) {};
+                \node [style=OP] (26) at (8.75, -1) {};
+                \node [style=OP] (28) at (8.75, 2) {};
+                \node [style=VAR] (29) at (7.75, 1) {};
+                \node [style=VAR] (31) at (7.75, -2.25) {};
+                \node [style=STATIC] (32) at (8.75, 1) {};
+                \node [style=STATIC] (33) at (8.75, -2.25) {};
+                \node [style=none] (34) at (9.75, 2) {};
+                \node [style=none] (35) at (9.75, 1.5) {};
+                \node [style=none] (36) at (9.75, 0.25) {};
+                \node [style=none] (37) at (9.75, -0.25) {};
+                \node [style=none] (38) at (9.75, -0.75) {};
+                \node [style=none] (39) at (9.75, -1.25) {};
+                \node [style=none] (40) at (9.75, 2.5) {};
+            \end{pgfonlayer}
+            \begin{pgfonlayer}{edgelayer}
+                \draw [style=LINK] (0) to (1);
+                \draw [style=LINK] (1) to (2);
+                \draw [style=LINK] (2) to (3);
+                \draw [style=LINK] (2) to (4);
+                \draw [style=LINK] (3) to (15.center);
+                \draw [style=LINK] (4) to (5);
+                \draw [style=LINK] (5) to (7);
+                \draw [style=LINK] (5) to (6);
+                \draw [style=LINK] (6) to (8);
+                \draw [style=LINK] (7) to (9);
+                \draw [style=LINK] (9) to (14);
+                \draw [style=LINK] (9) to (11);
+                \draw [style=LINK] (8) to (13);
+                \draw [style=LINK] (8) to (10);
+                \draw [style=LINK] (8) to (12);
+                \draw [style=LINK] (12) to (16);
+                \draw [style=LINK] (13) to (18);
+                \draw [style=LINK] (11) to (19);
+                \draw [style=LINK] (16) to (28);
+                \draw [style=LINK] (10) to (29);
+                \draw [style=LINK] (29) to (32);
+                \draw [style=LINK] (18) to (25);
+                \draw [style=LINK] (14) to (31);
+                \draw [style=LINK] (31) to (33);
+                \draw [style=LINK] (33) to (24);
+                \draw [style=LINK] (19) to (26);
+                \draw [style=LINK] (32) to (23);
+                \draw [style=DASHED] (28) to (34.center);
+                \draw [style=DASHED] (28) to (35.center);
+                \draw [style=DASHED] (25) to (36.center);
+                \draw [style=DASHED] (25) to (37.center);
+                \draw [style=DASHED] (26) to (38.center);
+                \draw [style=DASHED] (26) to (39.center);
+                \draw [style=DASHED] (28) to (40.center);
+            \end{pgfonlayer}
+        \end{tikzpicture}
+    \end{figure}
+\end{frame}
+\clearpage
 
 %%%%%%%%%%%%%%%%%%%%%
 %% Generator Folie %%
@@ -372,10 +392,11 @@ ELF Header:
     \note[item]{RISC-V System-V ABI (Startup, Syscall) zur Laufzeit emuliert}
     \note[item]{Stack wird nur initialisiert, danach nicht mehr im Generator speziell behandelt}
     \note[item]{Indirekte Sprünge werden per Lookup zur Laufzeit aufgelöst}
-%    \note[item]{Erste Optimierung: Eliminierung von Redundanzen bei den Statics}
+    %    \note[item]{Erste Optimierung: Eliminierung von Redundanzen bei den Statics}
 
     \frametitle{Generator}{Übersetztung der IR zu x86\_64}
     \begin{itemize}
+        \setlength{\itemsep}{1em}
         \item Sehr einfache, aber korrekte Übersetztung
         \item Originales ELF-Programm als binäres Speicherbild an exakter Adresse eingebunden
               %        \item Stellt nur initialen Stack zur Verfügung % es wird nicht der x86-64 Stack verwendet
@@ -384,6 +405,126 @@ ELF Header:
         \item Erste Optimierung: Eliminierung von Redundanzen bei den Statics
     \end{itemize}
 \end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%
+%% IJump hashing %%
+%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Basic Block Startadressen}{Datenstruktur für effizienten Zugriff auf Basic Block Startadressen}
+    \vspace{1cm}
+    \begin{columns}[t]
+        \column{0.55 \textwidth}
+        \textbf{Naive Implementierung}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Speichere für jede RISC-V Instruktion die korrespondierende Basic Block Startadresse
+            \item Wenn diese nicht existiert, füge stattdessen 0 ein
+            \item Liste dieser Wert baut Adressraum der originalen Binary nach
+        \end{itemize}
+        \column{0.45 \textwidth}
+        \textbf{Fast perfektes Hashing}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Ordne Startadressen in Hashtabelle ein
+            \item Zweistufiges hashing durch Einsortieren in Buckets
+            \item ``Hash, Displace, and Compress''-Verfahren gepaart mit der SpookyHash Funktion
+        \end{itemize}
+    \end{columns}
+\end{frame}
+\clearpage
+
+\begin{frame}
+    \frametitle{Basic Block Startadressen}{Vorteile und Nachteile}
+    \vspace{1cm}
+    \begin{columns}[t]
+        \column{0.55 \textwidth}
+        \textbf{Naive Implementierung}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Zugriffszeit in $O(1)$
+            \item Adresszugriff benötigt \textbf{eine} Ladeoperation
+            \item Benötigt genau so viel Speicher wie der geliftete Teil der originalen Binary
+        \end{itemize}
+        \column{0.45 \textwidth}
+        \textbf{Fast perfektes Hashing}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Zugriffszeit in $O(1)$
+            \item Runtime Overhead: Hashtabellenindex muss zur Laufzeit berechnet werden
+            \item Benötigter Speicherplatz in $O(n)$ mit $n = \text{Anzahl der Startadressen}$
+        \end{itemize}
+    \end{columns}
+\end{frame}
+\clearpage
+
+
+\begin{frame}
+    %\note[item]{Wird zur Auflösung von indirekten Sprüngen ohne erkanntem Sprungziel genutzt, v.a. nicht erkannte Jump Tables}
+    %\note[item]{Arbeitet wie ein Emulator, also dekodiert und führt die Instruktionen zur Laufzeit aus, an gegebener und folgenden Adressen}
+    %\note[item]{Von daher nötig, dass orginale Binary als Memory Image vorhanden}
+    %\note[item]{Springt zu übersetztem Basic Block zurück, falls in IJump Lookup Table an der aktuellen Adresse einer gefunden wird}
+    %\note[item]{Springt i.d.R. schnell zurück, v.a. ohne Translation Blocks auch häufiger \& länger nötig}
+    %\note[item]{Arbeitet auf den Statics, weil er wissen muss wo die Werte der ``Register'' liegen}
+    %\note[item]{Unterstützt soweit alle Standard Extensions wie der Lifter}
+    %\note[item]{Kann theoretisch mit JIT Compileren und Selbstmodifizierender Code umgehen, aber ungetestet}
+    %\note[item]{Kann auch alleine, d.h. ohne Lifting \& Code Generation ausgeführt werden}
+    \frametitle{Interpreter}
+    \vspace{1cm}
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item Dient zur Auflösung indirekter Sprünge ohne erkanntem Sprungziel
+        \item Interpreteriert die RISC-V Instruktionen an gegebener Addresse
+        \item Springt zurück zu übersetzem Basic Block, wenn möglich -> Ijump Lookup Table
+        \item Kann theoretisch mit JIT Compileren und Selbstmodifizierender Code umgehen
+    \end{itemize}
+\end{frame}
+\clearpage
+
+\begin{frame}
+    %\note[item]{Unterstützung für single und double precision Floating Points}
+    %\note[item]{Übersetzung zu SSE und SSE2 Instruktionen, falls vorhanden auch Nutzung von FMA3 und SSE4 -> müssen erlaubt werden}
+    %\note[item]{Bekanntes Problem: Unteschiede in der Implementierung führen zu leich unterschiedlichen Ergebnissen, v.a. bzgl. Rundung}
+    \frametitle{Gleitkommaarithmetik}
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item Unterstützung für F und D Standard Extensions
+        \item Übersetzung zu SSE und SSE2 Instruktionen
+        \item Ziel: Unterstützung der Gleitkommaarithmetik, aber nicht optimiert
+        \item Aber: Unterschiede in Architekturen führen zu leicht anderen Ergebnissen
+        \item Beachtung des Rundungsmodus bei jeder Instruktion: zu langsam -> nur bei Konvertierung:
+              \begin{itemize}
+                  \item Veränderung des \textbf{MXCSR} Registers, oder
+                  \item Nuzung von \textbf{roundss}/\textbf{rounsd}
+              \end{itemize}
+        \item Nutzung von FMA3 Instruktionen erhöht die Genauigkeit
+    \end{itemize}
+\end{frame}
+\clearpage
+
+\begin{frame}
+    \frametitle{Rundungsprobleme}
+    \centering
+    \includegraphics[width=0.75\textwidth]{img/translated_diff.png}
+\end{frame}
+
+\clearpage
+
+\begin{frame}
+    \frametitle{Übersetzungprobleme bei der Gleitkommaarithmetik}
+    \begin{itemize}
+        \item Einige Instruktionen können nicht direkt auf x86\_64 abgebildet werden
+        \item Vorzeichenlose Ganzzahlkonvertierung: nur von AVX512 nativ unterstützt
+        \item Für \textbf{Sign Injection} und \textbf{Classify} gibt es gar keine Äquivalente
+        \item Diese Instruktion müssen mittels Bitarithmetik berechnet werden
+    \end{itemize}
+\end{frame}
+
 \clearpage
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
