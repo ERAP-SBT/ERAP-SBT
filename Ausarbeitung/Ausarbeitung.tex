@@ -1815,8 +1815,8 @@ On average any optimization improves the performance, however in some cases indi
 
 \par
 
-% TODO: explain why the merge_ops is causes high performance increases in some benchmarks and tiny slow downs in others.
-In benchmarks with many instructions following
+In benchmarks with many instructions following the load, modify, store pattern, the \texttt{Merging Operations} optimizations yields the biggest results,
+in some edge cases it can cause a minor slow down.
 
 \par
 
