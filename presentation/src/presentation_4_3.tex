@@ -220,6 +220,21 @@ block b1(/* inputs */) <= [/* predecessors */] {
 \end{frame}
 \clearpage
 
+%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Splitting %%
+%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}
+    \frametitle{Lifter Splitting}{Aufteilen eines Basic Blocks}
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item Situation: Sprung \textbf{in} einen bereits eingelesenen Basic Block
+        \item Aufteilung an Sprungadresse in zwei Basic Blöcke
+        \item Verbindung mit einem direkten Sprung
+        \item Komplexe Operation, da alle Referenzen auf den geteilten Block betrachtet werden müssen
+    \end{itemize}
+\end{frame}
+\clearpage
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Lifter Call / Return %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -234,60 +249,6 @@ block b1(/* inputs */) <= [/* predecessors */] {
         \item \texttt{JAL (x1 | x5), ..., ...} $\equiv$ \texttt{call}
         \item \texttt{JALR x0, x1, 0} $\equiv$ \texttt{ret}
         \item Laufzeitüberprüfung der Rücksprungziele durch Returnadressen-Stack
-    \end{itemize}
-\end{frame}
-\clearpage
-
-
-
-%%%%%%%%%%%%%%%%%%%%%%%
-%% Basic Block Folie %%
-%%%%%%%%%%%%%%%%%%%%%%%
-\begin{frame}[fragile]
-    \frametitle{Lifter Basic Blöcke}{}
-    \begin{columns}[c]
-        \column{0.35 \textwidth}
-        \begin{lstlisting}[language=c, escapechar=!]
-/* [...] */
-0x6: add a5, a5, a4
-0x8: !\colorbox{yellow}{bltu}! a5, a4, 10
-0xc: lw a5, 0(a4)
-0xe: sll a4, a5, a4
-/* [...] */
-        \end{lstlisting}
-        \column{0.1 \textwidth}
-        \begin{tikzpicture}[scale=0.5]
-            \TikZArrowX{TUMOrange}{0}{0}{3}{1}
-        \end{tikzpicture}
-        \column{0.50 \textwidth}
-        \begin{lstlisting}[language=SbtIr, escapechar=!]
-/* [...] */
-i64 v33 <- add v13, v14
-imm v34 <- immediate 0x10
-imm v35 <- immediate 0xc
-} => !\colorbox{yellow}{[/* cjump */]}!
-
-!\colorbox{yellow}{block b2(/**/)}! <= [/**/] {
-imm v33 <- immediate 0
-i32 v34 <- load v13, v33
-i64 v35 <- sll v13, v14
-/* [...] */
-        \end{lstlisting}
-    \end{columns}
-\end{frame}
-\clearpage
-
-%%%%%%%%%%%%%%%%%%%%%%
-%% Lifter Splitting %%
-%%%%%%%%%%%%%%%%%%%%%%
-\begin{frame}
-    \frametitle{Lifter Splitting}{Aufteilen eines Basic Blocks}
-    \begin{itemize}
-        \setlength{\itemsep}{1em}
-        \item Situation: Sprung \textbf{in} einen bereits eingelesenen Basic Block
-        \item Aufteilung an Sprungadresse in zwei Basic Blöcke
-        \item Verbindung mit einem direkten Sprung
-        \item Komplexe Operation, da alle Referenzen auf den geteilten Block betrachtet werden müssen
     \end{itemize}
 \end{frame}
 \clearpage
@@ -795,6 +756,43 @@ block b2(inputs) <= [predecessors] { // loop
     \end{lstlisting}
     \end{columns}
 
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%
+%% Basic Block Folie %%
+%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}[fragile]
+    \frametitle{Lifter Basic Blöcke}{}
+    \begin{columns}[c]
+        \column{0.35 \textwidth}
+        \begin{lstlisting}[language=c, escapechar=!]
+/* [...] */
+0x6: add a5, a5, a4
+0x8: !\colorbox{yellow}{bltu}! a5, a4, 10
+0xc: lw a5, 0(a4)
+0xe: sll a4, a5, a4
+/* [...] */
+        \end{lstlisting}
+        \column{0.1 \textwidth}
+        \begin{tikzpicture}[scale=0.5]
+            \TikZArrowX{TUMOrange}{0}{0}{3}{1}
+        \end{tikzpicture}
+        \column{0.50 \textwidth}
+        \begin{lstlisting}[language=SbtIr, escapechar=!]
+/* [...] */
+i64 v33 <- add v13, v14
+imm v34 <- immediate 0x10
+imm v35 <- immediate 0xc
+} => !\colorbox{yellow}{[/* cjump */]}!
+
+!\colorbox{yellow}{block b2(/**/)}! <= [/**/] {
+imm v33 <- immediate 0
+i32 v34 <- load v13, v33
+i64 v35 <- sll v13, v14
+/* [...] */
+        \end{lstlisting}
+    \end{columns}
 \end{frame}
 \clearpage
 

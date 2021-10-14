@@ -1292,7 +1292,7 @@ compared their strengths and weaknesses:
           lifted instructions section of the original binary. This could be part of the problem of the
           assembler AS requiring a lot of memory for assembling the output assembly.
 
-    \item To reduce this size overhead, we implemented a method for creating a nearly perfect hash table with a
+    \item To reduce this size overhead, we implemented a method for creating a perfect hash table with a
           process called ``Hash, displace, and compress''\cite{CHD}. The process consist of a two-stage hash
           function which first sorts the items into buckets and later generates a hash function for each
           bucket. The hashed values are stored in one common hash table. The calculation starts with a load
