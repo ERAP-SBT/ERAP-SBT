@@ -160,7 +160,17 @@
 }
 
 \setbeamertemplate{frametitle}{%
-    {\rule{0pt}{42mm + \PraesentationPositionKorrekturOben}\PraesentationSchriftgroesseSehrGross\selectfont\insertframetitle\newline\vspace*{10mm}}%
+    {%
+        \rule{0pt}{42mm + \PraesentationPositionKorrekturOben}%
+        \PraesentationSchriftgroesseSehrGross\selectfont\insertframetitle\strut\par%
+        {%
+          \ifx\insertframesubtitle\empty%
+          \else%
+          {\PraesentationSchriftgroesseGross\selectfont\insertframesubtitle\newline\strut\par}%
+          \fi%
+        }%
+        %\vspace*{10mm}%
+    }%
 }
 
 % Aufzählungen:
