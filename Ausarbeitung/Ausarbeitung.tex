@@ -448,8 +448,8 @@ the IR to replicate the original program's behavior.
     0xb8:       sll a1, a1, a2
                 [...]
         \end{lstlisting}
-\caption{RISC-V assembly sequence used as an example for the lifter. Decrements \texttt{a0} by one
-in a loop until it is equal to zero,
+        \caption{RISC-V assembly sequence used as an example for the lifter. Decrements \texttt{a0} by one
+            in a loop until it is equal to zero,
             then shifts \texttt{a1} to the left by the amount stored in \texttt{a2}.}\label{fig:lifting_example_riscv}
         \vspace{1em}
     \end{subfigure}
@@ -1165,7 +1165,7 @@ They afterwards jump to the register-allocated block.
 
 A problem with these blocks is that they need to be generated for a lot of basic blocks and take up
 a lot of space in the finished binary.\footnote{This required space was more than 30\% of the
-\.text section, in some extreme cases.}
+    \.text section, in some extreme cases.}
 They are also rarely used, since most indirect jumps will target the entry basic block of detected
 functions.
 The solution is to only generate translation blocks for targets of function returns. This way, the binary size can be
@@ -1177,12 +1177,12 @@ instructions than RISC-V or our IR. As such, multiple operations in the IR can b
 into single x86-Instructions if the intermediate results of them are not required later.
 Mergeable sequences include:
 \begin{itemize}
-\item \texttt{add}, (\texttt{cast}), \texttt{store}: Can be merged to a single store instruction with the
-\texttt{add} embedded in the memory operand and the \texttt{cast} expressed as the store width.
+    \item \texttt{add}, (\texttt{cast}), \texttt{store}: Can be merged to a single store instruction with the
+          \texttt{add} embedded in the memory operand and the \texttt{cast} expressed as the store width.
     \item \texttt{add}, \texttt{load}, \texttt{sign-} / \texttt{zero-extend}: Can be merged into a
-    single \texttt{movsx} / \texttt{movzx} instruction with the \texttt{add} embedded in the memory operand
-\item \texttt{and} with 0x1f / 0x3f, (\texttt{cast}), \texttt{shr} / \texttt{shl} / \texttt{sar}:
-    Can be merged into a single shift instruction since they mask the count operand themselves
+          single \texttt{movsx} / \texttt{movzx} instruction with the \texttt{add} embedded in the memory operand
+    \item \texttt{and} with 0x1f / 0x3f, (\texttt{cast}), \texttt{shr} / \texttt{shl} / \texttt{sar}:
+          Can be merged into a single shift instruction since they mask the count operand themselves
 \end{itemize}
 % Merging these operations not only reduces the binary size, since fewer instructions need to be encoded, but also increases performance significantly.
 % TODO: test the performance diff for merging ops
@@ -1387,150 +1387,161 @@ return targets.
 \par
 
 The interpreter fully emulates \texttt{rv64imacfd} and therefore supports the same standard
-extensions as the translator. If a command flag is supplied to the translator, no
-basic blocks will be translated and all code will be interpreted. This was used to verify the
-correctness of the interpreter using the benchmark tests. But as explained this method is rather
-slow and therefore is not desirable to use as translate binaries.
+extensions as the translator. The translator can be instructed to translated no basic blocks, so
+that all code is interpreted. This can be used to verify the
+correctness of the interpreter using the benchmark tests. This method however is, as explained
+before, rather slow and is therefore not suitable for interpreting entire binaries.
 
 \par
 
 The interpreter theoretically supports the execution of RISC-V JIT compilers. Using the interpreter
-alone, self-modifying code should also be able to be executed. But such programs were not tested and
+alone, self-modifying code should also be able to be executed. Such programs were not tested though and
 therefore this is only a theoretical feature.
 
 \par
 
-At runtime the CPUID~\cite{intel2017man} is checked for support of the FMA3 CPU extension. If it is
-present the interpreter uses it for faster floating point enulation, otherwise the fused multiply
-add instructions are assembled using separate multiplication and addition respectively subtraction
+At runtime, the CPUID~\cite{intel2017man} is checked for support of the \textit{FMA3} CPU extension.
+The interpreter uses it, if it is
+present, for faster floating point enulation. Otherwise, the fused multiply
+add instructions are assembled using separate multiplication and addition or subtraction
 instructions.
 
 \par
 
-\section{Floating Point Handling and Problems}\label{sec:floating_point}
+\section{Floating Point Support}\label{sec:floating_point}
 
-Floating point arithmetic is special as it is affected by rounding and therefore depend on the
+Floating point arithmetic is special as it is affected by rounding and therefore depends on the
 implementation of the architecture. We decided to use the x86\_64 SSE instructions if possible and
-else assemble them because a bitwise correct implementation is slower. Due to rounding effects the
-result may not be equal to the RISC-V implementation.
+otherwise emulate them, because a bitwise correct implementation is even slower. Due to rounding, the
+results of the translated floating point operations may not be the same as if they were run using a
+RISC-V architecture.
 
 \subsection{Lifting and Generating}
 
 % TODO: Move footnote content into normal text?
-To support the \texttt{F} and \texttt{D}\footnote{The Q standard extension is not supported due to simplicity and lack of usage.}
-standard extensions, the mapping as well as the amount of statics have to be extended to include the
+To support the \texttt{F} and \texttt{D}\footnote{The Q standard extension is not supported due to
+    its complexity and lack of usage.}
+standard extensions, the mapping as well as the amount of registered statics has to be extended to include the
 floating point registers and the floating point control and status register (fcsr). To lift the
-RISC-V floating point instructions, some operations are reused, e.g. \emph{add}, \emph{sub}, and some floating
-point specific are defined, e.g. \emph{fmul}, \emph{fsqrt}. The floating point variables have the
+RISC-V floating point instructions, some instructions are reused, e.g. \emph{add}, \emph{sub}, and some floating
+point specific instructions are defined, e.g. \emph{fmul}, \emph{fsqrt}. The floating point variables have the
 types \emph{f32} and \emph{f64} which represents single and double precision numbers, respectively.
 
 \par
 
 The code generator (Section~\ref{sec:generator}) uses the x86\_64 floating point instructions
-provided by the \texttt{Streaming SIMD Extensions} (SSE) and \texttt{Streaming SIMD Extensions 2}
-(SSE2) which operates on the \texttt{xmm} registers. As SSE2 is part of x86\_64 it can be assuemd
-that SSE2 instructions are usable. But the usage of other x86\_64 extensions like SSE4 or
-\texttt{Fused Multiply Add 3} (FMA3) have to be allowed using a optimize command line flag.
+provided by the \textit{Streaming SIMD Extensions} (SSE) and \textit{Streaming SIMD Extensions 2}
+(SSE2) which operate on the \texttt{xmm} registers. As SSE2 is part of x86\_64, it can be assumed
+that SSE2 instructions are usable. However, the usage of other x86\_64 extensions like SSE4 or
+\texttt{Fused Multiply Add 3} (FMA3) in the translated binary has to be enabled using a command line
+flag for the translator.
 
 \par
 
-Due to performance reasons the occurring x86\_64 floating point exceptions are not transferred to
-the variable representing the \emph{fcsr} which contain the floating points exceptions on RISC-V
+For performance reasons, the occurring x86\_64 floating point exceptions are not transferred to
+the register / variable representing the \emph{fcsr}. This register contains the floating points exceptions on RISC-V
 processors. It is too slow to check after each operation which exceptions were raised and then set
-the according flags. A read from the fcsr value can possibly be redirected to a read from the MXCSR
-regsiter, but this would also take an implementation and performance overhead. However it is not a problem
-because only very few programs depends on floating point exceptions.
+the according flags. A read from the \emph{fcsr} value can be redirected to a read from the \textit{MXCSR}
+register, but this would also take an implementation and performance overhead. However, this does
+not result in a big problem, because only very few programs depend on floating point exceptions.
 
 \par
 
-The floating point support can be deactivated using a command line flag in order to prevent the
-lifter from adding the additional statics and to lift RISC-V floating point instructions. The
-advantage is a decrease in used memory because less static variables have to be stored. The lifter
-then ignores all floating point instructions instead of throwing an error because the ELF parser
-cannot distinguish between instructions and constants as emphasized in Section
-\ref{sec:program_decoding}. So it is avoided to throw an error if a constant can be decoded as an
-instructions.
+The floating point support can be deactivated using a command line flag for the translator in order to prevent the
+lifter from adding the additional statics. The
+advantage is a decreased memory usage, because less static variables have to be stored. The lifter
+then ignores all floating point instructions instead of throwing an error. This is required,
+because the ELF parser and instruction decoder is not able to distinguish instructions from other
+program data, as emphasized in Section~\ref{sec:program_decoding}. Data being wrongly decoded as a
+floating point instruction does not cause the translation to abort.
 
 \subsection{Rounding and Accuracy Problems}
 
 A known problem when dealing with different floating point implementations is that especially
-rounding effects will lead to slightly different results. As we want to use the SSE2 floating point
+rounding effects will lead to slightly different results. As we want to use the \textit{SSE2} floating point
 instructions to provide an acceptable performance, some compromises have to be made.
 
 \par
 
-Firstly, for each RISC-V floating point instruction a rounding mode can be specified which is used
-if the number cannot be expressed in the given number format. But as x86\_64 does not support such a
-feature, it is quite hard to implement this in a fast way, because the results are already rounded
+Firstly, for each RISC-V floating point instruction a rounding mode can be specified, which is used
+if the number cannot be expressed in the given number format. Because x86\_64 does not support such a
+feature, it is quite hard to implement this in a fast way. With x86\_64 floats, the results are already rounded
 and therefore it is not possible to round the result of each operation afterwards.
 
 \par
 
-Also a bitwise correct implementation as provided by the dynamic translator \texttt{QEMU-user} is
-challenging to implement and comparatively slow. So, we decided to ignore the rounding mode at lifting
-every instruction except conversions between integers and floating points as well as between single
-and double precision floating points. We made this exception as it makes a great difference when
-rounding to integers. For example, the difference rounding \emph{25,5} towards positive infinity or
-towards negative infinity, resulting in \emph{26} respectively \emph{25}, makes a huge difference.
-Also the the later on used benchmarks (Section~\ref{sec:evaluation}) require to respect the rounding mode of
+Furthermore, a bitwise correct implementation, as provided by the dynamic translator
+\texttt{QEMU-user}, is
+challenging to implement and comparatively slow. We decided to ignore the rounding mode during lifting
+instructions. This does not apply to conversions between integers and floating point numbers as well as between single
+and double precision floating point numbers. We made this exception because it makes a great difference when
+rounding to full integer numbers. For example, the difference in rounding \emph{25,5} towards positive infinity or
+towards negative infinity, resulting in \emph{26} respectively \emph{25}, makes a noticeable difference.
+Furthermore, the used benchmarks (Section~\ref{sec:evaluation}) require the translator to respect the rounding mode of
 conversion instructions.
 
 \par
 
-There are two ways of implementing this specific rounding.
+There are two ways of implementing this per-instruction specific rounding.
 
 \begin{enumerate}
     \item The first one is to use the \texttt{roundss} instruction (respectively \texttt{roundsd}
-          for double precision) and the according rounding mode as immediate input. But these
-          instructions are part of SSE4 which is not implemented in every today used x86\_64-based
-          CPU ~\cite{intel2017man}. Therefore the usage of SSE4 instructions must be allowed for this method.
+          for double precision) and the selected rounding mode as an immediate input. However, these
+          instructions are part of \textit{SSE4} which is not supported by all currently used, x86\_64-based
+          CPUs~\cite{intel2017man}. Therefore the usage of \textit{SSE4} instructions must be explicitly enabled for
+          this method.
 
-    \item The alternative way is to change the rounding mode in the \emph{MXCSR} register. The
-          x86\_64 convert instructions then round accordingly. But the disadvantage of this method
-          is that the only way to access the MXCSR register is using \texttt{STMXCSR} and
-          \texttt{LDMXCSR} instructions which only operates on memory operands and therefore is
-          slower as the first method. Additionally this method uses more instructions in our
-          implementation.~\cite{intel2017man}
+    \item The alternative is to change the rounding mode using the \emph{MXCSR} register. The
+          x86\_64 \emph{convert} instructions round according to the state of this register. 
+          The disadvantage of this method is that the only way to access the MXCSR register 
+          is using \texttt{STMXCSR} and \texttt{LDMXCSR} instructions which only operate on
+          memory operands. This makes this method slower than the first method. Additionally,
+          this method uses more instructions to change the rounding mode in our implementation.~\cite{intel2017man}
 \end{enumerate}
 
 \par
 
 
-A second problem is that there can be differences in rouding when assembling some instructions. For
+A second problem is that there can be differences in rounding when assembling some instructions. For
 example, the fused multiply add instructions can be translated using the x86\_64 FMA3 instructions.
-But as this extension isn't supported by every x86\_64 CPU, it needs to be allowed. The alternative
-way is to assemble the instruction using multiplication and addition respectively
-subtraction~\footnote{For some fused mutliply adds, negating a floating point value is also
-    needed.}. This can result in a different result due to rouding errors.
+However, as this extension is not supported by every x86\_64 CPU, it needs to be enabled explicitly. The alternative
+is to emulate the instruction using multiplication and addition or subtraction~\footnote{For some
+fused multiply adds, negating a floating point value is also required.}. This can result in a
+different result due to rounding errors.
 
 
 \subsection{Implementation Problems and Solutions}
 
-Some RISC-V instructions does not have an x86\_64 equivalent, especially unsigned conversions, sign
-injection and floating point classify. This instructions are handled by sequences of x86\_64
-operations.
+Some RISC-V instructions do not have an x86\_64 equivalent, especially unsigned conversions, sign
+injection and the floating point classification instruction \texttt{FCLASS}. These instructions
+are emulated using sequences of x86\_64 operations.
+
 
 \par
 
-The conversion from and to unsigned integers are implemented using the signed version. But the
-result are corrected using some arithmetic. The conversions to unsigned integers are handled by
-setting the result to zero if the input floating point is signed as specified by the RISC-V
-manual~\cite{rvspec} using bit arithmetic. The other way around is solved by using the 64-bit
-conversion for 32-bit inputs and for 64-bit inputs by handling according to the sign. If the value is
-signed, the result of the signed conversion instruction needs to be adjusted by using bit arithmetic
-as also used by gcc.
+The x86\_64 ISA does not define an unsigned conversion instruction. Although the \textit{Advanced
+Vector Extensions 512} (AVX512) provide such instructions, they are relatively new and implemented
+only in a few CPUs. Therefore, the translator does not provide an optimization flag for using these
+instructions. 
 
 \par
 
-We considered using the x86\_64 unsigned conversion instructions provided by the \texttt{Advanced
-    Vector Extensions 512} (AVX512), but as AVX512 is relatively new and implemented in only few CPUs we
-decided to do not provide an optimization flag for using this instructions.
+The RISC-V unsigned conversion instruction's behavior is emulated using a combination of the
+signed x86\_64 conversion instructions and logical operations for correcting the results.
+
+For unsigned integer to floating point number conversion, the corrections are applied based
+on the signed representation of the unsigned integers. 32-bit wide integer values can always be zero
+extended to 64-bits, which leads to their signed representation to be non-negative. If the signed
+representation is greater than, or equal, to zero, the signed conversion can be applied directly. 
+Otherwise, the input and output values of the signed conversion
+instruction need to be adjusted. This is done using bit arithmetic, which is also used by \textit{gcc}.
 
 \par
-
-The sign injection and floating point classify instruction are implemented by using bit arithmetic
-to manipulate the sign bit and to check in which category\footnote{For example, sNaN, qNaN, negative
-    infinity, negative normal number, etc.} the floating point value fits, respectively.
+The sign injection instruction is emulated by arithmetically manipulating the sign bit of the
+floating point numbers. The floating point classify instructions categorize the input floating point
+number. Possible categories include sNaN, qNaN, negative infinity, negative normal number, and more.
+The x86\_64 architecture does not feature a similar instruction, therefore the classification is
+done using custom bit arithmetic.
 
 \section{Evaluation}\label{sec:evaluation}
 
