@@ -1450,16 +1450,26 @@ to manipulate the sign bit and to check in which category\footnote{For example, 
 
 \section{Evaluation}\label{sec:evaluation}
 
-In this chapter we asses if we reached our goals.
-To measure the performance we use the SPECspeed\textregistered 2017 Integer~\cite{spec_cpu_2017} benchmark.
-We compare the results to QEMU, a popular dynamic binary translator supporting many different Architectures.
+To measure the performance we used the SPEC CPU\textregistered 2017~\cite{spec_cpu_2017} benchmark package.
+Because we did not optimize floating point operations we only ran the Integer and not the Floating Point suite.
+However the Integer suite includes tests that not only cover integer instructions, but also many floating point operations, allowing us to verify our implementation.
+
+\par
+
+The integer suite covers many actual use cases, including compilers, video compression, artificial intelligence and others, allowing us to stress
+test the performance under conditions similiar to a real situation.
+
+\par
+
+We compared the results to QEMU, a popular dynamic binary translator supporting many different architectures.
 And also to RIA-JIT~\cite{ria_jit_repo}, another dynamic binary translator that only supports RISC-V to x86\_64 translation, but claims to be faster than QEMU in their paper~\cite{ria_jit_paper}.
 
-The effectiveness and drawbacks of the implemented optimizations are also shown.
+\par
 
-\subsection{SPEC CPU 2017}
+The effectiveness and drawbacks of the implemented optimizations were also measured.
+% TODO: add thingy about fp accuracy, if we move more things here we need to rewrite this.
 
-\subsection{Setup}
+\subsection{Benchmark Setup}
 
 All benchmarks where performaned on the \texttt{time-x} server provided by the Chair of Computer Architecture and Parallel Systems.~\footnote{\url{https://www.in.tum.de/caps/hw/caps-cloud/}} % FIXME: better citation
 The Server has a \texttt{AMD Ryzen Threadripper PRO 3955WX 16-Cores} CPU and \texttt{32GB} memory.
