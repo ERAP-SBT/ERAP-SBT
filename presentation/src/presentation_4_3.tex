@@ -396,6 +396,7 @@ switch(instr.mnem) {
     \note[item]{Simple Codegen optimiert wenig, dient Debugging/Development-Zwecken}
     \note[item]{Advanced Codegen allocated Register für die Operationsergebnisse, optional Merging von Operationen}
     \note[item]{Register Allocation versucht viel genutzte Werte in Registern zu halten und bei CfOps Werte in ihren momentanen Positionen zu halten}
+    \note[item]{Register Allocation muss Translation Blöcke generieren!!!}
     %\note[item]{Originales ELF-Programm als binäres Speicherbild an exakter Adresse eingebunden}
 
     \begin{itemize}
@@ -427,6 +428,36 @@ lea rbx, [rax + 10]
 mov [rsp], rax
 add rax, 10
     \end{lstlisting}
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%
+%% IJump hashing %%
+%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{IJump Lookup}{Datenstruktur für effizienten Zugriff auf Basic Block Startadressen}
+    \vspace{1cm}
+    \begin{columns}[t]
+        \column{0.55 \textwidth}
+        \textbf{Lookup Table}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Speichere für jede mögliche Jump-Addresse die korrespondierende Basic Block Startadresse
+            \item Wenn diese nicht existiert, füge stattdessen 0 ein
+            \item Liste dieser Wert baut Adressraum der originalen Binary nach
+        \end{itemize}
+        \column{0.45 \textwidth}
+        \textbf{Hashing}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Ordne Startadressen in Hashtabelle ein
+            \item Zweistufiges Hashing durch Einsortieren in Buckets
+            \item Langsamer als Lookup Table, aber besserer Platzverbrauch
+        \end{itemize}
+    \end{columns}
 \end{frame}
 \clearpage
 
@@ -609,63 +640,6 @@ ld \
 \end{frame}
 
 \appendix
-
-%%%%%%%%%%%%%%%%%%%
-%% IJump hashing %%
-%%%%%%%%%%%%%%%%%%%
-
-\begin{frame}
-    \frametitle{Basic Block Startadressen}{Datenstruktur für effizienten Zugriff auf Basic Block Startadressen}
-    \vspace{1cm}
-    \begin{columns}[t]
-        \column{0.55 \textwidth}
-        \textbf{Naive Implementierung}
-        \begin{itemize}
-            \vspace{1em}
-            \setlength{\itemsep}{1em}
-            \item Speichere für jede RISC-V Instruktion die korrespondierende Basic Block Startadresse
-            \item Wenn diese nicht existiert, füge stattdessen 0 ein
-            \item Liste dieser Wert baut Adressraum der originalen Binary nach
-        \end{itemize}
-        \column{0.45 \textwidth}
-        \textbf{Fast perfektes Hashing}
-        \begin{itemize}
-            \vspace{1em}
-            \setlength{\itemsep}{1em}
-            \item Ordne Startadressen in Hashtabelle ein
-            \item Zweistufiges hashing durch Einsortieren in Buckets
-            \item ``Hash, Displace, and Compress''-Verfahren gepaart mit der SpookyHash Funktion
-        \end{itemize}
-    \end{columns}
-\end{frame}
-\clearpage
-
-\begin{frame}
-    \frametitle{Basic Block Startadressen}{Vorteile und Nachteile}
-    \vspace{1cm}
-    \begin{columns}[t]
-        \column{0.55 \textwidth}
-        \textbf{Naive Implementierung}
-        \begin{itemize}
-            \vspace{1em}
-            \setlength{\itemsep}{1em}
-            \item Zugriffszeit in $O(1)$
-            \item Adresszugriff benötigt \textbf{eine} Ladeoperation
-            \item Benötigt genau so viel Speicher wie der geliftete Teil der originalen Binary
-        \end{itemize}
-        \column{0.45 \textwidth}
-        \textbf{Fast perfektes Hashing}
-        \begin{itemize}
-            \vspace{1em}
-            \setlength{\itemsep}{1em}
-            \item Zugriffszeit in $O(1)$
-            \item Runtime Overhead: Hashtabellenindex muss zur Laufzeit berechnet werden
-            \item Benötigter Speicherplatz in $O(n)$ mit $n = \text{Anzahl der Startadressen}$
-        \end{itemize}
-    \end{columns}
-\end{frame}
-\clearpage
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %% Generator-Translate %%
