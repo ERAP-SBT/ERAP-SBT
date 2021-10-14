@@ -940,37 +940,44 @@ block b1(i64 v0, i64 v1) <= [/* predecessors */] {
 \end{figure}
 
 \section{Code Generator}\label{sec:generator}
-The code generator is used to assemble all basic blocks which means assembling all variables with their associated operations,
-preparing the inputs for the next basic block and creating the control flow operations for each block.
+The code generator is used to assemble all basic blocks, which means assembling all variables with their associated operations,
+preparing the inputs for the next basic block, and creating the control flow operations for each block.
 Additionally, it needs to provide for a runtime environment.
-This runtime environment consists of the original binary so that relevant data for execution (e.g. the .data section) is still accessible
-as well as a stack which is used as a replacement for the original stack.
+This runtime environment consists of the original binary so that relevant data for execution (e.g. the .data section) is still accessible.
+A stack which is used as a replacement for the original stack is also part of the generated runtime environment.
 This is required because the x86\_64-Stack is reserved for storing temporary variables when assembling a basic block and return addresses for the Call-Return-Optimization.
-Furthermore, a resolver for ijumps along with an interpreter which acts as a fallback if an indirect jump to an address at which no basic block starts is encountered
-and architecture-specific functions like a routine to create an initial stack as required by the original binariy's system convention as well as a routine to translate syscalls.
-The architecture-independent parts are emitted by the generator in the assembly with the rest being part of the Helper Library which is linked against the generated assembly.
+% Furthermore, a resolver for indirect jumps is included. An interpreter which acts as a fallback if
+% an indirect jump to an address at which no basic block starts is encountered is also available at runtime.
+% Architecture-specific functions like a routine to create an initial stack as required by the
+% original binariy's system convention as well as a routine to translate syscalls are included.
+% The architecture-independent parts are emitted by the generator in the assembly with the rest being part of the Helper Library which is linked against the generated assembly.
 
 \par
 
-When generating assembly for the basic blocks a user can choose between a simple approach that generates simpler less optimized assembly
-and a more sophisticated approach that generates better optimized assembly.
+When generating assembly for the basic blocks, a user can choose between a simple approach that generates unoptimized assembly
+and a more sophisticated approach that generates optimized assembly.
+
 \subsection{Simple Code Generation}\label{naive_generator}
+
 The simple implementation is meant to ease debugging
 and to better evaluate gains from
 optimizations in the IR as it very closely recreates the IR operations.
-As it generates unoptimized assembly it should not be used normally.
+As it generates unoptimized assembly, it should only be used for development purposes.
 
 \par
 
 The simple code generator creates assembly for each basic block independently.
-For each one it creates a stack frame which holds space for every variable in the basic block, iterates all operations and
-retrieves its sources  --- either from a static or from the stack frame  ---, applies the operation, and then saves the results in the stack frame again.
-At the end of a block it iterates all control flow operations, evaluates their condition if necessary, writes out the inputs for the next basic block
+It creates stack frames which hold space for every variable in the basic block. It iterates all
+basic block operations and
+retrieves its sources, either from a static or from the stack frame. The generator applies the
+operation and saves the results back in the stack frame.
+At the end of a block, it iterates over all control flow operations and evaluates their condition if
+necessary. It then writes out the inputs for the next basic block 
 from the stack frame and either calls a helper routine or directly jumps to the next block.
 
 \par
 
-To show an example of the code the naive generator produces the IR shown in Figure~\ref{fig:example_ir} is used.
+To show an example of the code produced by the naive code generator the IR shown in Figure~\ref{fig:example_ir} is used.
 This simple IR which decrements a counter until it is 0 produces the assembly shown in Figure~\ref{fig:naive_gen_asm}.
 \begin{figure}
     \centering
@@ -982,7 +989,7 @@ block b1(i64 v0) <= [/* predecessors */] {
     imm v3 <- immediate 0
 } => [(cjump, [b2, v2], v2, v3, eq), (jump, [b1, v2])]
 \end{lstlisting}
-    \caption{Example-IR used to show the difference between the simple code generator and register allocation.}\label{fig:example_ir}
+    \caption{Example IR used to show the difference between the simple code generator and the register allocator.}\label{fig:example_ir}
 \end{figure}
 
 \begin{figure}[h]
@@ -1012,59 +1019,76 @@ b1_cf_1:
     add rsp, 32
     jmp b1
 \end{lstlisting}
-    \caption{Assembly produced by simple generator from Figure \ref{fig:example_ir}.}\label{fig:naive_gen_asm}
+    \caption{Assembly produced by the simple code generator from Figure~\ref{fig:example_ir}.}\label{fig:naive_gen_asm}
 \end{figure}
 
 \subsection{Advanced Code Generation}
-To achieve good performance and code density though a more sophisticated approach to generating assembly from the IR needs to be employed.
+To achieve good performance and code density, a more sophisticated approach to generating assembly from the IR needs to be employed.
 This is done by using register allocation to keep variables often used in registers and on the stack without spilling them into the statics when transferring control follow
 to the next basic block. Additionally we merge certain operation sequences in the IR into single x86\_64-Instructions to achieve better code density and performance.
 
 \subsubsection{Register Allocation}\label{reg_alloc}
-To do so blocks which closely represent functions of the original binary are grouped and compiled together the register and stack state (so the location of variables) is maintained between blocks.
-As such we keep often used vars in registers and prevent spilling of variables to statics at the end of each basic block.
-The achieve this we first mark all blocks which are targets of call instructions, then iterate over
-all basic blocks, check if they are either the target of a call instruction or have no known predecessors
-and start the register allocation for the group of this block.
-This will then compile the starting block while allocating registers and stack slots for the
-variables, evaluate the control flow changing operations and check whether the target of such an instruction is part of the current group
-(which in essence just means that it is not a call-target) and if so create an input mapping for the target which specify where each input variable is located or, when the block has already been compiled,
-emit a sequence of instructions which move the variables to the position at which the target block expects them.
+Basic blocks which closely represent functions of the original binary are grouped and compiled
+together. The register and stack state (so the location of variables) is maintained between blocks.
+As such, often used variables are kept in registers to prevent spilling of variables to statics at the end of each basic block.
+The achieve this, all blocks which are targets of a call control flow changing operation must first
+be marked. The register allocator then iterates over
+all basic blocks, checks if they are either the target of a call operation or have no known predecessors.
+It then starts allocating registers for the detected group of each basic block.
+\par
+
+The allocator compiles the starting block by allocating registers and stack slots for the
+variables. It evaluates the control flow changing operations and checks whether the target of such an operation is part of the current group.
+This basically means that it is not a target of a call operation. If the target is part of the
+current group, it creates an input mapping for the target which specifies where each input variable
+is located. However if the block has already been compiled,
+the allocator emits a sequence of instructions which move the variables to the position at which the target block expects them.
 After this, the handling of the current block is finished and if any of the targets of the block's
-control flow changing operations are part of the current group they are recursively compiled as well.
+control flow changing operations are part of the current group they are recursively compiled too.
 
 \par
 
-The process of generating instructions for the basic block itself is also relatively simple. First,
-a rough (because control flow changing operations might need reshuffling, see later) estimate of the time-of-uses of
-each variable is created,
-after which each operation in the basic block is then iterated, the inputs for it are loaded into registers if they are located in a static or on the stack frame and a destination register is chosen.
-If possible a seperate destination register than the input registers is used if the inputs are still needed later. Otherwise one of the input registers is simply overwritten.
-When choosing a register to place a variable into, registers without a variable in them or registers
-with variables which are not used anymore are preferred. If all registers contain variables which
-are still needed
-the variable which is the farthest away from being used again (so the time of next use is the greatest) is chosen to be evicted to the stack.
-A possible improvement here could be to create a preference for a register for each variable if it is needed at a fixed location (e.g.\ it is used as an input for an already compiled basic block)
-and take it into account when choosing a register to place a variable into. Though because of
-time-constraints we did not have time to implement this.
+The process of generating instructions for the basic block itself is also relatively straight forward. First,
+a rough estimate of the time-of-uses of
+each variable is created. This is required because control flow changing operations might need
+reshuffling.
+Afterwards, each operation in the basic block is then iterated over and its inputs are loaded into
+registers if they are located in a static or on the stack frame. A destination register is
+chosen too.
+If possible, a destination register other than the input registers is used if the inputs are still required later. Otherwise, one of the input registers is overwritten.
+When choosing a register, empty or disused registers are preferred. In case all registers contain variables which
+are still needed,
+the variable which is the farthest away from being used again is chosen to be evicted to the stack.
+This is evaluated using the stored time of next use.
 
 \par
-As an example of how this works we assume that only rax and rbx are available for allocation and that an add with the variable located in rax and 10 is compiled.
-It is also assumed that the variable in rax is needed later in the same block again.
-When rbx contains no variable that is needed anymore the following code is compiled:
+
+A possible improvement here is to create a preference for a register for each variable if it is
+required at a fixed location. This could be the case if it is used as an input for an already compiled basic block.
+This preference could then be taken into account when choosing a new register for storing a variable.
+
+\par
+
+As an example of how this works, we assume that only \texttt{rax} and \texttt{rbx} are available for allocation in the
+following example. We also assume that an \texttt{add} of a variable located in \texttt{rax} and an
+immediate 10 is compiled.
+It is also assumed that the variable in rax is accessed later in the same block again.
+If \texttt{rbx} contains no variable which is needed anymore the following code is compiled:
 \begin{lstlisting}[language={[x86masm]Assembler},float=h]
 lea rbx, [rax + 10] ; rbx is chosen as the destination since it is empty
 \end{lstlisting}
 \FloatBarrier
 
-When rbx contains a variable and it is used in the operation following the add, rax is chosen as the destination as it is used after rbx:
+If \texttt{rbx} contains a variable and it is used in the operation following the \texttt{add},
+\texttt{rax} is chosen as the destination, because it is used after rbx:
 \begin{lstlisting}[language={[x86masm]Assembler},float=h]
 mov [rsp], rax      ; rax is saved to the stack frame to be retrievable later on
 add rax, 10         ; then overwrite it
 \end{lstlisting}
 \FloatBarrier
 
-When rbx contains a variable but it is only used after the variable contained in rax it is instead chosen as the destination:
+If \texttt{rbx} contains a variable but it is only used after the variable contained in
+\texttt{rax}, it is instead chosen as the destination:
 \begin{lstlisting}[language={[x86masm]Assembler},float=h]
 mov [rsp], rbx      ; rbx is saved to the stack frame to be retrievable later on
 lea rbx, [rax + 10] ; then overwrite it
