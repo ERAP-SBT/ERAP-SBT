@@ -50,95 +50,7 @@
 
 \PraesentationTitelseite % Fügt die Startseite ein
 
-
-% draws an arrow from (#2,#3) to (#2+#4,#3) with height of #5 (arrow in x direction)
-% color (and other arguments, like visible on), startX, startY, length (X dir), height (Y dir)
-\newcommand{\TikZArrowX}[5]{
-    \filldraw[#1] (#2,#3) -- (#2,#3+#5*2/3) -- (#2+#4/2,#3+#5*2/3) -- (#2+#4/2,#3+#5) -- (#2+#4,#3) -- (#2+#4/2,#3-#5) -- (#2+#4/2,#3-#5*2/3) -- (#2,#3-#5*2/3) -- (#2,#3);
-    \draw[#1, black] (#2,#3) -- (#2,#3+#5*2/3) -- (#2+#4/2,#3+#5*2/3) -- (#2+#4/2,#3+#5) -- (#2+#4,#3) -- (#2+#4/2,#3-#5) -- (#2+#4/2,#3-#5*2/3) -- (#2,#3-#5*2/3) -- (#2,#3);
-}
-
-% draws an arrow from #2,#3) to (#2,#3+#5) with height of #4 (arrow in y direction)
-% color (and other arguments, like visible on), startX, startY, length (X dir), height (Y dir), color
-\newcommand{\TikZArrowY}[5]{
-    \filldraw[#1] (#2,#3) -- (#2+#4*2/3,#3) -- (#2+#4*2/3,#3+#5/2) -- (#2+#4,#3+#5/2) -- (#2,#3+#5) -- (#2-#4,#3+#5/2) -- (#2-#4*2/3,#3+#5/2) -- (#2-#4*2/3,#3) -- (#2,#3);
-    \draw[#1, black] (#2,#3) -- (#2+#4*2/3,#3) -- (#2+#4*2/3,#3+#5/2) -- (#2+#4,#3+#5/2) -- (#2,#3+#5) -- (#2-#4,#3+#5/2) -- (#2-#4*2/3,#3+#5/2) -- (#2-#4*2/3,#3) -- (#2,#3);
-}
-
-% draws one entry of the color legend for the program scheme
-% color, text, posX, posY (left, top coordinate)
-\newcommand{\colorLegendEntry}[4]{
-    \filldraw[#1] (#3,#4) rectangle (#3+1,#4+1);
-    \draw[black] (#3,#4) rectangle (#3+1,#4+1);
-    \node at (#3+0.5,#4+0.4) (color_legend_entry_point) {};
-    \node[right=2mm of color_legend_entry_point] (color_legend_entry_text) {#2};
-}
-
-% draws a color legend for the program scheme
-% posX, posY (left, top coordinate)
-\newcommand{\colorLegend}[2] {
-    \colorLegendEntry{TUMOrange}{Static Translator Parts}{#1}{#2}
-    \colorLegendEntry{TUMBlauDunkel}{Intermediate Representation (IR)}{#1}{#2-1.5}
-    \colorLegendEntry{purple}{Maschine Code / ELF File}{#1}{#2-3}
-}
-
-% draws the schematic presentation of the program
-% scale, fontSize
-\newcommand{\ProgramSchemeVersionOne}[2]{
-    \begin{center}
-        \begin{tikzpicture}[very thick, scale=#1]
-            % draw color legend
-            \colorLegend{-2}{-6}
-
-            % riscv elf file rectangle
-            % background
-            \filldraw[purple] (-2,-2) rectangle (2,2);
-            % black border
-            \draw[black] (-2,-2) rectangle (2,2);
-            % label
-            \node[align=center, color=white] at (0,0) (riscv_text) {\fontsize{#2}{#2} \selectfont RISC-V};
-
-            % lifter arrow
-            \TikZArrowX{TUMOrange}{2}{0}{6}{1.5}
-            % arrow label
-            \node[align=center, color=white] at (4.5,0) (lifter_text) {\fontsize{#2}{#2} \selectfont Lifter};
-
-            % ir (unoptimized) rectangle
-            % background
-            \filldraw[TUMBlauDunkel] (8,-2) rectangle (12,2);
-            % black border
-            \draw[black] (8,-2) rectangle (12,2);
-            % label
-            \node[align=center, color=white] at (10,0) (ir_text_1) {\fontsize{#2}{#2} \selectfont IR};
-
-            % optimizer arrow
-            \TikZArrowX{TUMOrange}{12}{0}{6}{1.5}
-            % arrow label
-            \node[align=center, color=white] at (14.5,0) (optimizer_text) {\fontsize{#2}{#2} \selectfont Optimizer};
-
-            % ir (optimized) rectangle
-            % background
-            \filldraw[TUMBlauDunkel] (18,-2) rectangle (22,2);
-            % black border
-            \draw[black] (18,-2) rectangle (22, 2);
-            % label
-            \node[align=center, color=white] at (20,0) (ir_text_2) {\fontsize{#2}{#2} \selectfont IR};
-
-            % compiler arrow
-            \TikZArrowX{TUMOrange}{22}{0}{6}{1.5}
-            % arrow label
-            \node[align=center, color=white] at (24.5,0) (generator_text) {\fontsize{#2}{#2} \selectfont Generator};
-
-            % x86_64 rectangle
-            %background
-            \filldraw[purple] (28,-2) rectangle (32,2);
-            % black border
-            \draw[black] (28,-2) rectangle (32,2);
-            % label
-            \node[align=center, color=white] at (30,0) (x86_64_text) {\fontsize{#2}{#2} \selectfont x86\_64};
-        \end{tikzpicture}
-    \end{center}
-}
+\input{commands.tex}
 
 %%%%%%%%%%%%
 %% Inhalt %%
@@ -168,10 +80,8 @@
     \note[item]{Optimierung auf der IR: aktuell noch Identitätsbbildung}
     \note[item]{Compiler compiliert zu Assemlby Code und dieser wird zu einer ausführbaren Datei assembliert}
 
-    %alignment to have some space between headline an the schematic
-    ~\\
-    ~\\
-    \ProgramSchemeVersionOne{0.6}{18}
+    \centering
+    \ProgramScheme{0.55}{12}
 \end{frame}
 
 %%%%%%%%%%%%%%%%%%%%%
