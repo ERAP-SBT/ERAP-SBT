@@ -24,9 +24,9 @@
 % draws a color legend for the program scheme
 % posX, posY (left, top coordinate)
 \newcommand{\colorLegend}[2] {
-    \colorLegendEntry{black!30!orange}{Static translator parts}{#1}{#2}
-    \colorLegendEntry{blue}{Intermediate representation (IR)}{#1}{#2-1.5}
-    \colorLegendEntry{purple}{Machine code / ELF file}{#1+20}{#2}
+    \colorLegendEntry{black!30!orange}{Übersetzer-Komponenten}{#1}{#2}
+    \colorLegendEntry{blue}{Zwischenrepräsentation (IR)}{#1}{#2-1.5}
+    \colorLegendEntry{purple}{Nativer Code / ELF-Datei}{#1+20}{#2}
 }
 
 % draws the schematic presentation of the program
@@ -37,60 +37,60 @@
         \colorLegend{-1}{-6}
 
         % translator rectangle
-        \draw[black, thick] (2.5,4) rectangle (27.5, -4);
-        \node[align=center, color=black] at (15, 3) (translator_text) {\fontsize{#2}{#2} \selectfont Translator};
+        %\draw[black, thick] (2.5,4) rectangle (27.5, -4);
+        %\node[align=center, color=black] at (15, 3) (translator_text) {\fontsize{#2}{#2} \selectfont Translator};
 
         % riscv elf file rectangle
         \draw[black, fill=purple] (-2,-2) rectangle (2,2);
         % label
-        \node[align=center, color=white] at (0,0) (riscv_text) {\fontsize{#2}{#2} \selectfont RISC-V \\ \fontsize{#2}{#2} \selectfont Binary};
+        \node[align=center, color=white] at (-0.1,0) (riscv_text) {\fontsize{14}{14} \selectfont RISC-V \\ \fontsize{14}{14} \selectfont Binary};
 
         % lifter arrow
         \TikZArrowX{black!30!orange}{2}{0}{6}{1.5}
         % arrow label
-        \node[align=center, color=white] at (4.5,0) (lifter_text) {\fontsize{#2}{#2} \selectfont Lifter};
+        \node[align=center, color=white] at (4.5,0) (lifter_text) {\fontsize{15}{15}\selectfont Lifter};
 
         % ir (unoptimized) rectangle
         \draw[black, fill=blue] (8,-2) rectangle (12,2);
         % label
-        \node[align=center, color=white] at (10,0) (ir_text_1) {\fontsize{#2}{#2} \selectfont IR};
+        \node[align=center, color=white] at (9.9,0) (ir_text_1) {\fontsize{17}{17} \selectfont IR};
 
         % optimizer arrow
         \TikZArrowX{black!30!orange}{12}{0}{6}{1.5}
         % arrow label
-        \node[align=center, color=white] at (14.5,0) (optimizer_text) {\fontsize{#2}{#2} \selectfont Optimizer};
+        \node[align=center, color=white] at (14.5,0) (optimizer_text) {\fontsize{15}{15} \selectfont Optimizer};
 
         % ir (optimized) rectangle
         \draw[black, fill=blue] (18,-2) rectangle (22, 2);
         % label
-        \node[align=center, color=white] at (20,0) (ir_text_2) {\fontsize{#2}{#2} \selectfont IR};
+        \node[align=center, color=white] at (19.9,0) (ir_text_2) {\fontsize{17}{17} \selectfont IR};
 
         % compiler arrow
         \TikZArrowX{black!30!orange}{22}{0}{6}{1.5}
         % arrow label
-        \node[align=center, color=white] at (24.5,0) (generator_text) {\fontsize{#2}{#2} \selectfont Generator};
+        \node[align=center, color=white] at (24.5,0) (generator_text) {\fontsize{15}{15} \selectfont Generator};
 
         % x86_64 rectangle
         \draw[black, fill=purple] (28.5,-2) rectangle (32.5,2);
         % label
-        \node[align=center, color=white] at (30.5,0) (x86_64_text) {\fontsize{#2}{#2} \selectfont Trans- \\ \fontsize{#2}{#2} \selectfont lated \\ \fontsize{#2}{#2} \selectfont Binary};
+        \node[align=center, color=white] at (30.4,0) (x86_64_text) {\fontsize{14}{14} \selectfont x86\_64 \\ \fontsize{14}{14} \selectfont Binary};
 
         % helper rectangle
         \draw[black, fill=purple] (28.5, 9) rectangle (32.5, 5);
         % helper label
-        \node[align=center, color=white] at (30.5, 7) (helper_text) {\fontsize{#2}{#2} \selectfont Helper \\ \fontsize{#2}{#2} \selectfont Library};
+        \node[align=center, color=white] at (30.4, 7) (helper_text) {\fontsize{14}{14} \selectfont Hilfs- \\ \fontsize{13}{13} \selectfont bibliothek};
 
         % connection between x86_64 and helper library
-        \draw[black, -{Stealth[scale=3]}] (30, 2) -- (30, 5);
-        \draw[black, {Stealth[scale=3]}-] (31, 2) -- (31, 5);
+        \draw[black, -{Stealth[scale=4]}] (30.5, 2) -- (30.5, 5);
+        \draw[black, {Stealth[scale=4]}-] (30.5, 2) -- (30.5, 5);
 
         % result binary rectangle
-        \draw[black, thick] (28, 12) rectangle (33, -4);
+        \draw[black, thick] (28, 12) rectangle (33, -3);
         % result binary label
-        \node[align=center, color=black] at (30.5, 10.5) (result_binary_text) {\fontsize{#2}{#2} \selectfont Result \\ \fontsize{#2}{#2} \selectfont Binary};
+        \node[align=center, color=black] at (30.5, 10.5) (result_binary_text) {\fontsize{#2}{#2} \selectfont Ausgabe- \\ \fontsize{#2}{#2} \selectfont Binary};
         
         % memory image arrow + label
         \draw[black, -{Stealth[scale=3]}] (0, 2) -- (0, 7) -- (28, 7);
-        \node[align=center, color=black] at (15, 8) {\fontsize{#2}{#2} \selectfont Memory Image};
+        \node[align=center, color=black] at (15, 8) {\fontsize{14}{14} \selectfont Speicherabbild};
     \end{tikzpicture}
 }
