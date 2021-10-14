@@ -1509,7 +1509,7 @@ A second problem is that there can be differences in rounding when assembling so
 example, the fused multiply add instructions can be translated using the x86\_64 FMA3 instructions.
 However, as this extension is not supported by every x86\_64 CPU, it needs to be enabled explicitly. The alternative
 is to emulate the instruction using multiplication and addition or subtraction~\footnote{For some
-fused multiply adds, negating a floating point value is also required.}. This can result in a
+    fused multiply adds, negating a floating point value is also required.}. This can result in a
 different result due to rounding errors.
 
 
@@ -1523,7 +1523,7 @@ are emulated using sequences of x86\_64 operations.
 \par
 
 The x86\_64 ISA does not define an unsigned conversion instruction. Although the \textit{Advanced
-Vector Extensions 512} (AVX512) provide such instructions, they are relatively new and implemented
+    Vector Extensions 512} (AVX512) provide such instructions, they are relatively new and implemented
 only in a few CPUs. Therefore, the translator does not provide an optimization flag for using these
 instructions.
 
@@ -1539,9 +1539,10 @@ signed representation of the unsigned integers. 32-bit wide integer values can a
 extended to 64-bits, which leads to their signed representation to be non-negative. If the signed
 representation is greater than, or equal, to zero, the 64-bit signed conversion can be applied
 directly. Otherwise, the input and output values of the signed conversion instruction need to be
-adjusted. This is done using bit arithmetic, which is also used by \textit{gcc}. The RiSC-V
-conversion to unsigned integers is emulated by converting to a signed integer. If the input floating
-point value is negative, the result is set to zero as specified by the RISC-V manual~\cite{rvspec}.
+adjusted. This is done using bit arithmetic, which is also used by \textit{gcc}. The RISC-V
+floating point conversion to unsigned integers is emulated by converting to a signed integer. If the input floating
+point value is negative, the result is set to zero, as specified by the RISC-V manual~\cite{rvspec}.
+
 
 \par
 The sign injection instruction is emulated by arithmetically manipulating the sign bit of the
@@ -1620,6 +1621,15 @@ As a result, they cover a wide range of operations, including many different sys
 floating point and string operations.
 Other benchmark tests cover compilation and compression.
 All together, the tests cover many real use cases. Any binary passing the benchmarks' testsuites can be assumed to be correct in almost all cases.
+
+\par
+
+Furthermore, the code base was tested for implementation and regression faults using unit tests and
+integration testing. The unit tests were written using the test framework \textit{Google Test}.
+Additional integration tests were applied, for example a test where the translator translates a
+simple zip utility tool once with full optimizations and once with only the interpreter enabled. The
+resulting translated zip tools are used to compress and decompress sample files. The output of each
+operation is then compared to the output of a natively compiled version of the same zip utility.
 
 \par
 
@@ -1775,8 +1785,8 @@ in pratice this could mean worse performance.
             \end{axis}
         \end{tikzpicture}
         \caption{
-%            SPEC CPU 2017 Results Compared to SBT executed with all optimizations except \texttt{no\_trans\_bbs} enabled.
-%            RIA-JIT encountered a floating point error in the benchmark 625.x264, so this single benchmark was repeated with a toolchain using \texttt{--with-arch=rv64iamc --with-abi=lp64}.
+            %            SPEC CPU 2017 Results Compared to SBT executed with all optimizations except \texttt{no\_trans\_bbs} enabled.
+            %            RIA-JIT encountered a floating point error in the benchmark 625.x264, so this single benchmark was repeated with a toolchain using \texttt{--with-arch=rv64iamc --with-abi=lp64}.
         }\label{benchmark_results2}
     \end{centering}
 \end{figure}
@@ -1879,17 +1889,43 @@ than the emulated version was.
 
 \section{Summary}
 
-As shown in the evaluation, we reached our goal to be faster than QEMU by round about 18\%. In order
-to increase the execution speed even more optimizations and more sophisticated code generation
-techniques can be implemeted. Due to the limited time in this project, we currently didn't
-implementated such features. Additionally the expandability to support more standard extension when
-they are released is preserved, e.g. the \texttt{Bit Manipulation} standard extension.
+The static binary translation program (SBT) developed in this project statically translates binaries
+compiled for the RISC-V ISA to x86\_64 binaries. It is able to translate every benchmark
+from the SPECSpeed\textregistered2017 integer benchmark suite. It fully supports the \textit{RV64I},
+\textit{RV32I} RISC-V base integer modules. It also supports the \textit{Zifencei}, \textit{Zicsr},
+\textit{M}, \textit{F}, \textit{D}, \textit{A} and \textit{C} standard extension for single threaded
+execution.
 
 \par
 
-In the future support for dynamically linekd binaries can be added, but therefore some parts of the
-implementation will have to be changed. Another possible improvement would be to support more source
-or target ISAs, which would lead into even more profound modifications of the implementation.
+The SBT is written in a modular manner to support repurposing parts of the project for e.g.
+translating other source or target ISAs. It consists of a RISC-V lifter, an abstract intermediate
+representation and an x86\_64 code generator. The translator additionally supplies a runtime
+environment for translated binaries. This is used for translating OS-specific features and
+performing a fallback just-in-time interpretation of the original RISC-V code.
+
+\par
+
+As shown in the evaluation section, the SBT reached its goal to be consistently faster than QEMU. It is able to outperform
+the dynamic binary translator in every executed benchmark. The SBT is, on average, approximately
+18\% faster than QEMU. The SBT was also compared to a dynamic binary translator specifically
+optimized for translating RISC-V binaries. The static translator
+was able to outperform the dynamic translator by XX\% on average over all executed benchmarks.
+
+\par
+
+In order to increase the execution speed even further,
+more optimizations to the translated binary are possible. Some of them have
+already been introduced in previous chapters. Such features are not yet implemented due to the
+limited time span of this project.
+
+\par
+
+Further improvements of the translator include instruction reordering beyond basic block borders,
+support for dynamically linked binaries and support for more RISC-V ISA extensions. Another milestone project would
+be to utilize the modularity of the project and reuse the IR and either the RISC-V lifter or the
+x86\_64 code generator to introduce support for different source or target ISAs.
+
 
 \clearpage
 
