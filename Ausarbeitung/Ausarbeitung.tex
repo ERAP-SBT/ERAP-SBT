@@ -1549,65 +1549,80 @@ done using custom bit arithmetic.
 \section{Evaluation}\label{sec:evaluation}
 
 To measure the performance we used the SPEC CPU\textregistered 2017~\cite{spec_cpu_2017} benchmark package.
-Because we did not optimize floating point operations we only ran the Integer and not the Floating Point suite.
-However the Integer suite includes tests that not only cover integer instructions, but also many floating point operations, allowing us to verify our implementation.
+We only ran the integer and not the floating point suite, because we did not optimize floating point operations. 
+However, the iInteger suite includes tests that not only cover integer instructions, 
+but also many floating point operations, allowing us to verify our implementation.
 
 \par
 
-The integer suite covers many actual use cases, including compilers, video compression, artificial intelligence and others, allowing us to stress
-test the performance under conditions similiar to a real situation.
+The integer benchmark suite covers many actual use cases, including compilers, 
+video compression, artificial intelligence and others. This allows us to stress
+test the performance under conditions similar to a real production environment.
 
 \par
 
-We compared the results to QEMU, a popular dynamic binary translator supporting many different architectures.
-And also to RIA-JIT~\cite{ria_jit_repo}, another dynamic binary translator that only supports RISC-V to x86\_64 translation, but claims to be faster than QEMU in their paper~\cite{ria_jit_paper}.
+The benchmark results were compared to the results using QEMU, a popular dynamic 
+binary translator which supports many different architectures.
+They are also compared to RIA-JIT~\cite{ria_jit_repo}, another dynamic binary translator that only
+supports RISC-V to x86\_64 translation. This translator also claims to be faster 
+than QEMU in its project description paper~\cite{ria_jit_paper}.
 
 \par
 
-The effectiveness and drawbacks of the implemented optimizations were also measured, with special attention ot the effects on floating point operation accuracy.
+The effectiveness and drawbacks of the implemented optimizations were also measured, 
+with special attention to the effects of floating point operation accuracy.
 
 \subsection{Benchmark Setup}
 
-All benchmarks where performaned on the \texttt{time-x} server provided by the Chair of Computer Architecture and Parallel Systems.~\footnote{\url{https://www.in.tum.de/caps/hw/caps-cloud/}} % FIXME: better citation
-The Server has a \texttt{AMD Ryzen Threadripper PRO 3955WX 16-Cores} CPU and \texttt{32GB} memory.
-It is running \texttt{Ubuntu 20.04.2 LTS} with kernel release \texttt{5.10.0-1044-oem} and version \texttt{\#46-Ubuntu SMP Wed Aug 11 09:50:57 UTC 2021}.
+All benchmarks where performaned on the \texttt{time-x} server provided by the 
+Chair of Computer Architecture and Parallel Systems.~\footnote{\url{https://www.in.tum.de/caps/hw/caps-cloud/}} % FIXME: better citation
+The Server has a \texttt{AMD Ryzen Threadripper PRO 3955WX 16-Cores} CPU and \texttt{32 GB} memory.
+It is running \texttt{Ubuntu 20.04.2 LTS} with kernel release \texttt{5.10.0-1044-oem}
+and version \texttt{\#46-Ubuntu SMP Wed Aug 11 09:50:57 UTC 2021}.
 % TODO: mention vulnerability mitigations ? (lscpu)
-The benchmarks where executed on a \texttt{nfs} filesystem.
+The benchmarks where executed on an \texttt{NFS} filesystem.
 
-For native benchmarks the GNU Compiler provided by the operating system was used,
-version \texttt{9.3.0 (Ubuntu 9.3.0-17ubuntu1~20.04)}, and glibc version \texttt{2.31-0ubuntu9.2}.
-For RISC-V benchmarks the gnu toolchain provided by the RISC-V foundation is used, version 2021.09.21~\footnote{Repository \url{https://github.com/riscv-collab/riscv-gnu-toolchain}, Commit hash b39e36160aa0649ba0dfb9aa314d375900d610fb},
+For native benchmarks the GNU Compiler provided by the operating system was used. It had the gcc
+version \texttt{9.3.0 (Ubuntu 9.3.0-17ubuntu1~20.04)} with glibc version \texttt{2.31-0ubuntu9.2}.
+For RISC-V benchmarks, the gnu toolchain provided by the RISC-V foundation was used, 
+version 2021.09.21~\footnote{Repository \url{https://github.com/riscv-collab/riscv-gnu-toolchain}, Commit hash b39e36160aa0649ba0dfb9aa314d375900d610fb},
 it was configured with \texttt{--with-arch=rv64imafdc --with-abi=lp64d}.
 
 \par
 
-Our own translator was build from the latest master~\footnote{Commit hash 3c341ea7298555b7c34572bd355ca4765d7650df} at the time in release mode.
+Our own translator (SBT) was build from the latest master~\footnote{Commit hash 3c341ea7298555b7c34572bd355ca4765d7650df} at the time in release mode.
 The QEMU version used was \texttt{1:4.2-3ubuntu6.17}.
-For ria-jit a modified version by Alexis Engelke was used, adding support for RV64C over the original implementation.
+For RIA-JIT, a modified version by Alexis Engelke was used, adding support for RV64C over the original implementation.
 It was further modified to fix a bug with compressed instructions and to implement an additional system call required by the benchmarks.
 ~\footnote{Commit hash cff2c15e4b646dca8d839f4a5ee9c3ec89231ac6}
 
 \par
 
-Due to lack of development tools on the benchmark system, the toolchain, ria and sbt where compiled on another host in a container similiar to \texttt{time-x} and uploaded. % FIXME: remove because not useful ?
+Due to lack of development tools on the benchmark system, the toolchain, 
+RIA-JIT and SBT were compiled on another host in a container similar to \texttt{time-x} and uploaded. % FIXME: remove because not useful ?
 Version 1.1.0 of the SPEC CPU\textregistered2017 benchmarks was used.
-The example configuration of the benchmark suite was modified to make it compatible with the newer gcc version used, OpenMP support was disabled and all test binaries where statically linked.
-All benchmarks where run with 2 iterations and the slower result was selected.
-For our static binary translation only the execution speed of the resulting binary and not the translator was measured.
+The example configuration of the benchmark suite was modified to make 
+it compatible with the newer \texttt{gcc} version used, \texttt{OpenMP} support was disabled and all test binaries were statically linked.
+All benchmarks were run with 2 iterations and the slower result was selected.
+For our static binary translation, only the execution speed of the resulting binary and not the
+translation time was measured.
 
 \subsection{Correctness}
 
-To verify that our translator produces correct binaries we used the testsuites of the SPEC CPU 2017 benchmarks.
-Especially the tests for the \texttt{600.perlbench} benchmark are ideal for this purpose, as they they test the perl interpreter and some popular perl packages.
-As a result they cover a wide range of operations, including many different system calls, floating point and string operations.
+To verify that our translator produces correct binaries, we used the testsuites of the SPEC CPU 2017 benchmarks.
+Especially the tests for the \texttt{600.perlbench} benchmark are ideal for this purpose, 
+as they they test the perl interpreter and some popular perl packages.
+As a result, they cover a wide range of operations, including many different system calls, 
+floating point and string operations.
 Other benchmark tests cover compilation and compression.
-All together the tests cover many real use cases, any binary passing can be assumed to be correct in almost all cases.
+All together, the tests cover many real use cases. Any binary passing the benchmarks' testsuites can be assumed to be correct in almost all cases.
 
 \par
 
-Using this methology we tested that the interpreter was implemented correctly.
+Using this methodology, we tested the interpreter for correctness.
 The translator also passes all tests when compiled without floating point support.
-However with floating point support additional optimizations~\footnote{\texttt{fma3} and \texttt{sse4} need to be enabled.} need to be enabled to achieve correct floating point results.
+However, with floating point support, additional optimizations~\footnote{\texttt{fma3} 
+and \texttt{sse4} need to be enabled.} need to be enabled to achieve correct floating point results.
 % TODO: either say they need fixing or that this is due to wrong rounding (backref to floating chapter)
 
 \subsection{Comparison to QEMU and RIA-JIT}
@@ -1651,31 +1666,39 @@ However with floating point support additional optimizations~\footnote{\texttt{f
 
                 \legend{
                     native,
-                    qemu,
-                    ria,
-                    sbt}
+                    QEMU,
+                    RIA-JIT,
+                    SBT}
             \end{axis}
         \end{tikzpicture}
         \caption{
-            SPECSpeed\textregistered2017 Integer benchmark suite results compared. SBT was executed with all optimizations except the removal of translation blocks.
-            RIA-JIT encountered a floating point error in the benchmark 625.x264, so this single benchmark was repeated with a toolchain using \texttt{--with-arch=rv64iamc --with-abi=lp64}.
+            SPECSpeed\textregistered2017 integer benchmark suite results compared.
+            SBT was executed with all optimizations except the removal of translation blocks.
+            RIA-JIT encountered a floating point error in the benchmark 625.x264, so this 
+            single benchmark was repeated with a toolchain using \texttt{--with-arch=rv64iamc --with-abi=lp64}.
         }\label{benchmark_results1}
     \end{centering}
 \end{figure}
 
 
-We used the SPECSpeed\textregistered2017 Integer benchmark suite to compare the performance of our SBT, QEMU and RIA-JIT.
-Because the individual benchmarks total execution time varies widely, all results are normalised to a native benchmark, this clearly shows the overhead caused by the binary translation and can be used to compare SBT, QEMU and RIA-JIT.
-Our own translator was run with all optimizations, except the removal of \emph{Translation Blocks}, as it proofed to be highly detrimental for execution speed, this will be further discussed in section. % TODO: forward reference.
+We used the SPECSpeed\textregistered2017 Integer benchmark suite to compare 
+the performance of our SBT, QEMU and RIA-JIT. Because the individual benchmarks 
+total execution time varies widely, all results are normalised to a native 
+benchmark. This clearly shows the overhead caused by the binary translation 
+and can be used to compare SBT, QEMU and RIA-JIT.
+Our own translator (SBT) was run with all optimizations, except the removal of 
+\emph{Translation Blocks}, as it proofed to be highly detrimental for execution speed.
+This will be further discussed in Section~\ref{sec:translation_blocks}. % TODO: forward reference.
 QEMU and RIA-JIT where run without any additional configuration.
 
 \par
 
 In Figure \ref{benchmark_results1} the results are visualised.
 % 1. compare to QEMU
-It can be seen that we consistently outperform QEMU in every benchmark.
+It can be seen that we consistently outperformed QEMU in every benchmark.
 % - Show the best case, and the worst case
-On average SBT is 18\% faster than QEMU, in some cases, namely \emph{658.xz}, the difference is very small, but in others it can be as much as XX\% when comparing the XX benchmark.
+On average SBT was 18\% faster than QEMU, in some cases, namely \emph{658.xz}, the difference was
+very small, but in others it was as much as XX\% when comparing the XX benchmark.
 
 % 2. compare to RIA-JIT
 % mixed results, sometimes faster, sometimes slower
@@ -1736,7 +1759,7 @@ On average SBT is 18\% faster than QEMU, in some cases, namely \emph{658.xz}, th
                 \addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{reg_alloc_plus_lifter}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
 
                 \legend{
-                    sbt,
+                    SBT,
                     base,
                     %base + ir,
                     base + gen,
@@ -1812,7 +1835,7 @@ likely with a lower average number of elements per bucket. This leads to the con
 smaller buckets sizes can improve bucket-level hash function generation times while not noticeably
 increasing the output assembly size.
 
-\subsection{Performance of Translation Blocks}
+\subsection{Performance of Translation Blocks}\label{sec:translation_blocks}
 
 \subsection{Floatingpoint accuracy}
 
@@ -1823,7 +1846,7 @@ increasing the output assembly size.
         comparing the translator to RISC-V emulated by QEMU.}\label{fig:mandelbrot_diff_translator}
 \end{figure}
 
-To depict these rounding differences we use a simple mandelbrot set
+To depict these rounding differences, we use a simple mandelbrot set
 visualizer~\cite{mandelbrot_program}. The results provided in a textual form are transformed into a
 picture coloring the mandelbrot set in a light grey, differences between the implementations with
 red and the remainder in a dark grey. Figure~\ref{fig:mandelbrot_diff_translator} shows that the
@@ -1839,12 +1862,12 @@ QEMU. Tests also showed that the native x86\_64 compiled version leads to the sa
         comparing the translator with all optimizations (especially FMA3) to RISC-V.}\label{fig:mandelbrot_diff_fma3}
 \end{figure}
 
-Another problem can be observed when activating the usage of FMA3 and therefore allows the
-translation of RISC-V fused multiply add instruction to x86\_64 equivalents rather than assembling
+Another problem can be observed when activating the usage of \textit{FMA3}. It allows the
+translation of RISC-V fused multiply add instruction to x86\_64 equivalents rather than emulating
 it. This again has an impact on the accuracy, because the intermediate result in fused multiply add
-instructions is not rounded~\cite{intel2017man}. But as shown by
-Figure~\ref{fig:mandelbrot_diff_fma3} this causes the result to be more similar to the RISC-V result
-than the assembled version.
+instructions is not rounded~\cite{intel2017man}. As shown by
+Figure~\ref{fig:mandelbrot_diff_fma3}, this causes the result to be more similar to the RISC-V result
+than the emulated version was.
 
 \section{Summary}
 
