@@ -1717,14 +1717,14 @@ On average SBT is 18\% faster than QEMU, in some cases, namely \emph{658.xz}, th
                 \addplot[fill=red] table[x=benchmark, y expr=\thisrow{sbt1}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 \addplot[fill=orange] table[x=benchmark, y expr=\thisrow{reg_alloc}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 %\addplot[fill=yellow] table[x=benchmark, y expr=\thisrow{reg_alloc_plus_ir}    /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                %\addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{reg_alloc_plus_gen}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=pink]    table[x=benchmark, y expr=\thisrow{reg_alloc_plus_gen}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 \addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{reg_alloc_plus_lifter}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
 
                 \legend{
                     sbt,
                     base,
                     %base + ir,
-                    %base + gen,
+                    base + gen,
                     base + lifter}
             \end{axis}
         \end{tikzpicture}
