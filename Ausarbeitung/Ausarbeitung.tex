@@ -1833,6 +1833,18 @@ than the assembled version.
 
 \section{Summary}
 
+As shown in the evaluation, we reached our goal to be faster than QEMU by round about 18\%. In order
+to increase the execution speed even more optimizations and more sophisticated code generation
+techniques can be implemeted. Due to the limited time in this project, we currently didn't
+implementated such features. Additionally the expandability to support more standard extension when
+they are released is preserved, e.g. the \texttt{Bit Manipulation} standard extension.
+
+\par
+
+In the future support for dynamically linekd binaries can be added, but therefore some parts of the
+implementation will have to be changed. Another possible improvement would be to support more source
+or target ISAs, which would lead into even more profound modifications of the implementation.
+
 \clearpage
 
 \bibliographystyle{plain}
