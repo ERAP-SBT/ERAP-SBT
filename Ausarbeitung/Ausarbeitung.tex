@@ -1793,6 +1793,21 @@ from ~3.2x to ~2.5x native speed, while RIA-JIT has become slightly slower.
 
 \subsection{Performance of Translation Blocks}\label{sec:translation_blocks}
 
+The translation blocks introduced in Section \ref{translation_blocks} are responsible for a large part of the resulting binary.
+To save space in the translated executable we added an option to remove them.
+
+\par
+
+The removal of these blocks also means that any indirect jump that can't be resolved needs to enter the interpreter, which is inherintly slow.
+The performance impact is made worse due to the lack of points where the interpreter can jump back to compiled code.
+Especially the function heavy benchmark perlbench was affected by this.
+
+\par
+
+Because of the large impact on performance we ran our benchmarks with translation blocks available.
+In the future this could be mitigated by detecting more indirect jump targets and keeping translation blocks in
+these cases.
+
 \subsection{Basic Block Start Address Hashing}
 
 \begin{figure}
