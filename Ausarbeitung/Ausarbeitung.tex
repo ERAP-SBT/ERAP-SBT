@@ -1636,7 +1636,7 @@ operation is then compared to the output of a natively compiled version of the s
 Using this methodology, we tested the interpreter for correctness.
 The translator also passes all tests when compiled without floating point support.
 However, with floating point support, additional optimizations~\footnote{\texttt{fma3}
-and \texttt{sse4} need to be enabled.} need to be enabled to achieve correct floating point results.
+    and \texttt{sse4} need to be enabled.} need to be enabled to achieve correct floating point results.
 % TODO: either say they need fixing or that this is due to wrong rounding (backref to floating chapter)
 
 \subsection{Comparison to QEMU and RIA-JIT}
@@ -1919,31 +1919,26 @@ binary result. It is an optimization which the user can manually enable using a 
     \centering
     \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/translated_diff.png}
     \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
-        comparing the translator to RISC-V emulated by QEMU.}\label{fig:mandelbrot_diff_translator}
+        comparing the translator to RISC-V emulated by QEMU. light grey = mandelbrot set, red =
+        differences, dark grey = remainder}\label{fig:mandelbrot_diff_translator}
 \end{figure}
 
-To depict these rounding differences, we use a simple mandelbrot set
-visualizer~\cite{mandelbrot_program}. The results provided in a textual form are transformed into a
-picture coloring the mandelbrot set in a light grey, differences between the implementations with
-red and the remainder in a dark grey. Figure~\ref{fig:mandelbrot_diff_translator} shows that the
-translator without any optimizations produces different results than the RISC-V binary emulated with
-QEMU. Tests also showed that the native x86\_64 compiled version leads to the same picture.
+To depict the occuring rounding differences, a simple mandelbrot set
+visualizer~\cite{mandelbrot_program} is used. The results provided in a textual form are transformed
+into a picture. The mandelbrot set is colored in a light grey, the differences between the
+implementations in red and the remainder in a dark grey. Figure~\ref{fig:mandelbrot_diff_translator}
+shows that the translator without any optimizations produces different results than the RISC-V
+binary emulated with QEMU. The comparison of the emulated RISC-V program result and the picture
+calculated by the program nativley compiled on x86\_64 shows the same differences.
 
 \par
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/fma_diff.png}
-    \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
-        comparing the translator with all optimizations (especially FMA3) to RISC-V.}\label{fig:mandelbrot_diff_fma3}
-\end{figure}
 
 Another problem can be observed when activating the usage of \textit{FMA3}. It allows the
 translation of RISC-V fused multiply add instruction to x86\_64 equivalents rather than emulating
 it. This again has an impact on the accuracy, because the intermediate result in fused multiply add
-instructions is not rounded~\cite{intel2017man}. As shown by
-Figure~\ref{fig:mandelbrot_diff_fma3}, this causes the result to be more similar to the RISC-V result
-than the emulated version was.
+instructions is not rounded~\cite{intel2017man}. The mandelbrot test showed that the usage of
+\textit{FMA3} instructions causes the result to be more similar to the RISC-V result and therefore
+should be used if available.
 
 \section{Summary}
 
