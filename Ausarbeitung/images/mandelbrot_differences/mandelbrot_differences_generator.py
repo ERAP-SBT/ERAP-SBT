@@ -4,8 +4,8 @@ import sys
 
 x_color = (150, 150, 150)
 dot_color = (50, 50, 50)
-false_x_color = (255, 255, 0)
-false_dot_color = (255, 0, 0)
+false_x_color = (255, 0, 0)
+false_dot_color = (255, 255, 0)
 
 
 def process_input(input_file_name):
