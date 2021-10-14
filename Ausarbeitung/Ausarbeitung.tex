@@ -1585,7 +1585,7 @@ The Server has a \texttt{AMD Ryzen Threadripper PRO 3955WX 16-Cores} CPU and \te
 It is running \texttt{Ubuntu 20.04.2 LTS} with kernel release \texttt{5.10.0-1044-oem}
 and version \texttt{\#46-Ubuntu SMP Wed Aug 11 09:50:57 UTC 2021}.
 % TODO: mention vulnerability mitigation ? (lscpu)
-The benchmarks where executed on an \texttt{NFS} filesystem.
+The benchmarks where executed on the \texttt{NFS} filesystem.
 
 For native benchmarks the GNU Compiler provided by the operating system was used. It had the gcc
 version \texttt{9.3.0 (Ubuntu 9.3.0-17ubuntu1~20.04)} with glibc version \texttt{2.31-0ubuntu9.2}.
@@ -1686,14 +1686,14 @@ and \texttt{sse4} need to be enabled.} need to be enabled to achieve correct flo
             \end{axis}
         \end{tikzpicture}
         \caption{
-            SPECSpeed\textregistered2017 integer benchmark suite results compared.
-            SBT was executed with all optimizations except the removal of translation blocks.
+            SPECSpeed\textregistered2017 Integer benchmark suite results compared.
+            SBT was executed with all optimizations except the removal of translation blocks and the hash table.
             RIA-JIT encountered a floating point error in the benchmark 625.x264, so this
             single benchmark was repeated with a toolchain using \texttt{--with-arch=rv64iamc --with-abi=lp64}.
+            % TODO: redo benchmark for x264 for all targets with the softfp toolchain
         }\label{benchmark_results1}
     \end{centering}
 \end{figure}
-
 
 We used the SPECSpeed\textregistered2017 Integer benchmark suite to compare
 the performance of our SBT, QEMU and RIA-JIT. Because the individual benchmarks
@@ -1784,11 +1784,14 @@ from ~3.2x to ~2.5x native speed, while RIA-JIT has become slightly slower.
             \end{axis}
         \end{tikzpicture}
         \caption{
-            %            SPEC CPU 2017 Results Compared to SBT executed with all optimizations except \texttt{no\_trans\_bbs} enabled.
-            %            RIA-JIT encountered a floating point error in the benchmark 625.x264, so this single benchmark was repeated with a toolchain using \texttt{--with-arch=rv64iamc --with-abi=lp64}.
+            SPECSpeed\textregistered2017 Integer benchmark suite results of different optimization categories compared.
+            Base is the minimum set of optimizations requried to successfully pass benchmarks,
+            SBT the result of all optimizations except the removal of translation blocks.
         }\label{benchmark_results2}
     \end{centering}
 \end{figure}
+
+\subsection{Performance of Translation Blocks}\label{sec:translation_blocks}
 
 \subsection{Basic Block Start Address Hashing}
 
@@ -1852,7 +1855,12 @@ likely with a lower average number of elements per bucket. This leads to the con
 smaller buckets sizes can improve bucket-level hash function generation times while not noticeably
 increasing the output assembly size.
 
-\subsection{Performance of Translation Blocks}\label{sec:translation_blocks}
+\par
+
+However the benchmarks revealed, that the hash table could in some circumstances cause a significant
+performance loss.
+We choose to disable it for performance testing, but kept it for use cases that demand a smaller translated
+result.
 
 \subsection{Floating point accuracy}
 
