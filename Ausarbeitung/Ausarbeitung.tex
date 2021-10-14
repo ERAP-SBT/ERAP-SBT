@@ -1772,21 +1772,22 @@ from ~3.2x to ~2.5x native speed, while RIA-JIT has become slightly slower.
                 \addplot[fill=orange]  table[x=benchmark, y expr=\thisrow{reg_alloc_plus_gen}    / \thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 \addplot[fill=pink]    table[x=benchmark, y expr=\thisrow{reg_alloc_plus_lifter} / \thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
                 %\addplot[fill=purple] table[x=benchmark, y expr=\thisrow{hash_lookup}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                \addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{sbt1}                  / \thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                %\addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{sbt1}                  / \thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
 
                 \legend{
                     Base,
                     Base + IR,
                     Base + Generator,
                     Base + Lifter,
-                    SBT
+                    %SBT
                 }
             \end{axis}
         \end{tikzpicture}
         \caption{
             SPECSpeed\textregistered2017 Integer benchmark suite results of different optimization categories compared.
-            Base is the minimum set of optimizations requried to successfully pass benchmarks,
-            SBT the result of all optimizations except the removal of translation blocks.
+            Base is the minimum set of optimizations requried to successfully pass benchmarks.
+            % TODO: expand on what IR, Lifter, Generator means
+            %SBT the result of all optimizations except the removal of translation blocks.
         }\label{benchmark_results2}
     \end{centering}
 \end{figure}
