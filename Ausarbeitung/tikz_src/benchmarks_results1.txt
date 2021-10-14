@@ -19,3 +19,5 @@ benchmark         native   qemu    ria    master      test1    test2   test3   s
 641.leela         383      1087    828    0           983      929     0        827      1057    0                   0                      962
 648.exchange2     220      710     473    0           658      489     0        528      667     0                   0                      679
 657.xz            2158     3644    3685   0           3805     3345    0        3463     3884    0                   0                      3925
+# average is just the sum of all benchmarks, because we normalise to native this should have no effect
+average           5174     12733   0      0           0        0       0        10514    0       0                   0                      0

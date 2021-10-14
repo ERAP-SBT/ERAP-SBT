@@ -1642,16 +1642,43 @@ However with floating point support additional optimizations~\footnote{\texttt{f
             \end{axis}
         \end{tikzpicture}
         \caption{
-            SPEC CPU 2017 Results Compared to SBT executed with all optimizations except \texttt{no\_trans\_bbs} enabled.
+            SPECSpeed\textregistered2017 Integer benchmark suite results compared. SBT was executed with all optimizations except the removal of translation blocks.
             RIA-JIT encountered a floating point error in the benchmark 625.x264, so this single benchmark was repeated with a toolchain using \texttt{--with-arch=rv64iamc --with-abi=lp64}.
         }\label{benchmark_results1}
     \end{centering}
 \end{figure}
 
-We compared the benchmark results of native execution, QEMU, RIA-JIT and our translator with the SPECspeed 2017 Integer benchmark, the results are shown in Figure \ref{benchmark_results1}.
 
-Due to bugs in the ria-jit rv64fd implementation, namely the lack of dynamic rounding support % TODO: verify
-the xz benchmark did not complete successfully.
+We used the SPECSpeed\textregistered2017 Integer benchmark suite to compare the performance of our SBT, QEMU and RIA-JIT.
+Because the individual benchmarks total execution time varies widely, all results are normalised to a native benchmark, this clearly shows the overhead caused by the binary translation and can be used to compare SBT, QEMU and RIA-JIT.
+Our own translator was run with all optimizations, except the removal of \emph{Translation Blocks}, as it proofed to be highly detrimental for execution speed, this will be further discussed in section. % TODO: forward reference.
+QEMU and RIA-JIT where run without any additional configuration.
+
+\par
+
+In Figure \ref{benchmark_results1} the results are visualised.
+% 1. compare to QEMU
+It can be seen that we consistently outperform QEMU in every benchmark.
+% - Show the best case, and the worst case
+On average SBT is 18\% faster than QEMU, in some cases, namely \emph{658.xz}, the difference is very small, but in others it can be as much as XX\% when comparing the XX benchmark.
+
+% 2. compare to RIA-JIT
+% mixed results, sometimes faster, sometimes slower
+% => compare average
+
+\par
+
+% TODO: we need a hard break here to show that we go from presenting the results to interpretering their meaning.
+% - Compare our results to ria-jit paper results => QEMU got faster
+% - Point out that x264 is very slow compared to native
+% - on the other hand with omnetpp and xz we are better than 2x native
+% explain why binary translation does so exceptionally bad at x264 (video), maybe vectorisation, cross reference ria-jit paper ?
+% - Compare results to the results of the ria-jit paper => QEMU appears to be faster (relatively speaking)
+
+% 4-5 paragraphs
+% - Show results
+% - Success, we beat QEMU consistently, in some cases by a decent amount
+% In all cases is the translator faster than QEMU
 
 \subsection{Effectiveness of different Optimizations}
 
@@ -1702,9 +1729,9 @@ the xz benchmark did not complete successfully.
             \end{axis}
         \end{tikzpicture}
         \caption{
-            SPEC CPU 2017 Results Compared to SBT executed with all optimizations except \texttt{no\_trans\_bbs} enabled.
-            RIA-JIT encountered a floating point error in the benchmark 625.x264, so this single benchmark was repeated with a toolchain using \texttt{--with-arch=rv64iamc --with-abi=lp64}.
-        }\label{benchmark_results1}
+%            SPEC CPU 2017 Results Compared to SBT executed with all optimizations except \texttt{no\_trans\_bbs} enabled.
+%            RIA-JIT encountered a floating point error in the benchmark 625.x264, so this single benchmark was repeated with a toolchain using \texttt{--with-arch=rv64iamc --with-abi=lp64}.
+        }\label{benchmark_results2}
     \end{centering}
 \end{figure}
 
