@@ -1553,12 +1553,11 @@ It was further modified to fix a bug with compressed instructions and to impleme
 
 \par
 
-Due to lack of development tools, the toolchain, ria and sbt where compiled in a container similiar to \texttt{time-x} on another host and uploaded. % FIXME: remove because not useful ?
-
-% TODO: ria-jit version (commit hash + changes to original paper, cite paper and reason we choose to compare against it, maybe "because it is faster than qemu" ?)
-% TODO: describe changes to the benchmark configuration for compiler compatibility, see `diff config/Example... config/ourconfig.cfg` in time-x for details, ignore the __HASH__ things
-% TODO: version of SPEC CPU 2017 used: SPEC CPU(R)2017 v1.1.0
-% TODO: note that for our translator only the execution time of the resulting binary was measured, not of the translation step
+Due to lack of development tools on the benchmark system, the toolchain, ria and sbt where compiled on another host in a container similiar to \texttt{time-x} and uploaded. % FIXME: remove because not useful ?
+Version 1.1.0 of the SPEC CPU\textregistered2017 benchmarks was used.
+The example configuration of the benchmark suite was modified to make it compatible with the newer gcc version used, OpenMP support was disabled and all test binaries where statically linked.
+All benchmarks where run with 2 iterations and the slower result was selected.
+For our static binary translation only the execution speed of the resulting binary and not the translator was measured.
 
 \subsection{Correctness}
 
