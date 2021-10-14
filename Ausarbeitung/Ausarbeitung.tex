@@ -1724,17 +1724,14 @@ in practice this could mean worse performance.
 
 \par
 
-% TODO: we need a hard break here to show that we go from presenting the results to interpreting their meaning.
-% - Compare our results to ria-jit paper results => QEMU got faster
+Comparing our results for QEMU and RIA-JIT to those presented in the RIA-JIT paper~\cite{ria_jit_paper}, QEMU has become significantly faster, % TODO: verify numbers
+from ~3.2x to ~2.5x native speed, while RIA-JIT has become slightly slower.
+
+% TODO: we need a hard break here to show that we go from presenting the results to interpretering their meaning.
 % - Point out that x264 is very slow compared to native
 % - on the other hand with omnetpp and xz we are better than 2x native
 % explain why binary translation does so exceptionally bad at x264 (video), maybe vectorization, cross reference ria-jit paper ?
 % - Compare results to the results of the ria-jit paper => QEMU appears to be faster (relatively speaking)
-
-% 4-5 paragraphs
-% - Show results
-% - Success, we beat QEMU consistently, in some cases by a decent amount
-% In all cases is the translator faster than QEMU
 
 \subsection{Effectiveness of different Optimizations}
 
