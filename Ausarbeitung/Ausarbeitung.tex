@@ -192,41 +192,41 @@ typing, single static assignment (SSA) variables and machine-instruction-like op
 
 \section{Approach}\label{sec:approach}
 
-We divided the translation process into three main parts: instruction lifting, optimization, and code
-generation. We made this division to structure the translator and to simplify the implementation of
-optimizations. This allows to support other ISAs as source or target ISAs in the future
-because only some of the components need to be extended or replaced.
+The translation process is divided into three main parts: instruction lifting, optimization, and code
+generation. This partition is made to structure the translator and to simplify the implementation of
+optimizations. This allows supporting other source or target ISAs in the future.
+Only some modular components need to be extended or replaced for extending the ISA support of this translator.
 
 \par
 
-The IR is tailored to the use case of translating RISC-V to x86\_64. It is the data structure which
-contains the logic of the input binary in an architecture-neutral form which generic optimization
-passes can be applied on. They reduce the number of operations required without altering the
+The IR is tailored to support efficient binary translation. It is the data structure which
+contains the logic of the input binary in an architecture-neutral form. Generic optimization
+passes can be applied on this structure. They reduce the number or complexity of operations without altering the
 program's behavior.
 
 \par
 
-The lifter reads the instructions from the binary file and decodes the opcodes using
-\texttt{frvdec}~\cite{frvdec}. The resulting instructions are used to disassemble the RISC-V binary
+The lifter reads the instruction bytes from the binary file and decodes them using
+\texttt{frvdec}~\cite{frvdec}. The resulting instruction objects are used to disassemble the RISC-V binary
 into basic blocks, operations, and variables in the IR. The code generator creates x86\_64
-assembly IR program based on the optimized IR.
+gnu assembler assembly, based on the optimized program in the form of the IR.
 
 \par
 
-We also provide a helper library, which implements some platform specific or runtime based
-functionality which is used by the translated binary. For example, it includes an interpreter which
-can be used to translate some instructions during runtime.The helper library is specific for both
-source and target ISAs as system calls or the interpreter depend on the architecture.
+A helper library is used to implement platform specific or runtime based
+functionality which is used by the translated binary. It includes, among other functions, an interpreter which
+can be used to translate instructions during runtime. The helper library is designed for specific
+source and target ISAs. System calls and the interpreter work in an architecture-specific way.
 
 \par
 
-To assemble the executable binary we use the GNU assembler (AS)~\cite{gnu_binutils} and the GNU
-linker (LD)~\cite{gnu_binutils} to link our helper library with it.
+To create the translated, executable binary, the GNU assembler (AS)~\cite{gnu_binutils} and the GNU
+linker (LD)~\cite{gnu_binutils} are used to assemble the generated assembly and link it to the helper library.
 
 \par
 
-Figure~\ref{fig:program_overview} depicts a schematic of the basic translator structure. It shows the
-operating parts of the translator and the used and created data objects, represented by arrows and
+Figure~\ref{fig:program_overview} depicts a schematic of the basic structure of the translator. It shows the
+operating parts of the translator and the processed data fragments, represented by arrows and
 squares respectively.
 
 \begin{figure}[H]
@@ -240,9 +240,9 @@ squares respectively.
 
 Our implementation only supports 64-bit RISC-V ELF\footnote{Executable and Linking Format} binaries
 which are statically linked and in little endian format. Another requirement is that the binary
-conforms to the System V ABI\footnote{Application Binary Interface}. This defines, inter alia, the
+conforms to the System V ABI\footnote{Application Binary Interface}. This defines, among other things, the
 system call IDs and the calling convention. These prerequisites are checked, using the metadata
-contained in the ELF-file, before translating the file for debugging and assertion purposes.
+contained in the ELF-file, before translating the file. This is required debugging and assertion purposes.
 
 \section{Intermediate Representation}\label{sec:ir}
 
