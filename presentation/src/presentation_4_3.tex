@@ -63,22 +63,61 @@
     \end{itemize}
 \end{frame}
 
+\begin{frame}{Dynamische und Statische Binärübersetzung}
+
+    \note[item]{Ziel: Statische Binärübersetzung}
+    \note[item]{Übersetzung von Binärdateien auf eine andere Plattform}
+    \note[item]{hier: von RISC-V zu x86\_64}
+    \note[item]{Dynamisch wäre ein Interpreter, also zur Laufzeit, bei uns Übersetzung zur Compilezeit}
+
+    Gemeinsames Ziel: Ausführung von Binärdateien einer Architektur auf einer anderen Architektur.
+    \pause
+
+    \vspace{1.25cm}
+
+    \begin{columns}[t]
+        \column{0.45\textwidth}
+        \textbf{Dynamische Übersetzung}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Instruktionen werden zur Laufzeit übersetzt
+            \item Übersetzte Instruktionen können zwischengespeichert werden
+        \end{itemize}
+
+        \column{0.5\textwidth}
+        \textbf{Statische Übersetzung}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Binärdatei wird erst zur Zielarchitektur übersetzt
+            \item Resultat kann unabhängig von Übersetzer ausgeführt werden
+        \end{itemize}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{RISC-V Übersicht}
+    \note[item]{Load-Store: Spezielle Befehle für Laden/Speichern in Register (-> Register-Register Architektur)}
+
+    \begin{itemize}
+        \setlength\itemsep{0.8em}
+        \item Relativ neuer Befehlssatz
+        \item Feste Befehlslänge von 32-Bit (optional auch 16-Bit)
+        \item Reduced Instruction Set Computer $\rightarrow$ Wenige, einfache Befehle
+        \item Load-Store-Architektur
+    \end{itemize}
+\end{frame}
+
 %%%%%%%%%%%%%%%%%%%%%%%
 %% Programmübersicht %%
 %%%%%%%%%%%%%%%%%%%%%%%
 
-\begin{frame}
-    \frametitle{Programmübersicht}
-    \note[item]{Ziel: Statische Binärübersetzung}
-    \note[item]{Übersetzung von Binärdateien auf eine andere Plattform}
-    \note[item]{Dynamisch wäre ein Interpreter, also zur Laufzeit, bei uns Übersetzung zur Compilezeit}
-    \note[item]{hier: von RISC-V zu x86\_64}
+\begin{frame}{Programmübersicht}
     \note[item]{RISC, feste 32-Bit Befehlslänge}
     \note[item]{wenige, einfache Befehle -> geringe Codedichte, aber leicht zu übersetzten}
     \note[item]{Register-Register-Maschine, also nur Operation auf Registern in der Dreioperandenform, s. 'ERA'}
     \note[item]{Lifter 'hebt' RISC-V in die Zwischenrepräsentation (sog. IR)}
-    \note[item]{Optimierung auf der IR: aktuell noch Identitätsbbildung}
-    \note[item]{Compiler compiliert zu Assemlby Code und dieser wird zu einer ausführbaren Datei assembliert}
+    \note[item]{Codegenerator compiliert zu Assemlby Code und dieser wird zu einer ausführbaren Datei assembliert}
 
     \centering
     \ProgramScheme{0.55}{13}
@@ -88,46 +127,56 @@
 %% IR Aufbau Folie %%
 %%%%%%%%%%%%%%%%%%%%%
 
-\begin{frame}
-    \frametitle{Intermediate Representation}{Aufbau}
-    \note[item]{Selbst definierte Zwischenrepräsentation}
-    \note[item]{Hauptbestandteil: Basic Blocks}
-    \note[item]{-> Sequentielle Folge von Instruktionen, die durch Kontrollflussoperation beendet werden}
-    \note[item]{Basic Block enthält Variablen in sogenannter SSA-Form und die dazu gehörenden Operationen}
-    \note[item]{Static single assignment -> Jeder var wird nur einmal Wert zugewiesen}
-    \note[item]{-> Vereinfacht Optimierungen}
-    \note[item]{Eingaben kommen als "Statics" -> Abstrakte Darstellung von RISCV-Registern}
-    \note[item]{Kontrollflussoperationen verbinden die Basic Blocks}
-    \note[item]{SSA bedeutet: Variablen frei verschiebbar, deshalb Memory Tokens für Einhaltung der Reihenfolge}
-    \pause{}
+\begin{frame}{Intermediate Representation}{Aufbau}
+    %\note[item]{Selbst definierte, architekturunabhängig Zwischenrepräsentation}
+    %\note[item]{Hauptbestandteil: Basic Blocks}
+    %\note[item]{-> Sequentielle Folge von Instruktionen, die keine Kontrollfluss ändernde Instruktion enthalten}
+    %\note[item]{Basic Block enthält Variablen in sogenannter SSA-Form und die dazu gehörenden Operationen}
+    %\note[item]{Eingaben kommen als "Statics" -> Abstrakte Darstellung von RISCV-Registern}
+    %\note[item]{Kontrollflussoperationen verbinden die Basic Blocks}
+    %\note[item]{Static single assignment -> Jeder var wird nur einmal Wert zugewiesen}
+    %\note[item]{-> Vereinfacht Optimierungen}
+    %\note[item]{SSA bedeutet: Variablen frei verschiebbar, deshalb Memory Tokens für Einhaltung der Reihenfolge}
+    %
+    %\pause
+
     \begin{itemize}
+        \setlength\itemsep{0.5em}
         \item Programm aus \textbf{Basic Blocks}
-        \item \textbf{Static Single Assignment (SSA)}
+        \item Basic Blocks enthalten Variablen
         \item Eingaben in Form von Statics
         \item Verbindung durch Kontrollflussoperationen
+        \item \textbf{Static Single Assignment (SSA)} Form
     \end{itemize}
 \end{frame}
 
-\begin{frame}
-    \frametitle{Intermediate Representation}{Operationen}
+\begin{frame}{Intermediate Representation}{Operationen}
 
-    ~\\
-    ~\\
+    \note[item]{jump: Sprung zu basic block}
+    \note[item]{ijump: Indirekter Sprung zu Addresse in Variable, mehr später}
+    \note[item]{cjump: Bedingter Sprung}
+    \note[item]{Aufruf-Äquivalente: call, indirekter call und zugehöriges return}
+
+    \vspace{1cm}
 
     \begin{columns}[t]
         \column{0.4\textwidth}
         Instruktionen:
         \begin{itemize}
+            \setlength\itemsep{0.3em}
             \item Speicher: \texttt{store}, \texttt{load}
             \item Arithmetisch: \texttt{add}, \texttt{sub}, \texttt{mul}, ...
             \item Logisch: \texttt{and}, \texttt{or}, \texttt{shl}, ...
             \item Sonstige: Typkonvertierung, ...
+            \item Gleitkommaarithmetik
         \end{itemize}
 
         \column{0.4\textwidth}
         Kontrollflussoperationen:
         \begin{itemize}
+            \setlength\itemsep{0.3em}
             \item Sprünge: \texttt{jump}, \texttt{ijump}, \texttt{cjump}
+            \item Aufrufe: \texttt{call}, \texttt{icall}, \texttt{return}
             \item \texttt{unreachable}
             \item \texttt{syscall}
         \end{itemize}
@@ -138,12 +187,9 @@
 %% IR Folie %%
 %%%%%%%%%%%%%%
 
-\begin{frame}[fragile]
-    \frametitle{Intermediate Representation}{Beispiel}
-    \pause{}
-    ~\\
-    ~\\
-    ~\\
+\begin{frame}[fragile]{Intermediate Representation}{Beispiel}
+    %\pause{}
+    \vspace{1.5cm}
     \begin{columns}[c]
         \column{0.25 \textwidth}
         \begin{lstlisting}[language=rv64]
@@ -169,6 +215,99 @@ block b1(/* inputs */) {
     \end{lstlisting}
     \end{columns}
 
+\end{frame}
+\clearpage
+
+\begin{frame}[fragile]{Constant Folding}{Beispiel}
+    \vspace{0.3cm}
+    \begin{lstlisting}[language=SbtIr]
+block b1(/* inputs */) {
+    imm v1 <- immediate 0
+    imm v2 <- immediate 100
+    i64 v3 <- add imm v1, imm v2
+} => [(jump, [b2, i64 v3])]
+    \end{lstlisting}
+
+    \pause
+
+    \vspace{1.2cm}
+
+    \begin{lstlisting}[language=SbtIr]
+block b1(/* inputs */) {
+    i64 v3 <- immediate 100
+} => [(jump, [b2, i64 v3])]
+    \end{lstlisting}
+
+\end{frame}
+\clearpage
+
+\begin{frame}[fragile]{Constant Folding}
+    \begin{itemize}
+        \setlength\itemsep{0.5em}
+        \item Berechnung von Operationen, deren Eingaben bekannt sind (also Zahlen) %TODO immediate
+        \item Propagieren von bekannten und berechneten Werten
+        \item Vereinfachung einiger Operationen %z.b. x+0
+    \end{itemize}
+\end{frame}
+\clearpage
+
+\begin{frame}[fragile]{Dead Code Elimination}{Beispiel}
+    \vspace{1cm}
+\begin{lstlisting}[language=SbtIr]
+block b1(/* inputs */) {
+    i64 v3 <- immediate 100
+} => [(jump, [b2, i64 v3])]
+
+block b2(i64 v1) <= [b1] {
+} => [(jump, [b3])]
+\end{lstlisting}
+
+\end{frame}
+
+\begin{frame}[fragile]{Dead Code Elimination}
+    Löschen von nicht benötigten Variablen und Entfernung von unbenutzten Parametern
+
+    \begin{itemize}
+        \setlength\itemsep{0.5em}
+        \item Start bei Operationen mit Nebeneffekten, wie stores oder indirekte Jumps
+        \item ``Graph-Suche'' nach allen erreichbaren Variablen
+        \item Nicht erreichte Variablen sind überflüssig.
+    \end{itemize}
+\end{frame}
+\clearpage
+
+\begin{frame}[fragile]{Common Subexpression Elimination}{Beispiel}
+
+\begin{lstlisting}[language=SbtIr]
+block b1(i64 v1) {
+    imm v2 <- immediate 100
+    i64 v3 <- add i64 v1, imm v2
+    imm v4 <- immediate 100
+    i64 v5 <- add i64 v1, imm v4
+} => [(jump, [b2, i64 v5])]
+\end{lstlisting}
+
+\pause
+
+\vspace{1cm}
+
+\begin{lstlisting}[language=SbtIr]
+block b1(i64 v1) {
+    imm v2 <- immediate 100
+    i64 v3 <- add i64 v1, imm v2
+} => [(jump, [b2, i64 v3])]
+\end{lstlisting}
+
+\end{frame}
+
+\begin{frame}[fragile]{Common Subexpression Elimination}
+    Löschen von redundanten Operationen und doppelten Immediates
+
+    \begin{itemize}
+        \setlength\itemsep{0.5em}
+        \item Variablen von oben nach unten überprüfen
+        \item Falls andere Variable mit gleichem Typ und gleichen Inputs existiert, ersetzen
+    \end{itemize}
 \end{frame}
 \clearpage
 
