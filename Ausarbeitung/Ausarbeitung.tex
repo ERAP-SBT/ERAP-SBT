@@ -89,13 +89,13 @@ QEMU.
 
 The following chapters will provide some background information for the RISC-V architecture, the
 relevant differences
-to the x86\_64 architecture (section~\ref{sec:background}) and our general
-approach to static binary translation (section~\ref{sec:approach}). Afterwards, the distinct parts of the translator, namely our
-intermediate representation (section~\ref{sec:ir}), the RISC-V lifter
-(section~\ref{sec:riscv_lifter}), the optimizer (section~\ref{sec:optimizations}), and the x86\_64
-code generator (section~\ref{sec:generator}) are further explained.
+to the x86\_64 architecture (Section~\ref{sec:background}) and our general
+approach to static binary translation (Section~\ref{sec:approach}). Afterwards, the distinct parts of the translator, namely our
+intermediate representation (Section~\ref{sec:ir}), the RISC-V lifter
+(Section~\ref{sec:riscv_lifter}), the optimizer (Section~\ref{sec:optimizations}), and the x86\_64
+code generator (Section~\ref{sec:generator}) are further explained.
 Section~\ref{sec:floating_point} describes our approach to support floating point RISC-V
-instructions and the present difficulties. The last section (section~\ref{sec:evaluation})
+instructions and the present difficulties. The last section (Section~\ref{sec:evaluation})
 evaluates the quality and performance of our implementation using benchmarks tests.
 
 \section{Background}\label{sec:background}
@@ -246,11 +246,11 @@ contained in the ELF-file, before translating the file. This is required debuggi
 
 \section{Intermediate Representation}\label{sec:ir}
 
-As explained in section~\ref{sec:approach}, we use an IR to create a platform-independent
+As explained in Section~\ref{sec:approach}, an IR is used to create a platform-independent
 representation of the translated program's logic. This is not only useful to support different input
 and output languages in the future, but also to be able to optimize the more abstract representation.
-By parsing control flow and program structures we can run optimizations like
-\nameref{dead_code_elimination}, \nameref{constant_folding}.
+By parsing control flow and program structures, optimizations like
+\nameref{dead_code_elimination} and \nameref{constant_folding} can be applied to the IR code.
 
 \begin{figure}[H]
     \begin{center}
@@ -267,7 +267,7 @@ By parsing control flow and program structures we can run optimizations like
             i8       &        &         \\
             \hline
         \end{tabular}
-        \caption{Types defined for the IR variables. The numbers describe the width of each type in bit. The
+        \caption{Types defined for the IR variables. The numbers describe the width of each type in bits. The
             memory token (\textit{mt}) is a purely virtual type and thus doesn't have a specified width.}\label{ir:types:figure}
     \end{center}
 \end{figure}
@@ -278,25 +278,12 @@ Figure~\ref{ir:types:figure}. The variables follow a single static assignment fo
 immutable after they are initialized. Operations take variables as inputs and assign values to
 new output variables. Every operation performs one of the available instructions. These are abstract,
 assembly-like instructions defining mostly arithmetic and logical operations. A full list of all the
-supported instructions can be found in the appendix section~\ref{figure:ir_instructions}.
+supported instructions can be found in the Figure~\ref{figure:ir_instructions}.
 Variables and their operations are grouped into basic blocks. These are blocks of code
 which do not contain a control flow changing operation. These special operations are jumps and
-system calls. Subroutine calls which are defined by many ISAs are only jump instructions with
+system calls. Subroutine calls which are defined by many ISAs are also jump instructions with
 additional memory accessing operations. The control flow changing operations act as connectors
 between basic blocks. Figure~\ref{figure:cfops} shows a list of all defined control flow changing operations.
-
-\par
-
-Each basic block also keeps track of its predecessors and successors. Predecessors are the basic blocks which jump to
-the current basic block, and successors are the basic blocks that are jumped to by the current basic
-block. This ``jump'' can be any control flow changing operations, including syscalls.
-
-\par
-
-A basic block also has a list of input parameters. These basic block parameters are used for
-transferring data between basic blocks. Every variable which is linked to a static mapper (\ref{statics}) is
-added to the basic block parameters. These have to be filled with the correct values with every jump to
-a the new basic block.
 
 \begin{figure}
     \begin{center}
@@ -323,6 +310,20 @@ a the new basic block.
     \end{center}
 \end{figure}
 
+\par
+
+Each basic block stores a list of its predecessors and successors. Predecessors are the basic blocks which jump to
+the current basic block, and successors are the basic blocks that are jumped to by the current basic
+block. This ``jump'' can be any control flow changing operation, including syscalls.
+
+\par
+
+A basic block also stores a list of input parameters. These basic block parameters are used for
+transferring data between basic blocks. Every variable which is linked to a static mapper (\ref{statics}) is
+added to the basic block parameters. These have to be filled with the correct values with every jump to
+a new basic block.
+
+
 \subsection{Single Static Assignment Form}\label{ssa}
 
 First described in 1988 for optimizing an intermediate program representation\cite{ssa_proposal},
@@ -330,8 +331,8 @@ the \emph{single static assignment form} (SSA) is used for creating and optimizi
 flow graphs. It follows one basic rule: ``[E]ach variable is
 assigned to exactly once in the program text.''~\cite{ssa_proposal} In our IR, each variable
 stores its source operation (if it is the result of an operation). This enables us to efficiently
-backtrace variable origins and e.g.\ replace variables which can be evaluated statically with constant
-immediates (section~\ref{constant_folding}) or eliminate any unused variables (section~\ref{dead_code_elimination}).
+backtrack variable origins and e.g.\ replace variables which can be evaluated statically with constant
+immediates (Section~\ref{constant_folding}) or eliminate unused variables (Section~\ref{dead_code_elimination}).
 
 We introduce a \emph{memory token}, a required input for operations which read from memory and the
 result of operations which write to memory. It creates a dependency between operations that store
@@ -346,19 +347,23 @@ program.
 
 To keep track of register contents between basic blocks, we introduced a concept called a
 \textit{static mapper} or a \textit{static} for short.
-Variables which link to them can be used as inputs in basic blocks and signal to the generator that, if the control flow is transferred to the basic block from an unknown predecessor, the variable can be expected in this static.
-For control flow operations with an unknown target, a mapping from the output of the basic block to the static at which they should be stored is then created.
+Variables which link to them can be used as inputs in basic blocks, They act as a signal to code
+generators that, if the control flow is transferred to the basic block from an unknown predecessor, 
+the variable can be expected in this static.
+For control flow operations with an unknown target, a mapping from the output of the basic 
+block to the static at which they should be stored is then created.
 
 \par
 
-The IR itself does not enforce a fixed set of statics but instead leaves it to the lifter to create as many statics as it needs to lift the source ISA.
+The IR itself does not enforce a fixed set of statics but instead leaves it to the lifter to 
+create as many statics as it needs to lift the source ISA.
 For RISC-V, these are 31 general purpose registers, one memory token, 32 floating point registers
 and one control and status flag register. The register \texttt{x0} is always zero and thus not
 assigned to a static mapper.
 
 \section{RISC-V Lifter}\label{sec:riscv_lifter}
 
-This chapter describes from where and how the RISC-V instructions are parsed, how they are lifted
+This chapter describes how the RISC-V instructions are decoded and parsed, how they are lifted
 into the intermediate representation and which optimizations can be made during lifting. This
 includes the subroutine call optimization, indirect jump target backtracking and jump table detection.
 
@@ -396,10 +401,12 @@ RISC-V lifter decodes all instructions.
 
 ELF binaries store information about what data is stored where in the binary using \textit{program
     headers} and \textit{section headers}. Both header types store information about the virtual address
-spaces, allocation details and access flags. However, \textit{section headers} hold finer and more detailed information
-about program sections than the \textit{program headers} and are therefore preferred. The ELF-file specification does not guarantee that every ELF
+spaces, allocation details and access flags. The ELF-file specification does not guarantee that every ELF
 binary defines \textit{sections}~\cite{elf_spec}. The lifter therefore supports instruction
-detection using either \textit{program headers} or \textit{section headers}.
+detection using either \textit{program headers} or \textit{section headers}. However,
+\textit{section headers} hold finer and more detailed information
+about program sections than the \textit{program headers} and are therefore preferred for instruction
+decoding. 
 
 \par
 
@@ -416,8 +423,8 @@ Due to the memory architecture of modern computers, instructions and data are mo
 memory. This concept, which was first introduced by John von Neumann in 1945\cite{vna}, makes it
 hard to statically distinguish between instructions and data. That is why we rely on the additional
 information stored in the section- and program headers which identifies certain parts of the binary
-as executable instructions. This however means we rely on the compiler and the programmer to only
-use executable sections for storing instructions.
+as executable instructions. This however means we rely on the compiler and the programmer to use
+executable sections only for storing instructions.
 
 \subsubsection{IR Generation}
 
@@ -425,7 +432,7 @@ After loading the data form the binary, the lifter runs sequentially through the
 instructions which are decoded using \texttt{frvdec}\cite{frvdec}. The resulting instructions are objects,
 filled with the parsed content of the binary instruction code. This is a
 more generic and easier processable form with direct access to involved register numbers and
-immediate values. For each of the instructions, a variable amount of variables and operations is added to
+immediate values. For each of the instructions, a variable amount of operations and variables is added to
 the IR to replicate the original program's behavior.
 
 \begin{figure}
@@ -438,11 +445,12 @@ the IR to replicate the original program's behavior.
     0xb0:       addi a0, a0, -1
     0xb4:       bne a0, zero, loop
             continuation:
-    0xa8:       sll a1, a1, a2
+    0xb8:       sll a1, a1, a2
                 [...]
         \end{lstlisting}
-        \caption{RISC-V assembly sequence used as example for the lifter. Decrements a0 by one in a loop until it is zero,
-            then shifts a1 by the amount stored in a2.}\label{fig:lifting_example_riscv}
+\caption{RISC-V assembly sequence used as an example for the lifter. Decrements \texttt{a0} by one
+in a loop until it is equal to zero,
+            then shifts \texttt{a1} to the left by the amount stored in \texttt{a2}.}\label{fig:lifting_example_riscv}
         \vspace{1em}
     \end{subfigure}
     \begin{subfigure}{\textwidth}
@@ -459,7 +467,7 @@ block b1(/*input list */) <= [/* predecessors */] { // loop
     imm v36 <- immediate 0
     imm v37 <- immediate 0xb0
     imm v38 <- immediate 0xb8
-} => [(cjump, [b1, /* target inputs */], v35, v36, v37, eq), (jump, [b2, /* target inputs */], v38)]
+} => [(cjump, [b1, /* target inputs */], eq, v35, v36, v37), (jump, [b2, /* target inputs */], v38)]
 
 block b2(/* input list */) <= [b1, /* other predecessors */] { // continuation
     [...]
@@ -473,7 +481,7 @@ block b2(/* input list */) <= [b1, /* other predecessors */] { // continuation
     \end{lstlisting}
         \caption{The IR created by the lifter from the RISC-V assembly in Figure~\ref{fig:lifting_example_riscv}. \\
             Some duplicated or unnecessary parts, e.g. predecessors list, variables from statics, target
-            inputs and control flow operations, are omitted.}\label{fig:lifting_example_ir}
+            inputs and control flow operations are omitted.}\label{fig:lifting_example_ir}
     \end{subfigure}
     \caption{Exemplary lifting of a RISC-V assembly program.}
 \end{figure}
@@ -485,14 +493,14 @@ Figure \ref{fig:lifting_example_riscv} shows an example RISC-V assembly sequence
 
 \par
 
-As explained in the IR chapter (section~\ref{sec:ir}), our IR is subdivided into basic blocks which contain
+As explained in the IR chapter (Section~\ref{sec:ir}), our IR is subdivided into basic blocks which contain
 consecutive instructions without a change in control flow. As soon as a control flow changing
 instruction is discovered, it is associated with the basic block. A basic block can be
 associated to one or more closing control flow changing
 instructions, e.g. RISC-V branches which consist of a conditional
-jump and a direct jump to the next block if the branch is not taken. The current basic block is finished and
+jump and a direct jump to the next instruction (in the next block) if the branch is not taken. The current basic block is finished and
 a new one is created. If the jump address can be inferred from the instruction using
-Backtracking (section~\ref{backtracking}) or if it is directly encoded, like in branch instructions, this address is used
+Backtracking (Section~\ref{backtracking}) or if it is directly encoded, like in branch instructions, this address is used
 to register the start of a new basic block.
 
 \par
@@ -510,8 +518,8 @@ Splitting basic blocks on backwards jumps is required because of the way the lif
 input binary. It
 runs over all instructions twice. Once for decoding them and a second time for lifting them into the
 IR. The second run includes detecting indirect jumps and parsing basic blocks at the same time. This
-causes every jump which would have changed the basic block parsing to be detected too late. It then has to
-change the already existing basic blocks by splitting them at the jump target address.
+causes every backwards jump which would have changed the basic block parsing to be detected too late. It then has to
+change the already existing basic blocks by splitting them at the jump's target address.
 
 \par
 
@@ -523,21 +531,19 @@ adjusted.
 
 \par
 
-If the jump address cannot be extracted from the instruction, the backtracking (section~\ref{backtracking})
+If the jump address cannot be extracted from the instruction, the backtracking (Section~\ref{backtracking})
 is used to infer possible addresses which are processed with the same procedure as described before.
-Using a command line flag the user can control whether all possible
-addresses should be found or the first one is used. If no jump address can be inferred, a dummy
+Using a command line flag, the user can control whether all possible
+addresses should be found or whether only the first one should be used. If no jump address can be inferred, a dummy
 basic block which indicates an unresolved jump target, is set as the target block. The jump address then
-needs to be evaluated at runtime and jumps to an address where no basic block begins need to be
-handled by the helper library (section~\ref{helper}) by interpreting the RISC-V instructions.
-
+needs to be evaluated at runtime.
 \par
 
 If a jump target address is inside a decoded instruction, the further behavior of the program is undefined.
 
 \par
 
-While lifting the instructions a register file, called \emph{mapping}, keeps track of the variables
+While lifting the instructions, a register file, called \emph{mapping}, keeps track of the variables
 which represents the content of all registers, the memory token, and the control and status registers
 (csr). This is required to determine the inputs of the operations based on the input registers of
 the instructions. For example, when lifting a RISC-V instruction which has the registers \texttt{x13}
@@ -547,8 +553,8 @@ indices.
 \par
 
 At the start of a basic block the mapping is initialized
-with variables from statics (section~\ref{statics}). The register with the index zero is a hard wired zero in
-RISC-V and therefore not initialized. Furthermore, each read from the mapping at index zero is handled by adding an immediate
+with IR variables from statics (Section~\ref{statics}). The register with the index zero is a hard wired zero in
+RISC-V and therefore not initialized with a variable. Furthermore, each read from the mapping at index zero is handled by adding an immediate
 variable with value zero. Each write to the zero register is ignored, as it is specified for the \texttt{x0}
 register.\cite{rvspec}
 
@@ -564,12 +570,12 @@ blocks and adjust their predecessor and successor lists.
 \par
 
 The last step in lifting is to add an entry basic block that sets the RISC-V stack up and jumps to the
-basic block at the ELF-file's entry address. This virtual address is stored in the ELF program header
-\texttt{e\_entry} and specifies where the execution of the binary starts.\cite{elf_spec}
+basic block at the ELF-file's entry address. This virtual address is stored in the ELF header
+and specifies where the execution of the binary starts.\cite{elf_spec}
 
 \subsection{Atomic Instructions}
 
-To support programs using atomic instructions from the ``A'' standard extension, the lifter converts
+To support programs which use atomic instructions from the ``A'' standard extension, the lifter converts
 every atomic instruction into a set of non-atomic instructions which emulate the original
 instruction's behavior. This does not change the logic or validity of the program as long as the
 instructions are executed consecutively, without the need for atomic ressource access.
@@ -577,23 +583,23 @@ instructions are executed consecutively, without the need for atomic ressource a
 
 \subsection{Backtracking}\label{backtracking}
 Although indirect jump addresses can be evaluated at runtime, we can only jump to the beginning of
-detected basic blocks. This is the case, because we can optimize (section~\ref{dead_code_elimination}) and fold
-instructions (section~\ref{constant_folding}) inside basic blocks without altering the control flow or
+detected basic blocks. This is the case, because we can optimize (Section~\ref{dead_code_elimination}) and fold
+instructions (Section~\ref{constant_folding}) inside basic blocks without altering the control flow or
 logic of the program. That is why there might often not be a one-to-one correspondence of RISC-V to x86\_64-Instructions.
-Having a completely runnable program thus means detecting every basic block
+Creating a fast and runnable program thus means detecting most basic blocks
 with their corresponding entry points (including their exit points). Although determining all possible
 indirect jump targets statically is not possible (e.g.\ virtual function calls),
 % or not feasible (e.g. jump targets could be influenced by user input)
 backtracking register contents during lifting can provide us with
-an approximation of the target set.
+an approximation of the indirect jump target set.
 
 \par
 
 To statically determine indirect jump target addresses, we need to evaluate possible contents of
 the jump's input register operand. Each variable stores its origin, being either the result of an
-operation, an immediate value or from a static. This enables us to backtrack the value of
-any variable in the origin- or dependency tree until we reached a variable which can not be backtracked or until we evaluated
-all possible values.
+operation, an immediate value or from a static. This creates a dependency tree.
+To backtrack the value of a variable, this tree has to be traversed until a variable which can not
+be backtracked is reached or until all possible values have been evaluated.
 
 \par
 
@@ -685,7 +691,7 @@ Figure~\ref{backtracking_graph} shows an example for such a dependency tree.
         \end{pgfonlayer}
     \end{tikzpicture}
     \caption{
-        Schematic dependency graph of an indirect jump target address variable (\textbf{v37}). The basic block \textbf{bb24} ends
+        Schematic dependency tree of an indirect jump target address variable (\textbf{v37}). The basic block \textbf{bb24} ends
         with an indirect jump, jumping to the address stored in \texttt{v37}. \texttt{ADD} and \texttt{SHL}
         are operations, names starting with \textbf{x} are names of static mappers.\\
     }\label{backtracking_graph}
@@ -698,14 +704,14 @@ Figure~\ref{backtracking_graph} shows an example for such a dependency tree.
 As described in\ \cite{jump_table_paper}, n-conditional case statements, like the C programming
 language's switch-case statement, are often implemented by compilers using jump
 tables. A jump table is a pattern which enables efficient\footnote{Because the integer condition is
-    used as the jump address selector, this is only efficient for switch-statements with small entry
+    used as the jump address selector. This is only efficient for switch-statements with small entry
     ranges (e.g.\ enum switching).} branching based
 on a stored set of addresses which are possible jump targets. This means we need to detect jump tables to find
 all possible basic block entry points.
 
 \par
 
-The jump table pattern always involves consists of a particular set of RISC-V instructions.
+The jump table patterns observed in generated assembly always consist of a particular set of RISC-V instructions.
 At the beginning, a bounds check is executed. A branching instruction is used to either jump to the
 default branch or the code after the switch if the switch condition (an integer) is above the
 highest case value.
@@ -722,9 +728,9 @@ label jump.
 
 \par
 
-For the jump table detection, we just backtrack the previously described pattern for every
-encountered indirect jump. If the jump turns out to be part of a jump table configuration, we can
-extract the jump target addresses and use them as entry points for new basic blocks. This also works
+For the jump table detection, the previously described pattern is backtracked for every
+encountered indirect jump. If the jump turns out to be part of a jump table configuration, the jump
+target addresses can be extracted and used as entry points for new basic blocks. This also works
 for switch-statements which are compiled into a combination of jump tables and branch-based search
 trees.
 
@@ -751,7 +757,7 @@ available.
 
 \subsection{Dead Code Elimination}\label{dead_code_elimination}
 
-There are cases in compiled programs, where a value is written to a register, but never read from again.
+There are cases in compiled programs, where a value is written to a register, but never read again.
 When lifted, these register writes are found in the IR as unused variables, which can be removed through \emph{Dead Code
     Elimination} (DCE). For this purpose, each variable has a reference count assigned to it. This is a number, which is
 increased each time the variable is referenced in another operation or control flow operation. If the reference count of
@@ -760,7 +766,7 @@ a variable is zero, it is not used anywhere and can be removed.
 By visiting the variables in reverse order, \textit{cascading} deletes are taken care of, as the reference count for
 inputs of an operation is decreased once the operation is deleted.
 
-Another purpose of the Dead Code Elimination pass is to remove unused inputs from BasicBlocks. For this, the
+Another purpose of the Dead Code Elimination pass is to remove unused inputs from basic blocks. For this, the
 reference-count does not suffice, since there might be circular control flow (like in loops). Instead, DCE marks each
 variable associated with side effects, i.e.\ variables used in \texttt{store}s, \texttt{syscall}s and jumps to unknown
 targets like \texttt{ijump}s. This marking is then propagated through the IR by visiting operation inputs and
@@ -779,13 +785,14 @@ block b1(i64 v0, i64 v1) <= [/* predecessors */] {
     imm v4 <- immediate 0 (2)
     i64 v5 <- add i64 v1, imm v4 (0)
 } => [(cjump, [b2, v2, v1], eq, v3, v4), (jump, [b1, v2, v1])]
+
 block b2(i64 v0, i64 v1) <= [b1] {
     /* content omitted for simplicity */
     i64 v0 <- @0 (1)
     i64 v1 <- @1 (0)
 } => [/* control flow operations */];
 \end{lstlisting}
-    \caption{Example IR before DCE: The value in parenthesis after each variable is its reference count}\label{fig:dce_example_before}
+    \caption{Example IR before DCE: The value in parenthesis after each variable is its reference count.}\label{fig:dce_example_before}
 \end{figure}
 
 \begin{figure}[H]
@@ -802,7 +809,7 @@ block b2(i64 v0) <= [b1] {
     i64 v0 <- @0 (1)
 } => [/* control flow operations */];
 \end{lstlisting}
-    \caption{Example IR after DCE}\label{fig:dce_example_after}
+    \caption{Example IR after DCE.}\label{fig:dce_example_after}
 \end{figure}
 
 Figure~\ref{fig:dce_example_before} shows an example IR which has not been optimized. Figure~\ref{fig:dce_example_after}
@@ -810,7 +817,8 @@ shows a potential result of performing DCE on this example. To better visualize 
 have been annotated with their corresponding reference count.
 
 The simplest change is variable \texttt{v5}, which is not referenced in any other variable or control flow operation,
-and can be eliminated. One can also see that \texttt{v1} is not used, but since it is still passed as target input to
+and can be eliminated. One can also see that \texttt{v1} is not used, but since it is still passed
+as a target input to
 other basic blocks, its reference count is not zero. In this case, the marking process finds that \texttt{v1} is not
 involved in any side effect, and consequently removes it. Since it is also a static, the corresponding input is removed
 from the basic block.
@@ -818,18 +826,20 @@ from the basic block.
 \subsection{Constant Folding and Constant Propagation}\label{constant_folding}
 
 Constant Folding and Constant Propagation are closely related optimizations, where operations with known input values
-(i.e.\ immediate values) are computed, and immediate variables are propagated throughout BasicBlocks.
+(i.e.\ immediate values) are computed, and immediate variables are propagated throughout basic blocks.
 In our implementation, Constant Folding, Constant Propagation, and operation simplifications are grouped into the same
-pass.  As such, they are further referred to collectively as Constant Folding.
+pass. As such, they are further referred to collectively as Constant Folding.
 
-This optimization pass is done by visiting each operation in a BasicBlock in order, making the pass run in linear time.
+This optimization pass is done by visiting each operation in a basic block in order, making the pass run in linear time.
 If the variable is an integer arithmetic, logic or conditional set operation, one of several actions can be performed.
 
 In the simplest case, all inputs are immediates. The result of the operation can be computed, and the variable is
-replaced with the resulting immediate value. One exception to this are binary-relative immediates---immediates which are
+replaced with the resulting immediate value. One exception to this are binary-relative immediates
+--- immediates which are
 offset at runtime by the base address of the binary. Hence, only addition and subtraction with one binary-relative and
 one non-binary-relative immediate operand are evaluable, and evaluating subtraction is only sensible if the
-binary-relative immediate is the first operand. Another exception are store and load instructions, since these still
+binary-relative immediate is the first operand. Another exception are instructions with side effects
+like store and load instructions, since these still
 need to be performed at runtime.
 
 The next case is one immediate input and one non-immediate (static or operation) input. Generally, this case allows for
@@ -859,7 +869,7 @@ block b1(i64 v0) <= [/* predecessors */] {
     i64 v9 <- add i64 v7, imm v8
 } => [/* control flow operations */]
 \end{lstlisting}
-    \caption{Example IR before Constant Folding}\label{fig:const_folding_example_before}
+    \caption{Example IR before Constant Folding.}\label{fig:const_folding_example_before}
 \end{figure}
 
 \begin{figure}[H]
@@ -874,7 +884,7 @@ block b1(i64 v0) <= [/* predecessors */] {
     i64 v7 <- immediate 64
 } => [/* control flow operations */]
 \end{lstlisting}
-    \caption{Example IR after Constant Folding}\label{fig:const_folding_example_after}
+    \caption{Example IR after Constant Folding.}\label{fig:const_folding_example_after}
 \end{figure}
 
 Figures~\ref{fig:const_folding_example_before} and \ref{fig:const_folding_example_after} show an example IR before and
@@ -887,7 +897,7 @@ zero and thus an identity operation, it is removed, and references to it are rep
 
 Common Subexpression Elimination, or more specifically, \textit{(Local) Value
     numbering}~\cite{ssa_proposal}, is an optimization that removes redundant code. In principle, each variable is given a
-symbolic value depending on its inputs and operation, and variables with the same value are redundant. These redundant
+symbolic value depending on its inputs and operation, variables with the same value are redundant. These redundant
 variables can thus be all replaced by the first occurrence. In our implementation, a hash set is employed (similar to
 how this optimization is described in the SSA proposal), where relevant properties, i.e. operation type, input
 variables, rounding mode, or in the case of immediate variables the value itself, are considered and compared.
@@ -910,7 +920,7 @@ block b1(i64 v0, i64 v1) <= [/* predecessors */] {
     i64 v6 <- add i64 v1, i64 v5
 } => [/* control flow operations */]
 \end{lstlisting}
-    \caption{Example IR before Common Subexpression Elimination}\label{fig:cse_example_before}
+    \caption{Example IR before Common Subexpression Elimination.}\label{fig:cse_example_before}
 \end{figure}
 
 \begin{figure}[H]
@@ -926,7 +936,7 @@ block b1(i64 v0, i64 v1) <= [/* predecessors */] {
     i64 v6 <- add i64 v1, i64 v3
 } => [/* control flow operations */]
 \end{lstlisting}
-    \caption{Example IR after Common Subexpression Elimination}\label{fig:cse_example_after}
+    \caption{Example IR after Common Subexpression Elimination.}\label{fig:cse_example_after}
 \end{figure}
 
 \section{Code Generator}\label{sec:generator}
@@ -1188,7 +1198,7 @@ indirect jump target addresses which are not the start address of any lifted bas
 We can only jump to the start of a (translation) basic block, because this is the only reference point where the
 emulated RISC-V registers are stored at a known location (in the form of statics).
 
-In case we encounter such an unknown jump target address, we switch to the interpreter (section~\ref{interpreter}) to
+In case we encounter such an unknown jump target address, we switch to the interpreter (Section~\ref{interpreter}) to
 interpret the original RISC-V code just-in-time until the next start of a basic block is reached.
 
 \par
@@ -1241,7 +1251,7 @@ compared their strengths and weaknesses:
           \par
 
           The hashing algorithm is used in the generator for building the hash table and finding the required
-          hash functions. It is also implemented in the helper library (section~\ref{helper}) for providing hashes for addresses
+          hash functions. It is also implemented in the helper library (Section~\ref{helper}) for providing hashes for addresses
           which are only available during runtime.
 
           \par
@@ -1293,17 +1303,17 @@ transferred to the statics before calling the interpreter.
 \par
 
 This also an reason why we only leave the interpreter at the begin of an basic block because there
-the naive generator (section~\ref{naive_generator}) takes the basic blocks inputs there from the statics.
-When using the register allocator (section~\ref{reg_alloc}) the translation blocks
-(section~\ref{translation_blocks}) move the values to the correct registers and stack slots and are
+the naive generator (Section~\ref{naive_generator}) takes the basic blocks inputs there from the statics.
+When using the register allocator (Section~\ref{reg_alloc}) the translation blocks
+(Section~\ref{translation_blocks}) move the values to the correct registers and stack slots and are
 therefore --- as well as the top level basic blocks --- the addresses where we can leave the
-interpreter. These addresses are stored in the ijump lookup table (section~\ref{ijump_resolution}).
+interpreter. These addresses are stored in the ijump lookup table (Section~\ref{ijump_resolution}).
 
 \par
 
 Usually a translated basic block will be found after few instructions, resulting in almost
 negligible slow down from entering the interpreter. However in some extreme cases where no return
-BasicBlock is found, practically the entire program is emulated resulting in extreme slow downs.
+basic block is found, practically the entire program is emulated resulting in extreme slow downs.
 This can be observed in rare cases if no translation blocks are created resulting in less possible
 return targets.
 
@@ -1349,7 +1359,7 @@ types \emph{f32} and \emph{f64} which represents single and double precision num
 
 \par
 
-The code generator (section~\ref{sec:generator}) uses the x86\_64 floating point instructions
+The code generator (Section~\ref{sec:generator}) uses the x86\_64 floating point instructions
 provided by the \texttt{Streaming SIMD Extensions 2} (SSE2) which operates on the \texttt{xmm}
 registers. As SSE2 is part of x86\_64 it can be assuemd that SSE2 instructions are usable. But the
 usage of other x86\_64 extensions like SSE4 or \texttt{Fused Multiply Add 3} (FMA3) have to
@@ -1395,7 +1405,7 @@ every instruction except conversions between integers and floating points as wel
 and double precision floating points. We made this exception as it makes a great difference when
 rounding to integers. For example, the difference rounding \emph{25,5} towards positive infinity or
 towards negative infinity, resulting in \emph{26} respectively \emph{25}, makes a huge difference.
-Also the the later on used benchmarks (section~\ref{sec:evaluation}) require to respect the rounding mode of
+Also the the later on used benchmarks (Section~\ref{sec:evaluation}) require to respect the rounding mode of
 conversion instructions.
 
 \par
@@ -1438,8 +1448,8 @@ operations.
 The conversion from and to unsigned integers are implemented using the signed version. But the
 result are corrected using some arithmetic. The conversions to unsigned integers are handled by
 setting the result to zero if the input floating point is signed as specified by the RISC-V
-manual~\cite{rvspec} using bit arithmetic. The other way around is solved by using the 64bit
-conversion for 32bit inputs and for 64bit inputs by handling according to the sign. If the value is
+manual~\cite{rvspec} using bit arithmetic. The other way around is solved by using the 64-bit
+conversion for 32-bit inputs and for 64-bit inputs by handling according to the sign. If the value is
 signed, the result of the signed conversion instruction needs to be adjusted by using bit arithmetic
 as also used by gcc.
 
