@@ -678,76 +678,103 @@ add rax, 10
 
 \clearpage
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Technische Demonstration %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%
+%% Benchmark Setup %%
+%%%%%%%%%%%%%%%%%%%%%
 
-\begin{frame}[fragile]
-    \frametitle{Technische Demonstration}{Live Demonstration des aktuellen Standes}
+\begin{frame}
+    \frametitle{Benchmarks}
 
-    % Dauer: ~3m
-    \note[item]{Kompilieren zu RISCV-64 mit einer unmodifizierten musl libc (standardbibliothek)}
-    \note[item]{Unser Program übersetzt zu x86 assembly + binary image}
-    \note[item]{Assemblieren mittels GNU tools}
-    \note[item]{Linken von binary image, übersetztem assembly und hilfsbibliothek}
-    \note[item]{Ausführen}
-    \note[item]{Ausführen, ungefährere Vergleich (native, qemu, translated) => Wo sind wir mit optimierungen, fast faktor 10 langsamer als QEMU}
+    % Dauer: 1-2 Minuten
 
-    % Setup:
-    % Use xfc4, configure beamer as display to the right
-    % Go To Workspace 1, start pympress with
-    % LC_ALL=de_DE.UTF-8 pympress presentation/build/presentation_16_9.pdf
-    % Go To Workspace 2, on laptop start xfce4-terminal with
-    % 1. Open new Terminal Window on laptop with `tmux new-session -s demo -A`
-    % 2. Open new Terminal Window on presentation screen with `tmux attach-session -r -t demo`
-    % Resize as necessary (ctrl + + or -)
-    %
-    % Commands:
-    % ./big_tests/sysroot/bin/riscv64-linux-gnu-gcc -static examples/helloworld3.c -o examples/helloworld3
-    %
-    % ./build/src/translate --debug=true --print-ir=true --output-binary=examples/helloworld3.bin --output=examples/helloworld3_translated.s examples/helloworld3
-    % gcc -c examples/helloworld3_translated.s -o examples/helloworld3_translated.o
-    % ld -T src/generator/x86_64/helper/link.ld examples/helloworld3_translated.o build/src/generator/x86_64/helper/libhelper.a -o examples/helloworld3_translated
-    %
-    % ./examples/helloworld3_translated
-    %
-    % Additional:
-    % gcc examples/helloworld3.c -o examples/helloworld3_native
-    % time ./examples/helloworld3_native
-    % time ./examples/helloworld3
-    % time ./examples/helloworld3_translated
-    \begin{columns}[c]
-        \column{0.50 \textwidth}
-        \begin{lstlisting}[language=bash, basicstyle=\small\ttfamily, extendedchars=true,escapeinside={@@}]
-./big_tests/sysroot/bin/riscv64-linux-gnu-gcc \
-    -static \
-    examples/helloworld3.c \
-    -o examples/helloworld3
+    \note[item]{}
+    \note[item]{Wieso ist es eigentlich unmöglich native speed zu erreichen}
 
-./build/src/translate \
-    @-@-debug=true \
-    @-@-output-binary=examples/helloworld3.bin \
-    @-@-output=examples/helloworld3_translated.s \
-    examples/helloworld3
-    \end{lstlisting}
-
-        \column{0.5 \textwidth}
-        \begin{lstlisting}[language=bash, basicstyle=\small\ttfamily, extendedchars=true,escapeinside={@@}]
-gcc \
-    -c examples/helloworld3_translated.s \
-    -o examples/helloworld3_translated.o
-
-ld \
-    -T src/generator/x86_64/helper/link.ld \
-    examples/helloworld3_translated.o \
-    build/src/generator/x86_64/helper/libhelper.a \
-    -o examples/helloworld3_translated
-
-./examples/helloworld3_translated
-    \end{lstlisting}
-    \end{columns}
+    \begin{itemize}
+        \item SPECSpeed\textregistered2017 Integer Benchmark Suite
+        \item Vergleich zu QEMU, RIA-JIT
+        \item Korrektheit mittels Tests
+    \end{itemize}
 \end{frame}
-\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Benchmark Probleme (bzw. Optimierungen die problematisch sind) %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Benchmarks}{Probleme}
+
+    \begin{itemize}
+        \item Hashing zu langsam
+        \item Translation Blöcke in manchen Fällen wichtig
+    \end{itemize}
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%%%
+%% Benchmark Results %%
+%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Benchmarks}{Ergebnisse}
+
+    \note[item]{}
+
+    % TODO: insert graphik
+
+%%========== START COPY ==========%%
+\begin{figure}
+    \begin{centering}
+        \begin{tikzpicture}
+            \begin{axis}[
+                    %width=0.9\textwidth,
+                    %height=0.45\textheight,
+                    width=\textwidth,
+                    height=0.6\textheight,
+                    ybar,
+                    bar width = 9pt,
+                    ylabel={Execution time normalised to native % (less is better)
+                    },
+                    symbolic x coords = {
+                            600.perlbench,
+                            602.gcc,
+                            605.mcf,
+                            620.omnetpp,
+                            623.xalancbmk,
+                            625.x264,
+                            631.deepsjeng,
+                            641.leela,
+                            648.exchange2,
+                            657.xz,
+                            average
+                        },
+                    xticklabel style = {
+                            anchor = east,
+                            rotate = 45 - 15 %% MODIFIED
+                        },
+                    xtick = data, % make a tick at every symbolic x coordinate
+                    ytick distance = 1, % make a tick every 1
+                    ymajorgrids = true, % display horizontal guide lines
+                    legend cell align = left,
+                    legend pos = north east,
+                ]
+
+                \addplot[fill=green]  table[x=benchmark, y expr=\thisrow{native} /\thisrow{native}] from {../Ausarbeitung/tikz_src/benchmarks_results1.txt};
+                \addplot[fill=orange] table[x=benchmark, y expr=\thisrow{qemu}   /\thisrow{native}] from {../Ausarbeitung/tikz_src/benchmarks_results1.txt};
+                \addplot[fill=yellow] table[x=benchmark, y expr=\thisrow{ria}    /\thisrow{native}] from {../Ausarbeitung/tikz_src/benchmarks_results1.txt};
+                \addplot[fill=blue]   table[x=benchmark, y expr=\thisrow{sbt1}   /\thisrow{native}] from {../Ausarbeitung/tikz_src/benchmarks_results1.txt};
+
+                \legend{
+                    native,
+                    QEMU,
+                    RIA-JIT,
+                    SBT}
+            \end{axis}
+        \end{tikzpicture}
+    \end{centering}
+\end{figure}
+%%========== END COPY ==========%%
+
+\end{frame}
 
 %%%%%%%%%%%%%%%%%%%%%
 %% Erreichte Ziele %%
@@ -755,6 +782,8 @@ ld \
 
 \begin{frame}
     \frametitle{Erreichte Ziele}{Erreichte Hauptziele und Ausblick}
+
+    % Dauer: mind. 1 Minute
 
     % Dauer: mind. 1 Minute, ansonsten flexible
     \note[item]{Freistehend => ohne standard bibliothek, z\.B\. handgeschriebenes assembly oder einfache C programme}
@@ -910,6 +939,78 @@ i64 v35 <- sll v13, v14
     \end{columns}
 \end{frame}
 \clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Technische Demonstration %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile]
+    \frametitle{Technische Demonstration}{Live Demonstration des aktuellen Standes}
+
+    % Dauer: ~3m
+    \note[item]{Kompilieren zu RISCV-64 mit einer unmodifizierten musl libc (standardbibliothek)}
+    \note[item]{Unser Program übersetzt zu x86 assembly + binary image}
+    \note[item]{Assemblieren mittels GNU tools}
+    \note[item]{Linken von binary image, übersetztem assembly und hilfsbibliothek}
+    \note[item]{Ausführen}
+    \note[item]{Ausführen, ungefährere Vergleich (native, qemu, translated) => Wo sind wir mit optimierungen, fast faktor 10 langsamer als QEMU}
+
+    % Setup:
+    % Use xfc4, configure beamer as display to the right
+    % Go To Workspace 1, start pympress with
+    % LC_ALL=de_DE.UTF-8 pympress presentation/build/presentation_16_9.pdf
+    % Go To Workspace 2, on laptop start xfce4-terminal with
+    % 1. Open new Terminal Window on laptop with `tmux new-session -s demo -A`
+    % 2. Open new Terminal Window on presentation screen with `tmux attach-session -r -t demo`
+    % Resize as necessary (ctrl + + or -)
+    %
+    % Commands:
+    % ./big_tests/sysroot/bin/riscv64-linux-gnu-gcc -static examples/helloworld3.c -o examples/helloworld3
+    %
+    % ./build/src/translate --debug=true --print-ir=true --output-binary=examples/helloworld3.bin --output=examples/helloworld3_translated.s examples/helloworld3
+    % gcc -c examples/helloworld3_translated.s -o examples/helloworld3_translated.o
+    % ld -T src/generator/x86_64/helper/link.ld examples/helloworld3_translated.o build/src/generator/x86_64/helper/libhelper.a -o examples/helloworld3_translated
+    %
+    % ./examples/helloworld3_translated
+    %
+    % Additional:
+    % gcc examples/helloworld3.c -o examples/helloworld3_native
+    % time ./examples/helloworld3_native
+    % time ./examples/helloworld3
+    % time ./examples/helloworld3_translated
+    \begin{columns}[c]
+        \column{0.50 \textwidth}
+        \begin{lstlisting}[language=bash, basicstyle=\small\ttfamily, extendedchars=true,escapeinside={@@}]
+./big_tests/sysroot/bin/riscv64-linux-gnu-gcc \
+    -static \
+    examples/helloworld3.c \
+    -o examples/helloworld3
+
+./build/src/translate \
+    @-@-debug=true \
+    @-@-output-binary=examples/helloworld3.bin \
+    @-@-output=examples/helloworld3_translated.s \
+    examples/helloworld3
+    \end{lstlisting}
+
+        \column{0.5 \textwidth}
+        \begin{lstlisting}[language=bash, basicstyle=\small\ttfamily, extendedchars=true,escapeinside={@@}]
+gcc \
+    -c examples/helloworld3_translated.s \
+    -o examples/helloworld3_translated.o
+
+ld \
+    -T src/generator/x86_64/helper/link.ld \
+    examples/helloworld3_translated.o \
+    build/src/generator/x86_64/helper/libhelper.a \
+    -o examples/helloworld3_translated
+
+./examples/helloworld3_translated
+    \end{lstlisting}
+    \end{columns}
+\end{frame}
+\clearpage
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \end{document} % !!! NICHT ENTFERNEN !!!
