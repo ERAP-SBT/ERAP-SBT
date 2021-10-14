@@ -1872,9 +1872,11 @@ increasing the output assembly size.
 
 \par
 
-However the benchmarks revealed, that the hash table could in some circumstances cause a significant
-performance loss.
-We choose to disable it for performance testing, but kept it for use cases that demand a smaller translated
+However a hash table is inherintly slower than a direct lookup table, this caused a significant slow down
+in some of the benchmarks.
+Even with the \texttt{Call and Return Optimization} reducing the amount of lookups required the performance
+impact was too big.
+There for it was disabled for performance testing, but kept for use cases that require a smaller translated
 result.
 
 \subsection{Floating point accuracy}
