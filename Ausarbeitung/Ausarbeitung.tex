@@ -1226,11 +1226,12 @@ the benchmarks and implementing these requires invasive changes.
 % TODO: cite something that shows that system calls are slow anyway. => slow helper library does not matter very much
 At startup, Linux puts information on the x86\_64 stack, for example the program arguments and auxiliary vectors. % TODO: define what auxiliary vectors are and why it matters ?
 Before executing the translated code, these values need to be copied to the emulated Stack, and in some cases transformed.
+
 For example, the auxiliary vectors contain information on where to locate the Linux vDSO~\cite{man_vdso}.
 This is an optional ELF object that provides user-space wrappers for some system calls to make them faster (e.g. by not
 invoking the rather expensive kernel system call procedure), and is automatically linked by Linux (if present).
 The application can use the auxiliary vectors to locate this object and call the provided functions; however,
-the ABI is very different, we opted to remove any reference to the vDSO from the auxiliary vectors.
+since the ABI is very different, we opted to remove any reference to the vDSO from the auxiliary vectors.
 In the future, a vDSO wrapper could be implemented to provide the same speed benefits.
 
 Additionally, the helper library houses more required components for execution, like helpers for indirect jump lookup
