@@ -1661,7 +1661,7 @@ and \texttt{sse4} need to be enabled.} need to be enabled to achieve correct flo
                             641.leela,
                             648.exchange2,
                             657.xz,
-                            average % TODO: find a way to automatically compute this row
+                            average
                         },
                     xticklabel style = {
                             anchor = east,
@@ -1755,7 +1755,7 @@ from ~3.2x to ~2.5x native speed, while RIA-JIT has become slightly slower.
                             641.leela,
                             648.exchange2,
                             657.xz,
-                            average % TODO: find a way to automatically compute this row
+                            average
                         },
                     xticklabel style = {
                             anchor = east,
@@ -1767,18 +1767,20 @@ from ~3.2x to ~2.5x native speed, while RIA-JIT has become slightly slower.
                     legend style = { at={(0.95, 0.95)}, anchor=north east}, % place the graph legend at the top-right
                 ]
 
-                \addplot[fill=red] table[x=benchmark, y expr=\thisrow{sbt1}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                \addplot[fill=orange] table[x=benchmark, y expr=\thisrow{reg_alloc}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                %\addplot[fill=yellow] table[x=benchmark, y expr=\thisrow{reg_alloc_plus_ir}    /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                \addplot[fill=pink]    table[x=benchmark, y expr=\thisrow{reg_alloc_plus_gen}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                \addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{reg_alloc_plus_lifter}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=red]     table[x=benchmark, y expr=\thisrow{reg_alloc}             / \thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=yellow]  table[x=benchmark, y expr=\thisrow{reg_alloc_plus_ir}     / \thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=orange]  table[x=benchmark, y expr=\thisrow{reg_alloc_plus_gen}    / \thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=pink]    table[x=benchmark, y expr=\thisrow{reg_alloc_plus_lifter} / \thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                %\addplot[fill=purple] table[x=benchmark, y expr=\thisrow{hash_lookup}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{sbt1}                  / \thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
 
                 \legend{
-                    SBT,
-                    base,
-                    %base + ir,
-                    base + gen,
-                    base + lifter}
+                    Base,
+                    Base + IR,
+                    Base + Generator,
+                    Base + Lifter,
+                    SBT
+                }
             \end{axis}
         \end{tikzpicture}
         \caption{
