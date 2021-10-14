@@ -1123,9 +1123,9 @@ jmp b3
 
 \FloatBarrier
 
-To show an example of the generated assembly the same IR as in Figure~\ref{fig:example_ir} is used.
-The produced assembly will look like in Figure~\ref{fig:reg_gen_asm}.
-This is a lot more efficient than the naive generator and leads to vastly increased performance as well as smaller binaries.
+To show an example of the generated assembly, the same IR as in Figure~\ref{fig:example_ir} is used.
+The produced assembly is shown in Figure~\ref{fig:reg_gen_asm}.
+
 \begin{figure}[h]
     \centering
     \begin{lstlisting}[language={[x86masm]Assembler}]
@@ -1144,23 +1144,43 @@ b1_cf_1:
 \end{figure}
 
 \subsubsection{Translation Blocks}\label{translation_blocks}
-One problem that is encountered when employing register allocation on groups of basic blocks is that the programm cannot simply jump to them using indirect jumps anymore
-because the basic block might expect variables to be outside of statics and the stack frame, which is set up at the first block of a group, would be missing. To still make it possible for indirect jumps to jump to basic blocks which are register-allocated translation blocks need to be generated.
-These translation blocks will set up the stack frame and move the inputs for the basic block to the registers or stack slots at which they are expected before jumping to the register-allocated block.
-A problem with these blocks is that they need to be generated for a lot of basic blocks and take up a lot of space in the finished binary (sometimes even more than 30\% of the \.text section) while also being rarely used
-since most indirect jumps will end up at function starts which we recognize with relatively good accuracy and blocks after a function call which will be returned to.
-So by only generating translation blocks for targets of function returns the binary size can be drastically reduced while also having a negliable impact on performance.
+One problem that is encountered when employing register allocation on groups of basic blocks 
+is that the programm cannot simply jump to them using indirect jumps anymore.
+The basic block might expect variables to be outside of statics and the stack frame, which is set
+up at the first block of a group. These would be missing if the basic block is reached via a jump. 
+
+\par
+
+To still make it possible for indirect jumps to jump to basic blocks which are register-allocated,
+translation blocks need to be generated.
+These translation blocks set up the stack frame and move the inputs for the basic block to the
+registers or stack slots at which they are expected.
+They afterwards jump to the register-allocated block.
+
+\par
+
+A problem with these blocks is that they need to be generated for a lot of basic blocks and take up
+a lot of space in the finished binary.\footnote{This required space was more than 30\% of the
+\.text section, in some extreme cases.}
+They are also rarely used, since most indirect jumps will target the entry basic block of detected
+functions.
+The solution is to only generate translation blocks for targets of function returns. This way, the binary size can be
+drastically reduced while also having a negligible impact on performance.
 
 \subsubsection{Merging Operations}
-As x86 is a CISC-Architecture it offers a lot more sophisticated instructions than RISC-V or our IR. As such multiple operations in the IR can be merged into a single x86-Instruction
-if the intermediate results of them are not needed later.
+Because the x86\_64 architecture is a CISC-architecture, it offers more sophisticated
+instructions than RISC-V or our IR. As such, multiple operations in the IR can be merged
+into single x86-Instructions if the intermediate results of them are not required later.
 Mergeable sequences include:
 \begin{itemize}
-    \item add, (cast), store: Can be merged to a single store with the add embedded in the memory operand and the cast expressed as the store width
-    \item add, load, sign-/zero-extend: Can be merged into a single movsx/movzx with the add embedded in the memory operand
-    \item and with 0x1f/0x3f,(cast),shr/shl/sar: Can be merged into a single shift instructions since they mask the count operand by themselves
+\item \texttt{add}, (\texttt{cast}), \texttt{store}: Can be merged to a single store instruction with the
+\texttt{add} embedded in the memory operand and the \texttt{cast} expressed as the store width.
+    \item \texttt{add}, \texttt{load}, \texttt{sign-} / \texttt{zero-extend}: Can be merged into a 
+    single \texttt{movsx} / \texttt{movzx} instruction with the \texttt{add} embedded in the memory operand
+\item \texttt{and} with 0x1f / 0x3f, (\texttt{cast}), \texttt{shr} / \texttt{shl} / \texttt{sar}: 
+    Can be merged into a single shift instruction since they mask the count operand themselves
 \end{itemize}
-Merging these operations not only reduces the binary size since fewer instructions need to be encoded but also increase performance significantly.
+% Merging these operations not only reduces the binary size, since fewer instructions need to be encoded, but also increases performance significantly.
 % TODO: test the performance diff for merging ops
 
 \subsection{Call and Return Optimization}
