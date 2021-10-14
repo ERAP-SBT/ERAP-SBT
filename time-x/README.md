@@ -159,6 +159,11 @@ runcpu --ignore_errors --iterations=2 --size=refspeed --noreportable --ignore_er
 runcpu --ignore_errors --iterations=2 --size=refspeed --noreportable --config sbt-optimize-reg_alloc-no_hash_lookup-plus-lifter --action=run intspeed
 runcpu --ignore_errors --iterations=2 --size=refspeed --noreportable --config sbt-optimize-reg_alloc-no_hash_lookup-plus-gen --action=run intspeed
 runcpu --ignore_errors --iterations=2 --size=refspeed --noreportable --config sbt-optimize-reg_alloc-no_hash_lookup-plus-ir --action=run intspeed
+
+# for effect of no_trans_bbs, use the fastest benchmark
+runcpu --ignore_errors --iterations=2 --size=refspeed --noreportable --config=sbt-optimize-all --action=run 623.xalancbmk_s
+# for effect of no_hash_lookup, but also with !no_trans_bbs to allow comparrison
+runcpu --ignore_errors --iterations=2 --size=refspeed --noreportable --config=sbt-optimize-all-with-hash-table --action=run 623.xalancbmk_s
 ```
 
 ## Results
