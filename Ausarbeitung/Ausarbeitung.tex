@@ -1798,9 +1798,11 @@ To save space in the translated executable we added an option to remove them.
 
 \par
 
-The removal of these blocks also means that any indirect jump that can't be resolved needs to enter the interpreter, which is inherintly slow.
+The removal of these blocks also means that any indirect jump that can't be resolved needs to enter the interpreter,
+which is inherintly slow.
 The performance impact is made worse due to the lack of points where the interpreter can jump back to compiled code.
-Especially the function heavy benchmark perlbench was affected by this.
+For example the \texttt{600.perlbench} benchmark was heavily affected by this, because not all indirect jump targets
+where detected at translation, resulting in misses at runtime.
 
 \par
 
