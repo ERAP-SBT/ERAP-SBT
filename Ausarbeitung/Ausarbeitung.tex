@@ -1139,7 +1139,7 @@ from platform to platform, mostly due to backwards compatibility or architectura
 
 Because of these incompatibilities, some system calls need a thin wrapper, which is defined in the Helper Library. In
 most cases, the only difference is the ID used to perform the system call, but in some cases, arguments need to be
-modified before the system call can be performed.
+modified before the system call can be performed or to be handled specially.
 However, system calls related to signals were stubbed to do nothing, since signal support was not necessary for running
 the benchmarks and implementing these requires invasive changes.
 
@@ -1645,26 +1645,20 @@ increasing the output assembly size.
 \subsection{Performance of Translation Blocks}
 
 \subsection{Floatingpoint accuracy}
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/x86_diff.png}
-    \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
-        comparing native x86\_64 to RISC-V.}\label{fig:mandelbrot_diff_native_x86}
-\end{figure}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.75\textwidth]{images/mandelbrot_differences/translated_diff.png}
     \caption{Differences in results of the mandelbrot set visualizer~\cite{mandelbrot_program} when
-        comparing the translator to RISC-V.}\label{fig:mandelbrot_diff_translator}
+        comparing the translator to RISC-V emulated by QEMU.}\label{fig:mandelbrot_diff_translator}
 \end{figure}
 
 To depict these rounding differences we use a simple mandelbrot set
 visualizer~\cite{mandelbrot_program}. The results provided in a textual form are transformed into a
 picture coloring the mandelbrot set in a light grey, differences between the implementations with
-yellow and the remainder in a dark grey. Figure~\ref{fig:mandelbrot_diff_native_x86} shows that even
-two native compiled versions produce different results. The translator also has these accuracy
-problems in a similar dimension, depicted by Figure~\ref{fig:mandelbrot_diff_translator}.
+yellow and the remainder in a dark grey. Figure~\ref{fig:mandelbrot_diff_translator} shows that the
+translator without any optimizations produces different results than the RISC-V binary emulated with
+QEMU. Tests also showed that the native x86\_64 compiled version leads to the same picture.
 
 \par
 
