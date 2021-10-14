@@ -1670,7 +1670,8 @@ and \texttt{sse4} need to be enabled.} need to be enabled to achieve correct flo
                     xtick = data, % make a tick at every symbolic x coordinate
                     ytick distance = 1, % make a tick every 1
                     ymajorgrids = true, % display horizontal guide lines
-                    legend style = { at={(0.95, 0.95)}, anchor=north east}, % place the graph legend at the top-right
+                    legend cell align = left,
+                    legend pos = north east,
                 ]
 
                 \addplot[fill=green]  table[x=benchmark, y expr=\thisrow{native} /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
@@ -1743,7 +1744,7 @@ from ~3.2x to ~2.5x native speed, while RIA-JIT has become slightly slower.
                     height=0.45\textheight,
                     ybar,
                     bar width = 4pt,
-                    ylabel={Execution time normalised to native (less is better)},
+                    ylabel={Performance increase compared to no optimizations (more is better)},
                     symbolic x coords = {
                             600.perlbench,
                             602.gcc,
@@ -1762,35 +1763,65 @@ from ~3.2x to ~2.5x native speed, while RIA-JIT has become slightly slower.
                             rotate = 45 + 15
                         },
                     xtick = data, % make a tick at every symbolic x coordinate
-                    ytick distance = 1, % make a tick every 1
+                    % ytick distance = 1, % make a tick every 1
                     ymajorgrids = true, % display horizontal guide lines
-                    legend style = { at={(0.95, 0.95)}, anchor=north east}, % place the graph legend at the top-right
+                    legend pos = outer north east,
+                    %legend cell align = left,
+                    legend style = { at={(0.0, -0.35)}}
+                    % legend style = { at={(0.95, 0.95)}, anchor=north east}, % place the graph legend at the top-right
                 ]
 
-                \addplot[fill=red]     table[x=benchmark, y expr=\thisrow{reg_alloc}             / \thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                \addplot[fill=yellow]  table[x=benchmark, y expr=\thisrow{reg_alloc_plus_ir}     / \thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                \addplot[fill=orange]  table[x=benchmark, y expr=\thisrow{reg_alloc_plus_gen}    / \thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                \addplot[fill=pink]    table[x=benchmark, y expr=\thisrow{reg_alloc_plus_lifter} / \thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                %\addplot[fill=purple] table[x=benchmark, y expr=\thisrow{hash_lookup}   /\thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
-                %\addplot[fill=blue]    table[x=benchmark, y expr=\thisrow{sbt1}                  / \thisrow{native}] from {./tikz_src/benchmarks_results1.txt};
+                \addlegendimage{empty legend} % used to add a title to the legend
+
+                \addplot[fill=green]  table[x=benchmark, y expr=\thisrow{reg_alloc} / \thisrow{reg_alloc}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=orange] table[x=benchmark, y expr=\thisrow{reg_alloc} / \thisrow{reg_alloc_plus_ir}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=yellow] table[x=benchmark, y expr=\thisrow{reg_alloc} / \thisrow{reg_alloc_plus_gen}] from {./tikz_src/benchmarks_results1.txt};
+                \addplot[fill=blue]   table[x=benchmark, y expr=\thisrow{reg_alloc} / \thisrow{reg_alloc_plus_lifter}] from {./tikz_src/benchmarks_results1.txt};
 
                 \legend{
-                    Base,
-                    Base + IR,
-                    Base + Generator,
-                    Base + Lifter,
+                    \textbf{Additional Optimization},
+                    None,
+                    {Const Folding, DCE, Common Subexpression Elimination},
+                    {Merging Operations, Better Shifting},
+                    Call and Return
                     %SBT
                 }
             \end{axis}
         \end{tikzpicture}
         \caption{
-            SPECSpeed\textregistered2017 Integer benchmark suite results of different optimization categories compared.
-            Base is the minimum set of optimizations requried to successfully pass benchmarks.
+            % TODO: adjust
+            SPECSpeed\textregistered2017 Integer benchmark suite results of different optimizations compared using the register allocator with FMA3 and SSE4 enabled.
+            For IR the Constant Folding, Dead Code Elimination and Variable Deduplication where enabled, for Generator the Merging Operations and BMI2 instruction set extension.
             % TODO: expand on what IR, Lifter, Generator means
             %SBT the result of all optimizations except the removal of translation blocks.
         }\label{benchmark_results2}
     \end{centering}
 \end{figure}
+
+To better understand the performance of our translator we compared the effect of the implemented optimizations on
+the runtime performance.
+In Figure \ref{benchmark_results2} the performance of optimizations applying to the \texttt{IR}, applying to the generator
+and the \texttt{Call and Return} optimizations are compared to a baseline of no additional optimizations.
+%We also evaluted how effective various optimizations are at different stages of the translation.
+%For this we compared the results of benchmarks shown in Figure \ref{benchmark_results2}.
+
+\par
+
+On average any optimization improves the performance, however in some cases individual optimizations can result in performance loss.
+
+\par
+
+% TODO: explain why const folding, dce, variable deduplication is so good, and why it's better than what dynamic binary translators can do.
+
+\par
+
+% TODO: explain why the merge_ops is causes high performance increases in some benchmarks and tiny slow downs in others.
+In benchmarks with many instructions following
+
+\par
+
+In most cases \texttt{Call and Return Optimizations} improves performance, but in some cases the additional cost incured by miss predictions
+causes a slow down, here in the \texttt{648.exchange2} and \texttt{657.xz} benchmarks.
 
 \subsection{Performance of Translation Blocks}\label{sec:translation_blocks}
 
