@@ -141,7 +141,7 @@
     %\pause
 
     \begin{itemize}
-        \setlength\itemsep{0.5em}
+        \setlength{\itemsep}{1em}
         \item Programm aus \textbf{Basic Blocks}
         \item Basic Blocks enthalten Variablen
         \item Eingaben in Form von Statics
@@ -604,6 +604,7 @@ add rax, 10
     \frametitle{Helper-Library}
 
     \begin{itemize}
+        \setlength{\itemsep}{1em}
         \item Architektur-spezifische Funktionen, die für die übersetzte Binary erforderlich sind
         \item Wird zusammen mit dem Assembly des Generators gelinked
         \item Stack-Intialisierung
@@ -667,6 +668,7 @@ add rax, 10
 \begin{frame}
     \frametitle{Übersetzungprobleme bei der Gleitkommaarithmetik}
     \begin{itemize}
+        \setlength{\itemsep}{1em}
         \item Einige Instruktionen können nicht direkt auf x86\_64 abgebildet werden
         \item Vorzeichenlose Ganzzahlkonvertierung: nur von AVX512 nativ unterstützt
         \item Für \textbf{Sign Injection} und \textbf{Classify} gibt es gar keine Äquivalente
