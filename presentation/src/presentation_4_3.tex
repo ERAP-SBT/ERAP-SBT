@@ -57,13 +57,6 @@
 %%%%%%%%%%%%
 
 \begin{frame}
-    \frametitle{Inhalt}
-    \begin{itemize}
-        \item
-    \end{itemize}
-\end{frame}
-
-\begin{frame}
     \frametitle{Dynamische und Statische Binärübersetzung}{}
 
     \note[item]{Ziel: Statische Binärübersetzung}
@@ -279,38 +272,36 @@ block b2(i64 v1) <= [b1] {
 \end{frame}
 \clearpage
 
-\begin{frame}[fragile]{Common Subexpression Elimination}{Beispiel}
-
-\begin{lstlisting}[language=SbtIr]
-block b1(i64 v1) {
-    imm v2 <- immediate 100
-    i64 v3 <- add i64 v1, imm v2
-    imm v4 <- immediate 100
-    i64 v5 <- add i64 v1, imm v4
-} => [(jump, [b2, i64 v5])]
-\end{lstlisting}
-
-\pause
-
-\vspace{1cm}
-
-\begin{lstlisting}[language=SbtIr]
-block b1(i64 v1) {
-    imm v2 <- immediate 100
-    i64 v3 <- add i64 v1, imm v2
-} => [(jump, [b2, i64 v3])]
-\end{lstlisting}
-
-\end{frame}
-
 \begin{frame}[fragile]{Common Subexpression Elimination}
     Löschen von redundanten Operationen und doppelten Immediates
 
-    \begin{itemize}
-        \setlength\itemsep{0.5em}
-        \item Variablen von oben nach unten überprüfen
-        \item Falls andere Variable mit gleichem Typ und gleichen Inputs existiert, ersetzen
-    \end{itemize}
+    %\begin{itemize}
+    %    \setlength\itemsep{0.4em}
+    %    \item Variablen von oben nach unten überprüfen
+    %    \item Falls andere Variable mit gleichem Typ und gleichen Inputs existiert, ersetzen
+    %\end{itemize}
+
+    \vspace{0.5cm}
+
+    \begin{lstlisting}[language=SbtIr]
+    block b1(i64 v1) {
+        imm v2 <- immediate 100
+        i64 v3 <- add i64 v1, imm v2
+        imm v4 <- immediate 100
+        i64 v5 <- add i64 v1, imm v4
+    } => [(jump, [b2, i64 v5])]
+    \end{lstlisting}
+
+    \pause
+
+    \vspace{0.75cm}
+
+    \begin{lstlisting}[language=SbtIr]
+    block b1(i64 v1) {
+        imm v2 <- immediate 100
+        i64 v3 <- add i64 v1, imm v2
+    } => [(jump, [b2, i64 v3])]
+    \end{lstlisting}
 \end{frame}
 \clearpage
 
@@ -692,13 +683,28 @@ add rax, 10
 
     % Dauer: 1-2 Minuten
 
-    \note[item]{}
-    \note[item]{Wieso ist es eigentlich unmöglich native speed zu erreichen}
+    \note[item]{SPECSpeed: Standarisierte Benchmark Suite}
+    \note[item]{Testet viele reale Szenarien: Video Kodierung, compiler, interpreter, Kompression}
+    \note[item]{Erlaubt uns zu verifizieren, dass wir alle wichtigen RISC-V Instruktionen (und ISA Extensions) korrekt unterstützen}
+    \note[item]{Integer benchmark gewählt, da wir zwar Gleitkommaarithmetik implementiert haben, aber nicht optimiert}
+    \note[item]{Nicht desto trotz beinhalten die Benchmarks Tests die alle Gleitkommaoperationen überprüft}
+    \note[item]{Da die einzelnen Benchmarks unterschiedlich lange brauchen, haben wir sie zu einem nativ durchgeführten Benchmark verglichen}
+    \note[item]{=> Erlaubt es den Overhead zu messen und zu Vergleichen}
+    \note[item]{Vergleich zu anderen dynamischen binär übersetztern}
+    \note[item]{QEMU: weit verbreiteter dbt, unterstützt verschiedene Architekturen}
+    \note[item]{RIA-JIT: DBT aus einem Großpraktikum letzten Jahres, spezialisiert auf RISC-V zu x86 übersetztung}
 
     \begin{itemize}
+        \setlength{\itemsep}{1em}
         \item SPECSpeed\textregistered2017 Integer Benchmark Suite
-        \item Vergleich zu QEMU, RIA-JIT
         \item Korrektheit mittels Tests
+        \item Vergleich zu
+            \begin{enumerate}
+                \setlength\itemsep{0.6em}
+                \item Native
+                \item QEMU
+                \item RIA-JIT
+            \end{enumerate}
     \end{itemize}
 \end{frame}
 
@@ -709,9 +715,20 @@ add rax, 10
 \begin{frame}
     \frametitle{Benchmarks}{Probleme}
 
+    % Dauer: 1 Minute
+
+    \note[item]{Beim Ausführen der Benchmarks sind wir auf einige Probleme gestoßen}
+    \note[item]{Hashing der Lookup Table für indirekte sprünge verlangsamt die benchmarks stark}
+    \note[item]{In manchen Fällen mit vielen lookups sogar stark}
+    \note[item]{Translation Bläcke zu entfernen führt in manchen fällen zu extremen verlangsamungen}
+    \note[item]{Wenn der Interpreter angesprungen müssen sehr viele Sprünge interpreteriert werden bevor zurück in den schnellen kompilierten code gesprungen werden kann}
+    \note[item]{Die Benchmarks benötigen die FMA3, SSE4 Extensions, damit alle floating point ergebnisse vom benchmark als richtig akzeptiert werden}
+
     \begin{itemize}
+        \setlength{\itemsep}{1em}
         \item Hashing zu langsam
         \item Translation Blöcke in manchen Fällen wichtig
+        \item Korrekte Floating Point Resultate benötigen die FMA3, SSE4 Extension
     \end{itemize}
 \end{frame}
 
@@ -720,11 +737,19 @@ add rax, 10
 %%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{frame}
-    \frametitle{Benchmarks}{Ergebnisse}
+    \frametitle{Benchmarks}%{Ergebnisse}
 
-    \note[item]{}
+    \note[item]{Y-Achse: Ausführungsgeschwindigkeit normalisiert zu Native, weniger ist besser}
+    \note[item]{X-Achse: Verschiedene Benchmarks: interpreter, compiler, video kodierung, verschiedene AIs, kompression}
+    \note[item]{Vergleich: Native in Grün, QEMU in Orange, RIA in Gelb, Unsere Statische Binär Übersetzung in Blau}
+    \note[item]{1x bedeutet genauso schnell wie Native, 2x doppelt so lange wie Native, etc...}
+    \note[item]{Im Durchschnitt sind wir schneller als dynamische Binärübersetzung (QEMU, RIA-JIT)i}
+    \note[item]{Der Benchmark für RIA-JIT musste bei 625.x264 onen FP support in der toolchain ausgeführt werden, da es hier bugs gab}
+    \note[item]{=> wahrscheinlich etwas langsamer als möglich}
+    \note[item]{In allen Benchmarks sind wir schneller als QEMU, in manchen nur sehr wenig (xz), in manchen sehr viel (gcc)}
+    \note[item]{In einigen benchmarks deutlich schneller als RIA-JIT (perlbench, mcf), in manchen etwas langsamer (z.b. exchange2}
 
-    % TODO: insert graphik
+    \vspace{-1.5cm}
 
 %%========== START COPY ==========%%
 \begin{figure}
@@ -734,7 +759,7 @@ add rax, 10
                     %width=0.9\textwidth,
                     %height=0.45\textheight,
                     width=\textwidth,
-                    height=0.6\textheight,
+                    height=0.65\textheight,
                     ybar,
                     bar width = 9pt,
                     ylabel={Execution time normalised to native % (less is better)
@@ -779,31 +804,6 @@ add rax, 10
 \end{figure}
 %%========== END COPY ==========%%
 
-\end{frame}
-
-%%%%%%%%%%%%%%%%%%%%%
-%% Erreichte Ziele %%
-%%%%%%%%%%%%%%%%%%%%%
-
-\begin{frame}
-    \frametitle{Erreichte Ziele}{Erreichte Hauptziele und Ausblick}
-
-    % Dauer: mind. 1 Minute
-
-    % Dauer: mind. 1 Minute, ansonsten flexible
-    \note[item]{Freistehend => ohne standard bibliothek, z\.B\. handgeschriebenes assembly oder einfache C programme}
-    \note[item]{Atomics werden nur also nicht atomics übersetzt so weit nötig}
-    \note[item]{Demonstriert im Beispiel}
-    \note[item]{2 Bugs in musl libc, malloc, fehlender BasicBlock in printf\_core wegen switch statement ohne control fluss änderung am ende von cases}
-    \note[item]{Und noch vereinzelt weiter instructionen je nach bedarf}
-    \note[item]{ijump eigentlich bei erweiterte Ziele, aber extrem wichtig da für return verwendet}
-
-    \begin{itemize}
-        \item Korrektes Übersetzen einfacher freistehender Programme
-        \item Übersetzen von unmodifizierter musl libc
-        \item Unterstützung von RV64I, RV64C, \ldots{}
-        \item Auflösung indirekter Sprünge zur Laufzeit
-    \end{itemize}
 \end{frame}
 
 %%%%%%%%%%%%%%%%%%%

@@ -272,7 +272,7 @@ void print_help(bool usage_only) {
         std::cerr << "          - unused_statics:       Eliminate unused static-load-stores in the default generator\n";
         std::cerr << "          - bmi2:                 Allow usage of instructions in the BMI2 instruction set extension (shlx/shrx/sarx)\n";
         std::cerr << "          - fma3:                 Allow usage of instructions in the FMA3 set extension (fused multiply add)\n";
-        std::cerr << "          - see4:                 Allow usage of instructions in the SSE4 set extension, especially rounds[s|d]\n";
+        std::cerr << "          - sse4:                 Allow usage of instructions in the SSE4 set extension, especially rounds[s|d]\n";
         std::cerr << "          - no_trans_bbs:         Register Allocation won't emit Translation Blocks (Should only be used with call_ret)\n";
         std::cerr << "      - lifter:\n";
         std::cerr << "          - call_ret:             Detect and replace RISC-V `call` and `return` instructions\n";
