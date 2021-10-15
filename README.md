@@ -3,25 +3,17 @@
 ## Build-Instruktionen
 
 Dieses Projekt basiert auf [meson](https://mesonbuild.com).
+Nach dem Klonen sind folgende Schritte auszuführen, um das Projekt zu bauen:
 
 ```sh
+# Initiate and download submodules
+git submodule update --init
+
 # Project setup
-meson setup build -Db_coverage=true
+meson setup build -Dbuildtype=release
 
 # Build binaries:
 ninja -C build all
-
-# Run all tests:
-ninja -C build test
-
-# Generate coverage reports after running tests
-ninja -C build coverage
-
-# Build code documentation in 'build/docs' (requires doxygen)
-ninja -C build docs
 ```
 
-Before committing you can clean up your code by running `clang-format`:
-```sh
-ninja -C build clang-format
-```
+Der Translator befindet sich in `build/src/translate`.
