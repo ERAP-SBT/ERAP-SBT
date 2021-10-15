@@ -806,31 +806,6 @@ add rax, 10
 
 \end{frame}
 
-%%%%%%%%%%%%%%%%%%%%%
-%% Erreichte Ziele %%
-%%%%%%%%%%%%%%%%%%%%%
-
-\begin{frame}
-    \frametitle{Erreichte Ziele}{Erreichte Hauptziele und Ausblick}
-
-    % Dauer: mind. 1 Minute
-
-    % Dauer: mind. 1 Minute, ansonsten flexible
-    \note[item]{Freistehend => ohne standard bibliothek, z\.B\. handgeschriebenes assembly oder einfache C programme}
-    \note[item]{Atomics werden nur also nicht atomics übersetzt so weit nötig}
-    \note[item]{Demonstriert im Beispiel}
-    \note[item]{2 Bugs in musl libc, malloc, fehlender BasicBlock in printf\_core wegen switch statement ohne control fluss änderung am ende von cases}
-    \note[item]{Und noch vereinzelt weiter instructionen je nach bedarf}
-    \note[item]{ijump eigentlich bei erweiterte Ziele, aber extrem wichtig da für return verwendet}
-
-    \begin{itemize}
-        \item Korrektes Übersetzen einfacher freistehender Programme
-        \item Übersetzen von unmodifizierter musl libc
-        \item Unterstützung von RV64I, RV64C, \ldots{}
-        \item Auflösung indirekter Sprünge zur Laufzeit
-    \end{itemize}
-\end{frame}
-
 %%%%%%%%%%%%%%%%%%%
 %% Noch Fragen ? %%
 %%%%%%%%%%%%%%%%%%%
