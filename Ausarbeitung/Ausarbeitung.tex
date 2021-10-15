@@ -124,7 +124,8 @@ ISA, they are called \texttt{rv64imacfd} or short \texttt{rv64g}. More standard 
 \par
 
 RV64I provides 31 64-bit wide integer registers (\texttt{x1} $-$ \texttt{x31}) and a hard wired zero register (\texttt{x0}). The floating
-point extensions add 32 floating points registers (\texttt{f0} $-$ \texttt{f31}) and a floating point control and status
+point extensions add instructions for 32 floating points registers (\texttt{f0} $-$ \texttt{f31}).
+They also add a floating point control and status
 register (\texttt{fcsr}). The instruction words have a fixed width of 32-bit, with the C extension
 introducing instructions with 16-bit wide instruction words. The
 standard calling convention defines \texttt{x1} as the link register and \texttt{x5} as the alternative link

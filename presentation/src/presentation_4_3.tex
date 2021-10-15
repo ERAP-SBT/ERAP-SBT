@@ -63,13 +63,15 @@
     \end{itemize}
 \end{frame}
 
-\begin{frame}{Dynamische und Statische Binärübersetzung}
+\begin{frame}
+    \frametitle{Dynamische und Statische Binärübersetzung}{}
 
     \note[item]{Ziel: Statische Binärübersetzung}
     \note[item]{Übersetzung von Binärdateien auf eine andere Plattform}
     \note[item]{hier: von RISC-V zu x86\_64}
     \note[item]{Dynamisch wäre ein Interpreter, also zur Laufzeit, bei uns Übersetzung zur Compilezeit}
 
+    \vspace{2em}
     Gemeinsames Ziel: Ausführung von Binärdateien einer Architektur auf einer anderen Architektur.
     \pause
 
@@ -98,7 +100,7 @@
 
 \begin{frame}{RISC-V Übersicht}
     \note[item]{Load-Store: Spezielle Befehle für Laden/Speichern in Register (-> Register-Register Architektur)}
-
+    \vspace{1.25cm}
     \begin{itemize}
         \setlength\itemsep{0.8em}
         \item Relativ neuer Befehlssatz
@@ -363,8 +365,9 @@ block b1(i64 v1) {
 %%%%%%%%%%%%%%%%%%%%%%
 %% Lifter Splitting %%
 %%%%%%%%%%%%%%%%%%%%%%
+
 \begin{frame}
-    \frametitle{Lifter Splitting}{Aufteilen eines Basic Blocks}
+    \frametitle{Lifter}{Aufteilen eines Basic Blocks}
     \begin{itemize}
         \setlength{\itemsep}{1em}
         \item Situation: Sprung \textbf{in} einen bereits eingelesenen Basic Block
@@ -378,6 +381,7 @@ block b1(i64 v1) {
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Lifter Call / Return %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%
+
 \begin{frame}
     \frametitle{Lifter Subroutinen Erkennung}{Erkennung der Assembler Pseudoinstruktionen \texttt{call} und \texttt{ret}.}
     \begin{itemize}
@@ -425,7 +429,9 @@ switch(instr.mnem) {
     lui a5, !\colorbox{yellow}{\%hi(.L1)}!
     addi a5, a5, !\colorbox{yellow}{\%lo(.L1)}!
     add a5, a4, a5
-    !\colorbox{yellow}{lw}! a5, 0(a5)
+    !\colorbox{yellow}{lw}! a5, 0(a5)A second problem is that there can be differences in rounding when assembling someinstructions. For example, the fused multiply add instructions can be translated usingthe x86_64 FMA3 instructions.  However, as this extension is not supported by everyx86_64 CPU, it needs to be enabled explicitly. The alternative is to emulate the instructionusing multiplication and addition or subtraction11. This can result in a different resultdue to rounding errors.8.3. Implementation Problems and SolutionsSome RISC-V instructions do not have an x86_64 equivalent, especially unsigned con-versions, sign injection and the floating point classification instructionFCLASS. Theseinstructions are emulated using sequences of x86_64 operations.The x86_64 ISA does not define an unsigned conversion instruction.  Although theAdvanced Vector Extensions 512(AVX512) provide such instructions, they are relativelynew and implemented only in a few CPUs. Therefore, the translator does not providean optimization flag for using these instructions.The RISC-V unsigned conversion instruction’s behavior is emulated using a combina-tion of the signed x86_64 conversion instructions and logical operations for correctingthe results.For unsigned integer to floating point number conversion, the corrections are appliedbased on the signed representation of the unsigned integers. 32-bit wide integer valuescan always be zero extended to 64-bits, which leads to their signed representation to benon-negative. If the signed representation is greater than, or equal, to zero, the 64-bitsigned conversion can be applied directly. Otherwise, the input and output values ofthe signed conversion instruction need to be adjusted. This is done using bit arithmetic,which is also used bygcc. The RISC-V floating point conversion to unsigned integers isemulated by converting to a signed integer. If the input floating point value is negative,the result is set to zero, as specified by the RISC-V manual [16].The sign injection instruction is emulated by arithmetically manipulating the signbit of the floating point numbers. The floating point classify instructions categorize theinput floating point number. Possible categories include sNaN, qNaN, negative infinity,11For some fused multiply adds, negating a floating point value is also required.
+Großpraktikum ERA – Static binary translation from RISC-V to x86_6430negative normal number, and more. The x86_64 architecture does not feature a similarinstruction, therefore the classification is done using custom bit arithmetic.9. EvaluationTo measure the performance we used the SPEC CPU®2017 [18] benchmark package.We only ran the integer and not the floating point suite, because we did not optimizefloating point operations. However, the integer suite includes tests that not only coverinteger instructions, but also many floating point operations, allowing us to verify ourimplementation.The  integer  benchmark  suite  covers  many  actual  use  cases,  including  compilers,video compression, artificial intelligence and more.  This allows us to stress test theperformance under conditions similar to a real production environment.The benchmark results were compared to the results using QEMU, a popular dynamicbinary translator which supports many different architectures. They are also comparedto RIA-JIT [1], another dynamic binary translator that only supports RISC-V to x86_64translation. This translator also claims to be faster than QEMU in its project descriptionpaper [6].The effectiveness and drawbacks of the implemented optimizations were also mea-sured, with special attention to the effects of floating point operation accuracy.9.1. Benchmark SetupAll benchmarks where performaned on thetime-xserver provided by the Chair of Com-puter Architecture and Parallel Systems.12The Server has aAMD Ryzen ThreadripperPRO 3955WX 16-CoresCPU and32 GBmemory. It is runningUbuntu 20.04.2 LTSwithkernel release5.10.0-1044-oemand version#46-Ubuntu SMP Wed Aug 11 09:50:57UTC 2021. The benchmarks where executed on theNFSfilesystem.For native benchmarks the GNU Compiler provided by the operating system was used.It  had  the  gcc  version9.3.0 (Ubuntu 9.3.0-17ubuntu1 20.04)with  glibc  version2.31-0ubuntu9.2. For RISC-V benchmarks, the gnu toolchain provided by the RISC-Vfoundation was used, version 2021.09.2113, it was configured with–with-arch=rv64imafdc–with-abi=lp64d.Our own translator (SBT) was build from the latest master14at the time in releasemode.   The QEMU version used was1:4.2-3ubuntu6.17.   For RIA-JIT, a modifiedversion by Alexis Engelke was used, adding support for RV64C over the original im-plementation. It was further modified to fix a bug with compressed instructions and toimplement an additional system call required by the benchmarks.1512https://www.in.tum.de/caps/hw/caps-cloud/13Repositoryhttps://github.com/riscv-collab/riscv-gnu-toolchain,Commithashb39e36160aa0649ba0dfb9aa314d375900d610fb14Commit hash 3c341ea7298555b7c34572bd355ca4765d7650df15Commit hash cff2c15e4b646dca8d839f4a5ee9c3ec89231ac6
+Großpraktikum ERA – Static binary translation from RISC-V to x86_6431Due to lack of development tools on the benchmark system, the toolchain, RIA-JITand SBT were compiled on another host in a container similar totime-xand uploaded.Version 1.1.0 of the SPEC CPU®2017 benchmarks was used. The example configurationof the benchmark suite was modified to make it compatible with the newergccversionused,OpenMPsupport was disabled and all test binaries were statically linked.   Allbenchmarks were run with 2 iterations and the slower result was selected.  For ourstatic binary translation, only the execution speed of the resulting binary and not thetranslation time was measured.9.2. 
     jr a5
 /* [...] */
 .L1:
