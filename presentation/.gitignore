@@ -1,1 +1,8 @@
 build
+*.aux
+*.log
+*.nav
+*.pdf
+*.snm
+*.toc
+*.vrb

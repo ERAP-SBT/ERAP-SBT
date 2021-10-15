@@ -1,0 +1,15 @@
+#!/bin/sh
+# Authored by Alexis Engelke
+set -u
+
+# will be empty for non-ELF files like #!.
+MACH=$(readelf -h "$1" 2>/dev/null | grep "Machine:")
+case "${MACH##*  }" in
+    "RISC-V")
+        exec "$HOME"/ria-jit/translator -f "$@"
+        ;;
+    "Advanced Micro Devices X86-64")
+        exec "$@";;
+    *)
+        exec "$@";;
+esac

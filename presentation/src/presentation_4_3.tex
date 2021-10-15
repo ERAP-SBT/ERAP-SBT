@@ -1,0 +1,1022 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TUM-Vorlage: Präsentation
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% Rechteinhaber:
+%     Technische Universität München
+%     https://www.tum.de
+%
+% Gestaltung:
+%     ediundsepp Gestaltungsgesellschaft, München
+%     http://www.ediundsepp.de
+%
+% Technische Umsetzung:
+%     eWorks GmbH, Frankfurt am Main
+%     http://www.eworks.de
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Zur Wahl des Seitenverhältnisses bitte einen der beiden folgenden Befehle
+% auskommentieren und den ausführen lassen:
+\input{praeambel_4_3.tex} % Seitenverhältnis 4:3
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{settings.tex}                    % !!! DATEI ANPASSEN !!!
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newcommand{\Datum}{\today}
+
+\renewcommand{\PraesentationFusszeileZusatz}{Rechnerarchitektur-Großpraktikum 2021 | Statische Binärübersetzung von RISC-V in x86-64}
+
+\title{Statische Binärübersetzung von RISC-V in x86-64}
+\author{Lukas Döllerer, Jonathan Hettwer, Johannes Maier, Tobias Schwarz, Felix Solcher}
+\institute[]{Rechnerarchitektur-Großpraktikum 2021}
+\date[\Datum]{Garching, 16. Juli 2021}
+\subject{Statische Binärübersetzung von RISC-V in x86-64}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{entry.tex} % !!! NICHT ENTFERNEN !!!
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FOLIENSTIL: Standard
+\PraesentationMasterStandard
+
+\PraesentationTitelseite % Fügt die Startseite ein
+
+\input{commands.tex}
+
+%%%%%%%%%%%%
+%% Inhalt %%
+%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Inhalt}
+    \begin{itemize}
+        \item
+    \end{itemize}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Dynamische und Statische Binärübersetzung}{}
+
+    \note[item]{Ziel: Statische Binärübersetzung}
+    \note[item]{Übersetzung von Binärdateien auf eine andere Plattform}
+    \note[item]{hier: von RISC-V zu x86\_64}
+    \note[item]{Dynamisch wäre ein Interpreter, also zur Laufzeit, bei uns Übersetzung zur Compilezeit}
+
+    \vspace{2em}
+    Gemeinsames Ziel: Ausführung von Binärdateien einer Architektur auf einer anderen Architektur.
+    \pause
+
+    \vspace{1.25cm}
+
+    \begin{columns}[t]
+        \column{0.45\textwidth}
+        \textbf{Dynamische Übersetzung}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Instruktionen werden zur Laufzeit übersetzt
+            \item Übersetzte Instruktionen können zwischengespeichert werden
+        \end{itemize}
+
+        \column{0.5\textwidth}
+        \textbf{Statische Übersetzung}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Binärdatei wird erst zur Zielarchitektur übersetzt
+            \item Resultat kann unabhängig von Übersetzer ausgeführt werden
+        \end{itemize}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{RISC-V Übersicht}
+    \note[item]{Load-Store: Spezielle Befehle für Laden/Speichern in Register (-> Register-Register Architektur)}
+    \vspace{1.25cm}
+    \begin{itemize}
+        \setlength\itemsep{0.8em}
+        \item Relativ neuer Befehlssatz
+        \item Aufgeteilt in Base und Extensions
+        \item Feste Befehlslänge von 32-Bit (optional auch 16-Bit)
+        \item Reduced Instruction Set Computer $\rightarrow$ Wenige, einfache Befehle
+        \item Load-Store-Architektur
+    \end{itemize}
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%%%
+%% Programmübersicht %%
+%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}{Programmübersicht}
+    \note[item]{RISC, feste 32-Bit Befehlslänge}
+    \note[item]{wenige, einfache Befehle -> geringe Codedichte, aber leicht zu übersetzten}
+    \note[item]{Register-Register-Maschine, also nur Operation auf Registern in der Dreioperandenform, s. 'ERA'}
+    \note[item]{Lifter 'hebt' RISC-V in die Zwischenrepräsentation (sog. IR)}
+    \note[item]{Codegenerator compiliert zu Assemlby Code und dieser wird zu einer ausführbaren Datei assembliert}
+
+    \centering
+    \ProgramScheme{0.55}{13}
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%
+%% IR Aufbau Folie %%
+%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}{Intermediate Representation}{Aufbau}
+    %\note[item]{Selbst definierte, architekturunabhängig Zwischenrepräsentation}
+    %\note[item]{Hauptbestandteil: Basic Blocks}
+    %\note[item]{-> Sequentielle Folge von Instruktionen, die keine Kontrollfluss ändernde Instruktion enthalten}
+    %\note[item]{Basic Block enthält Variablen in sogenannter SSA-Form und die dazu gehörenden Operationen}
+    %\note[item]{Eingaben kommen als "Statics" -> Abstrakte Darstellung von RISCV-Registern}
+    %\note[item]{Kontrollflussoperationen verbinden die Basic Blocks}
+    %\note[item]{Static single assignment -> Jeder var wird nur einmal Wert zugewiesen}
+    %\note[item]{-> Vereinfacht Optimierungen}
+    %\note[item]{SSA bedeutet: Variablen frei verschiebbar, deshalb Memory Tokens für Einhaltung der Reihenfolge}
+    %
+    %\pause
+
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item Programm aus \textbf{Basic Blocks}
+        \item Basic Blocks enthalten Variablen
+        \item Eingaben in Form von Statics
+        \item Verbindung durch Kontrollflussoperationen
+        \item \textbf{Static Single Assignment (SSA)} Form
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Intermediate Representation}{Operationen}
+
+    \note[item]{jump: Sprung zu basic block}
+    \note[item]{ijump: Indirekter Sprung zu Addresse in Variable, mehr später}
+    \note[item]{cjump: Bedingter Sprung}
+    \note[item]{Aufruf-Äquivalente: call, indirekter call und zugehöriges return}
+
+    \vspace{1cm}
+
+    \begin{columns}[t]
+        \column{0.4\textwidth}
+        Instruktionen:
+        \begin{itemize}
+            \setlength\itemsep{0.3em}
+            \item Speicher: \texttt{store}, \texttt{load}
+            \item Arithmetisch: \texttt{add}, \texttt{sub}, \texttt{mul}, ...
+            \item Logisch: \texttt{and}, \texttt{or}, \texttt{shl}, ...
+            \item Sonstige: Typkonvertierung, ...
+            \item Gleitkommaarithmetik
+        \end{itemize}
+
+        \column{0.4\textwidth}
+        Kontrollflussoperationen:
+        \begin{itemize}
+            \setlength\itemsep{0.3em}
+            \item Sprünge: \texttt{jump}, \texttt{ijump}, \texttt{cjump}
+            \item Aufrufe: \texttt{call}, \texttt{icall}, \texttt{return}
+            \item \texttt{unreachable}
+            \item \texttt{syscall}
+        \end{itemize}
+    \end{columns}
+\end{frame}
+
+%%%%%%%%%%%%%%
+%% IR Folie %%
+%%%%%%%%%%%%%%
+
+\begin{frame}[fragile]{Intermediate Representation}{Beispiel}
+    %\pause{}
+    \vspace{1.5cm}
+    \begin{columns}[c]
+        \column{0.25 \textwidth}
+        \begin{lstlisting}[language=rv64]
+[...]
+addi a0, x0, 100
+j somewhere_else
+[...]
+        \end{lstlisting}
+
+        \column{0.1 \textwidth}
+        \begin{tikzpicture}[scale=0.72]
+            \TikZArrowX{TUMOrange}{0}{0}{4}{1}
+        \end{tikzpicture}
+
+
+        \column{0.55 \textwidth}
+        \begin{lstlisting}[language=SbtIr]
+block b1(/* inputs */) {
+    imm v1 <- immediate 0
+    imm v2 <- immediate 100
+    i64 v3 <- add imm v1, imm v2
+} => [(jump, [b2, i64 v3])]
+    \end{lstlisting}
+    \end{columns}
+
+\end{frame}
+\clearpage
+
+\begin{frame}[fragile]{Constant Folding}{Beispiel}
+    \vspace{0.3cm}
+    \begin{lstlisting}[language=SbtIr]
+block b1(/* inputs */) {
+    imm v1 <- immediate 0
+    imm v2 <- immediate 100
+    i64 v3 <- add imm v1, imm v2
+} => [(jump, [b2, i64 v3])]
+    \end{lstlisting}
+
+    \pause
+
+    \vspace{1.2cm}
+
+    \begin{lstlisting}[language=SbtIr]
+block b1(/* inputs */) {
+    i64 v3 <- immediate 100
+} => [(jump, [b2, i64 v3])]
+    \end{lstlisting}
+
+\end{frame}
+\clearpage
+
+\begin{frame}[fragile]{Constant Folding}
+    \begin{itemize}
+        \setlength\itemsep{0.5em}
+        \item Berechnung von Operationen, deren Eingaben bekannt sind (also Zahlen) %TODO immediate
+        \item Propagieren von bekannten und berechneten Werten
+        \item Vereinfachung einiger Operationen %z.b. x+0
+    \end{itemize}
+\end{frame}
+\clearpage
+
+\begin{frame}[fragile]{Dead Code Elimination}{Beispiel}
+    \vspace{1cm}
+\begin{lstlisting}[language=SbtIr]
+block b1(/* inputs */) {
+    i64 v3 <- immediate 100
+} => [(jump, [b2, i64 v3])]
+
+block b2(i64 v1) <= [b1] {
+} => [(jump, [b3])]
+\end{lstlisting}
+
+\end{frame}
+
+\begin{frame}[fragile]{Dead Code Elimination}
+    Löschen von nicht benötigten Variablen und Entfernung von unbenutzten Parametern
+
+    \begin{itemize}
+        \setlength\itemsep{0.5em}
+        \item Start bei Operationen mit Nebeneffekten, wie stores oder indirekte Jumps
+        \item ``Graph-Suche'' nach allen erreichbaren Variablen
+        \item Nicht erreichte Variablen sind überflüssig.
+    \end{itemize}
+\end{frame}
+\clearpage
+
+\begin{frame}[fragile]{Common Subexpression Elimination}{Beispiel}
+
+\begin{lstlisting}[language=SbtIr]
+block b1(i64 v1) {
+    imm v2 <- immediate 100
+    i64 v3 <- add i64 v1, imm v2
+    imm v4 <- immediate 100
+    i64 v5 <- add i64 v1, imm v4
+} => [(jump, [b2, i64 v5])]
+\end{lstlisting}
+
+\pause
+
+\vspace{1cm}
+
+\begin{lstlisting}[language=SbtIr]
+block b1(i64 v1) {
+    imm v2 <- immediate 100
+    i64 v3 <- add i64 v1, imm v2
+} => [(jump, [b2, i64 v3])]
+\end{lstlisting}
+
+\end{frame}
+
+\begin{frame}[fragile]{Common Subexpression Elimination}
+    Löschen von redundanten Operationen und doppelten Immediates
+
+    \begin{itemize}
+        \setlength\itemsep{0.5em}
+        \item Variablen von oben nach unten überprüfen
+        \item Falls andere Variable mit gleichem Typ und gleichen Inputs existiert, ersetzen
+    \end{itemize}
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% ELF File Parser Folie %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile]
+    \frametitle{Lifter}{ELF Binärdatei laden und Instruktionsbytes decodieren}
+    \begin{enumerate}
+        \setlength\itemsep{0.6em}
+        \item ELF File prüfen.
+        \item Program Header, Sections und Symbole auslesen.
+              \vspace{0.5em}
+              \begin{enumerate}
+                  \setlength\itemsep{0.6em}
+                  \item Instruktionen aus \textit{ausführbaren} Sektionen mit \textbf{frvdec} decodieren.
+                  \item Falls keine Sektionen verfügbar ist, werden Program Header verwendet
+                  \item Daten aus \textit{lesbaren} Sektionen die \textbf{nicht} \textit{ausführbar} sind werden
+                        byteweise als reine Daten geladen.
+              \end{enumerate}
+    \end{enumerate}
+\end{frame}
+\clearpage
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter General Folie %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Lifter}{RISC-V Instruktionen sequentiell in IR Code umwandeln}
+    \\\vspace{0.5em}
+    Wiederhole solange ungeliftete Instruktionen existieren:
+    \begin{enumerate}
+        \setlength{\itemsep}{0.8em}
+        \item Starte neuen Basic Block bei der nächsten, ungelifteten Instruktion
+        \item geladene Instruktionen in IR parsen
+        \item Wiederhole solange bis:
+              \begin{enumerate}
+                  \vspace{1em}
+                  \setlength{\itemsep}{1em}
+                  \item eine \textbf{Kontrollfluss ändernde Instruktion} auftritt
+                  \item der Start eines
+                        neues Basic Blocks an der nächsten Instruktion registriert ist
+              \end{enumerate}
+        \item Beende Basic Block $\rightarrow$ markiere Start neuer Basic Blöcke an evtl. Sprungzielen
+    \end{enumerate}
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Splitting %%
+%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Lifter}{Aufteilen eines Basic Blocks}
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item Situation: Sprung \textbf{in} einen bereits eingelesenen Basic Block
+        \item Aufteilung an Sprungadresse in zwei Basic Blöcke
+        \item Verbindung mit einem direkten Sprung
+        \item Komplexe Operation, da alle Referenzen auf den geteilten Block betrachtet werden müssen
+    \end{itemize}
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Call / Return %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Lifter Subroutinen Erkennung}{Erkennung der Assembler Pseudoinstruktionen \texttt{call} und \texttt{ret}.}
+    \begin{itemize}
+        \setlength{\itemsep}{0.8em}
+        \item RISC-V Subroutinen Aufrufe funktionieren anders als bei x86\_64
+        \item Standard Calling Convention definiert \texttt{x1} und \texttt{x5} als \textit{Linkregister}
+        \item \texttt{JAL} := \textit{Jump and Link}
+        \item \texttt{JALR} := \textit{Jump and Link Register}
+        \item \texttt{JAL (x1 | x5), ..., ...} $\equiv$ \texttt{call}
+        \item \texttt{JALR x0, x1, 0} $\equiv$ \texttt{ret}
+        \item Laufzeitüberprüfung der Rücksprungziele durch Returnadressen-Stack
+    \end{itemize}
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Jump table detection %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}[fragile]
+    \frametitle{Lifter Sprungtabellenerkennung}{Switch-Case Kontrollstrukturen werden in Sprungtabellen umgewandelt.}\vspace{1em}
+    \begin{columns}[c]
+        \column{0.35 \textwidth}
+        \begin{lstlisting}[language=c, escapechar=!]
+switch(instr.mnem) {
+    case 0:
+        fun0();
+        break;
+    case !\colorbox{yellow}{1}!:
+        fun3();
+        break;
+    default:
+        fun4();
+        break;
+}
+        \end{lstlisting}
+        \column{0.1 \textwidth}
+        \begin{tikzpicture}[scale=0.72]
+            \TikZArrowX{TUMOrange}{0}{0}{3}{1}
+        \end{tikzpicture}
+        \column{0.4 \textwidth}
+        \begin{lstlisting}[language=rv64, escapechar=!]
+/* [...] */
+    !\colorbox{yellow}{bgtu}! a4, !\colorbox{yellow}{1}!, .L4
+    slli a4, a5, 2
+    lui a5, !\colorbox{yellow}{\%hi(.L1)}!
+    addi a5, a5, !\colorbox{yellow}{\%lo(.L1)}!
+    add a5, a4, a5
+    !\colorbox{yellow}{lw}! a5, 0(a5)
+    jr a5
+/* [...] */
+.L1:
+    .word .L2
+    .word .L3
+        \end{lstlisting}
+    \end{columns}
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Lifter Backtracking %%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Lifter Backtracking}{Rücklverfolgung einer indirekten Sprungadresse}\\
+    = rekursive Rückverfolgung der absoluten Werte aller Operationsparameter
+    \begin{figure}
+        \centering
+        \begin{tikzpicture}[scale=1.5]
+            \begin{pgfonlayer}{nodelayer}
+                \node [style=BB] (0) at (-3.75, 0) {bb24};
+                \node [style=VAR] (1) at (-2.25, 0) {v37};
+                \node [style=OP] (2) at (-0.75, 0) {ADD};
+                \node [style=VAR] (3) at (0.5, 1.5) {v36};
+                \node [style=VAR] (4) at (0.5, -1.5) {v34};
+                \node [style=OP] (5) at (2, -1.5) {SHL};
+                \node [style=VAR] (6) at (3.5, 0.25) {v15};
+                \node [style=VAR] (7) at (3.5, -1.5) {v22};
+                \node [style=STATIC] (8) at (5, 0.25) {x14};
+                \node [style=STATIC] (9) at (5, -1.5) {x21};
+                \node [style=BB] (10) at (6.5, 1) {bb42};
+                \node [style=BB] (11) at (6.5, -1) {bb23};
+                \node [style=BB] (12) at (6.5, 2) {bb8};
+                \node [style=BB] (13) at (6.5, 0) {bb17};
+                \node [style=BB] (14) at (6.5, -2.25) {bb127};
+                \node [style=VALUE] (15) at (2, 1.5) {-2};
+                \node [style=VAR] (16) at (7.75, 2) {};
+                \node [style=VAR] (18) at (7.75, 0) {};
+                \node [style=VAR] (19) at (7.75, -1) {};
+                \node [style=BB] (23) at (9.75, 1) {};
+                \node [style=BB] (24) at (9.75, -2.25) {};
+                \node [style=OP] (25) at (8.75, 0) {};
+                \node [style=OP] (26) at (8.75, -1) {};
+                \node [style=OP] (28) at (8.75, 2) {};
+                \node [style=VAR] (29) at (7.75, 1) {};
+                \node [style=VAR] (31) at (7.75, -2.25) {};
+                \node [style=STATIC] (32) at (8.75, 1) {};
+                \node [style=STATIC] (33) at (8.75, -2.25) {};
+                \node [style=none] (34) at (9.75, 2) {};
+                \node [style=none] (35) at (9.75, 1.5) {};
+                \node [style=none] (36) at (9.75, 0.25) {};
+                \node [style=none] (37) at (9.75, -0.25) {};
+                \node [style=none] (38) at (9.75, -0.75) {};
+                \node [style=none] (39) at (9.75, -1.25) {};
+                \node [style=none] (40) at (9.75, 2.5) {};
+            \end{pgfonlayer}
+            \begin{pgfonlayer}{edgelayer}
+                \draw [style=LINK] (0) to (1);
+                \draw [style=LINK] (1) to (2);
+                \draw [style=LINK] (2) to (3);
+                \draw [style=LINK] (2) to (4);
+                \draw [style=LINK] (3) to (15.center);
+                \draw [style=LINK] (4) to (5);
+                \draw [style=LINK] (5) to (7);
+                \draw [style=LINK] (5) to (6);
+                \draw [style=LINK] (6) to (8);
+                \draw [style=LINK] (7) to (9);
+                \draw [style=LINK] (9) to (14);
+                \draw [style=LINK] (9) to (11);
+                \draw [style=LINK] (8) to (13);
+                \draw [style=LINK] (8) to (10);
+                \draw [style=LINK] (8) to (12);
+                \draw [style=LINK] (12) to (16);
+                \draw [style=LINK] (13) to (18);
+                \draw [style=LINK] (11) to (19);
+                \draw [style=LINK] (16) to (28);
+                \draw [style=LINK] (10) to (29);
+                \draw [style=LINK] (29) to (32);
+                \draw [style=LINK] (18) to (25);
+                \draw [style=LINK] (14) to (31);
+                \draw [style=LINK] (31) to (33);
+                \draw [style=LINK] (33) to (24);
+                \draw [style=LINK] (19) to (26);
+                \draw [style=LINK] (32) to (23);
+                \draw [style=DASHED] (28) to (34.center);
+                \draw [style=DASHED] (28) to (35.center);
+                \draw [style=DASHED] (25) to (36.center);
+                \draw [style=DASHED] (25) to (37.center);
+                \draw [style=DASHED] (26) to (38.center);
+                \draw [style=DASHED] (26) to (39.center);
+                \draw [style=DASHED] (28) to (40.center);
+            \end{pgfonlayer}
+        \end{tikzpicture}
+    \end{figure}
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%
+%% Generator Folie %%
+%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Code Generator}{Übersetzung der IR zu x86\_64}
+
+    \note[item]{Fertige Binary enthält Assembly für Basic Blocks (Operations & CfOps), originale Binary, Helper Library}
+    \note[item]{Zwei Implementierungen: Simple und Advanced}
+    \note[item]{Simple Codegen optimiert wenig, dient Debugging/Development-Zwecken}
+    \note[item]{Advanced Codegen allocated Register für die Operationsergebnisse, optional Merging von Operationen}
+    \note[item]{Register Allocation versucht viel genutzte Werte in Registern zu halten und bei CfOps Werte in ihren momentanen Positionen zu halten}
+    \note[item]{Register Allocation muss Translation Blöcke generieren!!!}
+    %\note[item]{Originales ELF-Programm als binäres Speicherbild an exakter Adresse eingebunden}
+
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item Fertige Binary enthält Assembly für Basic Blocks, originale Binary, Stack und Runtime-Helper
+        \item Zwei Implementierungen: Simple und Advanced
+              %        \item Stellt nur initialen Stack zur Verfügung % es wird nicht der x86-64 Stack verwendet
+        \item Simple Codegen optimiert wenig, dient Debugging/Development-Zwecken
+        \item Advanced Codegen allocated Register für die Operationsergebnisse, optional Merging von Operationen
+    \end{itemize}
+\end{frame}
+\clearpage
+
+\begin{frame}[fragile]
+    \frametitle{Beispiel}
+
+    IR-Operation, für die Assembly generiert werden soll:
+    \begin{lstlisting}[language=SbtIr]
+i64 v6 <- add i64 v5, imm v1
+    \end{lstlisting}
+
+    Wenn rbx freies Register ist:
+    \begin{lstlisting}[language={[x86masm]Assembler}]
+lea rbx, [rax + 10]
+    \end{lstlisting}
+
+    Wenn rbx belegt und vor Variable in rax wieder benutzt:
+    \begin{lstlisting}[language={[x86masm]Assembler}]
+mov [rsp], rax
+add rax, 10
+    \end{lstlisting}
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%
+%% IJump hashing %%
+%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{IJump Lookup}{Datenstruktur für effizienten Zugriff auf Basic Block Startadressen}
+    \vspace{1cm}
+    \begin{columns}[t]
+        \column{0.55 \textwidth}
+        \textbf{Lookup Table}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Speichere für jede mögliche Jump-Addresse die korrespondierende Basic Block Startadresse
+            \item Wenn diese nicht existiert, füge stattdessen 0 ein
+            \item Liste dieser Wert baut Adressraum der originalen Binary nach
+        \end{itemize}
+        \column{0.45 \textwidth}
+        \textbf{Hashing}
+        \begin{itemize}
+            \vspace{1em}
+            \setlength{\itemsep}{1em}
+            \item Ordne Startadressen in Hashtabelle ein
+            \item Zweistufiges Hashing durch Einsortieren in Buckets
+            \item Langsamer als Lookup Table, aber besserer Platzverbrauch
+        \end{itemize}
+    \end{columns}
+\end{frame}
+\clearpage
+
+\begin{frame}
+    \frametitle{Helper-Library}
+
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item Architektur-spezifische Funktionen, die für die übersetzte Binary erforderlich sind
+        \item Wird zusammen mit dem Assembly des Generators gelinked
+        \item Stack-Intialisierung
+        \item Syscall-Translation
+        \item Interpreter
+    \end{itemize}
+\end{frame}
+\clearpage
+
+\begin{frame}
+    %\note[item]{Wird zur Auflösung von indirekten Sprüngen ohne erkanntem Sprungziel genutzt, v.a. nicht erkannte Jump Tables}
+    %\note[item]{Arbeitet wie ein Emulator, also dekodiert und führt die Instruktionen zur Laufzeit aus, an gegebener und folgenden Adressen}
+    %\note[item]{Von daher nötig, dass orginale Binary als Memory Image vorhanden}
+    %\note[item]{Springt zu übersetztem Basic Block zurück, falls in IJump Lookup Table an der aktuellen Adresse einer gefunden wird}
+    %\note[item]{Springt i.d.R. schnell zurück, v.a. ohne Translation Blocks auch häufiger \& länger nötig}
+    %\note[item]{Arbeitet auf den Statics, weil er wissen muss wo die Werte der ``Register'' liegen}
+    %\note[item]{Unterstützt soweit alle Standard Extensions wie der Lifter}
+    %\note[item]{Kann theoretisch mit JIT Compileren und Selbstmodifizierender Code umgehen, aber ungetestet}
+    %\note[item]{Kann auch alleine, d.h. ohne Lifting \& Code Generation ausgeführt werden}
+    \frametitle{Interpreter}
+    \vspace{1cm}
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item Dient zur Auflösung indirekter Sprünge ohne erkanntem Sprungziel
+        \item Interpreteriert die RISC-V Instruktionen an gegebener Addresse
+        \item Springt zurück zu übersetzem Basic Block, wenn möglich -> Ijump Lookup Table
+        \item Kann theoretisch mit JIT Compileren und Selbstmodifizierender Code umgehen
+    \end{itemize}
+\end{frame}
+\clearpage
+
+\begin{frame}
+    %\note[item]{Unterstützung für single und double precision Floating Points}
+    %\note[item]{Übersetzung zu SSE und SSE2 Instruktionen, falls vorhanden auch Nutzung von FMA3 und SSE4 -> müssen erlaubt werden}
+    %\note[item]{Bekanntes Problem: Unteschiede in der Implementierung führen zu leich unterschiedlichen Ergebnissen, v.a. bzgl. Rundung}
+    \frametitle{Gleitkommaarithmetik}
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item Unterstützung für F und D Standard Extensions
+        \item Übersetzung zu SSE und SSE2 Instruktionen
+        \item Ziel: Unterstützung der Gleitkommaarithmetik, aber nicht optimiert
+        \item Aber: Unterschiede in Architekturen führen zu leicht anderen Ergebnissen
+        \item Beachtung des Rundungsmodus bei jeder Instruktion: zu langsam -> nur bei Konvertierung:
+              \begin{itemize}
+                  \item Veränderung des \textbf{MXCSR} Registers, oder
+                  \item Nuzung von \textbf{roundss}/\textbf{rounsd}
+              \end{itemize}
+        \item Nutzung von FMA3 Instruktionen erhöht die Genauigkeit
+    \end{itemize}
+\end{frame}
+\clearpage
+
+\begin{frame}
+    \frametitle{Rundungsprobleme}
+    \centering
+    \includegraphics[width=0.75\textwidth]{img/translated_diff.png}
+\end{frame}
+
+\clearpage
+
+\begin{frame}
+    \frametitle{Übersetzungprobleme bei der Gleitkommaarithmetik}
+    \begin{itemize}
+        \setlength{\itemsep}{1em}
+        \item Einige Instruktionen können nicht direkt auf x86\_64 abgebildet werden
+        \item Vorzeichenlose Ganzzahlkonvertierung: nur von AVX512 nativ unterstützt
+        \item Für \textbf{Sign Injection} und \textbf{Classify} gibt es gar keine Äquivalente
+        \item Diese Instruktion müssen mittels Bitarithmetik berechnet werden
+    \end{itemize}
+\end{frame}
+
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%
+%% Benchmark Setup %%
+%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Benchmarks}
+
+    % Dauer: 1-2 Minuten
+
+    \note[item]{}
+    \note[item]{Wieso ist es eigentlich unmöglich native speed zu erreichen}
+
+    \begin{itemize}
+        \item SPECSpeed\textregistered2017 Integer Benchmark Suite
+        \item Vergleich zu QEMU, RIA-JIT
+        \item Korrektheit mittels Tests
+    \end{itemize}
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Benchmark Probleme (bzw. Optimierungen die problematisch sind) %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Benchmarks}{Probleme}
+
+    \begin{itemize}
+        \item Hashing zu langsam
+        \item Translation Blöcke in manchen Fällen wichtig
+    \end{itemize}
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%%%
+%% Benchmark Results %%
+%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Benchmarks}{Ergebnisse}
+
+    \note[item]{}
+
+    % TODO: insert graphik
+
+%%========== START COPY ==========%%
+\begin{figure}
+    \begin{centering}
+        \begin{tikzpicture}
+            \begin{axis}[
+                    %width=0.9\textwidth,
+                    %height=0.45\textheight,
+                    width=\textwidth,
+                    height=0.6\textheight,
+                    ybar,
+                    bar width = 9pt,
+                    ylabel={Execution time normalised to native % (less is better)
+                    },
+                    symbolic x coords = {
+                            600.perlbench,
+                            602.gcc,
+                            605.mcf,
+                            620.omnetpp,
+                            623.xalancbmk,
+                            625.x264,
+                            631.deepsjeng,
+                            641.leela,
+                            648.exchange2,
+                            657.xz,
+                            average
+                        },
+                    xticklabel style = {
+                            anchor = east,
+                            rotate = 45 - 15 %% MODIFIED
+                        },
+                    xtick = data, % make a tick at every symbolic x coordinate
+                    ytick distance = 1, % make a tick every 1
+                    ymajorgrids = true, % display horizontal guide lines
+                    legend cell align = left,
+                    legend pos = north east,
+                ]
+
+                \addplot[fill=green]  table[x=benchmark, y expr=\thisrow{native} /\thisrow{native}] from {../Ausarbeitung/tikz_src/benchmarks_results1.txt};
+                \addplot[fill=orange] table[x=benchmark, y expr=\thisrow{qemu}   /\thisrow{native}] from {../Ausarbeitung/tikz_src/benchmarks_results1.txt};
+                \addplot[fill=yellow] table[x=benchmark, y expr=\thisrow{ria}    /\thisrow{native}] from {../Ausarbeitung/tikz_src/benchmarks_results1.txt};
+                \addplot[fill=blue]   table[x=benchmark, y expr=\thisrow{sbt1}   /\thisrow{native}] from {../Ausarbeitung/tikz_src/benchmarks_results1.txt};
+
+                \legend{
+                    native,
+                    QEMU,
+                    RIA-JIT,
+                    SBT}
+            \end{axis}
+        \end{tikzpicture}
+    \end{centering}
+\end{figure}
+%%========== END COPY ==========%%
+
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%
+%% Erreichte Ziele %%
+%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Erreichte Ziele}{Erreichte Hauptziele und Ausblick}
+
+    % Dauer: mind. 1 Minute
+
+    % Dauer: mind. 1 Minute, ansonsten flexible
+    \note[item]{Freistehend => ohne standard bibliothek, z\.B\. handgeschriebenes assembly oder einfache C programme}
+    \note[item]{Atomics werden nur also nicht atomics übersetzt so weit nötig}
+    \note[item]{Demonstriert im Beispiel}
+    \note[item]{2 Bugs in musl libc, malloc, fehlender BasicBlock in printf\_core wegen switch statement ohne control fluss änderung am ende von cases}
+    \note[item]{Und noch vereinzelt weiter instructionen je nach bedarf}
+    \note[item]{ijump eigentlich bei erweiterte Ziele, aber extrem wichtig da für return verwendet}
+
+    \begin{itemize}
+        \item Korrektes Übersetzen einfacher freistehender Programme
+        \item Übersetzen von unmodifizierter musl libc
+        \item Unterstützung von RV64I, RV64C, \ldots{}
+        \item Auflösung indirekter Sprünge zur Laufzeit
+    \end{itemize}
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%
+%% Noch Fragen ? %%
+%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}
+    \frametitle{Noch Fragen?}{}
+\end{frame}
+
+\appendix
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Generator-Translate %%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile]
+    \frametitle{Generator}
+    \begin{columns}[c]
+        \column{0.45 \textwidth}
+        \begin{lstlisting}[language=SbtIr, escapechar=!]
+        block b1(/* inputs */) <= [/* predecessors */] {
+            !\only<1|handout:0>{\colorbox{yellow}{i64 v0 <- @1}}!!\alt<1>{}{\colorbox{white}{i64 v0 <- @1}}!
+            !\only<2|handout:0>{\colorbox{yellow}{imm v1 <- immediate 0}}!!\alt<2>{}{\colorbox{white}{imm v1 <- immediate 0}}!
+            !\only<3|handout:0>{\colorbox{yellow}{imm v2 <- immediate 100}}!!\alt<3>{}{\colorbox{white}{imm v2 <- immediate 100}}!
+            !\only<4|handout:0>{\colorbox{yellow}{i64 v3 <- add i64 v1, i64 v2}}!!\alt<4>{}{\colorbox{white}{i64 v3 <- add i64 v1, i64 v2}}!
+        } => [!\only<5|handout:0>{\colorbox{yellow}{(jump, [b2, i64 v34])}}!!\alt<5>{}{\colorbox{white}{(jump, [b2, i64 v34])}}!]
+    \end{lstlisting}
+
+        \column{0.125 \textwidth}
+        \begin{tikzpicture}[scale=0.72]
+            \TikZArrowX{TUMOrange}{0}{0}{4}{1}
+        \end{tikzpicture}
+
+        \column{0.35 \textwidth}
+        \begin{lstlisting}[language=rv64, escapechar=!]
+b1:
+!\colorbox{white}{push rbp}!
+!\colorbox{white}{mov rbp, rsp}!
+!\colorbox{white}{sub rsp, 32}!
+!\only<1|handout:0>{\colorbox{yellow}{mov rax, [s0]}}!!\alt<1>{}{\colorbox{white}{mov rax, [s0]}}!
+!\only<1|handout:0>{\colorbox{yellow}{mov [rbp - 8 * 1], rax}}!!\alt<1>{}{\colorbox{white}{mov [rbp - 8 * 1], rax}}!
+!\only<2|handout:0>{\colorbox{yellow}{mov [rbp - 8 * 2], 0}}!!\alt<2>{}{\colorbox{white}{mov [rbp - 8 * 2], 0}}!
+!\only<3|handout:0>{\colorbox{yellow}{mov [rbp - 8 * 3], 100}}!!\alt<3>{}{\colorbox{white}{mov [rbp - 8 * 3], 100}}!
+!\only<4|handout:0>{\colorbox{yellow}{mov rax, [rbp - 8 * 2]}}!!\alt<4>{}{\colorbox{white}{mov rax, [rbp - 8 * 2]}}!
+!\only<4|handout:0>{\colorbox{yellow}{mov rbx, [rbp - 8 * 3]}}!!\alt<4>{}{\colorbox{white}{mov rbx, [rbp - 8 * 3]}}!
+!\only<4|handout:0>{\colorbox{yellow}{add rax, rbx}}!!\alt<4>{}{\colorbox{white}{add rax, rbx}}!
+!\only<4|handout:0>{\colorbox{yellow}{mov [rbp - 8 * 4], rax}}!!\alt<4>{}{\colorbox{white}{mov [rbp - 8 * 4], rax}}!
+!\only<5|handout:0>{\colorbox{yellow}{mov rax, [rbp - 8 * 4]}}!!\alt<5>{}{\colorbox{white}{mov rax, [rbp - 8 * 4]}}!
+!\only<5|handout:0>{\colorbox{yellow}{mov [s0], rax}}!!\alt<5>{}{\colorbox{white}{mov [s0], rax}}!
+!\only<5|handout:0>{\colorbox{yellow}{jmp b2}}!!\alt<5>{}{\colorbox{white}{jmp b2}}!
+        [...]
+        \end{lstlisting}
+
+    \end{columns}
+
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Split Basic Block Backup Folie %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile]
+    \frametitle{Basic Block Splitting}{}
+    \begin{columns}[c]
+        \column{0.3 \textwidth}
+        \begin{lstlisting}[language=rv64]
+    [...]
+    addi a1, x0, 100
+loop:
+    addi a1, a1, -1
+    bne a1, x0, loop
+    [...]
+        \end{lstlisting}
+
+        \column{0.05 \textwidth}
+        \begin{tikzpicture}[scale=0.5]
+            \TikZArrowX{TUMOrange}{0}{0}{2}{1}
+        \end{tikzpicture}
+
+        \column{0.6 \textwidth}
+        \begin{lstlisting}[language=SbtIr]
+block b1(inputs) <= [predecessors] {
+    i64 v0 <- @1
+    [...] // more statics
+    imm v33 <- immediate 0
+    imm v34 <- immediate 100
+    i64 <- add i64 v33, i64 v33
+    [...]
+} => [(jump, [b2, ...])]
+
+block b2(inputs) <= [predecessors] { // loop
+    [...] // statics
+    imm v33 <- immediate -1
+    i64 v34 <- add i64 v11, i64 v33
+    [...]
+} => [(cjump, [b2, ...]), (jump, [...])]
+    \end{lstlisting}
+    \end{columns}
+
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%
+%% Basic Block Folie %%
+%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}[fragile]
+    \frametitle{Lifter Basic Blöcke}{}
+    \begin{columns}[c]
+        \column{0.35 \textwidth}
+        \begin{lstlisting}[language=c, escapechar=!]
+/* [...] */
+0x6: add a5, a5, a4
+0x8: !\colorbox{yellow}{bltu}! a5, a4, 10
+0xc: lw a5, 0(a4)
+0xe: sll a4, a5, a4
+/* [...] */
+        \end{lstlisting}
+        \column{0.1 \textwidth}
+        \begin{tikzpicture}[scale=0.5]
+            \TikZArrowX{TUMOrange}{0}{0}{3}{1}
+        \end{tikzpicture}
+        \column{0.50 \textwidth}
+        \begin{lstlisting}[language=SbtIr, escapechar=!]
+/* [...] */
+i64 v33 <- add v13, v14
+imm v34 <- immediate 0x10
+imm v35 <- immediate 0xc
+} => !\colorbox{yellow}{[/* cjump */]}!
+
+!\colorbox{yellow}{block b2(/**/)}! <= [/**/] {
+imm v33 <- immediate 0
+i32 v34 <- load v13, v33
+i64 v35 <- sll v13, v14
+/* [...] */
+        \end{lstlisting}
+    \end{columns}
+\end{frame}
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Technische Demonstration %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}[fragile]
+    \frametitle{Technische Demonstration}{Live Demonstration des aktuellen Standes}
+
+    % Dauer: ~3m
+    \note[item]{Kompilieren zu RISCV-64 mit einer unmodifizierten musl libc (standardbibliothek)}
+    \note[item]{Unser Program übersetzt zu x86 assembly + binary image}
+    \note[item]{Assemblieren mittels GNU tools}
+    \note[item]{Linken von binary image, übersetztem assembly und hilfsbibliothek}
+    \note[item]{Ausführen}
+    \note[item]{Ausführen, ungefährere Vergleich (native, qemu, translated) => Wo sind wir mit optimierungen, fast faktor 10 langsamer als QEMU}
+
+    % Setup:
+    % Use xfc4, configure beamer as display to the right
+    % Go To Workspace 1, start pympress with
+    % LC_ALL=de_DE.UTF-8 pympress presentation/build/presentation_16_9.pdf
+    % Go To Workspace 2, on laptop start xfce4-terminal with
+    % 1. Open new Terminal Window on laptop with `tmux new-session -s demo -A`
+    % 2. Open new Terminal Window on presentation screen with `tmux attach-session -r -t demo`
+    % Resize as necessary (ctrl + + or -)
+    %
+    % Commands:
+    % ./big_tests/sysroot/bin/riscv64-linux-gnu-gcc -static examples/helloworld3.c -o examples/helloworld3
+    %
+    % ./build/src/translate --debug=true --print-ir=true --output-binary=examples/helloworld3.bin --output=examples/helloworld3_translated.s examples/helloworld3
+    % gcc -c examples/helloworld3_translated.s -o examples/helloworld3_translated.o
+    % ld -T src/generator/x86_64/helper/link.ld examples/helloworld3_translated.o build/src/generator/x86_64/helper/libhelper.a -o examples/helloworld3_translated
+    %
+    % ./examples/helloworld3_translated
+    %
+    % Additional:
+    % gcc examples/helloworld3.c -o examples/helloworld3_native
+    % time ./examples/helloworld3_native
+    % time ./examples/helloworld3
+    % time ./examples/helloworld3_translated
+    \begin{columns}[c]
+        \column{0.50 \textwidth}
+        \begin{lstlisting}[language=bash, basicstyle=\small\ttfamily, extendedchars=true,escapeinside={@@}]
+./big_tests/sysroot/bin/riscv64-linux-gnu-gcc \
+    -static \
+    examples/helloworld3.c \
+    -o examples/helloworld3
+
+./build/src/translate \
+    @-@-debug=true \
+    @-@-output-binary=examples/helloworld3.bin \
+    @-@-output=examples/helloworld3_translated.s \
+    examples/helloworld3
+    \end{lstlisting}
+
+        \column{0.5 \textwidth}
+        \begin{lstlisting}[language=bash, basicstyle=\small\ttfamily, extendedchars=true,escapeinside={@@}]
+gcc \
+    -c examples/helloworld3_translated.s \
+    -o examples/helloworld3_translated.o
+
+ld \
+    -T src/generator/x86_64/helper/link.ld \
+    examples/helloworld3_translated.o \
+    build/src/generator/x86_64/helper/libhelper.a \
+    -o examples/helloworld3_translated
+
+./examples/helloworld3_translated
+    \end{lstlisting}
+    \end{columns}
+\end{frame}
+\clearpage
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\end{document} % !!! NICHT ENTFERNEN !!!
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
