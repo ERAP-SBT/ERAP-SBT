@@ -1714,7 +1714,7 @@ In Figure \ref{benchmark_results1} the results are visualized.
 It can be seen that we consistently outperformed QEMU in every benchmark.
 % - Show the best case, and the worst case
 On average SBT was 18\% faster than QEMU, in some cases, namely \emph{658.xz}, the difference was
-very small, but in others it was as much as XX\% when comparing the XX benchmark.
+very small, but in others it was as much as 41\% when comparing the \emph{602.gcc} benchmark.
 
 \par
 
@@ -1812,7 +1812,9 @@ On average any optimization improves the performance, however in some cases indi
 
 \par
 
-% TODO: explain why const folding, dce, variable deduplication is so good, and why it's better than what dynamic binary translators can do.
+On average the biggest performance increase is achieved by optimizations targeting the IR, most importantly \texttt{Constant Folding}.
+% TODO: sentence on immediate width on risc-v vs. x86 => more instructions necessary than on x86, can be folded into one.
+It also shows that static binary translation can perform more extensive anaylsis of the target program than dynamic binary translation, resulting in more speed up at runtime.
 
 \par
 
@@ -1962,7 +1964,7 @@ As shown in the evaluation section, the SBT reached its goal to be consistently 
 the dynamic binary translator in every executed benchmark. The SBT is, on average, approximately
 18\% faster than QEMU. The SBT was also compared to a dynamic binary translator specifically
 optimized for translating RISC-V binaries. The static translator
-was able to outperform the dynamic translator by XX\% on average over all executed benchmarks.
+was able to outperform the dynamic translator by 16\% on average over all executed benchmarks.
 
 \par
 
