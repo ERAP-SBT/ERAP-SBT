@@ -2,7 +2,15 @@
 
 riscv64_gcc = find_program('riscv64-linux-gnu-gcc', required: false)
 
+subdir('freestanding-fibonacci')
+
 if riscv64_gcc.found()
+    custom_target('helloworld',
+        build_by_default: true,
+        input: ['helloworld.s'],
+        output: ['helloworld'],
+        command: [ riscv64_gcc, '-g', '-static', '-ffreestanding', '-nostdlib', '@INPUT@', '-o', '@OUTPUT@', '-Werror', '-Wextra', '-Wall']
+    )
     custom_target('helloworld2',
         build_by_default: true,
         input: ['helloworld2.s'],
