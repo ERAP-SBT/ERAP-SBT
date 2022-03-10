@@ -67,3 +67,24 @@ src/translate examples/helloworld2 --output=translated_helloworld2 --interpreter
 ```
 
 All options can be listed using the command line option `--help`, especially all implemented optimizations.
+
+# Restrictions
+
+Currently supported binaries must fulfill following criteria:
+
+- RISC-V ELF binaries
+- Only RV32IMAFDC and/or RV64IMAFDC, no other extensions are currently supported and their instructions will be ignored
+- Statically linked
+- Little endian format
+- System V ABI
+
+The floating point implementation can and will be imprecise because of the differences between the floating point implementation
+in x86_64 and RISC-V. Especially when dealing with unsigned integer conversions and NaNs some errors might occur.
+Such errors could be avoided using a soft-float implementation, but this would decrease the performance massively.
+Therefore feel free to report and fix such issues or develop a fast soft-float implementation.
+
+Another restriction is that programs with multiple threads will not work despite the support for the A extension.
+That is because the instructions of the A extensions are implemented as if they weren't atomic to be able to translate
+programs compiled linked with the glibc, but not to be forced to design an concept for concurrency.
+
+If you are planning to translate huge binaries (> 100MB), be prepared for a massive consumption of RAM (at least 32GiB!).
