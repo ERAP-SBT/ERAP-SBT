@@ -1,5 +1,4 @@
 #! /bin/bash
-# This bash script automatically setups and builds the project
 
 # Initiate and download submodules
 git submodule update --init
