@@ -6,9 +6,7 @@ This project ist based on [meson](https://mesonbuild.com).
 
 To build this project, execute `setup_and_build.sh` or execute following steps:
 
-```sh
-# This bash script automatically setups and builds the project
-
+```bash
 # Initiate and download submodules
 git submodule update --init
 
