@@ -28,7 +28,7 @@ The default paths are:
 - for the helper library: `build/src/generator/x86_64/helper/libhelper-x86_64.a`
 - for the linkerscript: `src/generator/x86_64/helper/link.ld`
 
-# Usage
+## Usage
 
 For translating the binary file "examples/hellworld" which is build by the default if the RISC-V GCC is found on the system.
 
@@ -68,7 +68,7 @@ src/translate examples/helloworld2 --output=translated_helloworld2 --interpreter
 
 All options can be listed using the command line option `--help`, especially all implemented optimizations.
 
-# Restrictions
+## Restrictions
 
 Currently supported binaries must fulfill following criteria:
 
