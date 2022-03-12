@@ -109,7 +109,7 @@ void Lifter::lift(Program *prog) {
         }
 
         if (!cur_bb) {
-            create_new_bb(0, virt_addr);
+            create_new_bb(0, virt_addr); // TODO: Maybe change 0 to something useful? e.g: prog->addrs[i-1]
         }
 
         uint64_t next_addr;
@@ -308,6 +308,17 @@ void Lifter::postprocess(Program *prog) {
                     if (cf_op.type == CFCInstruction::call) {
                         target_bb->gen_info.call_target = true;
                     }
+                } else if (cf_op.type == CFCInstruction::syscall) {
+                    // Prevent syscalls from being replaced, e.g: the exit syscalls can be the last instruction
+                    BasicBlock *unreachable_bb = ir->add_basic_block(0, "unreachable_block");
+                    for (size_t i = 1; i < count_used_static_vars; i++) {
+                        unreachable_bb->add_var_from_static(i);
+                    }
+                    unreachable_bb->add_cf_op(CFCInstruction::unreachable, nullptr);
+                    std::get<CfOp::SyscallInfo>(cf_op.info).continuation_block = unreachable_bb;
+                    unreachable_bb->predecessors.push_back(bb.get());
+                    bb->successors.push_back(unreachable_bb);
+                    cf_op.set_target(unreachable_bb);
                 } else {
                     cf_op.type = CFCInstruction::unreachable;
                     cf_op.info = std::monostate{};
